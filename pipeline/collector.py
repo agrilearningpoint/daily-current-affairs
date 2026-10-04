@@ -7,6 +7,7 @@ source_tier, category, raw_facts, image_url, needs_primary_verification.
 Respects timeout 10s, retry 2x, never invents facts (only extracts what page says).
 """
 import hashlib, logging, os, re, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import feedparser
@@ -19,8 +20,12 @@ from config.sources import TIER_1_SOURCES, TIER_2_DISCOVERY
 
 TZ = pytz.timezone("Asia/Kolkata")
 UA = {"User-Agent": "AgriLearningPointBot/1.0 (educational current-affairs collector; contact: agrilearningpoint)"}
-TIMEOUT = 10
-RETRY = 2
+# GitHub Actions budget: whole pipeline must finish well inside runner limits.
+# Collector is the heaviest network stage -> tight timeouts + parallel fetching.
+TIMEOUT = 6
+RETRY = 1            # 1 retry only (was 2) — dead sources shouldn't eat the budget
+COLLECT_DEADLINE_S = int(os.getenv("COLLECT_DEADLINE_S", "300"))   # hard cap for collect_all
+MAX_WORKERS = 8      # parallel source fetches
 
 CATEGORY_KEYWORDS = {
     "Agriculture": ["agriculture", "farm", "kisan", "crop", "msp", "icar", "iari", "horticulture",
@@ -206,28 +211,69 @@ def in_window(item, start, end):
 
 
 def collect_all(max_items=140):
-    """Collect from Tier-1 (all groups) then Tier-2 discovery. Returns list of raw items."""
-    items, errors = [], []
+    """Collect from Tier-1 (all groups) then Tier-2 discovery. Returns list of raw items.
+
+    GitHub-Actions-safe design:
+      * sources fetched in PARALLEL (ThreadPoolExecutor, MAX_WORKERS)
+      * hard wall-clock deadline COLLECT_DEADLINE_S — on expiry we keep what we have
+      * if fewer than MIN_ITEMS survive, raise so the pipeline FAILS LOUD
+        instead of silently continuing with an empty edition.
+    """
+    t0 = time.monotonic()
+
+    def _collect_one(group, src):
+        url = src.get("url", "")
+        if not url.startswith("http"):
+            return group, src, [], ""
+        got = rss_items(src, url, "tier1")
+        if not got:
+            got = html_items(src, url, "tier1")
+        for it in got:
+            it["group"] = group
+        err = "" if got else f"{src['name']}: no items fetched from {url}"
+        return group, src, got, err
+
+    tasks = []
     for group, sources in TIER_1_SOURCES.items():
         for src in sources:
-            url = src.get("url", "")
-            if not url.startswith("http"):
-                continue
-            got = rss_items(src, url, "tier1")
-            if not got:
-                got = html_items(src, url, "tier1")
-            for it in got:
-                it["group"] = group
-            items.extend(got)
-            if not got:
-                errors.append(f"{src['name']}: no items fetched from {url}")
-            if len(items) >= max_items * 2:
-                break
-    for src in TIER_2_DISCOVERY:
-        # Google News site-search RSS as discovery proxy (Tier-2 headlines only, must verify via Tier-1)
-        q = requests.utils.quote(f'site:{src["url"].replace("https://www.","").replace("https://","")} current affairs')
-        got = rss_items(src, f"https://news.google.com/rss/search?q={q}", "tier2", role="discovery")
-        items.extend(got[:15])
+            tasks.append((group, src))
+
+    items, errors = [], []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futs = {ex.submit(_collect_one, g, s): (g, s) for g, s in tasks}
+        try:
+            for fut in as_completed(futs, timeout=max(30, COLLECT_DEADLINE_S - (time.monotonic() - t0))):
+                _, _, got, err = fut.result()
+                items.extend(got)
+                if err:
+                    errors.append(err)
+        except TimeoutError:
+            logging.warning("[collector] deadline reached during Tier-1; keeping partial results")
+        for fut in futs:
+            if not fut.done():
+                fut.cancel()
+
+    # Tier-2 discovery (Google News site-search RSS) — also parallel, only if budget left
+    if time.monotonic() - t0 < COLLECT_DEADLINE_S * 0.6:
+        def _discover(src):
+            host = src["url"].replace("https://www.", "").replace("https://", "")
+            q = requests.utils.quote(f"site:{host} current affairs")
+            got = rss_items(src, f"https://news.google.com/rss/search?q={q}", "tier2", role="discovery")
+            return got[:15]
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+            futs = [ex.submit(_discover, src) for src in TIER_2_DISCOVERY]
+            try:
+                for fut in as_completed(futs, timeout=max(20, COLLECT_DEADLINE_S - (time.monotonic() - t0))):
+                    try:
+                        items.extend(fut.result())
+                    except Exception:
+                        pass
+            except TimeoutError:
+                logging.warning("[collector] deadline reached during Tier-2 discovery")
+            for fut in futs:
+                if not fut.done():
+                    fut.cancel()
+
     # de-duplicate identical URLs, cap
     uniq, seen = [], set()
     for it in items:
@@ -235,4 +281,14 @@ def collect_all(max_items=140):
             continue
         seen.add(it["source_url"])
         uniq.append(it)
+
+    elapsed = time.monotonic() - t0
+    logging.info(f"[collector] finished in {elapsed:.1f}s: {len(uniq)} unique items from {len(tasks)} tier-1 sources ({len(errors)} dead)")
+
+    MIN_ITEMS = int(os.getenv("COLLECT_MIN_ITEMS", "10"))
+    if len(uniq) < MIN_ITEMS:
+        raise RuntimeError(
+            f"COLLECTION FAILED: only {len(uniq)} items collected (<{MIN_ITEMS}). "
+            f"Pipeline refuses to continue with an empty edition. Dead sources: {errors[:10]}"
+        )
     return uniq[:max_items], errors
