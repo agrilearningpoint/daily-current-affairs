@@ -16,26 +16,15 @@ from bs4 import BeautifulSoup
 from dateutil import parser as dtparser
 import pytz
 
-from config.sources import TIER_1_SOURCES, TIER_1_RSS_FEEDS, TIER_2_DISCOVERY, TIER_2_RSS_FEEDS
+from config.sources import TIER_1_SOURCES, TIER_2_DISCOVERY
+try:
+    from config.feeds import VERIFIED_RSS, GOOGLE_NEWS_SITES, gnews_url
+except Exception:
+    VERIFIED_RSS, GOOGLE_NEWS_SITES = [], {}
+    def gnews_url(d): return ""
 
 TZ = pytz.timezone("Asia/Kolkata")
-# ADOPTED from india-policy-intelligence/app/http.py — fixes 403 (Akamai blocks datacenter UAs)
-import ssl
-try:
-    import certifi
-    SSL_CTX = ssl.create_default_context(cafile=certifi.where())
-    SSL_FALLBACK = ssl.create_default_context()
-except ImportError:
-    import ssl as _ssl
-    SSL_CTX = _ssl.create_default_context()
-    SSL_FALLBACK = SSL_CTX
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/rss+xml,application/atom+xml;q=0.8,*/*;q=0.7",
-    "Accept-Language": "en-IN,en;q=0.9",
-    "Accept-Encoding": "gzip",
-}
-UA = HEADERS  # keep old name for compat
+UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"}
 # GitHub Actions budget: whole pipeline must finish well inside runner limits.
 # Collector is the heaviest network stage -> tight timeouts + parallel fetching.
 TIMEOUT = 6
@@ -103,46 +92,31 @@ def parse_dt(raw):
         return None
 
 
-def fetch(url, timeout=TIMEOUT):
-    # ADOPTED from india-policy HttpClient.get + safe_url + certifi fallback
-    try:
-        if not url.startswith(("http://", "https://")):
-            return None, None
-        from urllib.parse import quote as _q
-        url = _q(url.strip(), safe=":/?&=#%+@;,[]!$'()*")
-        # try with HEADERS (browser UA) — fixes PIB/RBI 403
+def fetch(url):
+    """GET with retry 2x and 10s timeout. Returns (status_code, text) or (None, None)."""
+    for attempt in range(RETRY + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=timeout, verify=True)
-        except requests.exceptions.SSLError as e:
-            if "CERTIFICATE_VERIFY_FAILED" in str(e):
-                r = requests.get(url, headers=HEADERS, timeout=timeout, verify=False)
-            else:
-                raise
-        if r.status_code == 200:
-            ctype = r.headers.get("Content-Type","")
-            body = r.content
-            if "gzip" in r.headers.get("Content-Encoding","").lower():
-                import gzip
-                try: body = gzip.decompress(body)
-                except: pass
-            # limit 12MB like india-policy
-            if len(body) > 12_000_000:
-                body = body[:12_000_000]
-            return 200, body
-        return r.status_code, None
-    except requests.RequestException:
-        return None, None
+            r = requests.get(url, headers=UA, timeout=TIMEOUT)
+            if r.status_code == 200 and r.text:
+                return 200, r.text
+            if r.status_code in (403, 429):
+                return r.status_code, None
+        except requests.RequestException:
+            pass
+        time.sleep(1 + attempt)
+    return None, None
 
 
 def rss_items(source, url, tier, role=None):
-    out, status, body = [], None, None
+    out = []
     # try declared feed first, then common paths
     candidates = []
-    if url.rstrip("/").endswith(".xml") or "/rss" in url or "/feed" in url:
+    if url.rstrip("/").endswith(".xml") or "/rss" in url or "/feed" in url or "news.google.com" in url:
         candidates = [url]
     else:
         base = url.rstrip("/")
         candidates = [base + "/rss", base + "/feed", base + "/en/rss", base + "/rss.xml", base + "/feed.xml"]
+    status, body = None, None
     for cand in candidates:
         status, body = fetch(cand)
         if status == 200:
@@ -167,6 +141,35 @@ def rss_items(source, url, tier, role=None):
             img = next((x.href for x in e.enclosures if "image" in (x.type or "")), "")
         out.append(make_item(title, link, source, tier, published, summary, img, role))
     return out
+
+
+def _discover_one(src, tier):
+    """Google News site-search RSS discovery for one source dict."""
+    host = re.sub(r"^https?://(www\.)?", "", src.get("url", "")).split("/")[0]
+    got = rss_items(src, gnews_url(host), tier, role="discovery")
+    return got[:15]
+
+
+def _parallel(items_iter, fn, deadline_left, cap_each=None):
+    """Run fn(x) for each x in items_iter in parallel until deadline. Returns list of results."""
+    results, tasks = [], list(items_iter)
+    if not tasks:
+        return results
+    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(tasks))) as ex:
+        futs = {ex.submit(fn, t): t for t in tasks}
+        try:
+            for fut in as_completed(futs, timeout=max(15, deadline_left)):
+                try:
+                    r = fut.result()
+                    results.extend(r if isinstance(r, list) else [r])
+                except Exception:
+                    pass
+        except TimeoutError:
+            logging.warning("[collector] deadline reached; keeping partial results")
+        for fut in futs:
+            if not fut.done():
+                fut.cancel()
+    return results
 
 
 def html_items(source, url, tier, role=None, link_pattern=r'href=["\']([^"\']*(?:release|news|press|pr-|announcement|update|media|post)[^"\']*)["\']', limit=25):
@@ -257,48 +260,6 @@ def in_window(item, start, end):
     return start <= d <= end
 
 
-
-# ── ADOPTED: GK-Parchi GNews 6 categories + scrape Google News RSS search (Tier-3 fallback) ──
-# Only used if primary 65 return <8 fresh items — never trusted alone (tier3 confidence 0.6)
-GNEWS_CATEGORIES = ["general","nation","world","business","sports","science"]
-def fetch_gnews_items(api_key, max_items=60):
-    out=[]
-    if not api_key: return out
-    for cat in GNEWS_CATEGORIES:
-        try:
-            url = f"https://gnews.io/api/v4/top-headlines?category={cat}&lang=en&country=in&max=10&apikey={api_key}"
-            import requests as _rq
-            r = _rq.get(url, timeout=15, headers=HEADERS)
-            if r.status_code==200:
-                for art in r.json().get("articles",[]):
-                    title=(art.get("title") or "").strip()
-                    link=(art.get("url") or "").strip()
-                    if len(title)<15: continue
-                    out.append(make_item(title, link, "GNews-"+cat, "tier3", None, (art.get("description") or "")[:500], "", role="aggregator"))
-        except: pass
-    return out[:max_items]
-
-def fetch_google_news_rss_search(max_items=30):
-    # scrape pattern: news.google.com/rss/search?q=site:pib.gov.in+OR+site:rbi.org.in...&hl=en-IN&gl=IN&ceid=IN:en
-    # Bypasses direct PIB 403 by discovering official URLs via Google News index
-    try:
-        query = "site:pib.gov.in OR site:rbi.org.in OR site:nabard.org OR site:icar.org.in OR site:sebi.gov.in"
-        from urllib.parse import quote_plus as _qp
-        url = f"https://news.google.com/rss/search?q={_qp(query)}&hl=en-IN&gl=IN&ceid=IN:en"
-        status, body = fetch(url)
-        if status != 200 or not body: return []
-        import feedparser as _fp
-        feed = _fp.parse(body)
-        out=[]
-        for e in feed.entries[:max_items]:
-            title=(e.get("title") or "").strip()
-            link=(e.get("link") or "").strip()
-            if len(title)<15: continue
-            out.append(make_item(title, link, "GoogleNews-RSS", "tier2", None, (e.get("summary") or "")[:500], "", role="discovery"))
-        return out
-    except: return []
-
-
 def collect_all(max_items=140):
     """Collect from Tier-1 (all groups) then Tier-2 discovery. Returns list of raw items.
 
@@ -309,65 +270,78 @@ def collect_all(max_items=140):
         instead of silently continuing with an empty edition.
     """
     t0 = time.monotonic()
+    return _collect_all_inner(t0, max_items)
 
+
+def _gnews_source(src, tier, cap=25):
+    """Google News site-search RSS for a domain — verified working route for
+    bot-blocked / SSL-broken gov sites (PIB, RBI, FAO, IMF, DARE, CACP ...)."""
+    host = re.sub(r"^https?://(www\.)?", "", src.get("url", "")).split("/")[0]
+    got = rss_items(src, gnews_url(host), tier, role="primary-via-gnews")
+    return got[:cap]
+
+
+def _collect_all_inner(t0, max_items):
     def _collect_one(group, src):
         url = src.get("url", "")
         if not url.startswith("http"):
             return group, src, [], ""
-        got = rss_items(src, url, "tier1")
+        host = re.sub(r"^https?://(www\.)?", "", url).split("/")[0]
+        got = []
+        # 1) declared verified feed (config/sources.py "rss" key) — live-tested route
+        if src.get("rss"):
+            got = rss_items(src, src["rss"], "tier1")
+        # 2) native RSS discovery on the official site
+        if not got:
+            got = rss_items(src, url, "tier1")
+        # 3) HTML listing scrape of the official site
         if not got:
             got = html_items(src, url, "tier1")
+        # 4) Google News site-search fallback for known-blocked domains
+        if not got and GOOGLE_NEWS_SITES and host in GOOGLE_NEWS_SITES and GOOGLE_NEWS_SITES[host] == "tier1":
+            got = _gnews_source(src, "tier1")
         for it in got:
             it["group"] = group
         err = "" if got else f"{src['name']}: no items fetched from {url}"
         return group, src, got, err
 
     tasks = []
-    # RSS-first (explicit RSS feeds added 2026-10-05 — working only + feed discovery)
-    # Convert RSS feeds into tasks so they run via same _collect_one (RSS-first, HTML fallback)
-    for rss in TIER_1_RSS_FEEDS:
-        tasks.append(("rss_tier1", {"name": rss["source"], "url": rss["url"]}))
-    for rss in TIER_2_RSS_FEEDS:
-        tasks.append(("rss_tier2", {"name": rss["source"], "url": rss["url"]}))
     for group, sources in TIER_1_SOURCES.items():
         for src in sources:
             tasks.append((group, src))
+    tasks.sort(key=lambda t: -t[1].get("priority", 0))  # priority-100 sources first
 
     items, errors = [], []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futs = {ex.submit(_collect_one, g, s): (g, s) for g, s in tasks}
-        try:
-            for fut in as_completed(futs, timeout=max(30, COLLECT_DEADLINE_S - (time.monotonic() - t0))):
-                _, _, got, err = fut.result()
-                items.extend(got)
-                if err:
-                    errors.append(err)
-        except TimeoutError:
-            logging.warning("[collector] deadline reached during Tier-1; keeping partial results")
-        for fut in futs:
-            if not fut.done():
-                fut.cancel()
+    # STAGE 0: verified native RSS feeds first (fastest, most reliable) — parallel
+    def _vf(x):
+        name, furl, ftier, fcat = x
+        got = rss_items({"name": name}, furl, ftier)
+        for it in got:
+            it["group"] = "verified_feed"
+        return got
+    items.extend(_parallel(VERIFIED_RSS, _vf, COLLECT_DEADLINE_S * 0.35))
 
-    # Tier-2 discovery (Google News site-search RSS) — also parallel, only if budget left
-    if time.monotonic() - t0 < COLLECT_DEADLINE_S * 0.6:
-        def _discover(src):
-            host = src["url"].replace("https://www.", "").replace("https://", "")
-            q = requests.utils.quote(f"site:{host} current affairs")
-            got = rss_items(src, f"https://news.google.com/rss/search?q={q}", "tier2", role="discovery")
-            return got[:15]
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-            futs = [ex.submit(_discover, src) for src in TIER_2_DISCOVERY]
-            try:
-                for fut in as_completed(futs, timeout=max(20, COLLECT_DEADLINE_S - (time.monotonic() - t0))):
-                    try:
-                        items.extend(fut.result())
-                    except Exception:
-                        pass
-            except TimeoutError:
-                logging.warning("[collector] deadline reached during Tier-2 discovery")
-            for fut in futs:
-                if not fut.done():
-                    fut.cancel()
+    # STAGE 1: Tier-1 official sites (declared feed / native RSS / HTML / gnews fallback)
+    # — ONE shared pool so slow sources can never block fast ones (8 workers).
+    results = _parallel(tasks, lambda g_s: _collect_one(*g_s),
+                        COLLECT_DEADLINE_S - (time.monotonic() - t0) - 45)
+    done_tasks = len(results)
+    for res in results:
+        try:
+            _, _, got, err = res
+            items.extend(got)
+            if err:
+                errors.append(err)
+        except Exception:
+            pass
+    if done_tasks < len(tasks):
+        logging.warning(f"[collector] {len(tasks)-done_tasks} tier-1 tasks unfinished at deadline")
+
+    # STAGE 2: Tier-2 discovery via Google News site-search RSS — parallel, only if budget left
+    if time.monotonic() - t0 < COLLECT_DEADLINE_S * 0.75:
+        disc = _parallel(TIER_2_DISCOVERY, lambda s: _discover_one(s, "tier2"),
+                         COLLECT_DEADLINE_S - (time.monotonic() - t0) - 20)
+        items.extend(disc)
 
     # de-duplicate identical URLs, cap
     uniq, seen = [], set()
