@@ -1,0 +1,51 @@
+name: Monthly Current Affairs
+
+on:
+  schedule:
+    - cron: '30 0 28-31 * *'  # Check daily, but script verifies last date
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Last date YYYY-MM-DD'
+        required: false
+        default: ''
+
+jobs:
+  monthly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run Monthly + Daily (if last date)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: |
+          DATE=${{ github.event.inputs.date }}
+          if [ -z "$DATE" ]; then DATE=$(TZ='Asia/Kolkata' date +%Y-%m-%d); fi
+          # Check if DATE is last date of month
+          LAST=$(date -d "$DATE +1 day" +%d)
+          if [ "$LAST" = "01" ] || [ -n "${{ github.event.inputs.date }}" ]; then
+            echo "Last date confirmed: $DATE — running monthly + daily"
+            python main.py --type monthly --date $DATE
+            python main.py --type daily --date $DATE
+            # Auto-clean storage: keep only last monthly on storage, Telegram group keeps all
+            echo "Cleaning old daily JSON older than 30 days, keeping only last monthly"
+            find data/ -name "*.json" -mtime +30 -delete || true
+            find output/ -name "*.pdf" -mtime +30 -delete || true
+            # Keep last monthly
+            ls -t output/Monthly*.pdf | tail -n +2 | xargs rm -f || true
+          else
+            echo "Not last date ($DATE), skipping monthly, running daily only"
+            python main.py --type daily --date $DATE
+          fi
+      - name: Commit
+        run: |
+          git config user.name "Agri Bot"
+          git config user.email "bot@agrilearningpoint.com"
+          git add data/ output/ logs/ || true
+          git commit -m "monthly: $DATE [auto]" || echo "no changes"
+          git push || echo "push failed"

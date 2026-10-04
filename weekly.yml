@@ -1,0 +1,38 @@
+name: Weekly Current Affairs
+
+on:
+  schedule:
+    - cron: '30 0 * * 0'  # Sunday 00:30 UTC = 06:00 IST
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Sunday date YYYY-MM-DD'
+        required: false
+        default: ''
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run Weekly + Daily
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: |
+          DATE=${{ github.event.inputs.date }}
+          if [ -z "$DATE" ]; then DATE=$(TZ='Asia/Kolkata' date +%Y-%m-%d); fi
+          echo "Running weekly + daily for $DATE (Sunday)"
+          python main.py --type weekly --date $DATE
+          python main.py --type daily --date $DATE
+      - name: Commit
+        run: |
+          git config user.name "Agri Bot"
+          git config user.email "bot@agrilearningpoint.com"
+          git add data/ output/ logs/ || true
+          git commit -m "weekly: $DATE [auto]" || echo "no changes"
+          git push || echo "push failed"
