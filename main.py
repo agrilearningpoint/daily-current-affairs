@@ -21,6 +21,17 @@ def load_agent(agent_id):
 def run_pipeline(job_type, job_date):
     tz = pytz.timezone("Asia/Kolkata")
     job_id = f"{job_type}_{job_date}"
+    # Ensure directories exist BEFORE logging
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("data/jobs", exist_ok=True)
+    os.makedirs("data/raw", exist_ok=True)
+    os.makedirs("data/verified", exist_ok=True)
+    os.makedirs("data/dedup", exist_ok=True)
+    os.makedirs("data/scored", exist_ok=True)
+    os.makedirs("data/selected", exist_ok=True)
+    os.makedirs("data/content", exist_ok=True)
+    os.makedirs("data/mcq", exist_ok=True)
+    os.makedirs("output", exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', handlers=[logging.FileHandler(f"logs/{job_id}.log"), logging.StreamHandler()])
     logging.info(f"=== START PIPELINE {job_id} ===")
     logging.info(f"MASTER RULE: {MASTER_RULE}")
