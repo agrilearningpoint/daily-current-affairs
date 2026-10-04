@@ -6,6 +6,7 @@ GitHub = Technology only, not factual source
 """
 
 # Tier-1 MUST USE — Highest priority for Fact Verification Agent
+# NOTE (2026-10-04 verified): agriwelfare.gov.in (was agriculture.gov.in 301), icar.org.in (was icar.gov.in timeout), dahd.gov.in (was dahd.nic.in), eci.gov.in (canonical), mod.gov.in (canonical)
 TIER_1_SOURCES = {
     "govt_national": [
         {"name": "PIB — Press Information Bureau", "url": "https://www.pib.gov.in/", "use": "Government schemes, Cabinet decisions, ministries, national news", "priority": 100, "notes": "Also backgrounders, factsheets, FAQs, features, infographics for Static Facts/Explanations"},
@@ -15,14 +16,14 @@ TIER_1_SOURCES = {
         {"name": "Cabinet Secretariat", "url": "https://cabsec.gov.in/", "use": "Cabinet decisions", "priority": 100},
     ],
     "agriculture_core": [
-        {"name": "Ministry of Agriculture & Farmers Welfare", "url": "https://agriculture.gov.in/", "use": "Schemes, policies, agriculture news", "priority": 100},
-        {"name": "ICAR", "url": "https://www.icar.gov.in/", "use": "Research, institutes, technology, agriculture developments — Apex body for agri, horticulture, fisheries, animal sciences", "priority": 100, "notes": "Monitor entire ICAR ecosystem: IARI, IVRI, NDRI, crop/horticulture/fisheries institutes via https://icar.gov.in/en/institutes"},
+        {"name": "Ministry of Agriculture & Farmers Welfare", "url": "https://agriwelfare.gov.in/", "use": "Schemes, policies, agriculture news", "priority": 100},
+        {"name": "ICAR", "url": "https://icar.org.in/", "use": "Research, institutes, technology, agriculture developments — Apex body for agri, horticulture, fisheries, animal sciences", "priority": 100, "notes": "Monitor entire ICAR ecosystem: IARI, IVRI, NDRI, crop/horticulture/fisheries institutes via https://icar.org.in/en/institutes"},
         {"name": "IARI", "url": "https://iari.res.in/", "use": "Agricultural research", "priority": 100},
         {"name": "DARE", "url": "https://dare.gov.in/", "use": "Agricultural research & education", "priority": 100},
         {"name": "APEDA", "url": "https://apeda.gov.in/", "use": "Agri exports", "priority": 95},
         {"name": "NHB", "url": "https://nhb.gov.in/", "use": "Horticulture", "priority": 95},
         {"name": "FSSAI", "url": "https://www.fssai.gov.in/", "use": "Food safety", "priority": 95},
-        {"name": "DAH&D", "url": "https://dahd.nic.in/", "use": "Dairy, livestock", "priority": 95},
+        {"name": "DAH&D", "url": "https://dahd.gov.in/", "use": "Dairy, livestock", "priority": 95},
         {"name": "Dept of Fisheries", "url": "https://dof.gov.in/", "use": "Fisheries", "priority": 95},
         {"name": "ICFRE", "url": "https://icfre.gov.in/", "use": "Forestry", "priority": 95},
         {"name": "IMD", "url": "https://mausam.imd.gov.in/", "use": "Weather, monsoon, climate", "priority": 95},
@@ -77,13 +78,13 @@ TIER_1_SOURCES = {
         {"name": "Ministry of Education", "url": "https://www.education.gov.in/", "priority": 90},
         {"name": "UGC", "url": "https://www.ugc.gov.in/", "priority": 90},
         {"name": "NTA", "url": "https://nta.ac.in/", "priority": 90},
-        {"name": "Ministry of Defence", "url": "https://www.mod.gov.in/", "priority": 90},
+        {"name": "Ministry of Defence", "url": "https://mod.gov.in/", "priority": 90},
         {"name": "MEA", "url": "https://www.mea.gov.in/news.htm", "use": "Bilateral, international visits, treaties — Media Centre", "priority": 100},
     ],
     "awards_appointments": [
         {"name": "Rashtrapati Bhavan", "url": "https://www.presidentofindia.gov.in/", "priority": 95},
         {"name": "PMO", "url": "https://www.pmindia.gov.in/", "priority": 95},
-        {"name": "Election Commission", "url": "https://www.eci.gov.in/", "priority": 95},
+        {"name": "Election Commission", "url": "https://eci.gov.in/", "priority": 95},
         {"name": "UPSC", "url": "https://upsc.gov.in/", "priority": 95},
     ]
 }
