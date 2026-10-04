@@ -34,7 +34,7 @@ class Agent:
         if not msg_id:
             self.context["stage_failed"] = "nothing published — cannot pin"
             raise RuntimeError(self.context["stage_failed"])
-        chat = os.getenv("TELEGRAM_CHANNEL_ID")
+        chat = os.getenv("TELEGRAM_CHANNEL_ID") or os.getenv("TELEGRAM_CHAT_ID")
         try:
             pin_message(chat, msg_id)
         except RuntimeError as e:

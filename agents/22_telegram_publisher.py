@@ -37,7 +37,7 @@ class Agent:
         if job.get("telegram_message_id"):
             logging.info(f"[{self.name}] already published msg_id={job['telegram_message_id']} — duplicate prevented")
             return self.context
-        chat = os.getenv("TELEGRAM_CHANNEL_ID")
+        chat = os.getenv("TELEGRAM_CHANNEL_ID") or os.getenv("TELEGRAM_CHAT_ID")
         if not chat:
             self.context["stage_failed"] = "TELEGRAM_CHANNEL_ID missing"
             raise RuntimeError(self.context["stage_failed"])
