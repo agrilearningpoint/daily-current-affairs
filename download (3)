@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.venv/
-.env
-/tmp/
-*.log
-!logs/.gitkeep
-!data/.gitkeep
-!output/.gitkeep
