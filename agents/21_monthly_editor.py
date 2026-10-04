@@ -31,11 +31,16 @@ class Agent:
             logging.info(f"[{self.name}] skipped (job_type={self.job_type})")
             return self.context
         from pipeline.state import SELECTED_DIR, SCORED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
+        from pipeline import store
         mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
+        pmem = store.load_memory()          # PERSISTENT (Git-backed) cross-run memory
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
         for it in items:
             e = mem.get(it["event_id"], {})
             hist = [h["score"] for h in e.get("history", [])]
+            p = pmem.get(it["event_id"], {})
+            hist += [s["score"] for s in p.get("scores", [])]
+            it["trend"] = p.get("trend", "")
             it["monthly_score"] = round((max([it.get("student_relevance", 0)] + hist) * 0.7
                                          + (sum(hist)/len(hist) if hist else 0) * 0.3))
         items.sort(key=lambda x: -x["monthly_score"])

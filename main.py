@@ -19,6 +19,7 @@ from config.workflow import WORKFLOW_ORDER, MASTER_RULE
 from pipeline.state import (ensure_dirs, load_job, save_job, read_json, write_json_atomic,
                             job_path, JobLock, TZ, now_iso)
 from pipeline.telegram_api import alert_admin
+from pipeline import store
 
 
 def load_agent(agent_id):
@@ -35,6 +36,11 @@ def setup_logging(job_id):
 
 def run_pipeline(job_type, job_date, force=False):
     ensure_dirs()
+    # PERSISTENT EVENT DB: pull Git-committed memory/published-log before starting
+    try:
+        store.pull()
+    except Exception as e:
+        logging.warning(f"persistent store pull failed (continuing local-only): {e}")
     job_id = f"{job_type}_{job_date}"
     setup_logging(job_id)
     logging.info(f"=== START PIPELINE {job_id} ===")
@@ -80,6 +86,7 @@ def run_pipeline(job_type, job_date, force=False):
                     summary = {k: v for k, v in context.items()
                                if isinstance(v, (int, float, str, bool))}
                     save_job(job, stage=agent_id, context_summary=summary)
+                    store.write_job_state(job)   # cross-run visibility for watchdog
                     break
                 except Exception as e:
                     last_err = e
@@ -92,11 +99,23 @@ def run_pipeline(job_type, job_date, force=False):
             else:
                 job = load_job(job_id, job_type, job_date)
                 save_job(job, state="FAILED_FINAL", error=str(last_err)[:500], failed_at=agent_id)
+                store.write_job_state(job)      # persist failure for cross-run watchdog
+                try:
+                    store.push(f"state: {job_id} FAILED_FINAL at {agent_id}")
+                except Exception:
+                    pass
                 alert_admin(f"🚨 WATCHDOG ALERT: {job_id} FAILED at {agent_id} — {str(last_err)[:400]}")
                 raise SystemExit(f"Pipeline failed at {agent_id}: {last_err}")
 
         job = load_job(job_id, job_type, job_date)
         save_job(job, state="COMPLETE")
+        store.remove_job_state(job_id)          # clean cross-run watchdog entry
+        try:
+            if job_type == "monthly":
+                store.prune(retain_days=75)     # keep event DB lean each month
+            store.push(f"state: {job_id} complete ({job.get('last_success_stage','')})")
+        except Exception as e:
+            logging.warning(f"persistent store push failed (non-blocking): {e}")
         logging.info(f"=== PIPELINE {job_id} COMPLETE ===")
         return "COMPLETE"
     finally:
@@ -104,23 +123,45 @@ def run_pipeline(job_type, job_date, force=False):
 
 
 def watchdog_check(max_age_min=90):
-    """Scan data/jobs for stalled/failed jobs → alert admin. Exit 1 if problems."""
+    """Scan LOCAL data/jobs AND PERSISTENT committed state/jobs.json for stalled/failed
+    jobs → alert admin + write recovery_plan.json consumed by the workflow retry step."""
     ensure_dirs(); setup_logging("watchdog")
-    problems = []
+    problems, recoveries = [], []
+    try:
+        store.pull()          # get latest committed job states from other runners
+    except Exception as e:
+        logging.warning(f"watchdog store pull failed: {e}")
+    seen = {}
     jd = "data/jobs"
-    for fn in sorted(os.listdir(jd)):
-        if not fn.endswith(".json"):
-            continue
-        j = read_json(os.path.join(jd, fn)) or {}
+    if os.path.isdir(jd):
+        for fn in sorted(os.listdir(jd)):
+            if fn.endswith(".json"):
+                jj = read_json(os.path.join(jd, fn)) or {}
+                if jj.get("job_id"):
+                    seen[jj["job_id"]] = jj
+    for jid, jj in (store._load(store.JOBS_F) or {}).items():   # persistent mirror if fresher
+        cur = seen.get(jid)
+        if not cur or (jj.get("updated", "") >= cur.get("updated", "")):
+            seen[jid] = jj
+    for jid in sorted(seen):
+        j = seen[jid]
         st = j.get("status")
-        if st in ("RUNNING", "RETRYING", "COLLECTING", "VERIFYING"):
+        if st in ("RUNNING", "RETRYING", "COLLECTING", "VERIFYING", "PUBLISHED"):
             upd = j.get("updated")
             if upd:
-                age = (datetime.now(TZ) - datetime.fromisoformat(upd)).total_seconds() / 60
+                try:
+                    age = (datetime.now(TZ) - datetime.fromisoformat(upd)).total_seconds() / 60
+                except ValueError:
+                    age = 0
                 if age > max_age_min:
-                    problems.append(f"⏰ STALLED {j['job_id']} state={st} age={age:.0f}min stage={j.get('last_success_stage')}")
+                    problems.append(f"⏰ STALLED {jid} state={st} age={age:.0f}min stage={j.get('last_success_stage')}")
+                    recoveries.append(jid)
         elif st == "FAILED_FINAL":
-            problems.append(f"💥 FAILED_FINAL {j['job_id']} at {j.get('failed_at')}: {j.get('error','')[:120]}")
+            problems.append(f"💥 FAILED_FINAL {jid} at {j.get('failed_at')}: {str(j.get('error',''))[:120]}")
+            recoveries.append(jid)
+    if recoveries:
+        with open("recovery_plan.json", "w", encoding="utf-8") as f:
+            json.dump(recoveries, f)
     if problems:
         alert_admin("🐕 WATCHDOG:\n" + "\n".join(problems))
         print("\n".join(problems))

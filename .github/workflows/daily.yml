@@ -2,7 +2,7 @@ name: Daily Current Affairs
 
 on:
   schedule:
-    - cron: '15 0 * * *'   # 06:00 IST daily
+    - cron: '30 0 * * *'   # EXACTLY 06:00 IST (00:30 UTC) daily
   workflow_dispatch:
     inputs:
       date:

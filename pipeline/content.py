@@ -149,10 +149,14 @@ MCQ_TPL_NUMBER = ("इस घटना से जुड़ी राशि/स�
 
 
 def generate_mcqs(content_items, target=(12, 15)):
-    """Deterministic MCQs built ONLY from verified content (zero invention).
-    Type A static-number: correct answer is a number/amount taken verbatim from THIS
-    news's own text; distractors are real values from OTHER news (wrong here).
-    Type B who-org: correct answer is an entity name appearing verbatim in this headline.
+    """Deterministic exam-style MCQs built ONLY from verified content (zero invention).
+    Five README-promised types, all fact-locked to the item's own source text:
+      A static-number   : figure/amount taken verbatim from THIS news
+      B who-org         : entity name appearing verbatim in this headline
+      C scheme-ministry : Ministry/Org paired with scheme in the same sentence
+      D report-rank     : index/ranking/report → correct year/host/score from text
+      E statement       : "Which statement about <event> is correct?" — correct option
+                          is a verbatim key-point; distractors are OTHER events' points
     Options <=5, exactly one correct, never auto 'None of these'. Validator double-checks."""
     mcqs = []
     pool_nums, pool_names = [], []
@@ -161,56 +165,92 @@ def generate_mcqs(content_items, target=(12, 15)):
         pool_names += CAP_RE.findall(ci["headline_en"])
     pool_nums = [v for v in dict.fromkeys(pool_nums)]
     pool_names = [v for v in dict.fromkeys(pool_names)]
+
+    def shuffled_opts(correct, distractors):
+        opts = [correct] + list(distractors)
+        rnd = int(hashlib.sha1((correct + str(len(opts))).encode()).hexdigest(), 16) % len(opts)
+        opts = opts[rnd:] + opts[:rnd]
+        return opts, opts.index(correct)
+
+    def add(mtype, q_en, q_hi, correct, distractors, expl_en, expl_hi, ci, exam_point):
+        if len(mcqs) >= target[1]:
+            return False
+        distractors = [d for d in dict.fromkeys(distractors)
+                       if d != correct and d not in (ci["headline_en"] + " ".join(ci["key_points_en"]))][:4]
+        if len(distractors) < 2:
+            return False
+        opts, idx = shuffled_opts(correct, distractors)
+        mcqs.append({"type": mtype, "question_en": q_en, "question_hi": q_hi,
+                     "options": opts[:5], "correct": "ABCDE"[idx],
+                     "explanation_en": expl_en, "explanation_hi": expl_hi,
+                     "exam_point": exam_point, "event_id": ci["event_id"],
+                     "source_url": ci["source"]["url"]})
+        return True
+
+    MIN_ORG_RE = re.compile(r"\b(?:Ministry|Department|Mission|Board|Authority|Corporation|Commission|"
+                            r"Committee|Bank|Organisation|Organization)\b[^.;|]{0,70}", re.I)
+    RANK_RE = re.compile(r"\b(\d+(?:st|nd|rd|th))\s+(?:position|rank|place)|ranked\s+(\d+(?:st|nd|rd|th))", re.I)
+
     for ci in content_items:
         if len(mcqs) >= target[1]:
             break
         own_text = ci["headline_en"] + " " + " ".join(ci["key_points_en"])
+        hl = ci["headline_en"].lstrip("> ")[:90]
+        hlh = ci["headline_hi"].lstrip("> ")[:90]
         # --- Type A: numeric fact question ---
-        candidates = [v for v in ci["static_facts"].values()
-                      if v in own_text and any(ch.isdigit() for ch in v)][:1]
-        if candidates:
-            correct = candidates[0]
-            distractors = [d for d in pool_nums if d != correct and d not in own_text][:4]
-            if len(distractors) >= 2:
-                opts = [correct] + distractors
-                rnd = int(hashlib.sha1(correct.encode()).hexdigest(), 16) % len(opts)
-                opts = opts[rnd:] + opts[:rnd]
-                idx = opts.index(correct)
-                mcqs.append({
-                    "type": "static-number",
-                    "question_en": f"{ci['headline_en'].lstrip('> ')[:90]} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
-                    "question_hi": f"{ci['headline_hi'].lstrip('> ')[:90]} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
-                    "options": opts[:5],
-                    "correct": "ABCDE"[idx],
-                    "explanation_en": f"As per {ci['source']['name']}: “{ci['headline_en'].lstrip('> ')[:90]}” — the reported figure is {correct}.",
-                    "explanation_hi": f"{ci['source']['name']} के अनुसार — रिपोर्ट की गई संख्या {correct} है।",
-                    "exam_point": ci["exam_fact_en"][:120],
-                    "event_id": ci["event_id"],
-                    "source_url": ci["source"]["url"],
-                })
-                continue
+        cands = [v for v in ci["static_facts"].values()
+                 if v in own_text and any(ch.isdigit() for ch in v)][:1]
+        if cands and add("static-number",
+                         f"{hl} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
+                         f"{hlh} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
+                         cands[0], pool_nums,
+                         f"As per {ci['source']['name']}: “{hl}” — the reported figure is {cands[0]}.",
+                         f"{ci['source']['name']} के अनुसार — रिपोर्ट की गई संख्या {cands[0]} है।",
+                         ci, ci["exam_fact_en"][:120]):
+            continue
+        # --- Type C: scheme–ministry/organisation pairing ---
+        org_m = MIN_ORG_RE.search(own_text)
+        if org_m and add("scheme-ministry",
+                         f"“{hl[:70]}” से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
+                         f"“{hlh[:70]}” से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
+                         org_m.group(0)[:80].strip(), pool_names,
+                         f"Source text pairs this event with: {org_m.group(0)[:80].strip()}.",
+                         f"स्रोत पाठ में इस घटना का संबंध {org_m.group(0)[:80].strip()} से बताया गया है।",
+                         ci, "Scheme–Ministry जोड़ी prelims में बार-बार पूछी जाती है।"):
+            continue
+        # --- Type D: rank/index question ---
+        rk = RANK_RE.search(own_text)
+        if rk and add("report-rank",
+                       f"“{hl[:70]}” — इस सूचकांक/रैंकिंग में भारत/घटना से जुड़ी सही जानकारी कौन-सी है?",
+                       f"“{hlh[:70]}” — इस सूचकांक/रैंकिंग में सही जानकारी कौन-सी है?",
+                       (rk.group(1) or rk.group(2)), pool_names,
+                       f"Rank mentioned verbatim in verified source: {(rk.group(1) or rk.group(2))}.",
+                       f"सत्यापित स्रोत में उल्लिखित रैंक: {(rk.group(1) or rk.group(2))}।",
+                       ci, "Index/Ranking – country/score prelims favourite है।"):
+            continue
         # --- Type B: entity-name question ---
         names = [n for n in CAP_RE.findall(ci["headline_en"]) if len(n) > 3]
-        if names:
-            correct = names[0]
-            distractors = [d for d in pool_names if d != correct and d not in own_text][:4]
-            if distractors:
-                opts = [correct] + distractors
-                rnd = int(hashlib.sha1(correct.encode()).hexdigest(), 16) % len(opts)
-                opts = opts[rnd:] + opts[:rnd]
-                idx = opts.index(correct)
-                mcqs.append({
-                    "type": "who-org",
-                    "question_en": f"“{ci['headline_en'].lstrip('> ')[:80]}” — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
-                    "question_hi": f"“{ci['headline_hi'].lstrip('> ')[:80]}” — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
-                    "options": opts[:5],
-                    "correct": "ABCDE"[idx],
-                    "explanation_en": f"Source {ci['source']['name']}: {correct} appears verbatim in the verified headline.",
-                    "explanation_hi": f"स्रोत {ci['source']['name']}: {correct} सिरहेड में मौजूद है।",
-                    "exam_point": "Agency/ministry name prelims में सीधे पूछा जाता है।",
-                    "event_id": ci["event_id"],
-                    "source_url": ci["source"]["url"],
-                })
+        if names and add("who-org",
+                         f"“{hl[:80]}” — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
+                         f"“{hlh[:80]}” — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
+                         names[0], pool_names,
+                         f"Source {ci['source']['name']}: {names[0]} appears verbatim in the verified headline.",
+                         f"स्रोत {ci['source']['name']}: {names[0]} सिरहेड में मौजूद है।",
+                         ci, "Agency/ministry name prelims में सीधे पूछा जाता है।"):
+            continue
+        # --- Type E: statement-based (correct = verbatim key point of THIS event) ---
+        others = [p for o in content_items if o["event_id"] != ci["event_id"]
+                  for p in o["key_points_en"][:1]]
+        if ci["key_points_en"] and others and add(
+                "statement",
+                f"“{hl[:70]}” घटना के बारे में कौन-सी कथन सत्य है?",
+                f"“{hlh[:70]}” घटना के बारे में कौन-सा कथन सत्य है?",
+                ci["key_points_en"][0][:150], others,
+                f"Statement directly quoted from verified reporting by {ci['source']['name']}.",
+                f"यह कथन {ci['source']['name']} की सत्यापित रिपोर्ट से सीधे लिया गया है।",
+                ci, "Statement-based questions अब सबसे common prelims pattern है।"):
+            pass
+
     for i, m in enumerate(mcqs, 1):
         m["q_num"] = i
     return mcqs

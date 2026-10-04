@@ -186,17 +186,32 @@ def make_item(title, link, source, tier, published, summary, img, role=None):
 
 
 def collect_window(job_type, job_date):
-    """Time window per README: daily=last 24h, weekly=Mon-Sun, monthly=full month."""
+    """Time windows (production-correct):
+      daily   -> PREVIOUS calendar day in IST (run on 04 Oct 06:00 => 03 Oct 00:00 → 04 Oct 06:00)
+                 Never includes the future part of the edition date.
+      weekly  -> Monday 00:00 → run time (Sunday morning best-of-week)
+      monthly -> runs on the 1st: the PREVIOUS COMPLETE calendar month
+                 (01 Oct run => 01 Sep 00:00 → 30 Sep 23:59). Mid-month runs => current month-to-date.
+    """
     day = datetime.strptime(job_date, "%Y-%m-%d").replace(tzinfo=TZ)
-    end = day.replace(hour=18, minute=0)  # 06:00 IST run covers up to ~18:00 buffer? use 24h window ending at run
+    now = datetime.now(TZ)
     if job_type == "daily":
-        start = end - timedelta(hours=24)
+        start = (day - timedelta(days=1)).replace(hour=0, minute=0, second=0)
+        end = min(day.replace(hour=6, minute=0, second=0), now) if day.date() == now.date() \
+              else day.replace(hour=23, minute=59, second=59)
     elif job_type == "weekly":
-        start = (day - timedelta(days=6)).replace(hour=0)
-        end = day.replace(hour=23, minute=59)
-    else:  # monthly
-        start = day.replace(day=1, hour=0)
-        end = day.replace(hour=23, minute=59)
+        # walk back to Monday of the week containing job_date
+        monday = day - timedelta(days=day.weekday())
+        start = monday.replace(hour=0, minute=0, second=0)
+        end = day.replace(hour=23, minute=59, second=59)
+    else:  # monthly — previous complete month when running on the 1st
+        if day.day == 1:
+            last_day = day - timedelta(days=1)          # e.g. 30 Sep for 01 Oct
+            start = last_day.replace(day=1, hour=0, minute=0, second=0)
+            end = last_day.replace(hour=23, minute=59, second=59)
+        else:
+            start = day.replace(day=1, hour=0, minute=0, second=0)
+            end = day.replace(hour=23, minute=59, second=59)
     return start, end
 
 

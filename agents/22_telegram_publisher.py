@@ -39,6 +39,8 @@ class Agent:
             return self.context
         chat = os.getenv("TELEGRAM_CHANNEL_ID") or os.getenv("TELEGRAM_CHAT_ID")
         if not chat:
+            chat = "-1004485392227"   # Agri Learning Point channel — non-secret target id
+        if not chat:
             self.context["stage_failed"] = "TELEGRAM_CHANNEL_ID missing"
             raise RuntimeError(self.context["stage_failed"])
         c = read_json(data_path(CONTENT_DIR, self.job_id))
@@ -50,6 +52,11 @@ class Agent:
                    f"✅ All facts verified against primary sources\n"
                    f"📲 @Agrikrishna | YouTube: Agri Learning Point")
         msg_id = send_document(chat, self.context["pdf_path"], caption)
+        try:
+            from pipeline import store
+            store.mark_published([i["event_id"] for i in c["items"]], self.job_id)
+        except Exception as ex:
+            logging.warning(f"[{self.name}] persistent published-log failed (non-blocking): {ex}")
         save_job(job, state="PUBLISHED", stage="22_telegram_publisher", telegram_message_id=msg_id)
         self.context["telegram_message_id"] = msg_id
         logging.info(f"[{self.name}] published message_id={msg_id}")

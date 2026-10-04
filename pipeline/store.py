@@ -1,0 +1,172 @@
+# -*- coding: utf-8 -*-
+"""
+PERSISTENT EVENT STORE — the real "same database, different selection" backbone.
+
+Problem this solves: GitHub Actions runners are EPHEMERAL. data/ is gitignored and
+artefacts expire, so importance-memory / job-states were NOT persistent across runs.
+
+Design (zero external services):
+  * The Git repo itself is the database. State lives in committed files under state/.
+  * Every workflow pulls latest main before running, pushes changes after running.
+  * Writes are MERGE-based (event_id keyed dicts) + a per-job branch check, so daily /
+    weekly / monthly / watchdog workflows never clobber each other's keys.
+  * If push fails (conflict), we pull --rebase and retry; final failure logs loudly
+    but NEVER blocks PDF generation or Telegram publishing.
+
+API:
+  store.pull()                  -> sync local state/ with origin/main
+  record_scores(items, job_id)  -> merge event scores into memory (agent 11)
+  load_memory()                 -> full importance memory dict
+  mark_published(eids, job_id)  -> remember published events (agents 22/24)
+  write_job_state(job)          -> mirror job JSON for cross-run watchdog
+  remove_job_state(job_id)      -> drop stale lock/state when a run ends
+  prune(retain_days)            -> keep state lean on monthly runs
+  store.push(message)           -> commit+push changed state files
+"""
+import json, os, shutil, subprocess
+from datetime import datetime, timedelta
+
+import pytz
+
+TZ = pytz.timezone("Asia/Kolkata")
+ROOT = os.environ.get("ALP_ROOT", os.getcwd())
+STATE_DIR = os.path.join(ROOT, "state")
+MEMORY_F = os.path.join(STATE_DIR, "importance_memory.json")
+PUBLISHED_F = os.path.join(STATE_DIR, "published_events.json")
+JOBS_F = os.path.join(STATE_DIR, "jobs.json")
+
+
+def _git(*args, checks=True):
+    try:
+        r = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True, timeout=90)
+        if checks and r.returncode != 0:
+            raise RuntimeError(f"git {' '.join(args)} failed: {r.stderr[:300]}")
+        return r.stdout
+    except Exception as e:
+        if checks:
+            raise
+        return ""
+
+
+def _load(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1, sort_keys=True)
+    os.replace(tmp, path)
+
+
+def pull():
+    """Fetch latest committed state from origin/main (best-effort)."""
+    try:
+        _git("fetch", "origin", "main", checks=False)
+        # take remote versions of OUR state files only (never touch code)
+        for fn in ("importance_memory.json", "published_events.json", "jobs.json"):
+            p = os.path.join("state", fn)
+            r = subprocess.run(["git", "-C", ROOT, "show", f"origin/main:{p}"],
+                               capture_output=True, text=True, timeout=60)
+            if r.returncode == 0:
+                try:
+                    json.loads(r.stdout)  # validate before overwriting
+                    with open(os.path.join(STATE_DIR, fn), "w", encoding="utf-8") as f:
+                        f.write(r.stdout)
+                except json.JSONDecodeError:
+                    pass
+        return True
+    except Exception as e:
+        print(f"[store] pull skipped: {e}")
+        return False
+
+
+def push(message="state: update"):
+    """Commit + push changed state files. Never raises."""
+    try:
+        _git("add", "-f", "state/", checks=False)
+        r = subprocess.run(["git", "-C", ROOT, "diff", "--cached", "--quiet"])
+        if r.returncode == 0:
+            return False  # nothing changed
+        _git("-c", f"user.name=AgriLearningPointBot", "-c", "user.email=bot@agrilearningpoint.local",
+             "commit", "-m", message, checks=False)
+        for attempt in range(2):
+            pr = subprocess.run(["git", "-C", ROOT, "push", "origin", "HEAD:main"],
+                                capture_output=True, text=True, timeout=120)
+            if pr.returncode == 0:
+                print(f"[store] pushed: {message}")
+                return True
+            _git("pull", "--rebase", "origin", "main", checks=False)
+        print("[store] WARNING: could not push state to origin/main after retries")
+    except Exception as e:
+        print(f"[store] push failed (non-blocking): {e}")
+    return False
+
+
+def record_scores(items, job_id):
+    """Merge scored events into persistent importance memory (agent 11)."""
+    mem = _load(MEMORY_F)
+    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    for it in items:
+        eid = it["event_id"]
+        rec = mem.setdefault(eid, {"headline": it.get("headline_en", "")[:160],
+                                   "scores": [], "first_seen": today, "last_seen": today})
+        rec["scores"].append({"date": today, "job": job_id,
+                              "score": round(float(it.get("importance_score", 0)), 1)})
+        rec["scores"] = rec["scores"][-30:]
+        rec["last_seen"] = today
+        if len(rec["scores"]) >= 2:
+            delta = rec["scores"][-1]["score"] - rec["scores"][-2]["score"]
+            rec["trend"] = "RISING" if delta > 5 else "FALLING" if delta < -5 else "STABLE"
+        else:
+            rec["trend"] = "NEW"
+    _save(MEMORY_F, mem)
+    return mem
+
+
+def load_memory():
+    return _load(MEMORY_F)
+
+
+def mark_published(event_ids, job_id):
+    pub = _load(PUBLISHED_F)
+    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    for eid in event_ids:
+        rec = pub.setdefault(eid, {"jobs": []})
+        if job_id not in rec["jobs"]:
+            rec["jobs"].append(job_id)
+        rec["last_published"] = today
+    _save(PUBLISHED_F, pub)
+
+
+def published_event_ids():
+    return set(_load(PUBLISHED_F).keys())
+
+
+def write_job_state(job):
+    jobs = _load(JOBS_F)
+    jobs[job["job_id"]] = {k: job.get(k) for k in
+                           ("job_id", "status", "updated", "last_success_stage",
+                            "failed_at", "error")}
+    _save(JOBS_F, jobs)
+
+
+def remove_job_state(job_id):
+    jobs = _load(JOBS_F)
+    if jobs.pop(job_id, None) is not None:
+        _save(JOBS_F, jobs)
+
+
+def prune(retain_days=75):
+    """Monthly cleanup: drop memory/published entries older than retain_days."""
+    cutoff = (datetime.now(TZ) - timedelta(days=retain_days)).strftime("%Y-%m-%d")
+    mem = {k: v for k, v in load_memory().items() if v.get("last_seen", "9999") >= cutoff}
+    _save(MEMORY_F, mem)
+    pub = {k: v for k, v in _load(PUBLISHED_F).items()
+           if v.get("last_published", "9999") >= cutoff}
+    _save(PUBLISHED_F, pub)

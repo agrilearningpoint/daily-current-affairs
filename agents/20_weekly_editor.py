@@ -32,12 +32,17 @@ class Agent:
             logging.info(f"[{self.name}] skipped (job_type={self.job_type})")
             return self.context
         from pipeline.state import SELECTED_DIR, SCORED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
+        from pipeline import store
         mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
+        pmem = store.load_memory()          # PERSISTENT (Git-backed) cross-run memory
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
         # same-database principle: boost events whose memory shows high scores earlier in the week
         for it in items:
             e = mem.get(it["event_id"], {})
             hist = [h["score"] for h in e.get("history", [])]
+            p = pmem.get(it["event_id"], {})
+            hist += [s["score"] for s in p.get("scores", [])]   # history from previous daily runs
+            it["trend"] = p.get("trend", "")
             it["weekly_score"] = max([it.get("student_relevance", 0)] + hist)
         items.sort(key=lambda x: -x["weekly_score"])
         chosen = [i for i in items if i["weekly_score"] >= 60][:18]

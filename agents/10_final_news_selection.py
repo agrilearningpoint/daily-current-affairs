@@ -32,7 +32,13 @@ class Agent:
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
         cfg = {"daily": (10, 12, 55), "weekly": (15, 18, 60), "monthly": (20, 25, 62)}[self.job_type]
         lo, hi, floor = cfg
-        chosen = [i for i in items if i.get("student_relevance", i.get("importance_score", 0)) >= floor][:hi]
+        from pipeline import store
+        try:
+            published = store.published_event_ids()
+        except Exception:
+            published = set()
+        fresh = [i for i in items if i["event_id"] not in published] or items
+        chosen = [i for i in fresh if i.get("student_relevance", i.get("importance_score", 0)) >= floor][:hi]
         # category balance: make sure at least 2 agri & 2 banking present if such items exist
         def ensure(cat_key, need):
             have = sum(1 for c in chosen if c.get(cat_key))
