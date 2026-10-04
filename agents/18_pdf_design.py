@@ -1,68 +1,56 @@
 # -*- coding: utf-8 -*-
 """
 PDF DESIGN AGENT
-Main focus: content को premium लेकिन simple PDF में बदलना।
+Main focus: data-driven premium PDF design system को JSON content से apply करना।
 
 Command:
-> "Design a clean, colorful and highly readable Current Affairs PDF based on the approved reference structure. Use controlled multiple colors, clear hierarchy, attractive headings, useful images, proper spacing and mobile-friendly typography. Every page must contain Agri Learning Point branding, logo, footer and page number. Never overcrowd pages or alter approved facts."
+> "Render the edition via src/generate_pdf.generate_pdf(content, mcqs) — Mukta+Poppins fonts, Hindi 12.5pt / English 12pt, headline 18pt, 13mm margins, single column, category banners, Static Facts tables, Exam Fact yellow boxes, controlled colours, no filler pages. Output goes to output/ inside the workspace."
 
-Work: Mobile-first premium design with approved hierarchy
+Work: Dynamic generator invocation (no hardcoded sample)
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Design a clean, colorful and highly readable Current Affairs PDF based on the approved reference structure. Use controlled multiple colors, clear hierarchy, attractive headings, useful images, proper spacing and mobile-friendly typography. Every page must contain Agri Learning Point branding, logo, footer and page number. Never overcrowd pages or alter approved facts."""
+COMMAND = """Render the edition via src/generate_pdf.generate_pdf(content, mcqs) — Mukta+Poppins fonts, Hindi 12.5pt / English 12pt, headline 18pt, 13mm margins, single column, category banners, Static Facts tables, Exam Fact yellow boxes, controlled colours, no filler pages. Output goes to output/ inside the workspace."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Uses src/generate_pdf.py with FINAL spec:
-  - Hindi Mukta 12.5pt, English Poppins 12pt, Headline 18pt, Section 16pt, MCQ 12.5pt, Footer 9pt, line spacing 1.30, margins 13mm, single-column, max 2 font families (Mukta/Poppins)
-  - Colors: Agriculture Green, Banking Blue, National Orange, etc. (controlled)
-  - Watermark: PAID BATCHES logo centered 90mm, 0.09 alpha, every page
-  - Double border Red+Green, logo, header/footer, page numbers, no Vol on cover
-  - Smart layout: no orphan heading, smart page fill, tables compact, images proportional, text priority
-- Takes bilingual content + validated MCQs + images from previous agents, outputs PDF to output/Agri_Learning_Point_DD_MMM_YYYY_Bilingual.pdf (3.7MB, 21 pages typical)
-- Never alters facts — only designs
-"""
+DETAILS = """- calls dynamic generate_pdf() on data/content + data/mcq/_validated JSON
+- refuses empty editions; writes output/<edition>.pdf"""
+
 
 class Agent:
-    """PDF DESIGN AGENT — detailed implementation"""
+    """PDF DESIGN AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "PDF DESIGN AGENT"
 
     def run(self):
-        """
-        Execute PDF DESIGN AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Uses src/generate_pdf.py with FINAL spec:
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "18_pdf_design"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging, os
+        from src.generate_pdf import generate_pdf
+        from pipeline.state import CONTENT_DIR, MCQ_DIR, OUTPUT_DIR, data_path, read_json, load_job, save_job
+        c = read_json(data_path(CONTENT_DIR, self.job_id))
+        mcqs = read_json(data_path(MCQ_DIR, self.job_id, "_validated"), [])
+        if not mcqs:
+            self.context["stage_failed"] = "no validated MCQs — refusing to build PDF without MCQ section"
+            raise RuntimeError(self.context["stage_failed"])
+        out = generate_pdf(c, mcqs)
+        if not os.path.exists(out) or os.path.getsize(out) < 20000:
+            self.context["stage_failed"] = f"PDF missing/too small: {out}"
+            raise RuntimeError(self.context["stage_failed"])
+        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
+                 state="PDF_GENERATED", stage="18_pdf_design", pdf_path=out)
+        self.context["pdf_path"] = out
+        logging.info(f"[{self.name}] PDF built: {out} ({os.path.getsize(out)//1024} KB)")
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

@@ -2,41 +2,49 @@ name: Daily Current Affairs
 
 on:
   schedule:
-    - cron: '30 0 * * *'  # 00:30 UTC = 06:00 IST Asia/Kolkata
+    - cron: '15 0 * * *'   # 06:00 IST daily
   workflow_dispatch:
     inputs:
       date:
-        description: 'Date YYYY-MM-DD (Asia/Kolkata)'
+        description: 'Date YYYY-MM-DD (default today IST)'
         required: false
-        default: ''
+
+concurrency:
+  group: current-affairs-daily
+  cancel-in-progress: false
 
 jobs:
-  daily:
+  pipeline:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - name: Run Daily Pipeline
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          ADMIN_ID: ${{ secrets.ADMIN_ID }}
-          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          DATE=${{ github.event.inputs.date }}
-          if [ -z "$DATE" ]; then DATE=$(TZ='Asia/Kolkata' date +%Y-%m-%d); fi
-          echo "Running daily for $DATE"
-          python main.py --type daily --date $DATE
-      - name: Commit data
-        run: |
-          git config user.name "Agri Bot"
-          git config user.email "bot@agrilearningpoint.com"
-          git add data/ output/ logs/ || true
-          git commit -m "daily: $(TZ='Asia/Kolkata' date +%Y-%m-%d) [auto]" || echo "no changes"
-          git push || echo "push failed"
 
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily pipeline
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # NO fallback value — revoke any exposed token & set this secret
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          TZ: Asia/Kolkata
+        run: |
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
+          echo "DATE=$DATE" >> "$GITHUB_ENV"
+          python main.py --type daily --date "$DATE"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-${{ env.DATE }}
+          path: |
+            output/
+            data/
+            logs/
+          if-no-files-found: warn

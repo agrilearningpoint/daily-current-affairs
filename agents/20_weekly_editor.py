@@ -1,67 +1,60 @@
 # -*- coding: utf-8 -*-
 """
 WEEKLY EDITOR AGENT
-Main focus: पूरे week का best-of-week, ना कि compilation।
+Main focus: सप्ताह की सर्वश्रेष्ठ news का fresh Best-of-Week edition बनाना (Sunday)।
 
 Command:
-> "Review all verified current-affairs events from the week and create a fresh Best-of-the-Week selection. Re-rank every event using cumulative importance, exam relevance, agriculture relevance, banking relevance, uniqueness and developments during the week. Deduplicate repeated stories. Do not simply combine daily PDFs. Include only the most important revision-worthy events of the week."
+> "On weekly jobs, re-select from the whole week's importance memory + this run's scored pool: 'Is poore saptah me sabse mahatvapurna kya tha?' 15-18 items, NOT a combine of daily PDFs. Runs BEFORE content/PDF so selection flows into the edition."
 
-Work: Fresh Best-of-Week (not daily combine)
+Work: Best-of-Week re-selection
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Review all verified current-affairs events from the week and create a fresh Best-of-the-Week selection. Re-rank every event using cumulative importance, exam relevance, agriculture relevance, banking relevance, uniqueness and developments during the week. Deduplicate repeated stories. Do not simply combine daily PDFs. Include only the most important revision-worthy events of the week."""
+COMMAND = """On weekly jobs, re-select from the whole week's importance memory + this run's scored pool: 'Is poore saptah me sabse mahatvapurna kya tha?' 15-18 items, NOT a combine of daily PDFs. Runs BEFORE content/PDF so selection flows into the edition."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Triggered only Sunday (Scheduler)
-- Loads all verified events from last 7 calendar days (Mon-Sun) from data/verified/*.json
-- Re-ranks using Importance Memory: cumulative score = 0.4*avg_daily_score + 0.3*max_score + 0.2*trend + 0.1*uniqueness
-- Deduplicates: if GOBARdhan appears 3 days, keeps only strongest with latest development
-- Selects top 12-18 most important revision-worthy events for week (Quality > Quantity)
-- Then runs Content Editor → Bilingual → Image → MCQ → PDF Design → QA → Publish (same downstream but with weekly content)
-- Output: output/Weekly_DDMMM-DDMMMYYYY.pdf
-"""
+DETAILS = """- reads data/memory/importance_memory.json + week window
+- overrides data/selected/<job_id>.json with fresh weekly ranking"""
+
 
 class Agent:
-    """WEEKLY EDITOR AGENT — detailed implementation"""
+    """WEEKLY EDITOR AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "WEEKLY EDITOR AGENT"
 
     def run(self):
-        """
-        Execute WEEKLY EDITOR AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Triggered only Sunday (Scheduler)
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "20_weekly_editor"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        if self.job_type != "weekly":
+            logging.info(f"[{self.name}] skipped (job_type={self.job_type})")
+            return self.context
+        from pipeline.state import SELECTED_DIR, SCORED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
+        mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
+        items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
+        # same-database principle: boost events whose memory shows high scores earlier in the week
+        for it in items:
+            e = mem.get(it["event_id"], {})
+            hist = [h["score"] for h in e.get("history", [])]
+            it["weekly_score"] = max([it.get("student_relevance", 0)] + hist)
+        items.sort(key=lambda x: -x["weekly_score"])
+        chosen = [i for i in items if i["weekly_score"] >= 60][:18]
+        if len(chosen) < 5:
+            self.context["stage_failed"] = f"Weekly selection too small ({len(chosen)}) — refusing weak filler"
+            raise RuntimeError(self.context["stage_failed"])
+        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": chosen})
+        logging.info(f"[{self.name}] Best-of-Week: {len(chosen)} items")
+        self.context["weekly_selected"] = len(chosen)
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

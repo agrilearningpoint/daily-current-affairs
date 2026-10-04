@@ -1,0 +1,39 @@
+name: Watchdog
+
+# Real watchdog: every 5 minutes check job states for stalled/FAILED_FINAL jobs and alert admin DM.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: current-affairs-watchdog
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install requests pytz
+      - name: Check all jobs
+        continue-on-error: true
+        id: wd
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          TZ: Asia/Kolkata
+        run: python main.py --watchdog
+      - name: Retry last failed pipeline job
+        if: failure() && github.run_attempt == '1'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          TZ: Asia/Kolkata
+        run: |
+          DATE=$(TZ=Asia/Kolkata date +%F)
+          python main.py --type daily --date "$DATE" || true

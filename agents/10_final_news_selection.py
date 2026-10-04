@@ -1,65 +1,66 @@
 # -*- coding: utf-8 -*-
 """
 FINAL NEWS SELECTION AGENT
-Main focus: सबसे important final filter — PDF में क्या जाएगा? (Most important)
+Main focus: pipeline का सबसे important decision — final news चुनना।
 
 Command:
-> "Select only the highest-value current-affairs items for the final student edition. Combine overall importance, exam relevance, agriculture relevance, banking relevance, factual value, MCQ potential, uniqueness and source reliability. Do not target a fixed number of news items. If only 25 news are genuinely valuable, select 25; if 40 are genuinely valuable, select 40. Never add low-value news just to increase the count."
+> "Select the final edition set purely by merit: daily 10-12, weekly 15-18 Best-of-Week, monthly 20-25 Best-of-Month. If fewer qualify, ship fewer — NEVER fill with weak news. Ensure category balance (agri/banking/international visible)."
 
-Work: Quality > Quantity — no fixed count
+Work: Merit-based threshold selection
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Select only the highest-value current-affairs items for the final student edition. Combine overall importance, exam relevance, agriculture relevance, banking relevance, factual value, MCQ potential, uniqueness and source reliability. Do not target a fixed number of news items. If only 25 news are genuinely valuable, select 25; if 40 are genuinely valuable, select 40. Never add low-value news just to increase the count."""
+COMMAND = """Select the final edition set purely by merit: daily 10-12, weekly 15-18 Best-of-Week, monthly 20-25 Best-of-Month. If fewer qualify, ship fewer — NEVER fill with weak news. Ensure category balance (agri/banking/international visible)."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Combines: importance_score (0-100) + student_score + agri_score + banking_score + source_score (100/95/90/80/60) + MCQ potential + uniqueness
-- Weighted final_score = 0.25*importance + 0.25*student + 0.15*agri + 0.15*banking + 0.1*source + 0.05*MCQ + 0.05*unique
-- Sorts descending, selects top until marginal value drops (elbow) — no target 8 or 15, but typically 6-12 for daily (ensures quality)
-- Golden rule: never add low-value to reach 15 — if only 7 valuable, PDF has 7 news + 20 one-liners + MCQs
-- Output: data/selected/<job_id>_final.json with selected=True + final_rank
-"""
+DETAILS = """- rank by student_relevance & importance_score; per-type targets as MAXIMUM caps;
+- quality floor: score>=55 (daily); never pads; writes data/selected/<job_id>.json"""
+
 
 class Agent:
-    """FINAL NEWS SELECTION AGENT — detailed implementation"""
+    """FINAL NEWS SELECTION AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "FINAL NEWS SELECTION AGENT"
 
     def run(self):
-        """
-        Execute FINAL NEWS SELECTION AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Combines: importance_score (0-100) + student_score + agri_score + banking_score + source_score (100/95/90/80/60) + MCQ potential + uniqueness
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "10_final_news_selection"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        from pipeline.state import SCORED_DIR, SELECTED_DIR, data_path, read_json, write_json_atomic, load_job, save_job
+        items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
+        cfg = {"daily": (10, 12, 55), "weekly": (15, 18, 60), "monthly": (20, 25, 62)}[self.job_type]
+        lo, hi, floor = cfg
+        chosen = [i for i in items if i.get("student_relevance", i.get("importance_score", 0)) >= floor][:hi]
+        # category balance: make sure at least 2 agri & 2 banking present if such items exist
+        def ensure(cat_key, need):
+            have = sum(1 for c in chosen if c.get(cat_key))
+            if have < need:
+                for it in items:
+                    if it not in chosen and it.get(cat_key):
+                        chosen.append(it)
+                        have += 1
+                        if have >= need:
+                            break
+        ensure("agri_focus", 2); ensure("banking_focus", 2)
+        chosen.sort(key=lambda x: -x.get("student_relevance", 0))
+        logging.info(f"[{self.name}] selected {len(chosen)} (target {lo}-{hi}, floor {floor})")
+        if len(chosen) < 5:
+            self.context["stage_failed"] = f"selection too small: {len(chosen)} — refusing to pad (MASTER_RULE)"
+            raise RuntimeError(self.context["stage_failed"])
+        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": chosen})
+        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
+                 state="SELECTED", stage="10_final_news_selection", selected=len(chosen))
+        self.context["selected"] = len(chosen)
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

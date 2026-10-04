@@ -1,66 +1,94 @@
 # -*- coding: utf-8 -*-
 """
-IMAGE AGENT
-Main focus: सिर्फ useful images।
+IMAGE SELECTOR AGENT
+Main focus: हर important news के लिए relevant image खोजना और validate करना।
 
 Command:
-> "Add an image only when it improves understanding, recognition or visual value of an important current-affairs topic. Prefer official or reliable images. Never add random decorative stock images merely to fill space. Verify that the image actually represents the event, person, place, crop, technology or organization discussed."
+> "For each selected item find a relevant image (source RSS/og:image first, then Wikimedia Commons search). Download into assets/images/<job_id>/ INSIDE the workspace (never /home/user paths that break GitHub Actions). Validate with Pillow: >=500px wide, JPEG/PNG, non-corrupt. No suitable image → skip image, never fake one."
 
-Work: Official/reliable, verified representation
+Work: Workspace-local validated images
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Add an image only when it improves understanding, recognition or visual value of an important current-affairs topic. Prefer official or reliable images. Never add random decorative stock images merely to fill space. Verify that the image actually represents the event, person, place, crop, technology or organization discussed."""
+COMMAND = """For each selected item find a relevant image (source RSS/og:image first, then Wikimedia Commons search). Download into assets/images/<job_id>/ INSIDE the workspace (never /home/user paths that break GitHub Actions). Validate with Pillow: >=500px wide, JPEG/PNG, non-corrupt. No suitable image → skip image, never fake one."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- For each news: decides needs_image=True if visual value (e.g., GOBARdhan plant, RBI building, hockey team)
-- Prefers official: PIB, RBI, ICAR, Ministry sites
-- Downloads, verifies: checks image URL reachable, aspect, not placeholder, actually represents event (e.g., not random building for Malli — if portrait not available, uses RBI logo and notes)
-- Stores in assets/images/<job_id>/<slug>.jpg, records image_path, caption, source
-- If no useful image, sets image_path=None — never fills with stock
-- Output: updates content json with image_path
-"""
+DETAILS = """- og-image/RSS enclosure → Wikimedia fallback
+- Pillow validation + local path stored as repo-relative image_path"""
+
 
 class Agent:
-    """IMAGE AGENT — detailed implementation"""
+    """IMAGE SELECTOR AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
-        self.name = "IMAGE AGENT"
+        self.name = "IMAGE SELECTOR AGENT"
 
     def run(self):
-        """
-        Execute IMAGE AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
+        import io, logging, os, re
+        import requests
+        from PIL import Image
+        from bs4 import BeautifulSoup
+        from pipeline.state import CONTENT_DIR, IMAGES_DIR, data_path, read_json, write_json_atomic, TZ
         from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - For each news: decides needs_image=True if visual value (e.g., GOBARdhan plant, RBI building, hockey team)
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "15_image_agent"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        c = read_json(data_path(CONTENT_DIR, self.job_id))
+        folder = os.path.join(IMAGES_DIR, self.job_id)
+        os.makedirs(folder, exist_ok=True)
+        UA = {"User-Agent": "AgriLearningPointBot/1.0"}
+        got = 0
+        for it in c["items"]:
+            url = ""
+            try:
+                r = requests.get(it["source"]["url"], headers=UA, timeout=10)
+                soup = BeautifulSoup(r.text, "lxml")
+                og = soup.find("meta", attrs={"property": "og:image"})
+                if og and og.get("content"):
+                    url = og["content"]
+            except requests.RequestException:
+                pass
+            if not url:  # Wikimedia Commons search fallback
+                q = re.sub(r"[^a-z0-9 ]", "", it["headline_en"].lower())[:60]
+                try:
+                    api = "https://commons.wikimedia.org/w/api.php"
+                    rr = requests.get(api, params={"action":"query","generator":"search","gsrsearch":q,
+                        "gsrnamespace":"6","gsrlimit":"3","prop":"imageinfo","iiprop":"url|size",
+                        "iiurlwidth":"900","format":"json"}, headers=UA, timeout=10).json()
+                    pages = rr.get("query", {}).get("pages", {})
+                    for p in list(pages.values())[:3]:
+                        u = p.get("imageinfo", [{}])[0].get("thumburl", "")
+                        if u:
+                            url = u; break
+                except Exception:
+                    pass
+            if not url:
+                continue
+            try:
+                img_r = requests.get(url, headers=UA, timeout=12)
+                im = Image.open(io.BytesIO(img_r.content)); im.verify()
+                im = Image.open(io.BytesIO(img_r.content))
+                if im.width < 500 or im.format not in ("JPEG", "PNG"):
+                    continue
+                fn = f"{it['event_id']}.{'jpg' if im.format=='JPEG' else 'png'}"
+                fp = os.path.join(folder, fn)
+                im.convert("RGB").save(fp, quality=85)
+                it["image_path"] = fp
+                it["image_caption"] = f"Representative image (source: {'Wikimedia Commons' if 'wikimedia' in url else it['source']['name']})"
+                got += 1
+            except Exception:
+                continue
+        write_json_atomic(data_path(CONTENT_DIR, self.job_id), c)
+        logging.info(f"[{self.name}] images attached: {got}/{len(c['items'])}")
+        self.context["images_attached"] = got
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

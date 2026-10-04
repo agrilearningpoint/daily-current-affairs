@@ -1,112 +1,143 @@
 # -*- coding: utf-8 -*-
 """
-AGRI LEARNING POINT — MASTER ORCHESTRATOR
-Runs the 24-agent pipeline: MASTER_SUPERVISOR → SCHEDULER → ... → WATCHDOG
-Usage: python main.py --type daily --date 2026-10-04
-       python main.py --type weekly --date 2026-10-05
-       python main.py --type monthly --date 2026-10-31
+AGRI LEARNING POINT — MASTER ORCHESTRATOR (production)
+Runs the 24-agent pipeline with: atomic job-lock, full state machine,
+exponential-backoff retries (2s/4s/8s), resume-from-last-stage, watchdog alerts.
+SECURITY: no hardcoded tokens — TELEGRAM_BOT_TOKEN only from env (GitHub Secrets).
+
+Usage: python main.py --type daily --date 2026-10-05
+       python main.py --watchdog          # monitor running/stalled jobs
 """
 
-import argparse, json, os, sys, logging, traceback
+import argparse, json, os, sys, time, logging, traceback
 from datetime import datetime
 import pytz
-from config.workflow import WORKFLOW_ORDER, MASTER_RULE
-from config.sources import TIER_1_SOURCES
 
-# Import all 24 agents dynamically
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from config.workflow import WORKFLOW_ORDER, MASTER_RULE
+from pipeline.state import (ensure_dirs, load_job, save_job, read_json, write_json_atomic,
+                            job_path, JobLock, TZ, now_iso)
+from pipeline.telegram_api import alert_admin
+
+
 def load_agent(agent_id):
     module = __import__(f'agents.{agent_id}', fromlist=['Agent'])
     return module.Agent
 
-def run_pipeline(job_type, job_date):
-    tz = pytz.timezone("Asia/Kolkata")
-    job_id = f"{job_type}_{job_date}"
-    # Ensure directories exist BEFORE logging
+
+def setup_logging(job_id):
     os.makedirs("logs", exist_ok=True)
-    os.makedirs("data/jobs", exist_ok=True)
-    os.makedirs("data/raw", exist_ok=True)
-    os.makedirs("data/verified", exist_ok=True)
-    os.makedirs("data/dedup", exist_ok=True)
-    os.makedirs("data/scored", exist_ok=True)
-    os.makedirs("data/selected", exist_ok=True)
-    os.makedirs("data/content", exist_ok=True)
-    os.makedirs("data/mcq", exist_ok=True)
-    os.makedirs("output", exist_ok=True)
-    logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', handlers=[logging.FileHandler(f"logs/{job_id}.log"), logging.StreamHandler()])
+    logging.basicConfig(level=logging.INFO, datefmt="%H:%M:%S",
+                        format='[%(asctime)s] %(message)s',
+                        handlers=[logging.FileHandler(f"logs/{job_id}.log"), logging.StreamHandler()])
+
+
+def run_pipeline(job_type, job_date, force=False):
+    ensure_dirs()
+    job_id = f"{job_type}_{job_date}"
+    setup_logging(job_id)
     logging.info(f"=== START PIPELINE {job_id} ===")
     logging.info(f"MASTER RULE: {MASTER_RULE}")
-    
-    # Check duplicate
-    if os.path.exists(f"data/jobs/{job_id}.json"):
-        with open(f"data/jobs/{job_id}.json") as jf:
-            j = json.load(jf)
-            if j.get("status") == "COMPLETE":
-                logging.info(f"Job {job_id} already COMPLETE — skipping duplicate")
-                return
-    
-    # Initialize context
-    context = {"job_id": job_id, "job_type": job_type, "job_date": job_date, "tz": "Asia/Kolkata", "window": f"{job_date} 06:00 IST"}
-    os.makedirs("data/jobs", exist_ok=True)
-    os.makedirs("logs", exist_ok=True)
-    
-    last_success = None
-    # Try to resume from last success if exists
-    if os.path.exists(f"data/jobs/{job_id}.json"):
-        with open(f"data/jobs/{job_id}.json") as jf:
-            j = json.load(jf)
-            last_success = j.get("last_success_stage")
-    
-    start_idx = 0
-    if last_success:
-        try:
-            start_idx = WORKFLOW_ORDER.index(last_success) + 1
-            logging.info(f"Resuming from {last_success} -> next is {WORKFLOW_ORDER[start_idx]}")
-        except:
-            start_idx = 0
-    
-    # Execute each agent in order
-    for agent_id in WORKFLOW_ORDER[start_idx:]:
-        try:
-            logging.info(f"--> Running {agent_id}")
-            Agent = load_agent(agent_id)
-            agent = Agent(job_id, job_type, context)
-            context = agent.run()
-            # Save checkpoint
-            with open(f"data/jobs/{job_id}.json", 'w') as jf:
-                json.dump({"job_id": job_id, "job_type": job_type, "job_date": job_date, "status": "RUNNING", "last_success_stage": agent_id, "updated": datetime.now(tz).isoformat()}, jf, indent=2)
-        except Exception as e:
-            logging.error(f"Agent {agent_id} failed: {e}")
-            traceback.print_exc()
-            # Retry via watchdog logic (3x)
-            for retry in range(3):
+
+    # ---- ATOMIC LOCK: prevents duplicate/racing runs of the same job ----
+    lock = JobLock(job_id)
+    if not lock.acquire():
+        logging.warning(f"Job {job_id} already RUNNING elsewhere (lock held) — exiting cleanly")
+        return "SKIPPED_LOCKED"
+    try:
+        job = load_job(job_id, job_type, job_date)
+        if job.get("status") == "COMPLETE" and not force:
+            logging.info(f"Job {job_id} already COMPLETE — skipping duplicate")
+            return "SKIPPED_DONE"
+
+        context = {"job_id": job_id, "job_type": job_type, "job_date": job_date,
+                   "tz": "Asia/Kolkata", "window": f"{job_date} 06:00 IST",
+                   "date_display": datetime.strptime(job_date, "%Y-%m-%d").strftime("%d %B %Y")}
+
+        start_idx = 0
+        last = job.get("last_success_stage")
+        if last and last in WORKFLOW_ORDER and job.get("status") != "FAILED_FINAL":
+            start_idx = WORKFLOW_ORDER.index(last) + 1
+            logging.info(f"RESUME: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
+
+        job = load_job(job_id, job_type, job_date)
+        save_job(job, state="COLLECTING" if start_idx <= 2 else "RECOVERED")
+
+        for agent_id in WORKFLOW_ORDER[start_idx:]:
+            attempts, backoffs = 3, [2, 4, 8]  # exponential backoff per README
+            last_err = None
+            for attempt in range(attempts + 1):
                 try:
-                    logging.info(f"Retrying {agent_id} attempt {retry+1}")
+                    logging.info(f"--> Running {agent_id} (attempt {attempt+1})")
                     Agent = load_agent(agent_id)
                     agent = Agent(job_id, job_type, context)
                     context = agent.run()
+                    # ---- QUALITY GATE: agent must self-report success ----
+                    if context.get("stage_failed"):
+                        raise RuntimeError(f"{agent_id} reported failure: {context['stage_failed']}")
+                    job = load_job(job_id, job_type, job_date)
+                    summary = {k: v for k, v in context.items()
+                               if isinstance(v, (int, float, str, bool))}
+                    save_job(job, stage=agent_id, context_summary=summary)
                     break
-                except Exception as re:
-                    if retry == 2:
-                        logging.error(f"Persistent failure in {agent_id}, escalating to WATCHDOG")
-                        # Send alert to admin via Telegram
-                        try:
-                            import requests
-                            bot = os.getenv("TELEGRAM_BOT_TOKEN", "8263302068:AAG1tPtIUfq08dgfoijtsoOsrnhWPBeoE78")
-                            chat = os.getenv("ADMIN_ID", "1138783169")
-                            requests.post(f"https://api.telegram.org/bot{bot}/sendMessage", data={"chat_id": chat, "text": f"🚨 WATCHDOG ALERT: {job_id} failed at {agent_id} — {str(e)[:500]}"})
-                        except: pass
-                        raise
+                except Exception as e:
+                    last_err = e
+                    logging.error(f"Agent {agent_id} failed (attempt {attempt+1}): {e}")
+                    traceback.print_exc()
+                    if attempt < attempts:
+                        job = load_job(job_id, job_type, job_date)
+                        save_job(job, state="RETRYING", error=str(e)[:500], retry=attempt + 1)
+                        time.sleep(backoffs[attempt])
             else:
-                continue
-    
-    # Mark complete
-    with open(f"data/jobs/{job_id}.json", 'w') as jf:
-        json.dump({"job_id": job_id, "job_type": job_type, "job_date": job_date, "status": "COMPLETE", "last_success_stage": WORKFLOW_ORDER[-1], "completed": datetime.now(tz).isoformat()}, jf, indent=2)
-    logging.info(f"=== PIPELINE {job_id} COMPLETE ===")
+                job = load_job(job_id, job_type, job_date)
+                save_job(job, state="FAILED_FINAL", error=str(last_err)[:500], failed_at=agent_id)
+                alert_admin(f"🚨 WATCHDOG ALERT: {job_id} FAILED at {agent_id} — {str(last_err)[:400]}")
+                raise SystemExit(f"Pipeline failed at {agent_id}: {last_err}")
+
+        job = load_job(job_id, job_type, job_date)
+        save_job(job, state="COMPLETE")
+        logging.info(f"=== PIPELINE {job_id} COMPLETE ===")
+        return "COMPLETE"
+    finally:
+        lock.release()
+
+
+def watchdog_check(max_age_min=90):
+    """Scan data/jobs for stalled/failed jobs → alert admin. Exit 1 if problems."""
+    ensure_dirs(); setup_logging("watchdog")
+    problems = []
+    jd = "data/jobs"
+    for fn in sorted(os.listdir(jd)):
+        if not fn.endswith(".json"):
+            continue
+        j = read_json(os.path.join(jd, fn)) or {}
+        st = j.get("status")
+        if st in ("RUNNING", "RETRYING", "COLLECTING", "VERIFYING"):
+            upd = j.get("updated")
+            if upd:
+                age = (datetime.now(TZ) - datetime.fromisoformat(upd)).total_seconds() / 60
+                if age > max_age_min:
+                    problems.append(f"⏰ STALLED {j['job_id']} state={st} age={age:.0f}min stage={j.get('last_success_stage')}")
+        elif st == "FAILED_FINAL":
+            problems.append(f"💥 FAILED_FINAL {j['job_id']} at {j.get('failed_at')}: {j.get('error','')[:120]}")
+    if problems:
+        alert_admin("🐕 WATCHDOG:\n" + "\n".join(problems))
+        print("\n".join(problems))
+        return 1
+    logging.info("Watchdog: all jobs healthy")
+    return 0
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--type", choices=["daily", "weekly", "monthly"], required=True)
-    parser.add_argument("--date", required=True, help="YYYY-MM-DD in Asia/Kolkata")
+    parser.add_argument("--type", choices=["daily", "weekly", "monthly"])
+    parser.add_argument("--date", help="YYYY-MM-DD in Asia/Kolkata")
+    parser.add_argument("--force", action="store_true", help="rerun even if COMPLETE")
+    parser.add_argument("--watchdog", action="store_true", help="monitor mode")
     args = parser.parse_args()
-    run_pipeline(args.type, args.date)
+    if args.watchdog:
+        sys.exit(watchdog_check())
+    if not (args.type and args.date):
+        parser.error("--type and --date are required for a pipeline run")
+    run_pipeline(args.type, args.date, force=args.force)

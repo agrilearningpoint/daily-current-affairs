@@ -1,65 +1,58 @@
 # -*- coding: utf-8 -*-
 """
-TELEGRAM PIN VERIFIER
-Main focus: PDF वास्तव में pin हुआ या नहीं।
+TELEGRAM PIN VERIFIER AGENT
+Main focus: pin करने के बाद actual verification — तभी job COMPLETE।
 
 Command:
-> "Verify that each successfully published PDF message is pinned. If upload succeeds but pinning fails, retry automatically. Never mark the job complete until publication and pin verification succeed."
+> "Pin the published document (pinChatMessage) then VERIFY by reading getChat().pinned_message.message_id == our message_id. If pin fails or mismatch → job is NOT complete and stage fails (watchdog will retry)."
 
-Work: Pin verification + retry
+Work: Real pin + read-back verification
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Verify that each successfully published PDF message is pinned. If upload succeeds but pinning fails, retry automatically. Never mark the job complete until publication and pin verification succeed."""
+COMMAND = """Pin the published document (pinChatMessage) then VERIFY by reading getChat().pinned_message.message_id == our message_id. If pin fails or mismatch → job is NOT complete and stage fails (watchdog will retry)."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- After Publisher returns message_id, calls pinChatMessage with disable_notification=False
-- Verifies via getChat and checking pinned_message
-- If fails: retries 3x (2s backoff), logs
-- Only after pin success: marks job status=COMPLETE in jobs.json
-- Never marks complete until both publish and pin succeed
-"""
+DETAILS = """- pipeline.telegram_api.pin_message + verify_pin; sets state PIN_VERIFIED"""
+
 
 class Agent:
-    """TELEGRAM PIN VERIFIER — detailed implementation"""
+    """TELEGRAM PIN VERIFIER AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
-        self.name = "TELEGRAM PIN VERIFIER"
+        self.name = "TELEGRAM PIN VERIFIER AGENT"
 
     def run(self):
-        """
-        Execute TELEGRAM PIN VERIFIER
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - After Publisher returns message_id, calls pinChatMessage with disable_notification=False
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "23_telegram_pin_verifier"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging, os
+        from pipeline.state import load_job, save_job
+        from pipeline.telegram_api import pin_message, verify_pin
+        job = load_job(self.job_id, self.job_type, self.context["job_date"])
+        msg_id = job.get("telegram_message_id") or self.context.get("telegram_message_id")
+        if not msg_id:
+            self.context["stage_failed"] = "nothing published — cannot pin"
+            raise RuntimeError(self.context["stage_failed"])
+        chat = os.getenv("TELEGRAM_CHANNEL_ID")
+        try:
+            pin_message(chat, msg_id)
+        except RuntimeError as e:
+            logging.warning(f"[{self.name}] pin call failed (may already be pinned): {e}")
+        ok, pinned = verify_pin(chat, msg_id)
+        if not ok:
+            self.context["stage_failed"] = f"pin verification FAILED: pinned={pinned} expected={msg_id}"
+            raise RuntimeError(self.context["stage_failed"])
+        save_job(job, state="PIN_VERIFIED", stage="23_telegram_pin_verifier")
+        logging.info(f"[{self.name}] pin verified message_id={msg_id}")
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

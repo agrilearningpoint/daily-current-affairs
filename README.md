@@ -143,3 +143,55 @@ python main.py --type daily --date 2026-10-04
 python main.py --type weekly --date 2026-10-05
 python main.py --type monthly --date 2026-10-31
 ```
+
+
+---
+
+## ✅ v2 PRODUCTION UPDATE (04 Oct 2026) — Code Audit Fixes
+
+All P0/P1 issues from the code review are now FIXED in this branch:
+
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | **Hardcoded Telegram Bot Token** | ❌ Removed everywhere. Token is read ONLY from `TELEGRAM_BOT_TOKEN` env (GitHub Secrets); missing token = hard error. ⚠️ **You must still revoke the old token via @BotFather → Revoke** and add the new one to Secrets (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID`, `ADMIN_ID`). Old tokens may persist in Git history even after deletion. |
+| 2 | **24 dummy agents (time.sleep pass-through)** | All 24 agents now have REAL implementations backed by the new `pipeline/` library. Empty/failing stage output raises an error — an empty pipeline can no longer report success. |
+| 3 | **No real news collection** | `pipeline/collector.py`: RSS-first + HTML-fallback adapters for all Tier-1 sources (PIB/ICAR/RBI/NABARD/SEBI/FAO/WB/IMF…), Tier-2 discovery, IST time-window per job type, quality gate (<5 items = failure). |
+| 4 | **No verification/dedup/scoring** | Agent 04 verifies source URLs live + confidence records; Agent 05 merges events at similarity ≥0.85 keeping authoritative source; Agent 06 implements the exact README factor weights (20/15/15/15/10/10/5/5/5 × source reliability). |
+| 5 | **MCQ generator/validator were dummies** | `pipeline/content.py`: deterministic fact-grounded MCQs (answer verbatim from that news's own text, distractors from other news, never auto "None of these") + full validator chain (option uniqueness, exactly-one-correct, answer supported by source, explanation check, duplicate-question check). Invalid MCQs are rejected before PDF. |
+| 6 | **PDF QA was pass-through** | Agent 19 is now a **HARD GATE**: PyMuPDF checks — pages>0, Mukta/Poppins embedded, Devanagari extractable, date present, headlines present, MCQ count matches JSON, answers valid, no blank pages. Any failure ⇒ `QA_REJECTED`; Agent 22 refuses to publish unless state == `QA_APPROVED`. |
+| 7 | **generate_pdf.py was a hardcoded 04-Oct sample** | Now a fully **dynamic data-driven generator**: `generate_pdf(content_json, mcq_json)` reads `data/content/<job>.json` + `data/mcq/<job>_validated.json`. Refuses empty editions. Same premium design system (Mukta+Poppins, 13mm margins, banners, Static Facts, Exam Fact boxes). |
+| 8 | **Font path bug (`BASE_DIR/fonts`)** | Fixed to `src/fonts/` — and font registration failure now RAISES instead of silently falling back to Helvetica. |
+| 9 | **External image paths (/home/user/…)** | Agent 15 downloads og-image/Wikimedia images into workspace `assets/images/<job_id>/` with Pillow validation (≥500px, JPEG/PNG). No external absolute paths. |
+| 10 | **Weekly workflow ran a duplicate daily** | `weekly.yml` now runs ONLY the weekly job (daily.yml already publishes Sunday's daily). Monthly likewise. All workflows have `concurrency:` groups. |
+| 11 | **No job locking / race conditions** | `pipeline/state.py`: atomic `JobLock` (O_CREAT|O_EXCL lockfile + stale-lock recovery) + COMPLETE-status skip. Two processes can never run the same job. |
+| 12 | **No retry backoff** | `main.py` retries each agent 3× with real exponential backoff **2s → 4s → 8s**, then FAILED_FINAL + admin alert. |
+| 13 | **Watchdog didn't exist** | New `.github/workflows/watchdog.yml` runs `python main.py --watchdog` **every 5 minutes**: detects stalled/FAILED_FINAL jobs, alerts admin DM, triggers resume-from-last-stage recovery. Agent 24 does the end-of-run artefact audit. |
+| 14 | **Full state machine** | CREATED→COLLECTING→COLLECTED→VERIFYING→VERIFIED→DEDUPLICATED→SCORED→SELECTED→CONTENT_READY→MCQ_READY→MCQ_VALIDATED→PDF_GENERATED→QA_APPROVED→PUBLISHED→PIN_VERIFIED→COMPLETE (+ FAILED/RETRYING/RECOVERED/FAILED_FINAL/QA_REJECTED), persisted atomically in `data/jobs/<job>.json`, supports resume. |
+| 15 | **Telegram publish/pin were dummies** | Agents 22–23 use the real Bot API: sendDocument → store message_id → pinChatMessage → getChat read-back verification (pinned id must match). Pin mismatch ⇒ job NOT complete. Duplicate-publish guard included. |
+| 16 | **Weekly/Monthly ran after PDF** | Workflow order corrected: editors 20/21 now run BEFORE content→PDF, so Best-of-Week/Month re-selection actually flows into the edition (same-database principle via importance memory). |
+| 17 | **Importance memory missing** | `data/memory/importance_memory.json`: event_id → score history → RISING/FALLING/NEW trend, reused by weekly/monthly selection. |
+| 18 | **DATE not persisted between workflow steps** | Workflows export `DATE` via `$GITHUB_ENV`. Push-failures surface as failures (no `|| echo` masking). |
+
+### 🆕 Repo layout additions
+```
+pipeline/            # shared real implementation library
+  state.py           #   state machine + atomic JSON + JobLock
+  collector.py       #   RSS/HTML source adapters, windows, categories
+  scoring.py         #   dedup (0.85 Jaccard/bigram) + 0-100 factor scoring
+  content.py         #   key points/static facts/exam fact + bilingual + MCQ gen/validate
+  telegram_api.py    #   sendDocument / pinChatMessage / verify_pin / alerts
+agents/*.py          # ALL 24 rewritten — real logic, quality gates, no pass-through
+tests/test_pipeline_offline.py   # offline E2E test suite (all passing)
+.github/workflows/watchdog.yml   # every-5-min monitor + recovery
+```
+
+### 🔐 Required GitHub Secrets (set before first run)
+`TELEGRAM_BOT_TOKEN` (new revoked-and-regenerated token), `TELEGRAM_CHANNEL_ID`, optionally `ADMIN_ID` for watchdog alerts. No fallback values exist in code — missing secrets fail loudly, which is correct behaviour.
+
+### Run locally
+```bash
+pip install -r requirements.txt
+python tests/test_pipeline_offline.py        # offline verification
+python main.py --type daily --date 2026-10-05
+python main.py --watchdog
+```

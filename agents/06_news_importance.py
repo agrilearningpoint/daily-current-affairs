@@ -1,73 +1,53 @@
 # -*- coding: utf-8 -*-
 """
 NEWS IMPORTANCE AGENT
-Main focus: कौन-सी news genuinely important है?
+Main focus: हर event को 0-100 multi-factor score देना।
 
 Command:
-> "Score every verified news item from 0–100 for overall current-affairs importance. Consider national significance, government importance, economic impact, agriculture relevance, banking relevance, exam potential, future relevance, static-fact value, uniqueness and source reliability. Do not select news merely because it is trending or widely reported."
+> "Score every deduplicated event 0-100 using the factor weights: national impact 20, government policy 15, economy 15, agriculture 15, banking 10, student exam relevance 10, future importance 5, static fact value 5, uniqueness 5 — then weight by source reliability (SOURCE_SCORE)."
 
-Work: Multi-factor 0-100 scoring
+Work: Multi-factor ranking
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Score every verified news item from 0–100 for overall current-affairs importance. Consider national significance, government importance, economic impact, agriculture relevance, banking relevance, exam potential, future relevance, static-fact value, uniqueness and source reliability. Do not select news merely because it is trending or widely reported."""
+COMMAND = """Score every deduplicated event 0-100 using the factor weights: national impact 20, government policy 15, economy 15, agriculture 15, banking 10, student exam relevance 10, future importance 5, static fact value 5, uniqueness 5 — then weight by source reliability (SOURCE_SCORE)."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Scores each deduped item 0-100:
-  - national_significance 0-20
-  - govt_importance 0-15
-  - economic_impact 0-15
-  - agri_relevance 0-15
-  - banking_relevance 0-10
-  - exam_potential 0-10
-  - future_relevance 0-5
-  - static_fact_value 0-5
-  - uniqueness 0-5
-- Weighted by source_reliability (Official 100 = full weight, Aggregator 60 = 0.6x)
-- Does NOT boost just because trending on Twitter/Many sites — uses importance, not popularity
-- Output: data/scored/<job_id>_importance.json with importance_score
-"""
+DETAILS = """- pipeline.scoring.score_all(): keyword-evidence factor scores + source-reliability multiplier
+- Writes data/scored/<job_id>.json sorted by importance_score"""
+
 
 class Agent:
-    """NEWS IMPORTANCE AGENT — detailed implementation"""
+    """NEWS IMPORTANCE AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "NEWS IMPORTANCE AGENT"
 
     def run(self):
-        """
-        Execute NEWS IMPORTANCE AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Scores each deduped item 0-100:
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "06_news_importance"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        from pipeline.scoring import score_all
+        from pipeline.state import DEDUP_DIR, SCORED_DIR, data_path, read_json, write_json_atomic, load_job, save_job
+        items = read_json(data_path(DEDUP_DIR, self.job_id), {"items": []})["items"]
+        scored = score_all(items)
+        logging.info(f"[{self.name}] scored {len(scored)} events, top={scored[0]['importance_score'] if scored else 0}")
+        if len(scored) < 5:
+            self.context["stage_failed"] = "scoring produced <5 events"
+            raise RuntimeError(self.context["stage_failed"])
+        write_json_atomic(data_path(SCORED_DIR, self.job_id), {"items": scored})
+        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
+                 state="SCORED", stage="06_news_importance")
+        self.context["scored"] = len(scored)
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

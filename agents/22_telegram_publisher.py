@@ -1,68 +1,66 @@
 # -*- coding: utf-8 -*-
 """
 TELEGRAM PUBLISHER AGENT
-Main focus: सिर्फ सही PDF publish करना।
+Main focus: QA-approved PDF को hi channel पर upload करना।
 
 Command:
-> "Publish only the final QA-approved PDFs to the designated Telegram channel/group. Upload the bilingual and English editions with the correct caption, date and filename. Never publish a draft, failed PDF or duplicate job."
+> "Publish ONLY if state == QA_APPROVED. Upload the PDF via Telegram Bot API sendDocument with bilingual caption + source links, store message_id in the job record. Duplicate check: if job already PUBLISHED with a message_id, skip re-upload. Token strictly from TELEGRAM_BOT_TOKEN env (no fallback constant)."
 
-Work: QA-approved only, correct caption/filename
+Work: Real sendDocument + duplicate guard
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Publish only the final QA-approved PDFs to the designated Telegram channel/group. Upload the bilingual and English editions with the correct caption, date and filename. Never publish a draft, failed PDF or duplicate job."""
+COMMAND = """Publish ONLY if state == QA_APPROVED. Upload the PDF via Telegram Bot API sendDocument with bilingual caption + source links, store message_id in the job record. Duplicate check: if job already PUBLISHED with a message_id, skip re-upload. Token strictly from TELEGRAM_BOT_TOKEN env (no fallback constant)."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Checks QA_STATUS==APPROVED else aborts
-- Checks Telegram not already published (jobs.json published=True)
-- Uploads to CHAT_ID=-1004485392227 (private group) via Bot Token (from GitHub Secret TELEGRAM_BOT_TOKEN)
-- Filenames: Daily: Agri_Learning_Point_DD_Mon_YYYY_Bilingual.pdf, Weekly: Agri_Learning_Point_Weekly_DDMon-DDMonYYYY.pdf, Monthly: Agri_Learning_Point_Monthly_MonYYYY.pdf
-- Caption: 📚 AGRI LEARNING POINT | BY SATYAM SIR + date + highlights + Inside: X News | Y MCQs | For: AGTA/AFO... + file code + Pinned note
-- Uses parse_mode HTML, sends document
-- Logs to logs/telegram/<job_id>.json with message_id
-- Never publishes draft/failed/duplicate
-"""
+DETAILS = """- pipeline.telegram_api.send_document()
+- saves telegram_message_id; sets state PUBLISHED"""
+
 
 class Agent:
-    """TELEGRAM PUBLISHER AGENT — detailed implementation"""
+    """TELEGRAM PUBLISHER AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "TELEGRAM PUBLISHER AGENT"
 
     def run(self):
-        """
-        Execute TELEGRAM PUBLISHER AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Checks QA_STATUS==APPROVED else aborts
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "22_telegram_publisher"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging, os
+        from pipeline.state import load_job, save_job, CONTENT_DIR, data_path, read_json
+        from pipeline.telegram_api import send_document
+        job = load_job(self.job_id, self.job_type, self.context["job_date"])
+        if job.get("status") != "QA_APPROVED":
+            self.context["stage_failed"] = f"publish blocked: state={job.get('status')} (QA hard gate)"
+            raise RuntimeError(self.context["stage_failed"])
+        if job.get("telegram_message_id"):
+            logging.info(f"[{self.name}] already published msg_id={job['telegram_message_id']} — duplicate prevented")
+            return self.context
+        chat = os.getenv("TELEGRAM_CHANNEL_ID")
+        if not chat:
+            self.context["stage_failed"] = "TELEGRAM_CHANNEL_ID missing"
+            raise RuntimeError(self.context["stage_failed"])
+        c = read_json(data_path(CONTENT_DIR, self.job_id))
+        label = {"daily": "Daily", "weekly": "Weekly Best-of", "monthly": "Monthly Best-of"}[self.job_type]
+        top = c["items"][0]["headline_en"].lstrip("> ")[:120]
+        caption = (f"🗞️ ALP {label} Current Affairs — {c['job']['date_display']}\n\n"
+                   f"⭐ {top}\n\n"
+                   f"📰 {len(c['items'])} verified news • MCQ practice included\n"
+                   f"✅ All facts verified against primary sources\n"
+                   f"📲 @Agrikrishna | YouTube: Agri Learning Point")
+        msg_id = send_document(chat, self.context["pdf_path"], caption)
+        save_job(job, state="PUBLISHED", stage="22_telegram_publisher", telegram_message_id=msg_id)
+        self.context["telegram_message_id"] = msg_id
+        logging.info(f"[{self.name}] published message_id={msg_id}")
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

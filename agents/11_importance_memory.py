@@ -1,65 +1,55 @@
 # -*- coding: utf-8 -*-
 """
-IMPORTANCE MEMORY / TREND AGENT
-Main focus: जो news बाद में ज्यादा important हो जाए उसे पहचानना।
+IMPORTANCE MEMORY AGENT
+Main focus: event history और trend याद रखना (persistent memory)।
 
 Command:
-> "Track the importance of each event over time. Increase priority when an event gains major government, economic, agricultural, policy, examination or national significance. Use historical importance when creating Weekly and Monthly selections. Do not repeatedly publish the same event unless there is meaningful new development."
+> "Maintain persistent importance memory: for each event store score history across days, detect RISING/FALLING/NEW trends, and remember previously-published event_ids so Weekly/Monthly can reuse the same database."
 
-Work: Temporal importance tracking for Weekly/Monthly
+Work: Persistent JSON memory
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Track the importance of each event over time. Increase priority when an event gains major government, economic, agricultural, policy, examination or national significance. Use historical importance when creating Weekly and Monthly selections. Do not repeatedly publish the same event unless there is meaningful new development."""
+COMMAND = """Maintain persistent importance memory: for each event store score history across days, detect RISING/FALLING/NEW trends, and remember previously-published event_ids so Weekly/Monthly can reuse the same database."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Maintains data/memory/importance_history.json — map event_id → history of scores over days
-- When event gains significance (e.g., GOBARdhan day1 70, day3 after budget mention 85) — increase trend_score
-- For Weekly/Monthly: re-ranks using cumulative importance (avg + max + trend), so week/month best-of, not just daily repetition
-- Deduplicates repeated stories: if same GOBARdhan appears 3 days, keep only latest with new development, else suppress
-- Useful for Weekly/Monthly fresh selection
-"""
+DETAILS = """- data/memory/importance_memory.json : event_id → {scores[], last_seen, trend}
+- marks is_new / trend on selected items"""
+
 
 class Agent:
-    """IMPORTANCE MEMORY / TREND AGENT — detailed implementation"""
+    """IMPORTANCE MEMORY AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
-        self.name = "IMPORTANCE MEMORY / TREND AGENT"
+        self.name = "IMPORTANCE MEMORY AGENT"
 
     def run(self):
-        """
-        Execute IMPORTANCE MEMORY / TREND AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Maintains data/memory/importance_history.json — map event_id → history of scores over days
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "11_importance_memory"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        from pipeline.state import SELECTED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
+        mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
+        sel = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []})["items"]
+        for it in sel:
+            e = mem.setdefault(it["event_id"], {"headline": it["headline_en"], "history": [], "published_jobs": []})
+            before = [h["score"] for h in e["history"]]
+            sc = it.get("importance_score", 0)
+            e["history"].append({"job": self.job_id, "score": sc, "at": self.context.get("job_date")})
+            e["trend"] = "NEW" if not before else ("RISING" if sc > max(before) else "FALLING" if sc < max(before) else "STEADY")
+            it["trend"] = e["trend"]
+            it["previously_published"] = self.job_id in e["published_jobs"]
+        write_json_atomic(data_path(MEMORY_DIR, "importance_memory"), mem)
+        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": sel})
+        logging.info(f"[{self.name}] memory updated for {len(sel)} events")
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

@@ -1,66 +1,59 @@
 # -*- coding: utf-8 -*-
 """
 MONTHLY EDITOR AGENT
-Main focus: पूरे month का best-of-month।
+Main focus: महीने की सर्वश्रेष्ठ news का fresh Best-of-Month edition बनाना (1st)।
 
 Command:
-> "Review all verified current-affairs events from the complete month and create a fresh Best-of-the-Month selection. Re-rank events using month-long significance, exam relevance, agriculture and banking relevance, policy impact, repeated developments, static-fact value and future exam potential. Do not merge daily or weekly PDFs. Select only the most important events of the month."
+> "On monthly jobs, re-select across the month using importance memory history: 'Is poore mahine me sabse mahatvapurna kya raha?' 20-25 items, fresh editorial decision, never a combine of dailies."
 
-Work: Fresh Best-of-Month
+Work: Best-of-Month re-selection
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Review all verified current-affairs events from the complete month and create a fresh Best-of-the-Month selection. Re-rank events using month-long significance, exam relevance, agriculture and banking relevance, policy impact, repeated developments, static-fact value and future exam potential. Do not merge daily or weekly PDFs. Select only the most important events of the month."""
+COMMAND = """On monthly jobs, re-select across the month using importance memory history: 'Is poore mahine me sabse mahatvapurna kya raha?' 20-25 items, fresh editorial decision, never a combine of dailies."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Triggered only last date of month (Scheduler)
-- Loads all verified events from 1st to last date of month
-- Re-ranks using month-long significance, policy impact (e.g., Budget), repeated developments, static value, future exam potential
-- Selects top 20-30 most important events of month (not daily*30)
-- Then downstream to PDF
-- Output: output/Monthly_MonthYYYY.pdf
-"""
+DETAILS = """- memory-driven month ranking; overrides selected set for monthly job"""
+
 
 class Agent:
-    """MONTHLY EDITOR AGENT — detailed implementation"""
+    """MONTHLY EDITOR AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "MONTHLY EDITOR AGENT"
 
     def run(self):
-        """
-        Execute MONTHLY EDITOR AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Triggered only last date of month (Scheduler)
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "21_monthly_editor"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        if self.job_type != "monthly":
+            logging.info(f"[{self.name}] skipped (job_type={self.job_type})")
+            return self.context
+        from pipeline.state import SELECTED_DIR, SCORED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
+        mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
+        items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
+        for it in items:
+            e = mem.get(it["event_id"], {})
+            hist = [h["score"] for h in e.get("history", [])]
+            it["monthly_score"] = round((max([it.get("student_relevance", 0)] + hist) * 0.7
+                                         + (sum(hist)/len(hist) if hist else 0) * 0.3))
+        items.sort(key=lambda x: -x["monthly_score"])
+        chosen = [i for i in items if i["monthly_score"] >= 62][:25]
+        if len(chosen) < 5:
+            self.context["stage_failed"] = f"Monthly selection too small ({len(chosen)})"
+            raise RuntimeError(self.context["stage_failed"])
+        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": chosen})
+        logging.info(f"[{self.name}] Best-of-Month: {len(chosen)} items")
+        self.context["monthly_selected"] = len(chosen)
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

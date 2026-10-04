@@ -1,65 +1,52 @@
 # -*- coding: utf-8 -*-
 """
 MCQ GENERATOR AGENT
-Main focus: selected news से high-quality exam questions।
+Main focus: selected verified news से 12-15 MCQ बनाना।
 
 Command:
-> "Create high-quality competitive-exam MCQs only from verified and selected current affairs. Prioritize direct, conceptual, statement-based and static-linked questions relevant to AGTA, AFO, NABARD, FCI, ICAR and general competitive exams. Avoid ambiguous questions, trivial questions, duplicate questions and questions whose answers are not clearly supported by the source data."
+> "Generate 12-15 MCQs ONLY from verified selected content. Types: direct/static-number, who-org, statement style. Options A-E max, exactly one correct taken verbatim from that news's own facts; distractors are real values from OTHER news (wrong for this question). Never auto-add 'None of these'. Never ask about unverified info."
 
-Work: Exam-level MCQs from verified content
+Work: Deterministic fact-grounded MCQ
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Create high-quality competitive-exam MCQs only from verified and selected current affairs. Prioritize direct, conceptual, statement-based and static-linked questions relevant to AGTA, AFO, NABARD, FCI, ICAR and general competitive exams. Avoid ambiguous questions, trivial questions, duplicate questions and questions whose answers are not clearly supported by the source data."""
+COMMAND = """Generate 12-15 MCQs ONLY from verified selected content. Types: direct/static-number, who-org, statement style. Options A-E max, exactly one correct taken verbatim from that news's own facts; distractors are real values from OTHER news (wrong for this question). Never auto-add 'None of these'. Never ask about unverified info."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Generates 12-15 MCQs per daily job, 5 options A-E, based ONLY on selected news (02-03 Oct window)
-- Types: direct (GOBARdhan outlay?), conceptual (why CBG saves forex?), statement-based, static-linked (RBI established 1935)
-- For AGTA/AFO/NABARD level, not trivial (e.g., not "What is full form of RBI?")
-- Avoids ambiguous (2 correct), duplicate, unsupported answer
-- Output: data/mcq/<job_id>_mcqs.json with Q, options, correct, explanation, source_ref
-"""
+DETAILS = """- pipeline.content.generate_mcqs(); writes data/mcq/<job_id>.json"""
+
 
 class Agent:
-    """MCQ GENERATOR AGENT — detailed implementation"""
+    """MCQ GENERATOR AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "MCQ GENERATOR AGENT"
 
     def run(self):
-        """
-        Execute MCQ GENERATOR AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Generates 12-15 MCQs per daily job, 5 options A-E, based ONLY on selected news (02-03 Oct window)
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "16_mcq_generator"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        from pipeline.content import generate_mcqs
+        from pipeline.state import CONTENT_DIR, MCQ_DIR, data_path, read_json, write_json_atomic
+        c = read_json(data_path(CONTENT_DIR, self.job_id))
+        mcqs = generate_mcqs(c["items"])
+        n_items = len(c["items"])
+        if len(mcqs) < min(8, n_items):
+            self.context["stage_failed"] = f"only {len(mcqs)} MCQs generated for {n_items} news (need >=min(8,n))"
+            raise RuntimeError(self.context["stage_failed"])
+        write_json_atomic(data_path(MCQ_DIR, self.job_id), mcqs)
+        save_state = None
+        logging.info(f"[{self.name}] generated {len(mcqs)} MCQs")
+        self.context["mcqs_generated"] = len(mcqs)
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

@@ -1,64 +1,54 @@
 # -*- coding: utf-8 -*-
 """
 CONTENT EDITOR AGENT
-Main focus: selected news को student-friendly बनाना।
+Main focus: selected news को student-facing bilingual content में बदलना।
 
 Command:
-> "Convert only selected and verified news into concise, exam-oriented current-affairs content following the reference PDF structure: Headline → Key Points → Static Facts → Exam Fact → Explanation where useful. Preserve factual accuracy. Do not add unsupported information. Keep the content easy to revise and avoid unnecessary storytelling."
+> "For each selected event produce: headline_en, key_points (2-4 bullets), static-fact table rows, exam-fact note — strictly extracted from verified source text. Never invent facts; if AI polish is configured it may only reword, never add numbers."
 
-Work: Headline → Key Points → Static Facts → Exam Fact
+Work: Deterministic extraction + optional guarded AI polish
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Convert only selected and verified news into concise, exam-oriented current-affairs content following the reference PDF structure: Headline → Key Points → Static Facts → Exam Fact → Explanation where useful. Preserve factual accuracy. Do not add unsupported information. Keep the content easy to revise and avoid unnecessary storytelling."""
+COMMAND = """For each selected event produce: headline_en, key_points (2-4 bullets), static-fact table rows, exam-fact note — strictly extracted from verified source text. Never invent facts; if AI polish is configured it may only reword, never add numbers."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- For each selected item: writes headline_en (18pt style), key_points_en (3-4 bullets, 12pt), static_facts dict (for table), exam_fact_en (12.5pt yellow box)
-- Follows reference PDF structure exactly, no storytelling fluff
-- Preserves facts: numbers, names, dates exact from verified source, no hallucination
-- Output: data/content/<job_id>_content.json — bilingual source for next agents (en only, hi via next agent)
-"""
+DETAILS = """- pipeline.content.build_content() → data/content/<job_id>.json"""
+
 
 class Agent:
-    """CONTENT EDITOR AGENT — detailed implementation"""
+    """CONTENT EDITOR AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
         self.name = "CONTENT EDITOR AGENT"
 
     def run(self):
-        """
-        Execute CONTENT EDITOR AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - For each selected item: writes headline_en (18pt style), key_points_en (3-4 bullets, 12pt), static_facts dict (for table), exam_fact_en (12.5pt yellow box)
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "12_content_editor"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging
+        from pipeline.content import build_content
+        from pipeline.state import SELECTED_DIR, CONTENT_DIR, data_path, read_json, write_json_atomic, load_job, save_job
+        items = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []})["items"]
+        meta = {"id": self.job_id, "type": self.job_type, "date": self.context["job_date"],
+                "date_display": self.context.get("date_display", self.context["job_date"])}
+        content = build_content(items, meta)
+        if not content["items"]:
+            self.context["stage_failed"] = "content editor produced 0 items"
+            raise RuntimeError(self.context["stage_failed"])
+        write_json_atomic(data_path(CONTENT_DIR, self.job_id), content)
+        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
+                 state="CONTENT_READY", stage="12_content_editor")
+        logging.info(f"[{self.name}] content ready: {len(content['items'])} items")
+        self.context["content_items"] = len(content["items"])
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())

@@ -1,67 +1,69 @@
 # -*- coding: utf-8 -*-
 """
-WATCHDOG / RECOVERY AGENT
-Main focus: system कहीं बीच में रुक न जाए।
+WATCHDOG RECOVERY AGENT
+Main focus: पूरी pipeline की monitoring, timeout detection और recovery।
 
 Command:
-> "Continuously monitor every active job and agent. Detect timeout, stalled execution, API failure, invalid output, missing data and publishing failure. Retry transient failures with exponential backoff, resume from the last successful checkpoint, and escalate persistent failures with a clear error alert. Never silently stop a job."
+> "Final health audit of the job: state must be PIN_VERIFIED→COMPLETE path, all artefacts exist (raw/verified/dedup/scored/selected/content/mcq/pdf/qa report), PDF size sane, QA approved. On anomalies: mark job, alert admin via Telegram DM (ADMIN_ID). Also runs standalone every 5 min via .github/workflows/watchdog.yml (python main.py --watchdog)."
 
-Work: Monitor → Retry → Recover → Alert
+Work: Real end-to-end audit + alerting
+Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
-COMMAND = """Continuously monitor every active job and agent. Detect timeout, stalled execution, API failure, invalid output, missing data and publishing failure. Retry transient failures with exponential backoff, resume from the last successful checkpoint, and escalate persistent failures with a clear error alert. Never silently stop a job."""
+COMMAND = """Final health audit of the job: state must be PIN_VERIFIED→COMPLETE path, all artefacts exist (raw/verified/dedup/scored/selected/content/mcq/pdf/qa report), PDF size sane, QA approved. On anomalies: mark job, alert admin via Telegram DM (ADMIN_ID). Also runs standalone every 5 min via .github/workflows/watchdog.yml (python main.py --watchdog)."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- Runs every 5 min (or as GitHub Actions step)
-- Monitors data/jobs/*.json — if status PENDING but no update >10 min → stalled
-- Detects: timeout, API failure (e.g., PIB 500), invalid output (empty verified), missing data, publish failure
-- Retry: transient (network) → 3x exponential backoff, resume from last_success_stage (Master Supervisor)
-- Recover: if pipeline crashed mid, Master Supervisor resumes
-- Alert: if persistent (>3 fails), sends Telegram alert to admin @Agrikrishna (1138783169) with error details, logs to logs/watchdog.log
-- Never silently stops — always logs and alerts
-"""
+DETAILS = """- validates every artefact + job state machine
+- sends watchdog alerts through pipeline.telegram_api.alert_admin"""
+
 
 class Agent:
-    """WATCHDOG / RECOVERY AGENT — detailed implementation"""
+    """WATCHDOG RECOVERY AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
-        self.job_type = job_type  # daily/weekly/monthly
+        self.job_type = job_type
         self.context = context
-        self.name = "WATCHDOG / RECOVERY AGENT"
+        self.name = "WATCHDOG RECOVERY AGENT"
 
     def run(self):
-        """
-        Execute WATCHDOG / RECOVERY AGENT
-        Input: context from previous agent
-        Output: updated context + writes to data/* / logs/*
-        On failure: raises Exception for Master Supervisor to catch and retry
-        """
-        import json, os, time, logging
-        from datetime import datetime
-        import pytz
-        tz = pytz.timezone("Asia/Kolkata")
-        start = datetime.now(tz)
-        logging.info(f"[{self.name}] Starting job {self.job_id} ({self.job_type}) at {start}")
-        # --- Detailed logic as per DETAILS ---
-        # - Runs every 5 min (or as GitHub Actions step)
-        # TODO: Implement full logic — see DETAILS and TIER sources / PDF design spec
-        # For now, log and pass through (real implementation in src/)
-        logging.info(f"[{self.name}] COMMAND: {COMMAND[:80]}...")
-        # Simulate work
-        time.sleep(0.1)
-        # Update context
-        self.context["last_agent"] = self.name
-        self.context["last_success_stage"] = "24_watchdog_recovery"
-        logging.info(f"[{self.name}] Completed job {self.job_id}")
+        import logging, os
+        from pipeline.state import (load_job, save_job, RAW_DIR, VERIFIED_DIR, DEDUP_DIR, SCORED_DIR,
+                                    SELECTED_DIR, CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, OUTPUT_DIR,
+                                    data_path, read_json)
+        from pipeline.telegram_api import alert_admin
+        job = load_job(self.job_id, self.job_type, self.context["job_date"])
+        problems = []
+        need = [("raw", data_path(RAW_DIR, self.job_id)), ("verified", data_path(VERIFIED_DIR, self.job_id)),
+                ("dedup", data_path(DEDUP_DIR, self.job_id)), ("scored", data_path(SCORED_DIR, self.job_id)),
+                ("selected", data_path(SELECTED_DIR, self.job_id)), ("content", data_path(CONTENT_DIR, self.job_id)),
+                ("mcq_validated", data_path(MCQ_DIR, self.job_id, "_validated")),
+                ("qa_report", data_path(QA_LOG_DIR, self.job_id))]
+        for nm, p in need:
+            if not os.path.exists(p):
+                problems.append(f"missing artefact: {nm}")
+        qa = read_json(data_path(QA_LOG_DIR, self.job_id), {})
+        if not qa.get("approved"):
+            problems.append("QA report not APPROVED")
+        pdf = self.context.get("pdf_path", "")
+        if not (os.path.exists(pdf) and os.path.getsize(pdf) > 20000):
+            problems.append("PDF missing/too small")
+        if job.get("status") != "PIN_VERIFIED":
+            problems.append(f"unexpected state at watchdog: {job.get('status')}")
+        if problems:
+            alert_admin(f"⚠️ {self.job_id} watchdog found: " + "; ".join(problems))
+            self.context["stage_failed"] = "watchdog audit failed: " + "; ".join(problems)
+            raise RuntimeError(self.context["stage_failed"])
+        save_job(job, stage="24_watchdog_recovery", watchdog="healthy")
+        logging.info(f"[{self.name}] audit PASSED for {self.job_id}")
         return self.context
 
     def verify(self):
-        """QA check for this agent's output"""
-        return True
+        return not self.context.get("stage_failed")
+
 
 if __name__ == "__main__":
-    # Test run
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily"}
-    agent = Agent("test_2026-10-04", "daily", ctx)
-    print(agent.run())
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
+    print(Agent("test_2026-10-04", "daily", ctx).run())
