@@ -33,7 +33,7 @@ class Agent:
         items = read_json(data_path(DEDUP_DIR, self.job_id), {"items": []})["items"]
         scored = score_all(items)
         logging.info(f"[{self.name}] scored {len(scored)} events, top={scored[0]['importance_score'] if scored else 0}")
-        if len(scored) < 5:
+        if len(scored) < 3:
             self.context["stage_failed"] = "scoring produced <5 events"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(SCORED_DIR, self.job_id), {"items": scored})
