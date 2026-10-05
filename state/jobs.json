@@ -1,11 +1,11 @@
 {
  "daily_2026-10-04": {
-  "error": "publish blocked: state=RETRYING (QA hard gate)",
-  "failed_at": "22_telegram_publisher",
+  "error": "only 0 content-verified items (min 5 for daily)",
+  "failed_at": "04_fact_verification",
   "job_id": "daily_2026-10-04",
   "last_success_stage": "03_news_collection",
-  "status": "COLLECTED",
-  "updated": "2026-10-05T16:45:53.646679+05:30"
+  "status": "FAILED_FINAL",
+  "updated": "2026-10-05T22:10:11.918034+05:30"
  },
  "daily_2026-10-05": {
   "error": "only 0 content-verified items (min 5 for daily)",
