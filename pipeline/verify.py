@@ -32,7 +32,7 @@ from bs4 import BeautifulSoup
 TIMEOUT = int(os.getenv("VERIFY_TIMEOUT", "8"))
 MAX_WORKERS = int(os.getenv("VERIFY_WORKERS", "10"))
 DEADLINE_S = int(os.getenv("VERIFY_DEADLINE_S", "240"))
-UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 AgriLearningPointBot/1.0"}
+UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-IN,en;q=0.9"}
 
 STOP = set("""the a an and or of in on at to for with from by is are was were new launch launches
 launched approved approves says said over after before amid as its it this that will can has have
