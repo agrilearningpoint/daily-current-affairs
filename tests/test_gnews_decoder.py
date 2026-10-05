@@ -85,7 +85,8 @@ def test_verify_all_seeds_cache_from_decode_many():
     orig_many, orig_get = gnews.decode_many, verify.requests.get
     try:
         def fake_many(pairs, workers=10, deadline_s=60):
-            return {p[0]: "https://official.example/article" for p in pairs}
+            # production decode_many keys results by the (link, guid) pair
+            return {tuple(p): "https://official.example/article" for p in pairs}
         gnews.decode_many = fake_many
         items = [{"event_id": "e1", "headline_en": "Test headline",
                   "source_url": "https://news.google.com/rss/articles/TOKEN1",
@@ -98,7 +99,7 @@ def test_verify_all_seeds_cache_from_decode_many():
                                    for it in items if "news.google.com" in it["source_url"]])
         # production seeding (verify_all): key by link only so fetch_page hits cache
         for (l, g), u in gn_map.items():
-            _GN_DECODE_CACHE[l] = u
+            cache[l] = u
         assert verify.decode_gnews_link(key) == "https://official.example/article"
     finally:
         gnews.decode_many = orig_many

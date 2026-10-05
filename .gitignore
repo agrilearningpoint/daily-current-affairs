@@ -1,7 +1,8 @@
-# Python compiled files
-__pycache__/
-*.pyc
-
 # Logs
-logs/
 *.log
+
+# Output/Build artifacts
+output/
+
+# Python cache
+__pycache__/
