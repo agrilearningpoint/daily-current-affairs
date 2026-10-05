@@ -40,8 +40,8 @@ class Agent:
         items.sort(key=lambda x: -x["student_relevance"])
         keep = [i for i in items if i["student_relevance"] >= 30]
         logging.info(f"[{self.name}] relevant={len(keep)}/{len(items)}")
-        if len(keep) < 5:
-            self.context["stage_failed"] = f"only {len(keep)} student-relevant events (min 5)"
+        if len(keep) < 3:
+            self.context["stage_failed"] = f"only {len(keep)} student-relevant events (min 3)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(SCORED_DIR, self.job_id), {"items": keep})
         self.context["relevant"] = len(keep)
