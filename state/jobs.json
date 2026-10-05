@@ -8,11 +8,11 @@
   "updated": "2026-10-04T17:57:37.609878+05:30"
  },
  "daily_2026-10-05": {
-  "error": "No module named 'feedparser'",
-  "failed_at": "02_scheduler",
+  "error": "only 0 content-verified items (min 4)",
+  "failed_at": "04_fact_verification",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "01_master_supervisor",
+  "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-05T15:29:50.779313+05:30"
+  "updated": "2026-10-05T15:32:39.982119+05:30"
  }
 }
