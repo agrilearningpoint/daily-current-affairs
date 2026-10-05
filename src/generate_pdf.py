@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 AGRI LEARNING POINT - Premium Daily Current Affairs PDF Generator
-Bilingual Edition - 04 October 2026 Sample
-Design: Premium colourful magazine, mobile-friendly, exam-oriented
+Production engine for daily / weekly / monthly bilingual editions.
+All dates, headlines and content are supplied dynamically via the content JSON
+built by Agent 12; nothing in this file is sample- or date-specific.
+Design: Premium colourful magazine, mobile-friendly, exam-oriented.
+Hindi rendering: Mukta + Pillow/RAQM shaping with a hidden selectable
+vector-text layer (see _HindiTextFlowable); English: Poppins.
 """
 
 import os

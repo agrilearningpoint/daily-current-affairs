@@ -64,22 +64,59 @@ def _save(path, obj):
     os.replace(tmp, path)
 
 
+# JSON state files are MERGED key-by-key (event_id / job_id keyed dicts), never
+# clobbered wholesale. This is the fix for the concurrent-workflow race:
+# daily/weekly/monthly/watchdog runners each add different keys; a blind
+# `checkout FETCH_HEAD -- state/` or last-writer-wins push would silently drop
+# another workflow's updates. Merge keeps both sides' keys on pull AND on push.
+MERGE_FILES = ("importance_memory.json", "published_events.json", "jobs.json")
+
+
+def _merge_dicts(local_obj, remote_obj):
+    """Union merge of two dict-shaped state files. On same-key conflict, prefer
+    the record with the newer timestamp field (last_seen/last_published/updated);
+    ties fall back to local (we just wrote it)."""
+    out = dict(remote_obj or {})
+    for k, v in (local_obj or {}).items():
+        old = out.get(k)
+        if old is None:
+            out[k] = v
+            continue
+        if isinstance(old, dict) and isinstance(v, dict):
+            ts_new = v.get("last_seen") or v.get("last_published") or v.get("updated") or ""
+            ts_old = old.get("last_seen") or old.get("last_published") or old.get("updated") or ""
+            out[k] = v if ts_new >= ts_old else old
+        else:
+            out[k] = v  # non-dict local value wins (we own our writes)
+    return out
+
+
+def _remote_state(fn):
+    r = subprocess.run(["git", "-C", ROOT, "show", f"origin/main:state/{fn}"],
+                       capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        return {}
+    try:
+        obj = json.loads(r.stdout)
+        return obj if isinstance(obj, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
 def pull():
-    """Fetch latest committed state from origin/main (best-effort)."""
+    """Fetch latest committed state from origin/main and MERGE it into local
+    state files (key-wise union; never overwrite local-only additions)."""
     try:
         _git("fetch", "origin", "main", checks=False)
-        # take remote versions of OUR state files only (never touch code)
-        for fn in ("importance_memory.json", "published_events.json", "jobs.json"):
-            p = os.path.join("state", fn)
-            r = subprocess.run(["git", "-C", ROOT, "show", f"origin/main:{p}"],
-                               capture_output=True, text=True, timeout=60)
-            if r.returncode == 0:
-                try:
-                    json.loads(r.stdout)  # validate before overwriting
-                    with open(os.path.join(STATE_DIR, fn), "w", encoding="utf-8") as f:
-                        f.write(r.stdout)
-                except json.JSONDecodeError:
-                    pass
+        for fn in MERGE_FILES:
+            p = os.path.join(STATE_DIR, fn)
+            remote = _remote_state(fn)
+            if not remote:
+                continue
+            local = _load(p)
+            merged = _merge_dicts(local, remote)
+            if merged != local:
+                _save(p, merged)
         return True
     except Exception as e:
         print(f"[store] pull skipped: {e}")
@@ -87,21 +124,47 @@ def pull():
 
 
 def push(message="state: update"):
-    """Commit + push changed state files. Never raises."""
+    """Commit + push changed state files with a merge-safe rebase loop.
+    On push conflict we rebase onto origin/main; if git reports a CONFLICT in
+    one of our JSON state files, we abort the rebase, take the merged
+    (local ∪ remote) version, recommit and retry — so concurrent workflows
+    never lose each other's keys. Never raises."""
+    import time
     try:
         _git("add", "-f", "state/", checks=False)
         r = subprocess.run(["git", "-C", ROOT, "diff", "--cached", "--quiet"])
         if r.returncode == 0:
             return False  # nothing changed
-        _git("-c", f"user.name=AgriLearningPointBot", "-c", "user.email=bot@agrilearningpoint.local",
+        _git("-c", "user.name=AgriLearningPointBot", "-c", "user.email=bot@agrilearningpoint.local",
              "commit", "-m", message, checks=False)
-        for attempt in range(2):
+        for attempt in range(3):
             pr = subprocess.run(["git", "-C", ROOT, "push", "origin", "HEAD:main"],
                                 capture_output=True, text=True, timeout=120)
             if pr.returncode == 0:
                 print(f"[store] pushed: {message}")
                 return True
-            _git("pull", "--rebase", "origin", "main", checks=False)
+            # Conflict-safe rebase: if state JSONs clash, merge them ourselves.
+            rb = subprocess.run(["git", "-C", ROOT, "pull", "--rebase", "origin", "main"],
+                                capture_output=True, text=True, timeout=120)
+            if rb.returncode != 0:
+                conflicted = [fn for fn in MERGE_FILES
+                              if f"state/{fn}" in (rb.stdout + rb.stderr)]
+                subprocess.run(["git", "-C", ROOT, "rebase", "--abort"],
+                               capture_output=True, text=True, timeout=60)
+                if conflicted:
+                    _git("fetch", "origin", "main", checks=False)
+                    for fn in conflicted:
+                        merged = _merge_dicts(_load(os.path.join(STATE_DIR, fn)),
+                                              _remote_state(fn))
+                        _save(os.path.join(STATE_DIR, fn), merged)
+                    _git("add", "-f", "state/", checks=False)
+                    _git("-c", "user.name=AgriLearningPointBot",
+                         "-c", "user.email=bot@agrilearningpoint.local",
+                         "commit", "-m", f"{message} (merged concurrent state)", checks=False)
+                    continue
+                print(f"[store] rebase failed: {rb.stderr[:200]}")
+                break
+            time.sleep(1 + attempt)  # tiny jitter reduces repeated collisions
         print("[store] WARNING: could not push state to origin/main after retries")
     except Exception as e:
         print(f"[store] push failed (non-blocking): {e}")

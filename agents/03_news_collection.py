@@ -30,7 +30,7 @@ class Agent:
     def run(self):
         import logging
         from pipeline.collector import collect_all, collect_window, in_window
-        from pipeline.state import RAW_DIR, data_path, write_json_atomic, load_job, save_job
+        from pipeline.state import RAW_DIR, data_path, write_json_atomic
         items, errors = collect_all(max_items=140)
         start, end = collect_window(self.job_type, self.context["job_date"])
         # scheduler context (merged from former Agent 02)
@@ -42,9 +42,6 @@ class Agent:
             self.context["stage_failed"] = f"news collection too low: {len(fresh)} items (min 4)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(RAW_DIR, self.job_id), {"items": fresh, "errors": errors})
-        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
-                 state="COLLECTED", stage="03_news_collection", collected=len(fresh))
-        self.context["collected"] = len(fresh)
         return self.context
 
     def verify(self):

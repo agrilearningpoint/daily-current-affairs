@@ -29,7 +29,7 @@ class Agent:
 
     def run(self):
         import logging
-        from pipeline.state import RAW_DIR, VERIFIED_DIR, data_path, read_json, write_json_atomic, load_job, save_job
+        from pipeline.state import RAW_DIR, VERIFIED_DIR, data_path, read_json, write_json_atomic
         from pipeline.verify import verify_all
         raw = read_json(data_path(RAW_DIR, self.job_id), {"items": []})["items"]
         # budget guard: tier-1 first, cap at 120 so verification fits runner time
@@ -41,9 +41,6 @@ class Agent:
             self.context["stage_failed"] = f"only {len(verified)} content-verified items (min 4)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(VERIFIED_DIR, self.job_id), {"items": verified, "dropped": len(dropped)})
-        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
-                 state="VERIFIED", stage="04_fact_verification", verified=len(verified))
-        self.context["verified"] = len(verified)
         return self.context
 
     def verify(self):

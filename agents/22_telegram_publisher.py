@@ -28,7 +28,7 @@ class Agent:
 
     def run(self):
         import logging, os
-        from pipeline.state import load_job, save_job, CONTENT_DIR, data_path, read_json
+        from pipeline.state import load_job, CONTENT_DIR, data_path, read_json
         from pipeline.telegram_api import send_document
         job = load_job(self.job_id, self.job_type, self.context["job_date"])
         if job.get("status") != "QA_APPROVED":
@@ -57,7 +57,6 @@ class Agent:
             store.mark_published([i["event_id"] for i in c["items"]], self.job_id)
         except Exception as ex:
             logging.warning(f"[{self.name}] persistent published-log failed (non-blocking): {ex}")
-        save_job(job, state="PUBLISHED", stage="22_telegram_publisher", telegram_message_id=msg_id)
         self.context["telegram_message_id"] = msg_id
         logging.info(f"[{self.name}] published message_id={msg_id}")
         return self.context

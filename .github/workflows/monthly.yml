@@ -35,11 +35,10 @@ jobs:
           python main.py --type monthly --date "$DATE"
       - name: Sync persistent event DB + prune old events
         if: always()
+        # FIX (audit 2026-10): merge-safe state sync via store.pull()/push();
+        # raw `pull --rebase` on concurrently-updated JSON state used to race.
         run: |
-          git add -f state/ 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "state: monthly ${{ env.DATE }}"
-          git pull --rebase origin main || true
-          git push origin HEAD:main || echo "::warning::state push failed (non-blocking)"
+          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.prune(); store.pull(); store.push('state: monthly ${{ env.DATE }}')" || echo "::warning::state sync failed (non-blocking)"
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4

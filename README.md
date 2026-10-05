@@ -8,7 +8,8 @@
 ## 🚀 FINAL AGENT SETUP — 17 LOGICAL STAGES (audit refactor 2026-10)
 
 > **Refactor summary:** 24 agents → 17 stages. Removed: `01 Master Supervisor` (main.py already
-> orchestrates lock/retry/resume/alert). Merged: `02 Scheduler` → `03 News Collection`;
+> orchestrates lock/retry/resume/alert AND is the single owner of job-state transitions
+> (agents only write artefacts/context — no split state ownership). Merged: `02 Scheduler` → `03 News Collection`;
 > `08 Agriculture Expert` + `09 Banking Expert` → `07 Student & Domain Relevance` (they were pure
 > tagging wrappers); `13 Bilingual Editor` + `14 English Editor` → `12 Content Editor` (inline passes).
 > Renamed: `24 Watchdog Recovery` → `24 Final Health Audit` (standalone watchdog = `main.py --watchdog`).
@@ -150,7 +151,7 @@ All P0/P1 issues from the code review are now FIXED in this branch:
 | 9 | **External image paths (/home/user/…)** | Agent 15 downloads og-image/Wikimedia images into workspace `assets/images/<job_id>/` with Pillow validation (≥500px, JPEG/PNG). No external absolute paths. |
 | 10 | **Weekly workflow ran a duplicate daily** | `weekly.yml` now runs ONLY the weekly job (daily.yml already publishes Sunday's daily). Monthly likewise. All workflows have `concurrency:` groups. |
 | 11 | **No job locking / race conditions** | `pipeline/state.py`: atomic `JobLock` (O_CREAT|O_EXCL lockfile + stale-lock recovery) + COMPLETE-status skip. Two processes can never run the same job. |
-| 12 | **No retry backoff** | `main.py` retries each agent 3× with real exponential backoff **2s → 4s → 8s**, then FAILED_FINAL + admin alert. |
+| 12 | **No retry backoff** | `main.py` gives each agent **3 total attempts** (1 initial + up to 2 retries) with exponential backoff **2s → 4s**, then FAILED_FINAL + admin alert. |
 | 13 | **Watchdog didn't exist** | New `.github/workflows/watchdog.yml` runs `python main.py --watchdog` **every 5 minutes**: detects stalled/FAILED_FINAL jobs, alerts admin DM, triggers resume-from-last-stage recovery. Agent 24 does the end-of-run artefact audit. |
 | 14 | **Full state machine** | CREATED→COLLECTING→COLLECTED→VERIFYING→VERIFIED→DEDUPLICATED→SCORED→SELECTED→CONTENT_READY→MCQ_READY→MCQ_VALIDATED→PDF_GENERATED→QA_APPROVED→PUBLISHED→PIN_VERIFIED→COMPLETE (+ FAILED/RETRYING/RECOVERED/FAILED_FINAL/QA_REJECTED), persisted atomically in `data/jobs/<job>.json`, supports resume. |
 | 15 | **Telegram publish/pin were dummies** | Agents 22–23 use the real Bot API: sendDocument → store message_id → pinChatMessage → getChat read-back verification (pinned id must match). Pin mismatch ⇒ job NOT complete. Duplicate-publish guard included. |

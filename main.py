@@ -77,12 +77,20 @@ def run_pipeline(job_type, job_date, force=False):
         else:
             save_job(job, state="COLLECTING")
 
+        # Per-agent post-success states — STATE OWNERSHIP LIVES HERE ONLY.
+        # Agents write artefacts + context; the orchestrator alone transitions
+        # the job state machine (single writer, no split ownership).
+        STAGE_STATE = {"03_news_collection": "COLLECTED", "04_fact_verification": "VERIFIED",
+                       "05_deduplication": "DEDUPLICATED", "06_news_importance": "SCORED",
+                       "10_final_news_selection": "SELECTED", "12_content_editor": "CONTENT_READY",
+                       "17_mcq_validator": "MCQ_VALIDATED", "18_pdf_design": "PDF_GENERATED"}
+
         for agent_id in WORKFLOW_ORDER[start_idx:]:
-            attempts, backoffs = 3, [2, 4, 8]  # exponential backoff per README
+            TOTAL_ATTEMPTS, backoffs = 3, [2, 4, 8]  # 3 total tries = 1 initial + up to 2 retries
             last_err = None
-            for attempt in range(attempts + 1):
+            for attempt in range(TOTAL_ATTEMPTS):
                 try:
-                    logging.info(f"--> Running {agent_id} (attempt {attempt+1})")
+                    logging.info(f"--> Running {agent_id} (attempt {attempt+1}/{TOTAL_ATTEMPTS})")
                     Agent = load_agent(agent_id)
                     agent = Agent(job_id, job_type, context)
                     context = agent.run()
@@ -92,14 +100,20 @@ def run_pipeline(job_type, job_date, force=False):
                     job = load_job(job_id, job_type, job_date)
                     summary = {k: v for k, v in context.items()
                                if isinstance(v, (int, float, str, bool))}
-                    save_job(job, stage=agent_id, context_summary=summary)
+                    extra = {}
+                    if agent_id == "22_telegram_publisher" and context.get("telegram_message_id"):
+                        extra["telegram_message_id"] = context["telegram_message_id"]
+                    if agent_id == "24_final_health_audit":
+                        extra["watchdog"] = "healthy"
+                    save_job(job, state=STAGE_STATE.get(agent_id), stage=agent_id,
+                             context_summary=summary, **extra)
                     store.write_job_state(job)   # cross-run visibility for watchdog
                     break
                 except Exception as e:
                     last_err = e
-                    logging.error(f"Agent {agent_id} failed (attempt {attempt+1}): {e}")
+                    logging.error(f"Agent {agent_id} failed (attempt {attempt+1}/{TOTAL_ATTEMPTS}): {e}")
                     traceback.print_exc()
-                    if attempt < attempts:
+                    if attempt < TOTAL_ATTEMPTS - 1:
                         job = load_job(job_id, job_type, job_date)
                         save_job(job, state="RETRYING", error=str(e)[:500], retry=attempt + 1)
                         time.sleep(backoffs[attempt])

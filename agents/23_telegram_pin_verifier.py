@@ -27,7 +27,7 @@ class Agent:
 
     def run(self):
         import logging, os
-        from pipeline.state import load_job, save_job
+        from pipeline.state import load_job
         from pipeline.telegram_api import pin_message, verify_pin
         job = load_job(self.job_id, self.job_type, self.context["job_date"])
         msg_id = job.get("telegram_message_id") or self.context.get("telegram_message_id")
@@ -45,7 +45,6 @@ class Agent:
         if not ok:
             self.context["stage_failed"] = f"pin verification FAILED: pinned={pinned} expected={msg_id}"
             raise RuntimeError(self.context["stage_failed"])
-        save_job(job, state="PIN_VERIFIED", stage="23_telegram_pin_verifier")
         logging.info(f"[{self.name}] pin verified message_id={msg_id}")
         return self.context
 

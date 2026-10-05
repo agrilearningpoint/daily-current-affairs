@@ -28,7 +28,7 @@ class Agent:
 
     def run(self):
         import logging, os
-        from pipeline.state import (load_job, save_job, RAW_DIR, VERIFIED_DIR, DEDUP_DIR, SCORED_DIR,
+        from pipeline.state import (load_job, RAW_DIR, VERIFIED_DIR, DEDUP_DIR, SCORED_DIR,
                                     SELECTED_DIR, CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, OUTPUT_DIR,
                                     data_path, read_json)
         from pipeline.telegram_api import alert_admin
@@ -54,7 +54,6 @@ class Agent:
             alert_admin(f"⚠️ {self.job_id} watchdog found: " + "; ".join(problems))
             self.context["stage_failed"] = "watchdog audit failed: " + "; ".join(problems)
             raise RuntimeError(self.context["stage_failed"])
-        save_job(job, stage="24_final_health_audit", watchdog="healthy")
         logging.info(f"[{self.name}] audit PASSED for {self.job_id}")
         return self.context
 

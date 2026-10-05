@@ -73,10 +73,8 @@ class Agent:
         chk("page_count_sane", 3 <= doc.page_count <= 60, f"pages={doc.page_count}")
         write_json_atomic(data_path(QA_LOG_DIR, self.job_id), {"checks": checks, "approved": ok})
         if not ok:
-            self._reject(checks)
+            self._reject(checks)   # writes QA_REJECTED diagnostic into job file
         else:
-            save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
-                     state="QA_APPROVED", stage="19_pdf_qa")
             logging.info(f"[{self.name}] APPROVED ({len(checks)} checks)")
         return self.context
 

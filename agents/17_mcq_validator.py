@@ -28,7 +28,7 @@ class Agent:
     def run(self):
         import logging
         from pipeline.content import validate_mcqs
-        from pipeline.state import CONTENT_DIR, MCQ_DIR, data_path, read_json, write_json_atomic, load_job, save_job
+        from pipeline.state import CONTENT_DIR, MCQ_DIR, data_path, read_json, write_json_atomic
         mcqs = read_json(data_path(MCQ_DIR, self.job_id), [])
         c = read_json(data_path(CONTENT_DIR, self.job_id))
         valid, rejected = validate_mcqs(mcqs, c["items"])
@@ -38,9 +38,6 @@ class Agent:
             self.context["stage_failed"] = f"only {len(valid)} valid MCQs after validation"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(MCQ_DIR, self.job_id, "_validated"), valid)
-        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
-                 state="MCQ_VALIDATED", stage="17_mcq_validator", mcq_valid=len(valid), mcq_rejected=len(rejected))
-        self.context["mcqs_valid"] = len(valid)
         return self.context
 
     def verify(self):

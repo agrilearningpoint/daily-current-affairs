@@ -29,7 +29,7 @@ class Agent:
     def run(self):
         import logging, os
         from src.generate_pdf import generate_pdf
-        from pipeline.state import CONTENT_DIR, MCQ_DIR, OUTPUT_DIR, data_path, read_json, load_job, save_job
+        from pipeline.state import CONTENT_DIR, MCQ_DIR, OUTPUT_DIR, data_path, read_json
         c = read_json(data_path(CONTENT_DIR, self.job_id))
         mcqs = read_json(data_path(MCQ_DIR, self.job_id, "_validated"), [])
         if not mcqs:
@@ -39,8 +39,6 @@ class Agent:
         if not os.path.exists(out) or os.path.getsize(out) < 20000:
             self.context["stage_failed"] = f"PDF missing/too small: {out}"
             raise RuntimeError(self.context["stage_failed"])
-        save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
-                 state="PDF_GENERATED", stage="18_pdf_design", pdf_path=out)
         self.context["pdf_path"] = out
         logging.info(f"[{self.name}] PDF built: {out} ({os.path.getsize(out)//1024} KB)")
         return self.context

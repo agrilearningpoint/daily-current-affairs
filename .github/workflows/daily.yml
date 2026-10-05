@@ -47,14 +47,12 @@ jobs:
 
       - name: Sync persistent event DB (memory / published events / job mirror)
         if: always()
+        # FIX (audit 2026-10): removed the blind `git checkout FETCH_HEAD -- state/`
+        # which OVERWROTE this run's freshly-written local state with remote copies
+        # (concurrent-workflow race). store.pull() now does a key-wise JSON MERGE,
+        # and all commit/rebase/merge-conflict handling lives inside store.push().
         run: |
-          git fetch origin main
-          git checkout FETCH_HEAD -- state/ 2>/dev/null || mkdir -p state
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.push('state: daily ${{ env.DATE }}')" || true
-          git pull --rebase origin main || true
-          git add -f state/ recovery_plan.json 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "state: daily ${{ env.DATE }}"
-          git push origin HEAD:main || echo "::warning::state push failed (non-blocking)"
+          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: daily ${{ env.DATE }}')" || echo "::warning::state sync failed (non-blocking)"
 
       - name: Upload artefacts
         if: always()
