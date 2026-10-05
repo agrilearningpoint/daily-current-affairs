@@ -14,6 +14,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     PageBreak, KeepTogether, HRFlowable, Image, Frame, PageTemplate, NextPageTemplate
@@ -265,12 +266,27 @@ def header_footer(canvas, doc):
     canvas.setFillColor(COLORS["header_bg"])
     canvas.rect(0, 0, PAGE_W, 9*mm, fill=1, stroke=0)
     canvas.setFillColor(white)
-    canvas.setFont(FONT_REGULAR, 6)
     canvas.setFont(FONT_REGULAR, 7)
-    canvas.drawCentredString(PAGE_W/2 - 20*mm, 5*mm, "Agri Learning Point  |  BY SATYAM SIR")
+    canvas.drawCentredString(PAGE_W/2 - 20*mm, 5.6*mm, "Agri Learning Point  |  BY SATYAM SIR")
     canvas.setFont(FONT_REGULAR, 6)
-    canvas.drawCentredString(PAGE_W/2 - 20*mm, 2.8*mm, "Telegram: @agrilearningpoint")
-    canvas.setFont(FONT_BOLD, 6)
+    # Clickable Telegram channel links in footer (tapping opens the channels)
+    ch1_label = "Telegram: @agrilearningpoint"
+    ch2_label = "Quiz: @agriquizworld"
+    ch1_url = "https://t.me/agrilearningpoint"
+    ch2_url = "https://t.me/agriquizworld"
+    link_y = 2.8*mm
+    w1 = stringWidth(ch1_label, FONT_REGULAR, 6)
+    w2 = stringWidth(ch2_label, FONT_REGULAR, 6)
+    gap = 8*mm
+    cx = PAGE_W/2 - 20*mm
+    x1 = cx - (w1 + gap + w2) / 2
+    x2 = x1 + w1 + gap
+    canvas.setFillColor(colors.HexColor("#B3E5FC"))
+    canvas.drawString(x1, link_y, ch1_label)
+    canvas.drawString(x2, link_y, ch2_label)
+    canvas.linkURL(ch1_url, (x1 - 1*mm, link_y - 1.5*mm, x1 + w1 + 1*mm, link_y + 5*mm), relative=0)
+    canvas.linkURL(ch2_url, (x2 - 1*mm, link_y - 1.5*mm, x2 + w2 + 1*mm, link_y + 5*mm), relative=0)
+    canvas.setFillColor(white)
     canvas.setFont(FONT_REGULAR, 9)
     canvas.drawRightString(PAGE_W - 12*mm, 4*mm, f"Page {page_num}")
     

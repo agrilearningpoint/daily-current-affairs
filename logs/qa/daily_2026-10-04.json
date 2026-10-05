@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "check": "pdf_exists",
+      "pass": true,
+      "detail": "/workspace/output/Agri Learning Point 04 October 2026 Daily Current Affairs Mobile Bilingual FINAL.pdf"
+    },
+    {
+      "check": "pages_gt_0",
+      "pass": true,
+      "detail": "pages=11"
+    },
+    {
+      "check": "fonts_embedded",
+      "pass": true,
+      "detail": "['Helvetica', 'AAAAAA+Poppins-Bold', 'AAAAAA+Poppins-Regular', 'AAAAAA+Poppins-SemiBold', 'AAAAAA+Mukta-Regular']"
+    },
+    {
+      "check": "hindi_extractable",
+      "pass": true,
+      "detail": "Devanagari chars found"
+    },
+    {
+      "check": "date_present",
+      "pass": true,
+      "detail": "04 October 2026"
+    },
+    {
+      "check": "all_headlines_present",
+      "pass": true,
+      "detail": "missing=[]"
+    },
+    {
+      "check": "mcq_count_matches",
+      "pass": true,
+      "detail": "mcqs=5"
+    },
+    {
+      "check": "answers_valid",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "no_blank_pages",
+      "pass": true,
+      "detail": "blanks=[]"
+    },
+    {
+      "check": "page_count_sane",
+      "pass": true,
+      "detail": "pages=11"
+    }
+  ],
+  "approved": true
+}
