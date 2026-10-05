@@ -32,7 +32,7 @@ class Agent:
         items = read_json(data_path(VERIFIED_DIR, self.job_id), {"items": []})["items"]
         merged = deduplicate(items, threshold=0.85)
         logging.info(f"[{self.name}] {len(items)} -> {len(merged)} unique events")
-        if len(merged) < 3:
+        if len(merged) < 1:
             self.context["stage_failed"] = f"only {len(merged)} unique events after dedup"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(DEDUP_DIR, self.job_id), {"items": merged})

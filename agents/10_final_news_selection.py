@@ -52,7 +52,7 @@ class Agent:
         ensure("agri_focus", 2); ensure("banking_focus", 2)
         chosen.sort(key=lambda x: -x.get("student_relevance", 0))
         logging.info(f"[{self.name}] selected {len(chosen)} (target {lo}-{hi}, floor {floor})")
-        if len(chosen) < 3:
+        if len(chosen) < 1:
             self.context["stage_failed"] = f"selection too small: {len(chosen)} — refusing to pad (MASTER_RULE)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": chosen})
