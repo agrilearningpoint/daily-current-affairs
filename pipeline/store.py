@@ -12,6 +12,10 @@ Design (zero external services):
     weekly / monthly / watchdog workflows never clobber each other's keys.
   * If push fails (conflict), we pull --rebase and retry; final failure logs loudly
     but NEVER blocks PDF generation or Telegram publishing.
+  * LIMITATION: This is NOT a true transactional DB — concurrent runners depend on
+    rebase+merge retries. For current scale (1 daily + 1 weekly + 1 monthly + watchdog
+    every 5min) this is workable and tested; beyond that a real DB (e.g., MongoDB Atlas
+    as in docs/DATABASE_SCHEMA) should replace state/.
 
 API:
   store.pull()                  -> sync local state/ with origin/main
@@ -172,13 +176,33 @@ def push(message="state: update"):
 
 
 def record_scores(items, job_id):
-    """Merge scored events into persistent importance memory (agent 11)."""
+    """Merge scored events into persistent importance memory (agent 11).
+    P1 FIX #9: Keep lightweight full event record (headline, source, category, raw_facts, etc.)
+    so Weekly/Monthly can do fresh Best-of re-selection from historical content, not just scores.
+    """ 
     mem = _load(MEMORY_F)
     today = datetime.now(TZ).strftime("%Y-%m-%d")
     for it in items:
         eid = it["event_id"]
+        # Lightweight full record for cross-week/month reuse
         rec = mem.setdefault(eid, {"headline": it.get("headline_en", "")[:160],
+                                   "headline_hi": it.get("headline_hi", "")[:160] if it.get("headline_hi") else "",
+                                   "source_url": it.get("source_url", ""),
+                                   "source_name": it.get("source_name", ""),
+                                   "source_level": it.get("source_level", 5),
+                                   "category": it.get("category", ""),
+                                   "raw_facts": (it.get("raw_facts", "") or "")[:600],
+                                   "student_relevance": it.get("student_relevance", it.get("importance_score", 0)),
+                                   "importance_score": it.get("importance_score", 0),
+                                   "agri_focus": it.get("agri_focus", False),
+                                   "banking_focus": it.get("banking_focus", False),
                                    "scores": [], "first_seen": today, "last_seen": today})
+        # Update mutable fields to latest
+        rec["headline"] = it.get("headline_en", rec["headline"])[:160]
+        rec["source_url"] = it.get("source_url", rec["source_url"])
+        rec["category"] = it.get("category", rec["category"])
+        rec["student_relevance"] = it.get("student_relevance", rec["student_relevance"])
+        rec["importance_score"] = it.get("importance_score", rec["importance_score"])
         rec["scores"].append({"date": today, "job": job_id,
                               "score": round(float(it.get("importance_score", 0)), 1)})
         rec["scores"] = rec["scores"][-30:]
