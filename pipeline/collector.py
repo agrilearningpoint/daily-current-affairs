@@ -139,7 +139,11 @@ def rss_items(source, url, tier, role=None):
             img = e["media_thumbnail"][0].get("url", "")
         elif e.get("enclosures"):
             img = next((x.href for x in e.enclosures if "image" in (x.type or "")), "")
-        out.append(make_item(title, link, source, tier, published, summary, img, role))
+        it = make_item(title, link, source, tier, published, summary, img, role)
+        # Google News AES decoder needs the entry guid (CBMi... cid payload)
+        if "news.google.com" in link and e.get("id"):
+            it["gnews_guid"] = e["id"]
+        out.append(it)
     return out
 
 

@@ -1,0 +1,24 @@
+[10:21:24] === START PIPELINE daily_2026-10-04 ===
+[10:21:24] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[10:21:24] --> Running 01_master_supervisor (attempt 1)
+[10:21:24] --> Running 02_scheduler (attempt 1)
+[10:21:24] --> Running 03_news_collection (attempt 1)
+[10:21:54] [collector] finished in 30.0s: 1609 unique items from 65 tier-1 sources (0 dead)
+[10:21:54] [NEWS COLLECTION AGENT] collected=140 in-window=47 errors=0
+[10:21:54] --> Running 04_fact_verification (attempt 1)
+[10:21:56] [verifier] content-verified=0 dropped=47 in 2s
+[10:21:56] [FACT VERIFICATION AGENT] verified=0 dropped=47
+[10:21:56] Agent 04_fact_verification failed (attempt 1): only 0 content-verified items (min 4)
+[10:21:58] --> Running 04_fact_verification (attempt 2)
+[10:22:00] [verifier] content-verified=0 dropped=47 in 2s
+[10:22:00] [FACT VERIFICATION AGENT] verified=0 dropped=47
+[10:22:00] Agent 04_fact_verification failed (attempt 2): only 0 content-verified items (min 4)
+[10:22:04] --> Running 04_fact_verification (attempt 3)
+[10:22:05] [verifier] content-verified=0 dropped=47 in 1s
+[10:22:05] [FACT VERIFICATION AGENT] verified=0 dropped=47
+[10:22:05] Agent 04_fact_verification failed (attempt 3): only 0 content-verified items (min 4)
+[10:22:13] --> Running 04_fact_verification (attempt 4)
+[10:22:15] [verifier] content-verified=0 dropped=47 in 2s
+[10:22:15] [FACT VERIFICATION AGENT] verified=0 dropped=47
+[10:22:15] Agent 04_fact_verification failed (attempt 4): only 0 content-verified items (min 4)
+[10:22:15] ALERT (no telegram config): 🚨 WATCHDOG ALERT: daily_2026-10-04 FAILED at 04_fact_verification — only 0 content-verified items (min 4)

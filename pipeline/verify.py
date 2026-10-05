@@ -67,12 +67,12 @@ def _entities(s):
 
 
 _GN_DECODER = None
+_GN_DECODE_CACHE = {}   # gnews URL -> publisher URL (module-level, seedable)
 
 
-def decode_gnews_link(gurl, cache={}):
-    """Google News RSS links are /rss/articles/AGxGR... base64 pointers to the real
-    publisher URL. Decode the protobuf-ish payload: modern encodings embed the FULL
-    article HTML (<title>, <meta og:url>) — extract the canonical URL from there."""
+def _legacy_decode_gnews_link(gurl, cache={}):
+    """Old base64/c-data pointer decoder (pre-2024 Google News format). Kept only as
+    last-resort fallback; the AES decoder in pipeline/gnews.py is tried first."""
     if gurl in cache:
         return cache[gurl]
     real = None
@@ -104,7 +104,7 @@ def decode_gnews_link(gurl, cache={}):
             r = requests.get(gurl, headers=UA, timeout=TIMEOUT, allow_redirects=True)
             cm = re.search(r'<c-data[^>]*data="([^"]+)"', r.text)
             if cm:
-                return decode_gnews_link("https://news.google.com/rss/articles/" + cm.group(1))
+                return _legacy_decode_gnews_link("https://news.google.com/rss/articles/" + cm.group(1))
             urls = [u.rstrip("\\/") for u in re.findall(r'https?://[^"\'<>\\ ]+', r.text)
                     if "google" not in u and "gstatic" not in u]
             real = max(urls, key=len) if urls else None
@@ -114,13 +114,40 @@ def decode_gnews_link(gurl, cache={}):
     return real
 
 
-def fetch_page(url):
+def decode_gnews_link(gurl, guid=None, cache=None, gn_cache={}):
+    """Resolve a Google News RSS link to the real publisher URL.
+
+    P0 fix (2026): the primary path is pipeline.gnews.decode_article_url — the
+    AES-128-CBC decoder for the current AU_yqL... token format. The old base64
+    pointer decoder (_legacy_decode_gnews_link) is tried only as fallback.
+    """
+    if cache is None:
+        cache = _GN_DECODE_CACHE
+    if gurl in cache and cache[gurl]:
+        return cache[gurl]
+    real = None
+    # 1) proper AES decoder (pipeline/gnews.py) — needs the feed entry's guid/cid.
+    # Call via module attribute so tests can monkeypatch pipeline.gnews.decode_article_url.
+    try:
+        from pipeline import gnews as _gn
+        cid = guid or ""
+        real = _gn.decode_article_url(gurl, cid)
+    except Exception:
+        real = None
+    # 2) legacy base64-pointer fallback
+    if not real:
+        real = _legacy_decode_gnews_link(gurl)
+    cache[gurl] = real
+    return real
+
+
+def fetch_page(url, guid=None):
     global _GN_DECODER
     try:
         r = requests.get(url, headers=UA, timeout=TIMEOUT, allow_redirects=True)
         # Google News redirect shell -> resolve to official article, then verify THAT
         if "news.google.com" in url:
-            real = decode_gnews_link(url)
+            real = decode_gnews_link(url, guid=guid)
             if real:
                 _GN_DECODER = real
                 return fetch_page(real)
@@ -184,11 +211,31 @@ def verify_all(items):
     results, dropped = [], []
     jobs = items
 
+    # P0 fail-safe: batch-decode every Google News AES URL up front via the proper
+    # decoder (pipeline/gnews.py), so fetch_page never falls back to the legacy one.
+    gn_pairs = [(it["source_url"], it.get("gnews_guid") or "")
+                for it in jobs if "news.google.com" in it.get("source_url", "")]
+    gn_map = {}
+    if gn_pairs:
+        try:
+            from pipeline import gnews as _gn
+            # serial on purpose: sync Playwright greenlets are thread-bound, and
+            # one shared browser page reused across links is faster than N browsers
+            deadline = DEADLINE_S // 2 if DEADLINE_S else 60
+            gn_map = _gn.decode_many(gn_pairs, workers=1, deadline_s=deadline)
+        except Exception as e:
+            logging.warning(f"[verifier] gnews batch decode failed: {e}")
+        # seed the module-level decode cache so fetch_page uses AES results directly
+        # (decode_many keys are (link, guid) pairs — cache by link only)
+        for (l, g), u in gn_map.items():
+            _GN_DECODE_CACHE[l] = u
+        logging.info(f"[verifier] google-news URLs={len(gn_pairs)} decoded={len(gn_map)}")
+
     def work(it):
         global _GN_DECODER
         _GN_DECODER = None
         url = it["source_url"]
-        title, text = fetch_page(url)
+        title, text = fetch_page(url, guid=it.get("gnews_guid"))
         if _GN_DECODER:                      # gnews redirect resolved → keep official URL as citation
             it = dict(it)
             it["source_url"] = _GN_DECODER

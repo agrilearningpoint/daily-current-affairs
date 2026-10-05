@@ -1,10 +1,10 @@
+# Python compiled files
 __pycache__/
 *.pyc
+
+# Logs
 logs/
-data/
-output/
-assets/images/
-.git-credentials
-.env
 *.log
-/Agri Learning Point*.pdf
+
+# Output artifacts
+output/

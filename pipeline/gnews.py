@@ -55,22 +55,36 @@ def parse_guid(cid):
     return None
 
 def _aes_decrypt(token_b64, key):
-    """AES-128-CBC decrypt of urlsafe-b64 payload (IV = first 16 bytes)."""
+    """AES-128-CBC decrypt of b64 payload (IV = first 16 bytes). Payload may be the
+    raw token ("AU_yqL...") or a full guid; standard/urlsafe b64 alphabets both work.
+    Tolerates base64 padding drift by trying the last few byte-truncation offsets."""
     try:
         from Crypto.Cipher import AES
-        data = _b64(token_b64)
-        iv, ct = data[:16], data[16:]
-        dec = AES.new(key, AES.MODE_CBC, iv).decrypt(ct)
-        pad = dec[-1]
-        if 1 <= pad <= 16 and dec[-pad:] == bytes([pad]) * pad:
-            dec = dec[:-pad]
-        txt = dec.decode("utf-8", "ignore")
-        m = re.search(r'https?://\S+', txt)
-        return m.group(0) if m else None
-    except ImportError:
-        return None
+        tok = token_b64.split("CBMi")[-1] if "CBMi" in token_b64 else token_b64
+        if tok.startswith("AU_yqL"):
+            tok = tok[6:]                        # strip token prefix before b64 body
+        s = tok.replace("-", "+").replace("_", "/")
+        s += "=" * (-len(s) % 4)                 # pad to a multiple of 4 first
+        data = base64.b64decode(s)
     except Exception:
         return None
+    for trim in range(0, 4):                      # real token length mod 16 == 0
+        d = data[:len(data) - trim] if trim else data
+        if len(d) < 32 or (len(d) - 16) % 16:
+            continue
+        try:
+            iv, ct = d[:16], d[16:]
+            dec = AES.new(key, AES.MODE_CBC, iv).decrypt(ct)
+            pad = dec[-1]
+            if 1 <= pad <= 16 and dec[-pad:] == bytes([pad]) * pad:
+                dec = dec[:-pad]
+            txt = dec.decode("utf-8", "ignore")
+            m = re.search(r'https?://\S+', txt)
+            if m:
+                return m.group(0)
+        except Exception:
+            continue
+    return None
 
 _KEY_RE_CACHE = {}
 
@@ -78,7 +92,7 @@ def extract_keys(page_html):
     """Find {token_prefix -> 16-byte key} pairs embedded in the article shell page.
     Google ships the key inside the page's AF_initDataCallback / c-wiz data blobs."""
     keys = []
-    for m in re.finditer(r'"(AU_yqL[\w\-]{10,})"', page_html):
+    for m in re.finditer(r'"(AU_yqL[\w\-+/=]{10,})"', page_html):
         tok = m.group(1)
         # following numeric array of 16 ints = key bytes
         tail = page_html[m.end():m.end()+260]
@@ -123,7 +137,72 @@ def decode_article_url(link, cid, timeout=9):
                     return url
     except requests.RequestException:
         pass
-    return None
+    # 2026 reality: the shell page carries no embedded key — Google resolves the
+    # link client-side (JS). Follow that redirect with a headless browser.
+    return _playwright_resolve(link)
+
+_PW = {"lock": __import__("threading").Lock(), "proc": None, "browser": None,
+       "ctx": None, "owner": None, "fail": 0}
+
+def _playwright_resolve(link, timeout_ms=25000):
+    """Last-resort resolver: Google's article shell needs JS to redirect to the
+    publisher. A shared headless Chromium follows the redirect and returns the
+    real URL. Silently returns None if playwright/browser is unavailable
+    (e.g. clean GitHub runner without browsers installed).
+    NOTE: sync Playwright greenlets are bound to one thread — all browser work
+    runs serialized on the first thread that initialized it."""
+    if _PW["fail"] >= 3:
+        return None
+    me = __import__("threading").current_thread()
+    if _PW["owner"] is not None and _PW["owner"] is not me:
+        return None          # different worker thread — skip (owner thread resolves)
+    with _PW["lock"]:
+        _PW["owner"] = me
+        try:
+            from playwright.sync_api import sync_playwright
+            if _PW["proc"] is None:
+                _PW["proc"] = sync_playwright().start()
+                exe = None
+                import glob, os
+                for cand in glob.glob(os.path.expanduser(
+                        "~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome")) + \
+                        ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"]:
+                    if os.path.exists(cand):
+                        exe = cand; break
+                _PW["browser"] = _PW["proc"].chromium.launch(headless=True, executable_path=exe)
+                _PW["ctx"] = _PW["browser"].new_context(user_agent=UA["User-Agent"])
+            pg = _PW["ctx"].new_page()
+            try:
+                pg.goto(link, wait_until="domcontentloaded", timeout=timeout_ms)
+                for _ in range(8):
+                    if "news.google.com" not in pg.url:
+                        return pg.url
+                    pg.wait_for_timeout(700)
+                # sometimes the redirect target is in an <a> after render
+                m = pg.evaluate("() => { const a = document.querySelector('a[href]');"
+                                "return a ? a.href : null; }")
+                if m and "google" not in m:
+                    return m
+                return None
+            finally:
+                pg.close()
+        except Exception as e:
+            _PW["fail"] += 1
+            logging.debug(f"[gnews] playwright resolve failed ({_PW['fail']}/3): {e}")
+            return None
+
+
+def close_playwright():
+    try:
+        if _PW["browser"]:
+            _PW["browser"].close()
+        if _PW["proc"]:
+            _PW["proc"].stop()
+    except Exception:
+        pass
+    finally:
+        _PW.update(proc=None, browser=None, ctx=None, owner=None)
+
 
 def decode_many(pairs, workers=10, deadline_s=60):
     """pairs: iterable of (link, guid). Returns {(link,guid): publisher_url}."""

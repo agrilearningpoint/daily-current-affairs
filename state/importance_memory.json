@@ -1,1 +1,67 @@
-{}
+{
+ "47a6fc762a6bf79f": {
+  "first_seen": "2026-10-05",
+  "headline": "Website of Jal Jeevan Mission, Uttar Pradesh | Governance | Governance & Planning | Category - National Portal of India",
+  "last_seen": "2026-10-05",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-04",
+    "score": 24.0
+   }
+  ],
+  "trend": "NEW"
+ },
+ "711210498f946834": {
+  "first_seen": "2026-10-05",
+  "headline": "DARE/ICAR Launches Special Campaign 6.0 with Nationwide Cleanliness Drives and Felicitation of Safai Mitras - Indian Council Of Agricultural Research",
+  "last_seen": "2026-10-05",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-04",
+    "score": 30.0
+   }
+  ],
+  "trend": "NEW"
+ },
+ "aad4015b2380a25d": {
+  "first_seen": "2026-10-05",
+  "headline": "National Advisory Board on Management of Genetic Resources Charts Roadmap for Strengthening India's Agrobiodiversity Conservation and Sustainable Utilization | ",
+  "last_seen": "2026-10-05",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-04",
+    "score": 32.0
+   }
+  ],
+  "trend": "NEW"
+ },
+ "c30216e0c3baeae9": {
+  "first_seen": "2026-10-05",
+  "headline": "Financial Inclusion in India: Banking Every Citizen, Empowering Every Household - PIB",
+  "last_seen": "2026-10-05",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-04",
+    "score": 20.0
+   }
+  ],
+  "trend": "NEW"
+ },
+ "ee24ef37ff7a9266": {
+  "first_seen": "2026-10-05",
+  "headline": "UPI: Transforming India's Payment Landscape - PIB",
+  "last_seen": "2026-10-05",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-04",
+    "score": 20.0
+   }
+  ],
+  "trend": "NEW"
+ }
+}

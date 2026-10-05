@@ -1,0 +1,52 @@
+{
+  "job_id": "daily_2026-10-04",
+  "job_type": "daily",
+  "job_date": "2026-10-04",
+  "status": "FAILED_FINAL",
+  "stage_history": [
+    {
+      "stage": "01_master_supervisor",
+      "at": "2026-10-05T15:51:24.338183+05:30"
+    },
+    {
+      "stage": "01_master_supervisor",
+      "at": "2026-10-05T15:51:24.338446+05:30"
+    },
+    {
+      "stage": "02_scheduler",
+      "at": "2026-10-05T15:51:24.428608+05:30"
+    },
+    {
+      "stage": "02_scheduler",
+      "at": "2026-10-05T15:51:24.428968+05:30"
+    },
+    {
+      "stage": "03_news_collection",
+      "at": "2026-10-05T15:51:54.430830+05:30"
+    },
+    {
+      "stage": "03_news_collection",
+      "at": "2026-10-05T15:51:54.431249+05:30"
+    }
+  ],
+  "created": "2026-10-05T15:51:24.335236+05:30",
+  "updated": "2026-10-05T15:52:15.558679+05:30",
+  "last_success_stage": "03_news_collection",
+  "supervisor": "active",
+  "context_summary": {
+    "job_id": "daily_2026-10-04",
+    "job_type": "daily",
+    "job_date": "2026-10-04",
+    "tz": "Asia/Kolkata",
+    "window": "2026-10-04 06:00 IST",
+    "date_display": "04 October 2026",
+    "supervisor_ok": true,
+    "window_start": "2026-10-03T00:00:00+05:53",
+    "window_end": "2026-10-04T23:59:59+05:53",
+    "collected": 47
+  },
+  "collected": 47,
+  "error": "only 0 content-verified items (min 4)",
+  "retry": 3,
+  "failed_at": "04_fact_verification"
+}
