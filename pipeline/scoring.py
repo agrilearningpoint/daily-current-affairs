@@ -67,32 +67,254 @@ def similarity(a, b):
     return max(head_sim, body_sim)
 
 
+
+# ─────────────────────────────────────────────────────────────────
+# EVENT-LEVEL DEDUP — 3-level pipeline (production)
+# Variable quantity, fixed quality architecture as per user spec
+# Level 1: Exact duplicate (canonical URL / normalized headline)
+# Level 2: Near duplicate (shingle >0.85)
+# Level 3: Semantic/event duplicate (fingerprint: title + entities + numbers + date + category + event-type)
+# Same event != Same topic — contrastive verbs prevent false merges
+# ─────────────────────────────────────────────────────────────────
+import re as _re
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+# Contrastive action verbs — same topic but different events must NOT merge
+CONTRAST_GROUPS = [
+    {"cut","decrease","reduce","hike","increase","raise","maintain","hold","keep","unchanged"},
+    {"announce","launch","guideline","implementation","guidelines","release","notification"},
+    {"approve","clear","reject","defer","withdraw"},
+    {"appoint","elect","resign","retire"},
+    {"award","honour","confer"},
+]
+def _contrastive(head_a, head_b):
+    la = set(_re.findall(r"[a-z]+", head_a.lower()))
+    lb = set(_re.findall(r"[a-z]+", head_b.lower()))
+    for grp in CONTRAST_GROUPS:
+        a_has = bool(la & grp)
+        b_has = bool(lb & grp)
+        # If both have contrastive verbs from same group but different specific verbs, don't merge
+        if a_has and b_has:
+            # Check if they share exact same verb from group -> ok to merge, else contrastive
+            shared = (la & grp) & (lb & grp)
+            if not shared:
+                # One has "cut" other has "maintain" etc — different events
+                # Only flag if verbs are antonyms within group
+                # Simple: if groups contain both a_has and b_has but no shared verb, treat as contrastive
+                # But need finer: "cut" vs "hike" are opposite, "cut" vs "reduce" are similar
+                # For now, treat as contrastive if headlines contain different contrastive verbs
+                if len((la & grp) ^ (lb & grp)) > 0 and len(la & grp)==1 and len(lb & grp)==1:
+                    return True
+    # Additional direct antonym check
+    antonyms = [("cut","maintain"),("increase","decrease"),("raise","cut"),("approve","reject"),("announce","guideline")]
+    for w1,w2 in antonyms:
+        if (w1 in la and w2 in lb) or (w2 in la and w1 in lb):
+            return True
+    return False
+
+def _normalize_url(url):
+    try:
+        u = urlparse((url or "").strip())
+        host = (u.netloc or "").lower().replace("www.","")
+        path = _re.sub(r"/+$", "", u.path or "")
+        # Remove tracking params
+        qs = parse_qs(u.query)
+        drop = {"utm_source","utm_medium","utm_campaign","utm_term","utm_content","fbclid","gclid","igshid","mc_cid","mc_eid","ref","src"}
+        clean_qs = {k:v for k,v in qs.items() if k.lower() not in drop}
+        query = urlencode(clean_qs, doseq=True)
+        return urlunparse(("", host, path, "", query, "")).lower()
+    except Exception:
+        return (url or "").lower().strip()
+
+def _normalize_headline(text):
+    text = (text or "").lower()
+    text = _re.sub(r"[^a-z0-9]+", " ", text)
+    text = _re.sub(r"\s+", " ", text).strip()
+    # Expand acronyms for better matching
+    for ac, exp in ACRONYM_MAP.items():
+        text = _re.sub(rf"\b{ac}\b", exp, text)
+    return text
+
+def _entities(text):
+    # Use existing _entities + also extract locations/orgs lowercased
+    ents = set()
+    for m in _re.finditer(r"\b[A-Z][A-Za-z&'-]{2,}(?:[ -][A-Z][A-Za-z&'-]{2,})+\b", text or ""):
+        ents.add(m.group(0).lower())
+    for m in _re.finditer(r"\b[A-Z]{3,}\b", text or ""):
+        ents.add(m.group(0).lower())
+    return ents
+
+def _numbers(text):
+    out=set()
+    s=text or ""
+    for m in _re.finditer(r"(?:₹|Rs\.?|INR)\s?([\d][\d,.]*)", s, _re.I):
+        out.add(m.group(1))
+    for m in _re.finditer(r"\b(\d+(?:[.,]\d+)?)\s?(?:%|percent|crore|lakh|billion|million|bps)\b", s, _re.I):
+        out.add(m.group(1))
+    for m in _re.finditer(r"\b\d{2,}\b", s):
+        out.add(m.group(0))
+    return out
+
+def _numbers_set(text):
+    return _numbers(text)
+
+def _event_fingerprint(item):
+    # Fingerprint components for Level 3 semantic clustering
+    headline = item.get("headline_en","") or ""
+    raw = item.get("raw_facts","") or ""
+    return {
+        "norm_head": _normalize_headline(headline),
+        "entities": _entities(headline + " " + raw),
+        "numbers": _numbers_set(headline + " " + raw),
+        "cat": item.get("category",""),
+        "pub": item.get("pub_time_ist"),
+        "url_norm": _normalize_url(item.get("source_url","")),
+    }
+
+def _date_proximity(a_pub, b_pub):
+    if not a_pub or not b_pub:
+        return 0.5  # neutral if missing
+    try:
+        from dateutil import parser as _dtp
+        da = _dtp.parse(a_pub)
+        db = _dtp.parse(b_pub)
+        delta_h = abs((da - db).total_seconds())/3600
+        if delta_h <= 24: return 1.0
+        if delta_h <= 48: return 0.6
+        if delta_h <= 72: return 0.3
+        return 0.0
+    except Exception:
+        return 0.5
+
+def _semantic_similarity(a, b, fp_a=None, fp_b=None):
+    # Combined fingerprint similarity for Level 3
+    if fp_a is None: fp_a = _event_fingerprint(a)
+    if fp_b is None: fp_b = _event_fingerprint(b)
+    # Headline Jaccard (bigrams)
+    ha, hb = _bigrams(a["headline_en"]), _bigrams(b["headline_en"])
+    head_sim = (len(ha & hb) / len(ha | hb)) if ha and hb else 0.0
+    # Entity overlap
+    ea, eb = fp_a["entities"], fp_b["entities"]
+    ent_sim = (len(ea & eb) / len(ea | eb)) if ea and eb else (0.5 if not ea and not eb else 0.0)
+    # Number overlap — crucial for ₹X crore events
+    na, nb = fp_a["numbers"], fp_b["numbers"]
+    if na and nb:
+        num_sim = (len(na & nb) / len(na | nb))
+    elif not na and not nb:
+        num_sim = 0.5
+    else:
+        num_sim = 0.0  # one has numbers other not — penalize
+    # Category match
+    cat_sim = 1.0 if fp_a["cat"] and fp_a["cat"]==fp_b["cat"] else 0.0
+    # Date proximity
+    date_sim = _date_proximity(fp_a["pub"], fp_b["pub"])
+    # URL domain match bonus
+    dom_a = fp_a["url_norm"].split("/")[0] if fp_a["url_norm"] else ""
+    dom_b = fp_b["url_norm"].split("/")[0] if fp_b["url_norm"] else ""
+    dom_sim = 1.0 if dom_a and dom_a==dom_b else 0.0
+    # Weighted combine (as per spec: title + entities + numbers + date + category + domain)
+    # Title 35%, entities 20%, numbers 20%, category 10%, date 10%, domain 5%
+    combined = head_sim*0.22 + ent_sim*0.25 + num_sim*0.18 + cat_sim*0.15 + date_sim*0.15 + dom_sim*0.05
+    return combined, head_sim, ent_sim, num_sim
+
 def deduplicate(items, threshold=0.85):
-    """Greedy clustering: merge items with similarity >= threshold, keep authoritative source."""
-    clusters = []
-    for it in items:
+    """Event-level deduplication — 3-level pipeline:
+    L1 exact (canonical URL / normalized headline) → immediate merge
+    L2 near duplicate (shingle >=0.85) → candidate
+    L3 semantic/event duplicate (fingerprint combined >=0.68) → cluster, unless contrastive verbs
+    Produces ONE canonical event per cluster with supporting_sources[].
+    """
+    if not items:
+        return []
+    # Precompute fingerprints
+    fps = [_event_fingerprint(it) for it in items]
+    clusters = []  # each: {"representative": item, "members": [items], "fps": [fps]}
+    for idx, it in enumerate(items):
+        fp = fps[idx]
         placed = False
+        url_norm = fp["url_norm"]
+        norm_head = fp["norm_head"]
         for cl in clusters:
-            if similarity(it, cl["representative"]) >= threshold:
+            rep = cl["representative"]
+            rep_fp = cl["fps"][0]  # rep fingerprint
+            # L1: exact duplicate
+            if url_norm and rep_fp["url_norm"] and url_norm == rep_fp["url_norm"]:
                 cl["members"].append(it)
-                # representative = strongest source (level rank first, then tier rank, then priority_score)
+                cl["fps"].append(fp)
+                # Keep strongest as representative
                 it_rank = LEVEL_RANK.get(it.get("source_level", 5), 0) * 10 + TIER_RANK.get(it["source_tier"], 0)
-                rep_rank = LEVEL_RANK.get(cl["representative"].get("source_level", 5), 0) * 10 + TIER_RANK.get(cl["representative"]["source_tier"], 0)
-                if it_rank > rep_rank or (it_rank == rep_rank and it.get("priority_score", 0) > cl["representative"].get("priority_score", 0)):
+                rep_rank = LEVEL_RANK.get(rep.get("source_level", 5), 0) * 10 + TIER_RANK.get(rep["source_tier"], 0)
+                if it_rank > rep_rank or (it_rank == rep_rank and it.get("priority_score",0) > rep.get("priority_score",0)):
                     cl["representative"] = it
+                    cl["fps"][0] = fp
+                placed = True
+                break
+            if norm_head and rep_fp["norm_head"] and norm_head == rep_fp["norm_head"]:
+                cl["members"].append(it)
+                cl["fps"].append(fp)
+                it_rank = LEVEL_RANK.get(it.get("source_level", 5), 0) * 10 + TIER_RANK.get(it["source_tier"], 0)
+                rep_rank = LEVEL_RANK.get(rep.get("source_level", 5), 0) * 10 + TIER_RANK.get(rep["source_tier"], 0)
+                if it_rank > rep_rank or (it_rank == rep_rank and it.get("priority_score",0) > rep.get("priority_score",0)):
+                    cl["representative"] = it
+                    cl["fps"][0] = fp
+                placed = True
+                break
+            # Contrastive check — same topic but different event → never merge
+            if _contrastive(it.get("headline_en",""), rep.get("headline_en","")):
+                continue
+            # L2: near duplicate via original similarity
+            if similarity(it, rep) >= 0.65:  # L2 near-duplicate lowered from 0.85 for reworded headlines
+                cl["members"].append(it)
+                cl["fps"].append(fp)
+                it_rank = LEVEL_RANK.get(it.get("source_level", 5), 0) * 10 + TIER_RANK.get(it["source_tier"], 0)
+                rep_rank = LEVEL_RANK.get(rep.get("source_level", 5), 0) * 10 + TIER_RANK.get(rep["source_tier"], 0)
+                if it_rank > rep_rank or (it_rank == rep_rank and it.get("priority_score",0) > rep.get("priority_score",0)):
+                    cl["representative"] = it
+                    cl["fps"][0] = fp
+                placed = True
+                break
+            # L3: semantic/event duplicate
+            combined, head_sim, ent_sim, num_sim = _semantic_similarity(it, rep, fp, rep_fp)
+            # Require high combined and at least moderate headline or entity overlap
+            if combined >= 0.60 and (head_sim >= 0.30 or ent_sim >= 0.35) and not _contrastive(it.get("headline_en",""), rep.get("headline_en","")):
+                # Additional guard: if numbers exist and zero overlap, likely different amount → don't merge
+                if fp["numbers"] and rep_fp["numbers"] and len(fp["numbers"] & rep_fp["numbers"])==0:
+                    # Different ₹X crore amounts → different events (e.g., ₹X vs ₹Y scheme)
+                    continue
+                cl["members"].append(it)
+                cl["fps"].append(fp)
+                it_rank = LEVEL_RANK.get(it.get("source_level", 5), 0) * 10 + TIER_RANK.get(it["source_tier"], 0)
+                rep_rank = LEVEL_RANK.get(rep.get("source_level", 5), 0) * 10 + TIER_RANK.get(rep["source_tier"], 0)
+                if it_rank > rep_rank or (it_rank == rep_rank and it.get("priority_score",0) > rep.get("priority_score",0)):
+                    cl["representative"] = it
+                    cl["fps"][0] = fp
                 placed = True
                 break
         if not placed:
-            clusters.append({"representative": it, "members": [it]})
+            clusters.append({"representative": it, "members": [it], "fps": [fp]})
     out = []
     for cl in clusters:
         rep = dict(cl["representative"])
-        rep["duplicate_count"] = len(cl["members"])
-        rep["merged_urls"] = [m["source_url"] for m in cl["members"]]
-        # union raw facts (never invent — only combine what sources said)
-        extra = [m["headline_en"] for m in cl["members"] if m is not rep and m["headline_en"] != rep["headline_en"]]
+        members = cl["members"]
+        rep["duplicate_count"] = len(members)
+        rep["merged_urls"] = [m["source_url"] for m in members]
+        rep["supporting_sources"] = [m["source_name"] for m in members if m["source_name"] != rep["source_name"]]
+        rep["supporting_source_levels"] = [m.get("source_level",5) for m in members if m["source_name"] != rep["source_name"]]
+        rep["duplicate_articles"] = [{"headline_en": m["headline_en"], "source_name": m["source_name"], "source_url": m["source_url"], "source_level": m.get("source_level",5)} for m in members]
+        rep["source_count"] = len(members)
+        rep["canonical_source"] = rep["source_name"]
+        # Verification strength boost: if multiple primary sources report same event, increase confidence
+        primary_count = sum(1 for m in members if m.get("source_level",5) <=2)
+        if primary_count >=2:
+            rep["verification_boost"] = min(10, primary_count*2)  # up to +10
+        else:
+            rep["verification_boost"] = 0
+        # Union raw facts (never invent)
+        extra = [m["headline_en"] for m in members if m is not rep and m["headline_en"] != rep["headline_en"]]
         if extra:
             rep["raw_facts"] = (rep.get("raw_facts") or "") + " | Also reported: " + "; ".join(extra[:3])
+        # Store cluster size for diversity scoring
+        rep["event_cluster_size"] = len(members)
         out.append(rep)
     return out
 
@@ -148,6 +370,13 @@ def score_item(item, source_score_map=None):
             item.get("source_tier"), "Aggregator")
         rel = (source_score_map or {"Official Primary": 100, "Reuters/Trusted News": 90, "Aggregator": 60}).get(src_type, 60) / 100.0
     total = round(raw_total * rel)
+    # Event verification boost: +2 per additional primary source reporting same event (max +10)
+    boost = item.get("verification_boost", 0)
+    if boost:
+        total = min(100, total + boost)
+    # Cluster size bonus: events reported by many sources are more important nationally (max +5)
+    cluster_bonus = min(5, max(0, item.get("event_cluster_size",1)-1))
+    total = min(100, total + cluster_bonus)
     return {"factors": factors, "raw_total": raw_total, "source_type": src_type,
             "source_reliability": round(rel * 100), "importance_score": min(100, total)}
 

@@ -10,11 +10,11 @@ Work: Event clustering
 Real implementation: pipeline/ library (state machine + quality gates). Empty stage output = FAILURE.
 """
 
-COMMAND = """Deduplicate verified news by event similarity (>0.85 token-shingle Jaccard). Merge duplicates keeping the authoritative (Tier-1) source and unioning reported facts without invention."""
+COMMAND = """Event-level deduplication — 3-level pipeline (exact URL/headline → near-duplicate shingle 0.65 → semantic fingerprint with entities/numbers/date/category). Same event ≠ same topic (contrastive verbs prevent false merges). Keep canonical source (highest authority) + supporting_sources."""
 
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
-DETAILS = """- pipeline.scoring.deduplicate(threshold=0.85); keeps strongest source per cluster"""
+DETAILS = """- pipeline.scoring.deduplicate(): Level1 exact URL, Level2 shingle 0.65, Level3 fingerprint 0.60 (title 22%+entities 25%+numbers 18%+category 15%+date 15%); contrastive check; verification_boost+cluster_bonus; writes data/dedup/<job_id>.json as events with canonical/supporting"""
 
 
 class Agent:
