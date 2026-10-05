@@ -6,7 +6,8 @@ Main focus: selected news को student-facing bilingual content में ब�
 Command:
 > "For each selected event produce: headline_en, key_points (2-4 bullets), static-fact table rows, exam-fact note — strictly extracted from verified source text. Never invent facts; if AI polish is configured it may only reword, never add numbers."
 
-Work: Deterministic extraction + optional guarded AI polish
+Work: Deterministic extraction + optional guarded AI polish. Merged (audit refactor 2026-10):
+Agent 13 Bilingual Editor + Agent 14 English Editor now run as inline passes in this stage.
 Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
 """
 
@@ -36,10 +37,25 @@ class Agent:
         if not content["items"]:
             self.context["stage_failed"] = "content editor produced 0 items"
             raise RuntimeError(self.context["stage_failed"])
+        # --- merged bilingual pass (former Agent 13): guarantee Hindi fields exist ---
+        from pipeline.content import translate_headline
+        fixed = 0
+        for it in content["items"]:
+            if not it.get("headline_hi"):
+                it["headline_hi"] = ">> " + translate_headline(it["headline_en"]); fixed += 1
+            if not it.get("key_points_hi"):
+                it["key_points_hi"] = [translate_headline(p) for p in it["key_points_en"]]; fixed += 1
+        # --- merged english QA pass (former Agent 14): cleanup + source-link validation ---
+        import re as _re
+        for it in content["items"]:
+            it["headline_en"] = _re.sub(r"\s+", " ", it["headline_en"]).strip()[:160]
+            it["key_points_en"] = [_re.sub(r"\s+", " ", p).strip() for p in it["key_points_en"] if p.strip()]
+            if not it["source"].get("url"):
+                raise RuntimeError(f"item without source url: {it['event_id']}")
         write_json_atomic(data_path(CONTENT_DIR, self.job_id), content)
         save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
                  state="CONTENT_READY", stage="12_content_editor")
-        logging.info(f"[{self.name}] content ready: {len(content['items'])} items")
+        logging.info(f"[{self.name}] content ready: {len(content['items'])} items (bilingual fixed={fixed})")
         self.context["content_items"] = len(content["items"])
         return self.context
 

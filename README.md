@@ -5,90 +5,76 @@
 
 ---
 
-## 🚀 FINAL AGENT SETUP — 24 AGENTS
+## 🚀 FINAL AGENT SETUP — 17 LOGICAL STAGES (audit refactor 2026-10)
 
-### 1. 🎯 MASTER SUPERVISOR
-> Manage the complete Current Affairs pipeline. Execute each stage in correct order, track job status, prevent duplicate, retry failed, resume from last success, never publish incomplete.
+> **Refactor summary:** 24 agents → 17 stages. Removed: `01 Master Supervisor` (main.py already
+> orchestrates lock/retry/resume/alert). Merged: `02 Scheduler` → `03 News Collection`;
+> `08 Agriculture Expert` + `09 Banking Expert` → `07 Student & Domain Relevance` (they were pure
+> tagging wrappers); `13 Bilingual Editor` + `14 English Editor` → `12 Content Editor` (inline passes).
+> Renamed: `24 Watchdog Recovery` → `24 Final Health Audit` (standalone watchdog = `main.py --watchdog`).
+> Original IDs kept with intentional gaps as history markers.
 
-`START → COLLECT → VERIFY → RANK → SELECT → WRITE → MCQ → PDF → QA → TELEGRAM → PIN → COMPLETE`
+### 1. 🎯 MASTER ORCHESTRATION (`main.py`)
+> Manage the complete Current Affairs pipeline. Execute each stage in correct order, track job status, prevent duplicate, retry failed, resume from last success, never publish incomplete. *(formerly Agent 01 — now lives entirely in main.py)*
 
-### 2. ⏰ SCHEDULER
-> Create and trigger Daily, Weekly, Monthly jobs using Asia/Kolkata. Daily=previous 24h, Weekly=previous 7 days, Monthly=complete month. Never duplicate.
+`COLLECT(+window) → VERIFY → RANK → SELECT → WRITE → MCQ → PDF → QA → TELEGRAM → PIN → AUDIT → COMPLETE`
 
-### 3. 🌐 NEWS COLLECTION
-> Collect from reliable/primary sources. Prioritize Agriculture, Banking, Govt, Economy, National, International, Science, Environment, Awards... Capture headline, time, source, URL, category, raw facts. Collect broadly; do not decide importance.
+### 2. 🌐 NEWS COLLECTION (+ scheduler window)
+> Collect from reliable/primary sources; compute the Asia/Kolkata collection window for this job type inline. Prioritize Agriculture, Banking, Govt, Economy, National, International, Science, Environment, Awards... Capture headline, time, source, URL, category, raw facts. Collect broadly; do not decide importance. Quality gate: <4 in-window items = failure.
 
-### 4. 🔎 FACT VERIFICATION
-> Verify every item via primary/authoritative sources. Verify dates, numbers, names, orgs, schemes, rankings, appointments, locations. Reject unsupported. Never guess.
+### 3. 🔎 FACT VERIFICATION
+> Verify every item via primary/authoritative sources (incl. Google News AES-URL decoding via `pipeline/gnews.py`). Verify dates, numbers, names, orgs, schemes, rankings, appointments, locations. Reject unsupported. Never guess. Quality gate: <4 verified items = failure.
 
-### 5. 🧹 DEDUPLICATION
+### 4. 🧹 DEDUPLICATION
 > Identify and merge same event across sources. Preserve strongest source. Separate only when genuinely different.
 
-### 6. 🧠 NEWS IMPORTANCE (0-100)
+### 5. 🧠 NEWS IMPORTANCE (0-100)
 > Score 0-100 for overall importance: national significance, govt importance, economic impact, agri/banking relevance, exam potential, future relevance, static value, uniqueness, source reliability. Not just trending.
 
-### 7. 🎓 STUDENT RELEVANCE ⭐
-> Act as expert editor for AGTA/AFO/NABARD/FCI/ICAR/IBPS AFO. Judge worth of limited study time. Prioritize direct/conceptual MCQ potential. Reject low exam value. Q: "If student has limited time, should they read this?"
+### 6. 🎓 STUDENT & DOMAIN RELEVANCE ⭐ (merged old 07+08+09)
+> Act as expert editor for AGTA/AFO/NABARD/FCI/ICAR/IBPS. Judge worth of limited study time; boost Agriculture/Banking/Schemes, demote crime/politics/ad noise; tag `agri_focus` / `banking_focus` for coverage guarantees. Q: "If student has limited time, should they read this?"
 
-### 8. 🌾 AGRICULTURE EXPERT
-> For AGTA/AFO/NABARD/FCI/ICAR. Prioritize schemes, MSP, crops, varieties, ICAR/IARI, horticulture, AH, fisheries, forestry, soil, irrigation, seeds, fertilizers, agri econ, food processing, exports, cooperatives, agri-tech, weather.
+### 7. ⭐ FINAL NEWS SELECTION
+> Select only highest-value by merit: daily 10-12 / weekly 15-18 / monthly 20-25 MAX caps, quality floors 25/60/62 on the relevance scale. Never pad with weak news. Ensure ≥2 agri & ≥2 banking visible when available.
 
-### 9. 🏦 BANKING & FINANCE EXPERT
-> For NABARD/AFO/IBPS. Prioritize RBI, NABARD, SEBI, NPCI, monetary policy, financial inclusion, banking schemes, digital payments, reports, indices, appointments, stats. Reject noise.
+### 8. 📈 IMPORTANCE MEMORY
+> Track importance over time across ALL scored events (not just selected). Detect RISING/FALLING/NEW trends, remember previously-published ids so Weekly/Monthly reuse the same persistent DB.
 
-### 10. ⭐ FINAL NEWS SELECTION
-> Select only highest-value. Combine importance, exam relevance, agri/banking relevance, factual value, MCQ potential, uniqueness, source reliability. No fixed count. Quality > Quantity.
+### 9. ✍️ CONTENT EDITOR (EN + HI in one stage; merged old 13+14)
+> Convert selected verified news to concise exam-oriented bilingual content: Headline → Key Points → Static Facts → Exam Fact. Hindi=Mukta, English=Poppins; word-substitution translation (never invent meaning). Inline English cleanup + verbatim source-link validation.
 
-### 11. 📈 IMPORTANCE MEMORY
-> Track importance over time. Increase priority when event gains significance. Use historical for Weekly/Monthly. Not repeat same unless new development.
+### 10. 🖼️ IMAGE AGENT
+> Only when improves understanding. Prefer official/reliable (source OG image → Wikimedia fallback). Verify represents event/person/place. Never random stock.
 
-### 12. ✍️ CONTENT EDITOR
-> Convert selected verified news to concise exam-oriented: Headline → Key Points → Static Facts → Exam Fact → Explanation.
-
-### 13. 🌐 BILINGUAL EDITOR
-> Hindi + English same facts/numbers/names/dates. Keep English exam terms, make Hindi natural student-friendly. Hindi=Mukta, English=Poppins.
-
-### 14. 🇬🇧 ENGLISH EDITOR
-> English-only from same verified DB, no factual alteration.
-
-### 15. 🖼️ IMAGE AGENT
-> Only when improves understanding. Prefer official/reliable. Verify represents event/person/place. Never random stock.
-
-### 16. ❓ MCQ GENERATOR
+### 11. ❓ MCQ GENERATOR
 > High-quality MCQs only from verified selected. Prioritize direct, conceptual, statement-based, static-linked for AGTA/AFO/NABARD/FCI/ICAR.
 
-### 17. 🧪 MCQ VALIDATOR
+### 12. 🧪 MCQ VALIDATOR
 > Validate clarity, option uniqueness, correct answer, explanation, accuracy, source support, ambiguity, duplicate, relevance. Reject/regenerate if multiple answers.
 
-### 18. 🎨 PDF DESIGN
-> Clean, colorful, highly readable, mobile-friendly. Controlled colors, clear hierarchy, attractive headings, proper spacing. Every page branding/logo/footer/page number. Never overcrowd or alter facts.
+### 13. 🎨 PDF DESIGN (Agent 18)
+> Clean, colorful, highly readable, mobile-friendly. Controlled colors, clear hierarchy, attractive headings, proper spacing. Every page branding/logo/footer/page number + clickable Telegram channel links (@agrilearningpoint, @agriquizworld). Hindi rendered via Mukta with RAQM shaping + hidden selectable text layer. Never overcrowd or alter facts.
 
-### 19. 🔍 PDF QA
-> Check missing text, broken Hindi (Mukta), font rendering, dates, duplicates, images, overflow, blank pages, headers/footers, page numbers, MCQ mismatch, bilingual inconsistency. Reject if critical error.
+### 14. 🔍 PDF QA (Agent 19) — HARD GATE
+> Check missing text, broken Hindi (Mukta), font rendering, **Hindi coverage ratio (extracted vs source Devanagari chars — not just "any char exists")**, dates, duplicates, images, overflow, blank pages, headers/footers, page numbers, MCQ mismatch, bilingual inconsistency. Reject if critical error; REJECTED blocks publish.
 
-### 20. 📅 WEEKLY EDITOR ⭐
+### 15. 📅 WEEKLY EDITOR ⭐ (Agent 20)
 > Review week, fresh Best-of-Week. Re-rank via cumulative importance, exam/agri/banking relevance, uniqueness, developments. Deduplicate. Not combine daily PDFs.
 
-### 21. 📆 MONTHLY EDITOR ⭐
+### 16. 📆 MONTHLY EDITOR ⭐ (Agent 21)
 > Review month, fresh Best-of-Month. Re-rank via month-long significance, policy impact, repeated developments, static value, future potential. Not merge.
 
-### 22. 📤 TELEGRAM PUBLISHER
-> Publish only QA-approved to Telegram group `-1004485392227` (private). Correct caption, date, filename. Never draft/failed/duplicate.
-
-### 23. 📌 PIN VERIFIER
-> Verify pinned. Retry if fails. Never mark complete until publish+pin succeed.
-
-### 24. 🚨 WATCHDOG / RECOVERY
-> Monitor every job, detect timeout/stalled/API failure/invalid output, retry exponential backoff, resume from last checkpoint, escalate clear alert to @Agrikrishna (1138783169). Never silently stop.
+### 17. 📤 TELEGRAM PUBLISHER + 📌 PIN VERIFIER + 🩺 FINAL HEALTH AUDIT (Agents 22/23/24)
+> Publish only QA-approved PDF to Telegram group `-1004485392227`; verify pin (retry until succeed); final health audit checks every artefact (raw→qa report), PDF size, QA approval and state machine before marking COMPLETE. Standalone watchdog (`main.py --watchdog`, every 5 min via workflow) detects stalled/FAILED_FINAL jobs, alerts admin, and re-triggers the FAILED job's own date (recovery_plan.json) — never silently stops.
 
 **Common Master Rule:** Student Value First...
 
 **Flow:**
 ```
-SCHEDULER → COLLECTOR → VERIFIER → DEDUP → IMPORTANCE → STUDENT → AGRI ─┐
-                                                                   ├──→ FINAL SELECTOR → CONTENT → BILINGUAL/ENGLISH → MCQ → VALIDATOR → IMAGE → PDF DESIGN → QA → PUBLISH → PIN → COMPLETE
-                                                            BANKING ─┘
-WATCHDOG → MONITOR → RETRY → RECOVER → ALERT
+COLLECT(+window) → VERIFY → DEDUP → IMPORTANCE → STUDENT+DOMAIN RELEVANCE → FINAL SELECTOR
+   → MEMORY → CONTENT(EN+HI) → IMAGE → MCQ GEN → MCQ VALIDATOR → PDF DESIGN → PDF QA(GATE)
+   → PUBLISH → PIN VERIFY → FINAL HEALTH AUDIT → COMPLETE
+WATCHDOG (main.py --watchdog): MONITOR → RETRY → RESUME(failed job's own date) → ALERT
 ```
 
 **Architecture:** Same database, different selection: Daily="Aaj kya zaroor?", Weekly="Is saptah sabse mahatvapurna?", Monthly="Is mahine sabse mahatvapurna?" — Fresh AI editorial, not PDF merging. Like Horizon/SmartReader.

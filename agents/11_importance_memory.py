@@ -28,11 +28,13 @@ class Agent:
 
     def run(self):
         import logging
-        from pipeline.state import SELECTED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
+        from pipeline.state import SELECTED_DIR, SCORED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
         from pipeline import store
         mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
         sel = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []})["items"]
-        scored = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []}).get("items", [])
+        # FIX (audit 2026-10): memory must record ALL SCORED events, not just selected —
+        # previously `scored` was accidentally re-read from SELECTED_DIR.
+        scored = read_json(data_path(SCORED_DIR, self.job_id), {"items": []}).get("items", [])
         for it in sel:
             e = mem.setdefault(it["event_id"], {"headline": it["headline_en"], "history": [], "published_jobs": []})
             before = [h["score"] for h in e["history"]]

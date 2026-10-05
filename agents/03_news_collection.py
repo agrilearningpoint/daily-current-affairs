@@ -6,7 +6,8 @@ Main focus: ज्यादा से ज्यादा relevant raw news colle
 Command:
 > "Collect current-affairs news from reliable and preferably primary/official sources. Prioritize Agriculture, Banking, Government, Economy, National, International, Science, Environment, Awards, Appointments, Reports and Sports. Capture headline, publication time, source, URL, category and raw facts. Collect broadly; do not decide final importance at this stage."
 
-Work: Tier-1 primary first, then Tier-2 discovery; QUALITY GATE: <5 items = stage failure
+Work: Tier-1 primary first, then Tier-2 discovery; QUALITY GATE: <4 items = stage failure.
+Merged (audit refactor 2026-10): Agent 02 Scheduler — collection window is computed here.
 Real implementation: pipeline/ library (state machine + quality gates). Empty stage output = FAILURE.
 """
 
@@ -32,6 +33,9 @@ class Agent:
         from pipeline.state import RAW_DIR, data_path, write_json_atomic, load_job, save_job
         items, errors = collect_all(max_items=140)
         start, end = collect_window(self.job_type, self.context["job_date"])
+        # scheduler context (merged from former Agent 02)
+        self.context["window_start"] = start.isoformat()
+        self.context["window_end"] = end.isoformat()
         fresh = [i for i in items if in_window(i, start, end)]
         logging.info(f"[{self.name}] collected={len(items)} in-window={len(fresh)} errors={len(errors)}")
         if len(fresh) < 4:

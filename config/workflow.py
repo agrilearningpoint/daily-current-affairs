@@ -1,30 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-AGRI LEARNING POINT — AGENT WORKFLOW (24 Agents)
-Pipeline: SCHEDULER → COLLECTOR → ... → WATCHDOG.
+AGRI LEARNING POINT — AGENT WORKFLOW (17 logical stages)
+Pipeline: COLLECTOR → ... → FINAL HEALTH AUDIT.
 Architecture principle: Same database, different selection for Daily/Weekly/Monthly.
-FIX (2026-10): Weekly/Monthly editors now run BEFORE Content→PDF so their fresh
-selection actually flows into the edition (previously they sat after PDF/QA and
-their output never reached downstream stages).
+
+REFACTOR (2026-10 audit):
+- 01 Master Supervisor REMOVED  — main.py already owns orchestration (lock/retry/resume/alert).
+- 02 Scheduler MERGED into 03   — window calculation is one line inside collection.
+- 07 Student Relevance + 08 Agriculture Expert + 09 Banking Expert MERGED into a single
+  "student & domain relevance" stage — 08/09 were only tagging agri_focus/banking_focus.
+- 13 Bilingual Editor + 14 English Editor MERGED into 12 Content Editor — build_content()
+  already produces bilingual fields; the extra passes were thin fallbacks/cleanup.
+- 24 Watchdog Recovery RENAMED to 24_final_health_audit — standalone watchdog lives in
+  main.py --watchdog + .github/workflows/watchdog.yml; this agent is only the end-of-run audit.
+Numbering keeps original IDs (gaps are intentional history markers).
 """
 
 WORKFLOW_ORDER = [
-    "01_master_supervisor",
-    "02_scheduler",
-    "03_news_collection",
+    "03_news_collection",          # incl. scheduler window (was 02)
     "04_fact_verification",
     "05_deduplication",
     "06_news_importance",
-    "07_student_relevance",
-    "08_agriculture_expert",
-    "09_banking_finance_expert",
+    "07_student_domain_relevance", # merged 07+08+09
     "10_final_news_selection",
     "11_importance_memory",
     "20_weekly_editor",
     "21_monthly_editor",
-    "12_content_editor",
-    "13_bilingual_editor",
-    "14_english_editor",
+    "12_content_editor",           # merged 12+13+14 (bilingual + english pass inline)
     "15_image_agent",
     "16_mcq_generator",
     "17_mcq_validator",
@@ -32,7 +34,7 @@ WORKFLOW_ORDER = [
     "19_pdf_qa",
     "22_telegram_publisher",
     "23_telegram_pin_verifier",
-    "24_watchdog_recovery"
+    "24_final_health_audit"        # renamed from watchdog_recovery
 ]
 
 # Which agents are active per job type (editors 20/21 skip non-matching types internally too)
@@ -41,9 +43,7 @@ WEEKLY_AGENTS = [a for a in WORKFLOW_ORDER if a != "21_monthly_editor"]
 MONTHLY_AGENTS = [a for a in WORKFLOW_ORDER if a != "20_weekly_editor"]
 WORKFLOWS_BY_TYPE = {"daily": DAILY_AGENTS, "weekly": WEEKLY_AGENTS, "monthly": MONTHLY_AGENTS}
 
-PIPELINE_FLOW = """SCHEDULER
-   ↓
-NEWS COLLECTOR
+PIPELINE_FLOW = """NEWS COLLECTOR (+window)
    ↓
 FACT VERIFIER
    ↓
@@ -51,21 +51,19 @@ DEDUPLICATOR
    ↓
 IMPORTANCE SCORER (0-100)
    ↓
-STUDENT RELEVANCE SCORER
+STUDENT + DOMAIN RELEVANCE (agri/banking boosts & tags)
    ↓
-AGRICULTURE EXPERT ─┐
-                    ├──→ FINAL NEWS SELECTOR
-BANKING EXPERT ─────┘
+FINAL NEWS SELECTOR
    ↓        (weekly/monthly: fresh Best-of re-selection here)
-CONTENT EDITOR
-    ↙         ↘
- BILINGUAL   ENGLISH
-    ↓           ↓
+IMPORTANCE MEMORY
+   ↓
+CONTENT EDITOR (EN + HI + validation in one stage)
+   ↓
+ IMAGE SELECTOR
+   ↓
  MCQ GENERATOR
       ↓
  MCQ VALIDATOR
-      ↓
- IMAGE SELECTOR
       ↓
   PDF DESIGN (dynamic generator)
       ↓
@@ -75,7 +73,7 @@ CONTENT EDITOR
       ↓
   PIN VERIFY
       ↓
- JOB COMPLETE"""
+ FINAL HEALTH AUDIT → JOB COMPLETE"""
 
 WATCHDOG_FLOW = "WATCHDOG → MONITOR → TIMEOUT → RETRY → RECOVER → ALERT"
 

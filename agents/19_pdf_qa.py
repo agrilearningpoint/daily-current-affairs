@@ -51,6 +51,17 @@ class Agent:
         fonts = set(f[3] for pg in doc for f in pg.get_fonts())
         chk("fonts_embedded", any("Mukta" in f for f in fonts) and any("Poppins" in f or "DejaVu" in f for f in fonts), str(list(fonts))[:200])
         chk("hindi_extractable", bool(re.search("[\u0900-\u097F]", txt)), "Devanagari chars found" )
+        # COVERAGE check (audit fix): PNG-rasterised Hindi is NOT extractable, so a single
+        # stray Devanagari char must not pass QA. Compare source-Hindi vs PDF-extracted-Hindi.
+        def _devn(s):
+            return re.findall(r"[\u0900-\u097F]", s or "")
+        src_hi = []
+        for it in c["items"]:
+            src_hi += _devn(it.get("headline_hi", "")) + _devn(it.get("exam_fact_hi", "")) \
+                      + [ch for kp in it.get("key_points_hi", []) for ch in _devn(kp)]
+        pdf_hi = _devn(txt)
+        ratio = len(pdf_hi) / max(1, len(src_hi))
+        chk("hindi_coverage", ratio >= 0.85, f"pdf_hindi_chars={len(pdf_hi)} source_hindi_chars={len(src_hi)} ratio={ratio:.2f}")
         chk("date_present", c["job"]["date_display"] in flat, c["job"]["date_display"])
         missing = [i["event_id"] for i in c["items"] if re.sub(r"[^A-Za-z0-9]", "", i["headline_en"].lstrip("> ")[:40]).lower()[:20]
                    and re.sub(r"\s+", " ", i["headline_en"].lstrip("> "))[:45] not in flat]

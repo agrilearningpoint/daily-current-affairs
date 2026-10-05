@@ -15,7 +15,8 @@ COMMAND = """Select the final edition set purely by merit: daily 10-12, weekly 1
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
 DETAILS = """- rank by student_relevance & importance_score; per-type targets as MAXIMUM caps;
-- quality floor: score>=55 (daily); never pads; writes data/selected/<job_id>.json"""
+- quality floor: daily 25 / weekly 60 / monthly 62 (student_relevance scale); never pads;
+  writes data/selected/<job_id>.json"""
 
 
 class Agent:

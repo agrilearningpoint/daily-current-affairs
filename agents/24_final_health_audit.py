@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WATCHDOG RECOVERY AGENT
+FINAL HEALTH AUDIT AGENT
 Main focus: पूरी pipeline की monitoring, timeout detection और recovery।
 
 Command:
@@ -19,12 +19,12 @@ DETAILS = """- validates every artefact + job state machine
 
 
 class Agent:
-    """WATCHDOG RECOVERY AGENT — real implementation"""
+    """FINAL HEALTH AUDIT AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
         self.job_type = job_type
         self.context = context
-        self.name = "WATCHDOG RECOVERY AGENT"
+        self.name = "FINAL HEALTH AUDIT AGENT"
 
     def run(self):
         import logging, os
@@ -54,7 +54,7 @@ class Agent:
             alert_admin(f"⚠️ {self.job_id} watchdog found: " + "; ".join(problems))
             self.context["stage_failed"] = "watchdog audit failed: " + "; ".join(problems)
             raise RuntimeError(self.context["stage_failed"])
-        save_job(job, stage="24_watchdog_recovery", watchdog="healthy")
+        save_job(job, stage="24_final_health_audit", watchdog="healthy")
         logging.info(f"[{self.name}] audit PASSED for {self.job_id}")
         return self.context
 

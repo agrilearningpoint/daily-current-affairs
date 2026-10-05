@@ -52,10 +52,24 @@ jobs:
             git push origin HEAD:main || echo "::warning::recovery plan push failed"
           fi
 
-      - name: Trigger daily pipeline for recovery
+      - name: Trigger recovery for the FAILED job's own date
         if: steps.wd.outputs.rc == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Kick the Daily workflow (it owns the full pipeline + resume logic).
-          gh workflow run "Daily Current Affairs" --ref main || true
+          # FIX (audit 2026-10): previously this kicked "Daily Current Affairs" with no
+          # input → it rebuilt TODAY's edition instead of resuming the failed one.
+          # Now we read recovery_plan.json and trigger each failed job with its exact date.
+          python - <<'PY'
+          import json, os, re, subprocess
+          plan = json.load(open("recovery_plan.json")) if os.path.exists("recovery_plan.json") else []
+          WF = {"daily": "Daily Current Affairs", "weekly": "Weekly Current Affairs", "monthly": "Monthly Current Affairs"}
+          for jid in plan:
+              m = re.match(r"(daily|weekly|monthly)_(\d{4}-\d{2}-\d{2})", jid)
+              if not m:
+                  continue
+              wtype, date = m.group(1), m.group(2)
+              cmd = ["gh", "workflow", "run", WF[wtype], "--ref", "main", "-f", f"date={date}"]
+              print("recovery trigger:", " ".join(cmd))
+              subprocess.run(cmd, check=False)
+          PY
