@@ -348,30 +348,72 @@ def header_footer(canvas, doc):
     # Footer bar
     canvas.setFillColor(COLORS["header_bg"])
     canvas.rect(0, 0, PAGE_W, 9*mm, fill=1, stroke=0)
+    # ── Footer: brand + 2 Telegram channels (red icon + blue name + clickable) + page number ──
+    # Left brand
     canvas.setFillColor(white)
+    canvas.setFont(FONT_REGULAR, 6.5)
+    canvas.drawString(8*mm, 5.5*mm, "Agri Learning Point  |  BY SATYAM SIR")
+    # Telegram channels — red icon + blue name, per user spec
+    # Exact URLs as given: https://web.telegram.org/k/#@agrilearningpoint , https://web.telegram.org/k/#@agriquizworld
+    ch1_name = "@agrilearningpoint"
+    ch2_name = "@agriquizworld"
+    ch1_url = "https://web.telegram.org/k/#@agrilearningpoint"
+    ch2_url = "https://web.telegram.org/k/#@agriquizworld"
+    # Blue for names (visible on dark green), red for icon
+    BLUE_TG = HexColor("#81D4FA")  # light blue visible on #1B5E20
+    BLUE_TG_DARK = HexColor("#4FC3F7")
+    RED_ICON = HexColor("#E53935")
+    link_y = 2.6*mm
+    icon_sz = 3.2*mm
+    # Measure texts
+    w1 = stringWidth(ch1_name, FONT_REGULAR, 7)
+    w2 = stringWidth(ch2_name, FONT_REGULAR, 7)
+    # Total width = icon1 + 1mm + w1 + gap + icon2 +1mm + w2
+    gap = 6*mm
+    total_w = (icon_sz + 1*mm + w1) + gap + (icon_sz + 1*mm + w2)
+    cx = PAGE_W/2
+    x_start = cx - total_w/2
+    # Channel 1: icon + name
+    x1_icon = x_start
+    x1_text = x1_icon + icon_sz + 1*mm
+    # Channel 2
+    x2_icon = x1_text + w1 + gap
+    x2_text = x2_icon + icon_sz + 1*mm
+    # Helper to draw Telegram paper-plane icon (red circle + white plane)
+    def _tg_icon(x, y):
+        canvas.saveState()
+        # Red circle
+        canvas.setFillColor(RED_ICON)
+        canvas.setStrokeColor(RED_ICON)
+        # Circle centred at x+icon_sz/2, y+icon_sz/2
+        canvas.circle(x + icon_sz/2, y + icon_sz/2 + 0.2*mm, icon_sz/2, stroke=0, fill=1)
+        # White plane — simple arrow shape
+        canvas.setFillColor(white)
+        p = canvas.beginPath()
+        # Plane points within icon
+        # Top-left, tip-right, bottom-left, inner notch
+        p.moveTo(x + 0.7*mm, y + 0.85*mm)
+        p.lineTo(x + 2.5*mm, y + 1.65*mm)
+        p.lineTo(x + 0.7*mm, y + 2.45*mm)
+        p.lineTo(x + 1.2*mm, y + 1.65*mm)
+        p.close()
+        canvas.drawPath(p, stroke=0, fill=1)
+        canvas.restoreState()
+    _tg_icon(x1_icon, link_y - 0.3*mm)
+    _tg_icon(x2_icon, link_y - 0.3*mm)
+    # Blue channel names
+    canvas.setFillColor(BLUE_TG)
     canvas.setFont(FONT_REGULAR, 7)
-    canvas.drawCentredString(PAGE_W/2 - 20*mm, 5.6*mm, "Agri Learning Point  |  BY SATYAM SIR")
-    canvas.setFont(FONT_REGULAR, 6)
-    # Clickable Telegram channel links in footer (tapping opens the channels)
-    ch1_label = "Telegram: @agrilearningpoint"
-    ch2_label = "Quiz: @agriquizworld"
-    ch1_url = "https://t.me/agrilearningpoint"
-    ch2_url = "https://t.me/agriquizworld"
-    link_y = 2.8*mm
-    w1 = stringWidth(ch1_label, FONT_REGULAR, 6)
-    w2 = stringWidth(ch2_label, FONT_REGULAR, 6)
-    gap = 8*mm
-    cx = PAGE_W/2 - 20*mm
-    x1 = cx - (w1 + gap + w2) / 2
-    x2 = x1 + w1 + gap
-    canvas.setFillColor(colors.HexColor("#B3E5FC"))
-    canvas.drawString(x1, link_y, ch1_label)
-    canvas.drawString(x2, link_y, ch2_label)
-    canvas.linkURL(ch1_url, (x1 - 1*mm, link_y - 1.5*mm, x1 + w1 + 1*mm, link_y + 5*mm), relative=0)
-    canvas.linkURL(ch2_url, (x2 - 1*mm, link_y - 1.5*mm, x2 + w2 + 1*mm, link_y + 5*mm), relative=0)
+    canvas.drawString(x1_text, link_y + 0.6*mm, ch1_name)
+    canvas.drawString(x2_text, link_y + 0.6*mm, ch2_name)
+    # Small "TG" label above icons to make it extra clear? Keep minimal — icon itself is red
+    # Clickable areas: icon + text together
+    canvas.linkURL(ch1_url, (x1_icon - 0.5*mm, link_y - 0.8*mm, x1_text + w1 + 0.5*mm, link_y + 4*mm), relative=0)
+    canvas.linkURL(ch2_url, (x2_icon - 0.5*mm, link_y - 0.8*mm, x2_text + w2 + 0.5*mm, link_y + 4*mm), relative=0)
+    # Page number on right
     canvas.setFillColor(white)
-    canvas.setFont(FONT_REGULAR, 9)
-    canvas.drawRightString(PAGE_W - 12*mm, 4*mm, f"Page {page_num}")
+    canvas.setFont(FONT_REGULAR, 8)
+    canvas.drawRightString(PAGE_W - 8*mm, 4.2*mm, f"Page {page_num}")
     
     # Watermark PNG - AGRI LEARNING POINT Logo (user logo - centred, faded)
     try:
