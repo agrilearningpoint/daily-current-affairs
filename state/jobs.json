@@ -8,11 +8,11 @@
   "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
-  "error": "CORE coverage BLOCKED 0% (0/20) — ['PIB — Press Information Bureau', 'Ministry of Agriculture & Farmers Welfare']",
-  "failed_at": "10_final_news_selection",
+  "error": "only 4 valid MCQs after validation",
+  "failed_at": "17_mcq_validator",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "10_final_news_selection",
+  "last_success_stage": "17_mcq_validator",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-05T22:18:57.638896+05:30"
+  "updated": "2026-10-05T22:19:13.706195+05:30"
  }
 }

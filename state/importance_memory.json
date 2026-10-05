@@ -12,6 +12,29 @@
   ],
   "trend": "NEW"
  },
+ "6a0cae7d99419f6b": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-05",
+  "headline": "Shivaraj Patil demands 12-hour power supply",
+  "headline_hi": "",
+  "importance_score": 8,
+  "last_seen": "2026-10-05",
+  "raw_facts": "Shivaraj Patil demands 12-hour power supply",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-05",
+    "score": 8.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/karnataka/shivaraj-patil-demands-12-hour-power-supply/article71547520.ece",
+  "student_relevance": 16,
+  "trend": "NEW"
+ },
  "711210498f946834": {
   "first_seen": "2026-10-05",
   "headline": "DARE/ICAR Launches Special Campaign 6.0 with Nationwide Cleanliness Drives and Felicitation of Safai Mitras - Indian Council Of Agricultural Research",
@@ -23,6 +46,75 @@
     "score": 30.0
    }
   ],
+  "trend": "NEW"
+ },
+ "716948c9aa830e33": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-05",
+  "headline": "KSTDC to invest ₹100 crore to upgrade Mayura properties, enhance visitor experience",
+  "headline_hi": "",
+  "importance_score": 9,
+  "last_seen": "2026-10-05",
+  "raw_facts": "KSTDC to invest ₹100 crore to upgrade Mayura properties, enhance visitor experience",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-05",
+    "score": 9.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/karnataka/kstdc-to-invest-100-crore-to-upgrade-mayura-properties-enhance-visitor-experience/article71547423.ece",
+  "student_relevance": 17,
+  "trend": "NEW"
+ },
+ "90006ae76c4448ea": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Science & Technology",
+  "first_seen": "2026-10-05",
+  "headline": "Ranga Reddy DMHO, Health Inspector held in ₹1 lakh bribery case",
+  "headline_hi": "",
+  "importance_score": 4,
+  "last_seen": "2026-10-05",
+  "raw_facts": "Ranga Reddy DMHO, Health Inspector held in ₹1 lakh bribery case",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-05",
+    "score": 4.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/telangana/ranga-reddy-dmho-in-acb-net-for-taking-1-lakh-bribe/article71547261.ece",
+  "student_relevance": 16,
+  "trend": "NEW"
+ },
+ "9aac17c186673a5a": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-05",
+  "headline": "Congress slams BJP for ‘wrecking’ economy, claims foreign investors withdrew ₹4.03 lakh crore in 2026",
+  "headline_hi": "",
+  "importance_score": 12,
+  "last_seen": "2026-10-05",
+  "raw_facts": "Foreign portfolio ownership in NSE-listed companies declined to about 15.8%, says Congress leader Shaktisinh Gohil.",
+  "scores": [
+   {
+    "date": "2026-10-05",
+    "job": "daily_2026-10-05",
+    "score": 12.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/congress-slams-bjp-for-wrecking-economy-claims-foreign-investors-withdrew-403-lakh-crore-in-2026/article71548150.ece",
+  "student_relevance": 20,
   "trend": "NEW"
  },
  "aad4015b2380a25d": {
