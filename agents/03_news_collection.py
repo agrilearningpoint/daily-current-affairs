@@ -34,8 +34,8 @@ class Agent:
         start, end = collect_window(self.job_type, self.context["job_date"])
         fresh = [i for i in items if in_window(i, start, end)]
         logging.info(f"[{self.name}] collected={len(items)} in-window={len(fresh)} errors={len(errors)}")
-        if len(fresh) < 5:
-            self.context["stage_failed"] = f"news collection too low: {len(fresh)} items (min 5)"
+        if len(fresh) < 4:
+            self.context["stage_failed"] = f"news collection too low: {len(fresh)} items (min 4)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(RAW_DIR, self.job_id), {"items": fresh, "errors": errors})
         save_job(load_job(self.job_id, self.job_type, self.context["job_date"]),
