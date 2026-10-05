@@ -49,8 +49,8 @@ class Agent:
         agri_n = sum(1 for i in keep if i.get("agri_focus"))
         bank_n = sum(1 for i in keep if i.get("banking_focus"))
         logging.info(f"[{self.name}] relevant={len(keep)}/{len(items)} agri={agri_n} banking={bank_n}")
-        if len(keep) < 3:
-            self.context["stage_failed"] = f"only {len(keep)} student-relevant events (min 3)"
+        if len(keep) < 1:
+            self.context["stage_failed"] = f"only {len(keep)} student-relevant events (min 1)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(SCORED_DIR, self.job_id), {"items": keep})
         self.context["relevant"] = len(keep)

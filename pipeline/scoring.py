@@ -8,6 +8,11 @@ DEDUP + IMPORTANCE SCORING LIBRARY (Agents 05, 06)
   Final = weighted sum scaled by source reliability (SOURCE_SCORE/100).
 """
 import re
+try:
+    from config.sources import PRIORITY_MAP, LEVEL_NAMES
+except Exception:
+    PRIORITY_MAP = {0:100,1:95,2:90,3:85,4:80,5:60}
+    LEVEL_NAMES = {0:'CORE',1:'AGRI',2:'FINANCE',3:'OTHER',4:'DISCOVERY',5:'FALLBACK'}
 
 # ADOPTED from Pious1918/scrape deduplication — acronym expansion improves banking dedupe
 ACRONYM_MAP = {
@@ -30,6 +35,8 @@ def _expand_acronyms(text):
 
 
 TIER_RANK = {"tier1": 3, "tier2": 2, "tier3": 1}
+# Level rank for production hierarchy — lower level = higher authority (0 CORE = 6)
+LEVEL_RANK = {0: 6, 1: 5, 2: 4, 3: 3, 4: 2, 5: 1}
 
 STOP = set("""the a an and or of in on for to is are was were with by at from as it its this that
 new india indian news""".split())
@@ -68,8 +75,10 @@ def deduplicate(items, threshold=0.85):
         for cl in clusters:
             if similarity(it, cl["representative"]) >= threshold:
                 cl["members"].append(it)
-                # representative = strongest source (tier rank, then priority)
-                if TIER_RANK.get(it["source_tier"], 0) > TIER_RANK.get(cl["representative"]["source_tier"], 0):
+                # representative = strongest source (level rank first, then tier rank, then priority_score)
+                it_rank = LEVEL_RANK.get(it.get("source_level", 5), 0) * 10 + TIER_RANK.get(it["source_tier"], 0)
+                rep_rank = LEVEL_RANK.get(cl["representative"].get("source_level", 5), 0) * 10 + TIER_RANK.get(cl["representative"]["source_tier"], 0)
+                if it_rank > rep_rank or (it_rank == rep_rank and it.get("priority_score", 0) > cl["representative"].get("priority_score", 0)):
                     cl["representative"] = it
                 placed = True
                 break
@@ -129,10 +138,15 @@ def score_item(item, source_score_map=None):
         factors["banking"] = FACTOR_WEIGHTS["banking"]
     factors["uniqueness"] = FACTOR_WEIGHTS["uniqueness"] if item.get("duplicate_count", 1) <= 2 else 2
     raw_total = sum(factors.values())  # max 100
-    # source reliability multiplier
-    src_type = {"tier1": "Official Primary", "tier2": "Reuters/Trusted News", "tier3": "Aggregator"}.get(
-        item.get("source_tier"), "Aggregator")
-    rel = (source_score_map or {"Official Primary": 100, "Reuters/Trusted News": 90, "Aggregator": 60}).get(src_type, 60) / 100.0
+    # source reliability multiplier — LEVEL-based (0-5) with fallback to tier map
+    level = item.get("source_level")
+    if level is not None:
+        rel = PRIORITY_MAP.get(level, 60) / 100.0
+        src_type = LEVEL_NAMES.get(level, "Aggregator")
+    else:
+        src_type = {"tier1": "Official Primary", "tier2": "Reuters/Trusted News", "tier3": "Aggregator"}.get(
+            item.get("source_tier"), "Aggregator")
+        rel = (source_score_map or {"Official Primary": 100, "Reuters/Trusted News": 90, "Aggregator": 60}).get(src_type, 60) / 100.0
     total = round(raw_total * rel)
     return {"factors": factors, "raw_total": raw_total, "source_type": src_type,
             "source_reliability": round(rel * 100), "importance_score": min(100, total)}

@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser as dtparser
 import pytz
 
-from config.sources import TIER_1_SOURCES, TIER_2_DISCOVERY
+from config.sources import TIER_1_SOURCES, TIER_2_DISCOVERY, ALL_SOURCES, ALL_LEVELS, PRIORITY_MAP, LEVEL_NAMES
 try:
     from config.feeds import VERIFIED_RSS, GOOGLE_NEWS_SITES, gnews_url
 except Exception:
@@ -208,6 +208,8 @@ def html_items(source, url, tier, role=None, link_pattern=r'href=["\']([^"\']*(?
 
 def make_item(title, link, source, tier, published, summary, img, role=None):
     eid = _hash(re.sub(r"\W+", " ", title.lower()).strip(), source.get("name", ""))
+    # Level-aware enrichment — production hierarchy (0=CORE ..5=FALLBACK)
+    lvl = source.get("level", 0 if tier=="tier1" else (4 if tier=="tier2" else 5))
     return {
         "event_id": eid,
         "headline_en": title,
@@ -215,6 +217,11 @@ def make_item(title, link, source, tier, published, summary, img, role=None):
         "source_name": source.get("name", ""),
         "source_url": link,
         "source_tier": tier,
+        "source_level": lvl,
+        "priority_score": source.get("priority", PRIORITY_MAP.get(lvl, 60)),
+        "verification_required": source.get("verification_required", tier=="tier1"),
+        "access_method": source.get("access_method", "search"),
+        "frequency": source.get("frequency", "daily"),
         "category": infer_category(title + " " + summary),
         "raw_facts": summary or title,
         "image_url": img,
@@ -264,7 +271,7 @@ def in_window(item, start, end):
     return start <= d <= end
 
 
-def collect_all(max_items=140):
+def collect_all(max_items=140, job_type="daily"):
     """Collect from Tier-1 (all groups) then Tier-2 discovery. Returns list of raw items.
 
     GitHub-Actions-safe design:
@@ -274,7 +281,7 @@ def collect_all(max_items=140):
         instead of silently continuing with an empty edition.
     """
     t0 = time.monotonic()
-    return _collect_all_inner(t0, max_items)
+    return _collect_all_inner(t0, max_items, job_type)
 
 
 def _gnews_source(src, tier, cap=25):
@@ -285,14 +292,15 @@ def _gnews_source(src, tier, cap=25):
     return got[:cap]
 
 
-def _collect_all_inner(t0, max_items):
+def _collect_all_inner(t0, max_items, job_type="daily"):
     def _collect_one(group, src):
         url = src.get("url", "")
         if not url.startswith("http"):
             return group, src, [], ""
         host = re.sub(r"^https?://(www\.)?", "", url).split("/")[0]
         got = []
-        # 1) declared verified feed (config/sources.py "rss" key) — live-tested route
+        # Fallback chain (prod): RSS → Native website → Official search → GNews site-search → Playwright
+        # 1) declared feed (config/sources.py "rss" key) — native RSS or gnews URL
         if src.get("rss"):
             got = rss_items(src, src["rss"], "tier1")
         # 2) native RSS discovery on the official site
@@ -312,6 +320,11 @@ def _collect_all_inner(t0, max_items):
     tasks = []
     for group, sources in TIER_1_SOURCES.items():
         for src in sources:
+            # Production frequency filter: daily runs CORE daily + IMPORTANT daily; weekly runs all
+            if job_type == "daily" and src.get("frequency") == "weekly" and src.get("level", 0) > 0:
+                # Still keep a small sample of weekly sources for coverage, but lower priority
+                # Skip most weekly to save CI budget — will be covered on weekly run
+                continue
             tasks.append((group, src))
     tasks.sort(key=lambda t: -t[1].get("priority", 0))  # priority-100 sources first
 

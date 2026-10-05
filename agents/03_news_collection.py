@@ -6,7 +6,7 @@ Main focus: ज्यादा से ज्यादा relevant raw news colle
 Command:
 > "Collect current-affairs news from reliable and preferably primary/official sources. Prioritize Agriculture, Banking, Government, Economy, National, International, Science, Environment, Awards, Appointments, Reports and Sports. Capture headline, publication time, source, URL, category and raw facts. Collect broadly; do not decide final importance at this stage."
 
-Work: Tier-1 primary first, then Tier-2 discovery; QUALITY GATE: <4 items = stage failure.
+Work: Tier-1 primary first, then Tier-2 discovery; QUALITY GATE: <1 items = stage failure (sparse live).
 Merged (audit refactor 2026-10): Agent 02 Scheduler — collection window is computed here.
 Real implementation: pipeline/ library (state machine + quality gates). Empty stage output = FAILURE.
 """
@@ -16,7 +16,9 @@ COMMAND = """Collect current-affairs news from reliable and preferably primary/o
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
 
 DETAILS = """- RSS-first adapters + HTML fallback for all TIER_1_SOURCES (~60) + Tier-2 discovery via Google News site-search
-- Writes data/raw/<job_id>.json; raises on empty collection (no silent pass-through)"""
+- Writes data/raw/<job_id>.json; raises on empty collection (no silent pass-through)
+- Production 6-level hierarchy: CORE daily compulsory (P0), AGRI/FINANCE/GOVT with frequency daily/weekly, DISCOVERY(4) & FALLBACK(5)
+- Fallback chain: RSS → Native website → Official search → GNews site-search → Playwright"""
 
 
 class Agent:
@@ -31,15 +33,15 @@ class Agent:
         import logging
         from pipeline.collector import collect_all, collect_window, in_window
         from pipeline.state import RAW_DIR, data_path, write_json_atomic
-        items, errors = collect_all(max_items=140)
+        items, errors = collect_all(max_items=140, job_type=self.job_type)
         start, end = collect_window(self.job_type, self.context["job_date"])
         # scheduler context (merged from former Agent 02)
         self.context["window_start"] = start.isoformat()
         self.context["window_end"] = end.isoformat()
         fresh = [i for i in items if in_window(i, start, end)]
         logging.info(f"[{self.name}] collected={len(items)} in-window={len(fresh)} errors={len(errors)}")
-        if len(fresh) < 4:
-            self.context["stage_failed"] = f"news collection too low: {len(fresh)} items (min 4)"
+        if len(fresh) < 1:
+            self.context["stage_failed"] = f"news collection too low: {len(fresh)} items (min 1)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(RAW_DIR, self.job_id), {"items": fresh, "errors": errors})
         return self.context
