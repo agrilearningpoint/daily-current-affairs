@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 NEWS COLLECTOR LIBRARY — real fetch/parse/normalize for the Collector Agent.
-Adapters: RSS-first (feedparser), HTML link-fallback (BeautifulSoup) for PIB/gov sites.
+Adapters: RSS-first (feedparser), HTML link-fallback (BeautifulSoup) for PIB/gov sites. Chain: RSS → Native → Search → GNews (Playwright future).
 Every item gets: event_id, headline_en, pub_time_ist, source_name, source_url,
 source_tier, category, raw_facts, image_url, needs_primary_verification.
 Respects timeout 10s, retry 2x, never invents facts (only extracts what page says).
@@ -231,6 +231,29 @@ def make_item(title, link, source, tier, published, summary, img, role=None):
     }
 
 
+
+def core_coverage_report(collected_items):
+    """Production CORE coverage gate — ensure LEVEL 0 CORE sources are represented.
+    Returns dict: {source_name: count, attempted: int, covered: int, missing: [names]}
+    Used by Agent 03 to log and enforce minimum CORE coverage."""
+    try:
+        from config.sources import LEVEL_0_CORE
+    except Exception:
+        return {}
+    core_names = {s["name"]: 0 for s in LEVEL_0_CORE}
+    for it in collected_items:
+        if it.get("source_name") in core_names:
+            core_names[it["source_name"]] += 1
+        # also match by host fallback
+        for cn in list(core_names.keys()):
+            if cn.split(" —")[0].lower() in (it.get("source_name") or "").lower():
+                core_names[cn] += 1
+    attempted = len([s for s in LEVEL_0_CORE])
+    covered = len([k for k,v in core_names.items() if v>0])
+    missing = [k for k,v in core_names.items() if v==0]
+    return {"core_names": core_names, "attempted": attempted, "covered": covered, "missing": missing, "coverage_ratio": covered/attempted if attempted else 0}
+
+
 def collect_window(job_type, job_date):
     """Time windows (production-correct):
       daily   -> PREVIOUS calendar day in IST (run on 04 Oct 06:00 => 03 Oct 00:00 → 04 Oct 06:00)
@@ -299,7 +322,8 @@ def _collect_all_inner(t0, max_items, job_type="daily"):
             return group, src, [], ""
         host = re.sub(r"^https?://(www\.)?", "", url).split("/")[0]
         got = []
-        # Fallback chain (prod): RSS → Native website → Official search → GNews site-search → Playwright
+        # Fallback chain (prod): RSS → Native website → Official search → GNews site-search
+        # (Playwright is future optional — current CI budget uses RSS→HTML→GNews only)
         # 1) declared feed (config/sources.py "rss" key) — native RSS or gnews URL
         if src.get("rss"):
             got = rss_items(src, src["rss"], "tier1")

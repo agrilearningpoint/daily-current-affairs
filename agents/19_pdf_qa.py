@@ -32,7 +32,7 @@ class Agent:
             import pymupdf
         except ImportError:  # PyMuPDF <1.24.x exposed the module only as `fitz`
             import fitz as pymupdf
-        from pipeline.state import CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, data_path, read_json, write_json_atomic, load_job, save_job
+        from pipeline.state import CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, data_path, read_json, write_json_atomic
         pdf = self.context.get("pdf_path", "")
         c = read_json(data_path(CONTENT_DIR, self.job_id))
         mcqs = read_json(data_path(MCQ_DIR, self.job_id, "_validated"), [])
@@ -79,8 +79,8 @@ class Agent:
         return self.context
 
     def _reject(self, checks):
-        job = load_job(self.job_id, self.job_type, self.context["job_date"])
-        save_job(job, state="QA_REJECTED", failed_checks=[c["check"] for c in checks if not c["pass"]])
+        # P0 FIX: State ownership — only main.py may call save_job(state=QA_REJECTED)
+        # Agent only reports failure via context; orchestrator transitions state.
         self.context["stage_failed"] = f"PDF QA REJECTED: {[c['check'] for c in checks if not c['pass']]}"
         raise RuntimeError(self.context["stage_failed"])
 

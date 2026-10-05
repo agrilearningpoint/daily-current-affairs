@@ -37,8 +37,10 @@ class Agent:
                                            -(len(x.get("headline_en") or ""))))[:120]
         verified, dropped = verify_all(items)
         logging.info(f"[{self.name}] verified={len(verified)} dropped={len(dropped)}")
-        if len(verified) < 1:
-            self.context["stage_failed"] = f"only {len(verified)} content-verified items (min 1)"
+        # P0 FIX: dynamic threshold — daily needs >=5 verified to ensure quality (was 1 too permissive)
+        min_verified = 5 if self.job_type == "daily" else (8 if self.job_type == "weekly" else 10)
+        if len(verified) < min_verified:
+            self.context["stage_failed"] = f"only {len(verified)} content-verified items (min {min_verified} for {self.job_type})"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(VERIFIED_DIR, self.job_id), {"items": verified, "dropped": len(dropped)})
         return self.context

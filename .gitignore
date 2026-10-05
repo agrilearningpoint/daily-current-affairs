@@ -5,3 +5,24 @@ __pycache__/
 # Logs and temp files
 *.log
 *.tmp
+# ── AGRI LEARNING POINT — generated artifacts (never commit to Git history) ──
+# Git repo = source + config + small persistent state (state/)
+# Daily artefacts go to Actions artifacts, not Git
+data/
+output/
+logs/
+preview/
+assets/images/
+!state/
+!state/jobs.json
+!state/published_events.json
+!state/importance_memory.json
+*.pdf
+*.png
+!assets/logo.png
+!assets/watermark_logo.png
+
+# IDE / OS
+.DS_Store
+.vscode/
+.venv/

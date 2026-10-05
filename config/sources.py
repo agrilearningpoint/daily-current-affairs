@@ -4,7 +4,7 @@ AGRI LEARNING POINT — PRODUCTION SOURCE HIERARCHY (6 Levels)
 Architecture: Agriculture-exam focus (AGTA/AFO/NABARD/ICAR/AGTA)
 Levels: 0=CORE daily compulsory, 1=Agri SPECIALISTS, 2=Finance/Economy, 3=Other Govt, 4=News Discovery, 5=Fallback Aggregators
 Each source defines: access_method chain, fallback, frequency, verification, priority_score
-Fallback chain (production): RSS → Native website → Official search/listing → Google News site-search → Playwright
+Fallback chain (production): RSS → Native website → Official search/listing → Google News site-search (Playwright = future optional, not required for CI)
 
 NOTE: All URLs verified 2026-10-05 with Chrome UA — 47 working + fallbacks kept.
 """
@@ -19,10 +19,10 @@ def _gnews(domain, when="2d"):
 # ─────────────────────────────────────────────────────────────────
 LEVEL_0_CORE = [
     {"name": "PIB — Press Information Bureau", "url": "https://www.pib.gov.in/", "rss": "https://www.pib.gov.in/ViewRss.aspx?lang=1&reg=1", "fallback_rss": _gnews("pib.gov.in","1d"),
-     "level": 0, "priority": 100, "category": "govt_national", "access_method": "rss", "fallback": ["rss","website_html","gnews_site_search","playwright"], "frequency": "daily", "verification_required": True,
+     "level": 0, "priority": 100, "category": "govt_national", "access_method": "rss", "fallback": ["rss","website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
      "use": "Government schemes, Cabinet decisions, ministries — #1 automated source"},
     {"name": "Ministry of Agriculture & Farmers Welfare", "url": "https://agriwelfare.gov.in/", "rss": _gnews("agriwelfare.gov.in","2d"),
-     "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "search", "fallback": ["gnews_site_search","website_html","playwright"], "frequency": "daily", "verification_required": True,
+     "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
      "use": "Agriculture schemes/policies"},
     {"name": "ICAR", "url": "https://icar.org.in/", "rss": "https://icar.org.in/rss.xml",
      "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "rss", "fallback": ["rss","gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
@@ -40,7 +40,7 @@ LEVEL_0_CORE = [
      "level": 0, "priority": 100, "category": "banking_finance", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": True,
      "use": "Capital market/regulations — press releases, circulars, orders"},
     {"name": "MoSPI", "url": "https://www.mospi.gov.in/", "rss": _gnews("mospi.gov.in","5d"),
-     "level": 0, "priority": 100, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search","website_html","playwright"], "frequency": "daily", "verification_required": True,
+     "level": 0, "priority": 100, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
      "use": "GDP, CPI, statistics", "notes": "Site JS-rendered — PIB MoSPI tag + gnews is reliable"},
     {"name": "NITI Aayog", "url": "https://www.niti.gov.in/", "rss": "https://www.niti.gov.in/rss.xml",
      "level": 0, "priority": 100, "category": "economy_data", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": True,
@@ -52,7 +52,7 @@ LEVEL_0_CORE = [
      "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "search", "fallback": ["website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
      "use": "Monsoon, weather, climate"},
     {"name": "FAO", "url": "https://www.fao.org/", "rss": _gnews("fao.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search","playwright"], "frequency": "daily", "verification_required": True,
+     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
      "use": "Global agriculture/food"},
     {"name": "World Bank", "url": "https://www.worldbank.org/", "rss": _gnews("worldbank.org","2d"),
      "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
@@ -67,7 +67,7 @@ LEVEL_0_CORE = [
      "level": 0, "priority": 100, "category": "health", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": True,
      "use": "Health"},
     {"name": "United Nations", "url": "https://www.un.org/en/", "rss": _gnews("un.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search","playwright"], "frequency": "daily", "verification_required": True,
+     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
      "use": "International affairs"},
     {"name": "UNFCCC", "url": "https://unfccc.int/", "rss": _gnews("unfccc.int","7d"),
      "level": 0, "priority": 100, "category": "environment", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,

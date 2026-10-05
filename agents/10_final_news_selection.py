@@ -41,20 +41,43 @@ class Agent:
         fresh = [i for i in items if i["event_id"] not in published] or items
         chosen = [i for i in fresh if i.get("student_relevance", i.get("importance_score", 0)) >= floor][:hi]
         # category balance: make sure at least 2 agri & 2 banking present if such items exist
+        # P0 FIX: cap-aware balance — ensure() must not exceed hi cap
+        # Use replacement, not append, so 10-12 daily max is never exceeded (was 14-16 bug)
         def ensure(cat_key, need):
             have = sum(1 for c in chosen if c.get(cat_key))
             if have < need:
-                for it in items:
-                    if it not in chosen and it.get(cat_key):
+                candidates = [it for it in items if it.get(cat_key) and it not in chosen]
+                candidates.sort(key=lambda x: -x.get("student_relevance", 0))
+                for it in candidates:
+                    if have >= need:
+                        break
+                    if len(chosen) < hi:
                         chosen.append(it)
                         have += 1
-                        if have >= need:
+                    else:
+                        # At cap: replace lowest-relevance non-essential item
+                        # Find weakest chosen item without this cat_key
+                        non_essential = [c for c in chosen if not c.get(cat_key)]
+                        if not non_essential:
+                            break
+                        non_essential.sort(key=lambda x: x.get("student_relevance", 0))
+                        # Only replace if candidate is stronger than weakest
+                        if it.get("student_relevance", 0) > non_essential[0].get("student_relevance", 0):
+                            chosen.remove(non_essential[0])
+                            chosen.append(it)
+                            have += 1
+                        else:
                             break
         ensure("agri_focus", 2); ensure("banking_focus", 2)
         chosen.sort(key=lambda x: -x.get("student_relevance", 0))
+        # Hard cap enforcement
+        if len(chosen) > hi:
+            chosen = chosen[:hi]
+            logging.warning(f"[{self.name}] capped to {hi} after balance")
         logging.info(f"[{self.name}] selected {len(chosen)} (target {lo}-{hi}, floor {floor})")
-        if len(chosen) < 1:
-            self.context["stage_failed"] = f"selection too small: {len(chosen)} — refusing to pad (MASTER_RULE)"
+        min_chosen = 5 if self.job_type == "daily" else (8 if self.job_type == "weekly" else 10)
+        if len(chosen) < min_chosen:
+            self.context["stage_failed"] = f"selection too small: {len(chosen)} (min {min_chosen} for {self.job_type}) — refusing to pad (MASTER_RULE)"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": chosen})
         return self.context

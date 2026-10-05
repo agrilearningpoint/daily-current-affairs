@@ -39,6 +39,19 @@ class Agent:
         self.context["window_start"] = start.isoformat()
         self.context["window_end"] = end.isoformat()
         fresh = [i for i in items if in_window(i, start, end)]
+        # CORE coverage gate (P0 #6)
+        try:
+            from pipeline.collector import core_coverage_report
+            cov = core_coverage_report(fresh)
+            logging.info(f"[{self.name}] CORE coverage: {cov['covered']}/{cov['attempted']} ({cov['coverage_ratio']:.0%}) missing={cov['missing'][:3]}")
+            # Log per-source counts for daily debugging
+            for name, cnt in cov['core_names'].items():
+                status = "✓" if cnt>0 else "✗"
+                logging.info(f"  CORE {status} {name}: {cnt} items")
+            if cov['coverage_ratio'] < 0.3:
+                logging.warning(f"[{self.name}] LOW CORE COVERAGE {cov['coverage_ratio']:.0%} — mostly discovery/fallback, not CORE primary")
+        except Exception as e:
+            logging.warning(f"CORE coverage check failed: {e}")
         logging.info(f"[{self.name}] collected={len(items)} in-window={len(fresh)} errors={len(errors)}")
         if len(fresh) < 1:
             self.context["stage_failed"] = f"news collection too low: {len(fresh)} items (min 1)"

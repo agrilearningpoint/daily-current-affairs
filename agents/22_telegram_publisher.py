@@ -51,7 +51,7 @@ class Agent:
                    f"📰 {len(c['items'])} verified news • MCQ practice included\n"
                    f"✅ All facts verified against primary sources\n"
                    f"📲 @Agrikrishna | YouTube: Agri Learning Point")
-        msg_id = send_document(chat, self.context["pdf_path"], caption)
+        msg_id = send_document(chat, self.context["pdf_path"], caption, job_id=self.job_id)
         try:
             from pipeline import store
             store.mark_published([i["event_id"] for i in c["items"]], self.job_id)

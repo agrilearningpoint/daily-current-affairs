@@ -63,9 +63,19 @@ def run_pipeline(job_type, job_date, force=False):
 
         start_idx = 0
         last = job.get("last_success_stage")
-        if last and last in WORKFLOW_ORDER and job.get("status") != "FAILED_FINAL":
-            start_idx = WORKFLOW_ORDER.index(last) + 1
-            logging.info(f"RESUME: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
+        # P0 FIX: FAILED_FINAL must also resume from last_success_stage (not from 0)
+        # Watchdog recovery: 03✅ 04✅ 05❌ → resume at 05, not 03
+        if last and last in WORKFLOW_ORDER:
+            if job.get("status") in ("FAILED_FINAL", "QA_REJECTED", "FAILED", "RETRYING"):
+                # Resume after last successful stage, even for failed jobs
+                if WORKFLOW_ORDER.index(last) + 1 < len(WORKFLOW_ORDER):
+                    start_idx = WORKFLOW_ORDER.index(last) + 1
+                    logging.info(f"RESUME after {job.get('status')}: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
+                else:
+                    logging.info(f"RESUME: {last} was last stage — job already at end")
+            elif job.get("status") != "COMPLETE":
+                start_idx = WORKFLOW_ORDER.index(last) + 1
+                logging.info(f"RESUME: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
 
         job = load_job(job_id, job_type, job_date)
         # If QA already approved the PDF, restore that gate state so a resumed
@@ -80,10 +90,12 @@ def run_pipeline(job_type, job_date, force=False):
         # Per-agent post-success states — STATE OWNERSHIP LIVES HERE ONLY.
         # Agents write artefacts + context; the orchestrator alone transitions
         # the job state machine (single writer, no split ownership).
+        # P0 FIX: Agent 19 must NOT call save_job(QA_REJECTED) directly — orchestrator does.
         STAGE_STATE = {"03_news_collection": "COLLECTED", "04_fact_verification": "VERIFIED",
                        "05_deduplication": "DEDUPLICATED", "06_news_importance": "SCORED",
                        "10_final_news_selection": "SELECTED", "12_content_editor": "CONTENT_READY",
-                       "17_mcq_validator": "MCQ_VALIDATED", "18_pdf_design": "PDF_GENERATED"}
+                       "17_mcq_validator": "MCQ_VALIDATED", "18_pdf_design": "PDF_GENERATED",
+                       "19_pdf_qa": "QA_APPROVED"}
 
         for agent_id in WORKFLOW_ORDER[start_idx:]:
             TOTAL_ATTEMPTS, backoffs = 3, [2, 4, 8]  # 3 total tries = 1 initial + up to 2 retries
@@ -119,13 +131,23 @@ def run_pipeline(job_type, job_date, force=False):
                         time.sleep(backoffs[attempt])
             else:
                 job = load_job(job_id, job_type, job_date)
-                save_job(job, state="FAILED_FINAL", error=str(last_err)[:500], failed_at=agent_id)
-                store.write_job_state(job)      # persist failure for cross-run watchdog
-                try:
-                    store.push(f"state: {job_id} FAILED_FINAL at {agent_id}")
-                except Exception:
-                    pass
-                alert_admin(f"🚨 WATCHDOG ALERT: {job_id} FAILED at {agent_id} — {str(last_err)[:400]}")
+                # P0 FIX: QA failures become QA_REJECTED (blocks publish), others FAILED_FINAL
+                if agent_id == "19_pdf_qa" or "QA_REJECTED" in str(last_err):
+                    save_job(job, state="QA_REJECTED", error=str(last_err)[:500], failed_checks=str(last_err)[:500], failed_at=agent_id)
+                    store.write_job_state(job)
+                    try:
+                        store.push(f"state: {job_id} QA_REJECTED at {agent_id}")
+                    except Exception:
+                        pass
+                    alert_admin(f"🚨 PDF QA REJECTED: {job_id} at {agent_id} — {str(last_err)[:400]}")
+                else:
+                    save_job(job, state="FAILED_FINAL", error=str(last_err)[:500], failed_at=agent_id)
+                    store.write_job_state(job)      # persist failure for cross-run watchdog
+                    try:
+                        store.push(f"state: {job_id} FAILED_FINAL at {agent_id}")
+                    except Exception:
+                        pass
+                    alert_admin(f"🚨 WATCHDOG ALERT: {job_id} FAILED at {agent_id} — {str(last_err)[:400]}")
                 raise SystemExit(f"Pipeline failed at {agent_id}: {last_err}")
 
         job = load_job(job_id, job_type, job_date)

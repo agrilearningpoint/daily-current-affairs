@@ -30,7 +30,23 @@ def call(method, **params):
     return data["result"]
 
 
-def send_document(chat_id, pdf_path, caption):
+def _already_published(job_id):
+    """Idempotency guard — check persistent published_events.json before upload.
+    Prevents duplicate Telegram uploads if runner crashes after send but before state push."""
+    try:
+        import json as _json, pathlib as _pl
+        pf = _pl.Path("state/published_events.json")
+        if pf.exists():
+            data = _json.loads(pf.read_text(encoding="utf-8"))
+            return job_id in data or job_id in str(data)
+    except Exception:
+        pass
+    return False
+
+def send_document(chat_id, pdf_path, caption, job_id=None):
+    # P0 #11: atomic idempotency — check before upload
+    if job_id and _already_published(job_id):
+        raise RuntimeError(f"Telegram idempotency: {job_id} already published (state/published_events.json) — skipping duplicate upload")
     files = {"document": (os.path.basename(pdf_path), open(pdf_path, "rb"), "application/pdf")}
     r = requests.post(f"{API}{_token()}/sendDocument",
                       data={"chat_id": chat_id, "caption": caption[:1024]},
@@ -55,24 +71,16 @@ def verify_pin(chat_id, message_id):
 
 
 def alert_admin(text):
-    """Watchdog alert to admin DM; safe if token missing (logs only)."""
+    """Watchdog alert to admin DM — ADMIN_ID is required (production safety).
+    Auto-discovery via getUpdates is disabled (unsafe/ambiguous in production).
+    If ADMIN_ID or token missing, log warning and mark workflow as CONFIG ERROR."""
     chat = os.getenv("ADMIN_ID", "")
     if not chat:
-        # Fallback: last admin who messaged the bot (discovered via getUpdates).
-        # Lets watchdog alerts work even when ADMIN_ID secret isn't set yet.
-        try:
-            res = call("getUpdates", timeout=3)
-            upd = res.get("result") or []
-            for u in reversed(upd[-50:]):
-                msg = u.get("message") or u.get("edited_message") or {}
-                c = msg.get("from") or {}
-                if c.get("id"):
-                    chat = str(c["id"])
-                    break
-        except Exception:
-            pass
-    if not os.getenv("TELEGRAM_BOT_TOKEN") or not chat:
-        logging.warning(f"ALERT (no telegram config): {text}")
+        logging.error(f"ALERT CONFIG ERROR — ADMIN_ID missing (set GitHub Secret ADMIN_ID): {text}")
+        # Do not attempt getUpdates fallback — production requires explicit ADMIN_ID
+        return False
+    if not os.getenv("TELEGRAM_BOT_TOKEN"):
+        logging.error(f"ALERT CONFIG ERROR — TELEGRAM_BOT_TOKEN missing: {text}")
         return False
     try:
         call("sendMessage", chat_id=chat, text=text[:4000])

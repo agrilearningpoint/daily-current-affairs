@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 AGRI LEARNING POINT — VERIFIED WORKING FEEDS + FALLBACK CHAIN (production 6-level hierarchy)
-Automation chain (per spec): RSS → Native website → Official search/listing → Google News site-search → Playwright
+Automation chain (per spec): RSS → Native website → Official search/listing → Google News site-search (Playwright future optional)
 Level 0 CORE daily compulsory | Level 1-3 IMPORTANT (freq daily/weekly) | Level 4 DISCOVERY | Level 5 FALLBACK
 Live-tested 2026-10-04 — 47 working + fallbacks kept; CI-safe with Chrome UA + GNews AES decoder
 Only feeds that returned HTTP 200 AND parsed with real entries are listed here.
