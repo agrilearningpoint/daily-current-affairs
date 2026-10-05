@@ -1,0 +1,25 @@
+/* Agri Learning Point — Professional Hindi+English Theme (Marp/WeasyPrint) */
+/* Based on Pious1918/scrape theme_education_reel.css but adapted for Hindi */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700&family=Inter:wght@400;600;700&display=swap');
+
+/* @theme agri */
+section {
+  font-family: 'Noto Sans Devanagari', 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 28px 32px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 11.5pt;
+  line-height: 1.55;
+  /* Hindi shaping: Chrome/Marp does HarfBuzz automatically */
+  font-feature-settings: "liga" 1, "kern" 1;
+}
+h1 { font-family: 'Poppins','Noto Sans Devanagari',sans-serif; font-size: 20pt; font-weight: 700; color: #0f5132; border-bottom: 3px solid #198754; padding-bottom: 6px; margin-bottom: 12px; }
+h2 { font-family: 'Poppins','Noto Sans Devanagari',sans-serif; font-size: 14pt; font-weight: 600; color: #1a73e8; margin-top: 14px; margin-bottom: 6px; }
+h3 { font-size: 11.5pt; font-weight: 600; color: #334155; }
+.news-card { border: 1.5px solid #e2e8f0; border-left: 5px solid #198754; border-radius: 8px; padding: 12px 14px; margin: 12px 0; background: #f8fafc; page-break-inside: avoid; }
+.banking { border-left-color: #1a73e8; }
+.agri { border-left-color: #198754; }
+.key-points li { margin-bottom: 4px; }
+.exam-fact { background: #fff9c4; border-left: 4px solid #f9a825; padding: 8px 12px; border-radius: 0 6px 6px 0; font-weight: 600; font-size: 11pt; }
+.static-facts { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; padding: 8px 10px; }
+.mcq { background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; margin: 8px 0; page-break-inside: avoid; }

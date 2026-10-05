@@ -9,6 +9,26 @@ DEDUP + IMPORTANCE SCORING LIBRARY (Agents 05, 06)
 """
 import re
 
+# ADOPTED from Pious1918/scrape deduplication — acronym expansion improves banking dedupe
+ACRONYM_MAP = {
+    'rbi': 'reserve bank india', 'isro': 'indian space research organisation',
+    'drdo': 'defence research development organisation', 'sc': 'supreme court',
+    'hc': 'high court', 'pm': 'prime minister', 'cm': 'chief minister',
+    'mpc': 'monetary policy committee', 'upsc': 'union public service commission',
+    'psc': 'public service commission', 'gdp': 'gross domestic product',
+    'cpi': 'consumer price index', 'wpi': 'wholesale price index',
+    'sebi': 'securities exchange board india', 'pib': 'press information bureau',
+    'nabard': 'national bank agriculture rural development', 'fci': 'food corporation india',
+    'icar': 'indian council agricultural research', 'iari': 'indian agricultural research institute',
+}
+def _expand_acronyms(text):
+    low = text.lower()
+    for ac, exp in ACRONYM_MAP.items():
+        import re
+        low = re.sub(rf'\b{ac}\b', exp, low)
+    return low
+
+
 TIER_RANK = {"tier1": 3, "tier2": 2, "tier3": 1}
 
 STOP = set("""the a an and or of in on for to is are was were with by at from as it its this that
