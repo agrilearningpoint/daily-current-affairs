@@ -28,7 +28,10 @@ class Agent:
 
     def run(self):
         import logging, os, re
-        import pymupdf
+        try:
+            import pymupdf
+        except ImportError:  # PyMuPDF <1.24.x exposed the module only as `fitz`
+            import fitz as pymupdf
         from pipeline.state import CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, data_path, read_json, write_json_atomic, load_job, save_job
         pdf = self.context.get("pdf_path", "")
         c = read_json(data_path(CONTENT_DIR, self.job_id))

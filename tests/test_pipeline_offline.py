@@ -80,7 +80,11 @@ def test_pdf_end_to_end_and_qa_checks():
     valid, _ = content.validate_mcqs(mcqs, c["items"])
     from src.generate_pdf import generate_pdf
     pdf = generate_pdf(c, valid)
-    import pymupdf, re
+    try:
+        import pymupdf
+    except ImportError:  # PyMuPDF <1.24.x exposed the module only as `fitz`
+        import fitz as pymupdf
+    import re
     doc = pymupdf.open(pdf)
     txt = "".join(p.get_text() for p in doc)
     assert doc.page_count >= 3
