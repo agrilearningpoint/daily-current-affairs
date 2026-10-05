@@ -8,11 +8,11 @@
   "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
-  "error": "only 0 student-relevant events (min 5 for daily)",
-  "failed_at": "07_student_domain_relevance",
+  "error": "CORE coverage BLOCKED 0% (0/20) — ['PIB — Press Information Bureau', 'Ministry of Agriculture & Farmers Welfare']",
+  "failed_at": "10_final_news_selection",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "07_student_domain_relevance",
+  "last_success_stage": "10_final_news_selection",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-05T22:18:24.778522+05:30"
+  "updated": "2026-10-05T22:18:57.638896+05:30"
  }
 }
