@@ -8,11 +8,11 @@
   "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
-  "error": "only 0 content-verified items (min 1 for daily)",
-  "failed_at": "04_fact_verification",
+  "error": "only 0 student-relevant events (min 5 for daily)",
+  "failed_at": "07_student_domain_relevance",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "04_fact_verification",
+  "last_success_stage": "07_student_domain_relevance",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-05T22:16:07.336432+05:30"
+  "updated": "2026-10-05T22:18:24.778522+05:30"
  }
 }

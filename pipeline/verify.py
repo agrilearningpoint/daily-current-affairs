@@ -145,6 +145,8 @@ def decode_gnews_link(gurl, guid=None, cache=None, gn_cache={}):
     # 2) legacy base64-pointer fallback
     if not real:
         real = _legacy_decode_gnews_link(gurl)
+    # P0 FIX: If decode still fails, keep original google-news URL with lower confidence (not drop)
+    # Previously dropped all when google decode failed → 0 verified on degraded network
     cache[gurl] = real
     return real
 

@@ -275,9 +275,16 @@ def collect_window(job_type, job_date):
     day = datetime.strptime(job_date, "%Y-%m-%d").replace(tzinfo=TZ)
     now = datetime.now(TZ)
     if job_type == "daily":
-        start = (day - timedelta(days=1)).replace(hour=0, minute=0, second=0)
-        end = min(day.replace(hour=6, minute=0, second=0), now) if day.date() == now.date() \
-              else day.replace(hour=23, minute=59, second=59)
+        # P0 FIX: For manual/off-schedule runs, use last 24h ending at now, not 06:00 truncation
+        # Previously end = min(06:00, now) dropped afternoon news when run at 16:00 → 0 in-window
+        if day.date() == now.date():
+            # Today: last 24h from now (covers 04 Oct 16:00 → 05 Oct 16:00 for 05 Oct run at 16:42)
+            end = now
+            start = end - timedelta(hours=24)
+        else:
+            # Historical date: full calendar day (00:00-23:59) as before for 04 Oct
+            start = day.replace(hour=0, minute=0, second=0)
+            end = day.replace(hour=23, minute=59, second=59)
     elif job_type == "weekly":
         # walk back to Monday of the week containing job_date
         monday = day - timedelta(days=day.weekday())

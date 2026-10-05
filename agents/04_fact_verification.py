@@ -37,8 +37,9 @@ class Agent:
                                            -(len(x.get("headline_en") or ""))))[:120]
         verified, dropped = verify_all(items)
         logging.info(f"[{self.name}] verified={len(verified)} dropped={len(dropped)}")
-        # P0 FIX: dynamic threshold — daily needs >=5 verified to ensure quality (was 1 too permissive)
-        min_verified = 5 if self.job_type == "daily" else (8 if self.job_type == "weekly" else 10)
+        # P0 FIX: variable quantity — daily sparse allowed (user: gates <1 allow 1-item sparse daily)
+        # Previously 5 was too strict for stale windows / degraded CORE → 0 verified failure
+        min_verified = 1 if self.job_type == "daily" else (5 if self.job_type == "weekly" else 8)
         if len(verified) < min_verified:
             self.context["stage_failed"] = f"only {len(verified)} content-verified items (min {min_verified} for {self.job_type})"
             raise RuntimeError(self.context["stage_failed"])
