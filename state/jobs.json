@@ -8,11 +8,11 @@
   "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
-  "error": "only 4 valid MCQs after validation",
-  "failed_at": "17_mcq_validator",
+  "error": "publish blocked: state=RETRYING (QA hard gate)",
+  "failed_at": "22_telegram_publisher",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "17_mcq_validator",
+  "last_success_stage": "22_telegram_publisher",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-05T22:19:13.706195+05:30"
+  "updated": "2026-10-05T22:19:34.702287+05:30"
  }
 }
