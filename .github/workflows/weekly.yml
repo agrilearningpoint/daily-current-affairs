@@ -2,15 +2,12 @@ name: Weekly Current Affairs
 
 on:
   schedule:
-    - cron: '15 0 * * 0'   # Sunday 06:00 IST — weekly ONLY; the normal daily.yml still runs its own daily edition
+    - cron: '30 0 * * 0'   # Sunday EXACTLY 06:00 IST — weekly ONLY (daily.yml runs its own daily edition)
   workflow_dispatch: {}
 
 concurrency:
   group: current-affairs-weekly
   cancel-in-progress: false
-
-# FIX: removed the extra `python main.py --type daily` step that caused a duplicate
-# daily run racing with daily.yml on Sundays (same time, same job_id).
 
 jobs:
   weekly:
@@ -18,9 +15,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: true }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install -r requirements.txt
+      - name: Configure git identity
+        run: |
+          git config user.name "AgriLearningPointBot"
+          git config user.email "bot@agrilearningpoint.local"
       - name: Run weekly pipeline
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -31,6 +33,13 @@ jobs:
           DATE=$(TZ=Asia/Kolkata date +%F)
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type weekly --date "$DATE"
+      - name: Sync persistent event DB
+        if: always()
+        run: |
+          git add -f state/ 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "state: weekly ${{ env.DATE }}"
+          git pull --rebase origin main || true
+          git push origin HEAD:main || echo "::warning::state push failed (non-blocking)"
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4

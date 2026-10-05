@@ -1,8 +1,10 @@
-# Compiled files
 __pycache__/
 *.pyc
-
-# Environment variables
+logs/
+data/
+output/
+assets/images/
+.git-credentials
 .env
-.env.local
-.env.*.local
+*.log
+/Agri Learning Point*.pdf

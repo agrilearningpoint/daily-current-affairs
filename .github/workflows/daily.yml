@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
@@ -26,9 +28,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Configure git identity (for state commits)
+        run: |
+          git config user.name "AgriLearningPointBot"
+          git config user.email "bot@agrilearningpoint.local"
+
       - name: Run daily pipeline
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # NO fallback value — revoke any exposed token & set this secret
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # NO fallback — set via GitHub Secrets only
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
           TZ: Asia/Kolkata
@@ -37,6 +44,17 @@ jobs:
           if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type daily --date "$DATE"
+
+      - name: Sync persistent event DB (memory / published events / job mirror)
+        if: always()
+        run: |
+          git fetch origin main
+          git checkout FETCH_HEAD -- state/ 2>/dev/null || mkdir -p state
+          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.push('state: daily ${{ env.DATE }}')" || true
+          git pull --rebase origin main || true
+          git add -f state/ recovery_plan.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "state: daily ${{ env.DATE }}"
+          git push origin HEAD:main || echo "::warning::state push failed (non-blocking)"
 
       - name: Upload artefacts
         if: always()

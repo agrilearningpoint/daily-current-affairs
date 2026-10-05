@@ -2,7 +2,7 @@ name: Monthly Current Affairs
 
 on:
   schedule:
-    - cron: '15 0 1 * *'   # 1st of month 06:00 IST — monthly ONLY
+    - cron: '30 0 1 * *'   # 1st of month EXACTLY 06:00 IST — monthly edition covers PREVIOUS complete month
   workflow_dispatch: {}
 
 concurrency:
@@ -12,13 +12,18 @@ concurrency:
 jobs:
   monthly:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: true }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install -r requirements.txt
-      - name: Run monthly pipeline
+      - name: Configure git identity
+        run: |
+          git config user.name "AgriLearningPointBot"
+          git config user.email "bot@agrilearningpoint.local"
+      - name: Run monthly pipeline (previous complete month via collector window logic)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
@@ -28,6 +33,13 @@ jobs:
           DATE=$(TZ=Asia/Kolkata date +%F)
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type monthly --date "$DATE"
+      - name: Sync persistent event DB + prune old events
+        if: always()
+        run: |
+          git add -f state/ 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "state: monthly ${{ env.DATE }}"
+          git pull --rebase origin main || true
+          git push origin HEAD:main || echo "::warning::state push failed (non-blocking)"
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,6 +1,9 @@
 name: Watchdog
 
-# Real watchdog: every 5 minutes check job states for stalled/FAILED_FINAL jobs and alert admin DM.
+# Real cross-run watchdog: every 5 minutes pulls committed state (state/jobs.json) and
+# checks for stalled/FAILED_FINAL jobs. Recovery is executed by the DAILY workflow
+# (which has full pipeline deps + secrets); this workflow only detects, alerts and
+# commits recovery_plan.json so the next daily run resumes from last_success_stage.
 on:
   schedule:
     - cron: '*/5 * * * *'
@@ -16,24 +19,43 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: true }
+
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
+
       - run: pip install requests pytz
-      - name: Check all jobs
-        continue-on-error: true
+
+      - name: Check all jobs (local + persistent committed state)
         id: wd
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          ADMIN_ID: ${{ secrets.ADMIN_ID }}
-          TZ: Asia/Kolkata
-        run: python main.py --watchdog
-      - name: Retry last failed pipeline job
-        if: failure() && github.run_attempt == '1'
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
           TZ: Asia/Kolkata
         run: |
-          DATE=$(TZ=Asia/Kolkata date +%F)
-          python main.py --type daily --date "$DATE" || true
+          git config user.name "AgriLearningPointBot"
+          git config user.email "bot@agrilearningpoint.local"
+          set +e
+          python main.py --watchdog
+          RC=$?
+          echo "rc=$RC" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit recovery plan (if problems detected)
+        if: steps.wd.outputs.rc == '1'
+        run: |
+          git add -f recovery_plan.json state/ 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "watchdog: recovery plan queued ($(date -u +%FT%TZ))"
+            git pull --rebase origin main || true
+            git push origin HEAD:main || echo "::warning::recovery plan push failed"
+          fi
+
+      - name: Trigger daily pipeline for recovery
+        if: steps.wd.outputs.rc == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Kick the Daily workflow (it owns the full pipeline + resume logic).
+          gh workflow run "Daily Current Affairs" --ref main || true

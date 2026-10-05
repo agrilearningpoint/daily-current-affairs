@@ -66,9 +66,64 @@ def _entities(s):
     return out
 
 
-def fetch_page(url):
+_GN_DECODER = None
+
+
+def decode_gnews_link(gurl, cache={}):
+    """Google News RSS links are /rss/articles/AGxGR... base64 pointers to the real
+    publisher URL. Decode the protobuf-ish payload: modern encodings embed the FULL
+    article HTML (<title>, <meta og:url>) — extract the canonical URL from there."""
+    if gurl in cache:
+        return cache[gurl]
+    real = None
     try:
-        r = requests.get(url, headers=UA, timeout=TIMEOUT)
+        import base64
+        m = re.search(r"articles/([A-Za-z0-9_\-]+)", gurl)
+        if m:
+            pad = m.group(1) + "=" * (-len(m.group(1)) % 4)
+            raw = base64.urlsafe_b64decode(pad)
+            # prefer URLs that look like real articles (contain path segments),
+            # reject googleusercontent images / google shells
+            found = re.findall(rb'https?://[\x20-\x7e]+?(?=[\x00-\x1f"<>\s]|$)', raw)
+            cands = []
+            for u in found:
+                u = u.decode(errors="ignore").rstrip("/\\'\".,")
+                if "google" in u or "gstatic" in u or "w3.org" in u:
+                    continue
+                if u.endswith((".css", ".js", ".ico", ".png", ".jpg", ".webp")):
+                    continue
+                # real article URLs have a path beyond just the host
+                rest = re.sub(r"^https?://", "", u)
+                if "/" not in rest and "." not in rest.split("/")[0]:
+                    continue
+                cands.append(u)
+            if cands:
+                # longest is usually the full canonical URL vs truncated fragments
+                real = sorted(cands, key=lambda x: (len(x), x.count("/")), reverse=True)[0]
+        if not real:
+            r = requests.get(gurl, headers=UA, timeout=TIMEOUT, allow_redirects=True)
+            cm = re.search(r'<c-data[^>]*data="([^"]+)"', r.text)
+            if cm:
+                return decode_gnews_link("https://news.google.com/rss/articles/" + cm.group(1))
+            urls = [u.rstrip("\\/") for u in re.findall(r'https?://[^"\'<>\\ ]+', r.text)
+                    if "google" not in u and "gstatic" not in u]
+            real = max(urls, key=len) if urls else None
+    except Exception:
+        real = None
+    cache[gurl] = real
+    return real
+
+
+def fetch_page(url):
+    global _GN_DECODER
+    try:
+        r = requests.get(url, headers=UA, timeout=TIMEOUT, allow_redirects=True)
+        # Google News redirect shell -> resolve to official article, then verify THAT
+        if "news.google.com" in url:
+            real = decode_gnews_link(url)
+            if real:
+                _GN_DECODER = real
+                return fetch_page(real)
         if r.status_code != 200 or not r.text:
             return None, None
         soup = BeautifulSoup(r.text[:400_000], "lxml")
@@ -130,7 +185,15 @@ def verify_all(items):
     jobs = items
 
     def work(it):
-        title, text = fetch_page(it["source_url"])
+        global _GN_DECODER
+        _GN_DECODER = None
+        url = it["source_url"]
+        title, text = fetch_page(url)
+        if _GN_DECODER:                      # gnews redirect resolved → keep official URL as citation
+            it = dict(it)
+            it["source_url"] = _GN_DECODER
+            it["discovered_via"] = "google-news"
+            title, text = fetch_page(_GN_DECODER)   # fresh read w/o decoder side-effects
         conf, cv, cu = score_item(it, title, text)
         tier = it.get("source_tier", "tier3")
         ok = (tier == "tier1" and conf >= 0.70) or (tier == "tier2" and conf >= 0.85) \
