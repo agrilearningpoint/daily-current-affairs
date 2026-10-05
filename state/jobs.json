@@ -5,7 +5,7 @@
   "job_id": "daily_2026-10-04",
   "last_success_stage": "19_pdf_qa",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-05T16:37:43.532332+05:30"
+  "updated": "2026-10-05T16:44:13.683161+05:30"
  },
  "daily_2026-10-05": {
   "error": "only 0 content-verified items (min 4)",
