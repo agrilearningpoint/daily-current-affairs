@@ -30,7 +30,7 @@ class Agent:
         import logging
         from pipeline.state import SCORED_DIR, SELECTED_DIR, data_path, read_json, write_json_atomic, load_job, save_job
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
-        cfg = {"daily": (10, 12, 55), "weekly": (15, 18, 60), "monthly": (20, 25, 62)}[self.job_type]
+        cfg = {"daily": (10, 12, 25), "weekly": (15, 18, 60), "monthly": (20, 25, 62)}[self.job_type]
         lo, hi, floor = cfg
         from pipeline import store
         try:
