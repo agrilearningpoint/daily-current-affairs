@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser as dtparser
 import pytz
 
-from config.sources import TIER_1_SOURCES, TIER_2_DISCOVERY
+from config.sources import TIER_1_SOURCES, TIER_1_RSS_FEEDS, TIER_2_DISCOVERY, TIER_2_RSS_FEEDS
 
 TZ = pytz.timezone("Asia/Kolkata")
 # ADOPTED from india-policy-intelligence/app/http.py — fixes 403 (Akamai blocks datacenter UAs)
@@ -323,6 +323,12 @@ def collect_all(max_items=140):
         return group, src, got, err
 
     tasks = []
+    # RSS-first (explicit RSS feeds added 2026-10-05 — working only + feed discovery)
+    # Convert RSS feeds into tasks so they run via same _collect_one (RSS-first, HTML fallback)
+    for rss in TIER_1_RSS_FEEDS:
+        tasks.append(("rss_tier1", {"name": rss["source"], "url": rss["url"]}))
+    for rss in TIER_2_RSS_FEEDS:
+        tasks.append(("rss_tier2", {"name": rss["source"], "url": rss["url"]}))
     for group, sources in TIER_1_SOURCES.items():
         for src in sources:
             tasks.append((group, src))
