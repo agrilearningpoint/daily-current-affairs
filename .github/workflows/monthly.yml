@@ -1,9 +1,17 @@
 name: Monthly Current Affairs
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: '30 0 1 * *'   # 1st of month EXACTLY 06:00 IST — monthly edition covers PREVIOUS complete month
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Target date YYYY-MM-DD (default first of month IST)'
+        required: false
+        type: string
 
 concurrency:
   group: current-affairs-monthly
@@ -30,7 +38,8 @@ jobs:
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
           TZ: Asia/Kolkata
         run: |
-          DATE=$(TZ=Asia/Kolkata date +%F)
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type monthly --date "$DATE"
       - name: Sync persistent event DB + prune old events
@@ -38,7 +47,7 @@ jobs:
         # FIX (audit 2026-10): merge-safe state sync via store.pull()/push();
         # raw `pull --rebase` on concurrently-updated JSON state used to race.
         run: |
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.prune(); store.pull(); store.push('state: monthly ${{ env.DATE }}')" || echo "::warning::state sync failed (non-blocking)"
+          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.prune(); store.pull(); store.push('state: monthly ${{ env.DATE }}')"
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4

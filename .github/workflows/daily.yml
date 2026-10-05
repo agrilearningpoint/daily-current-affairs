@@ -1,5 +1,8 @@
 name: Daily Current Affairs
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: '30 0 * * *'   # EXACTLY 06:00 IST (00:30 UTC) daily
@@ -47,12 +50,10 @@ jobs:
 
       - name: Sync persistent event DB (memory / published events / job mirror)
         if: always()
-        # FIX (audit 2026-10): removed the blind `git checkout FETCH_HEAD -- state/`
-        # which OVERWROTE this run's freshly-written local state with remote copies
-        # (concurrent-workflow race). store.pull() now does a key-wise JSON MERGE,
-        # and all commit/rebase/merge-conflict handling lives inside store.push().
+        # P0 FIX: state push MUST fail workflow on 403/merge failure (was warning → hid 403)
+        # GitHub docs: workflows need explicit contents: write or push gets 403
         run: |
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: daily ${{ env.DATE }}')" || echo "::warning::state sync failed (non-blocking)"
+          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: daily ${{ env.DATE }}')" 
 
       - name: Upload artefacts
         if: always()

@@ -36,6 +36,24 @@ class Agent:
         mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
         pmem = store.load_memory()          # PERSISTENT (Git-backed) cross-run memory
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
+        # P1 FIX: Weekly candidate pool = current scored + persistent memory events from week window
+        # Previously only current run's items considered → missed best-of-week events from other days
+        pool = {it["event_id"]: it for it in items}
+        # Add historical high-score events from persistent memory (last 7 days) not in current pool
+        try:
+            from datetime import datetime, timedelta
+            import pytz
+            TZ = pytz.timezone("Asia/Kolkata")
+            cutoff = (datetime.now(TZ) - timedelta(days=7)).isoformat()
+            for eid, rec in pmem.items():
+                if eid not in pool and rec.get("scores"):
+                    last = rec.get("scores", [])[-1] if rec.get("scores") else {}
+                    if last and last.get("published_at", "") >= cutoff and last.get("score", 0) >= 60:
+                        # Reconstruct minimal item from memory
+                        pool[eid] = {"event_id": eid, "headline_en": rec.get("headline", ""), "student_relevance": last.get("score", 0), "pub_time_ist": last.get("published_at")}
+        except Exception as e:
+            logging.warning(f"[{self.name}] weekly pool merge failed: {e}")
+        items = list(pool.values())
         # same-database principle: boost events whose memory shows high scores earlier in the week
         for it in items:
             e = mem.get(it["event_id"], {})

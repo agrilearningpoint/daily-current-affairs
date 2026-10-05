@@ -1,9 +1,17 @@
 name: Weekly Current Affairs
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: '30 0 * * 0'   # Sunday EXACTLY 06:00 IST — weekly ONLY (daily.yml runs its own daily edition)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Target date YYYY-MM-DD (default today IST)'
+        required: false
+        type: string
 
 concurrency:
   group: current-affairs-weekly
@@ -30,7 +38,8 @@ jobs:
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
           TZ: Asia/Kolkata
         run: |
-          DATE=$(TZ=Asia/Kolkata date +%F)
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type weekly --date "$DATE"
       - name: Sync persistent event DB
@@ -38,7 +47,7 @@ jobs:
         # FIX (audit 2026-10): single merge-safe path via store.pull()/push();
         # raw `pull --rebase` on concurrently-updated JSON state used to race.
         run: |
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: weekly ${{ env.DATE }}')" || echo "::warning::state sync failed (non-blocking)"
+          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: weekly ${{ env.DATE }}')"
       - name: Upload artefacts
         if: always()
         uses: actions/upload-artifact@v4

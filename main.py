@@ -47,10 +47,12 @@ def run_pipeline(job_type, job_date, force=False):
     logging.info(f"MASTER RULE: {MASTER_RULE}")
 
     # ---- ATOMIC LOCK: prevents duplicate/racing runs of the same job ----
+    # P0 FIX: Never return SUCCESS when locked — GitHub would mark workflow green while pipeline never ran
     lock = JobLock(job_id)
     if not lock.acquire():
-        logging.warning(f"Job {job_id} already RUNNING elsewhere (lock held) — exiting cleanly")
-        return "SKIPPED_LOCKED"
+        logging.error(f"Job {job_id} already RUNNING elsewhere (lock held) — refusing silent success")
+        print(f"::error::Job {job_id} is already locked — another runner is active")
+        raise SystemExit(2)
     try:
         job = load_job(job_id, job_type, job_date)
         if job.get("status") == "COMPLETE" and not force:
@@ -98,6 +100,14 @@ def run_pipeline(job_type, job_date, force=False):
                        "19_pdf_qa": "QA_APPROVED"}
 
         for agent_id in WORKFLOW_ORDER[start_idx:]:
+            # P0 FIX: Granular RUNNING tracking so watchdog can see exactly which stage is active
+            # Previously state stayed at COLLECTED while 04 was running and crash left stale state
+            try:
+                job = load_job(job_id, job_type, job_date)
+                save_job(job, state="RUNNING", stage=agent_id, current_stage=agent_id, heartbeat_at=now_iso(), started_at=now_iso())
+                store.write_job_state(job)
+            except Exception as e:
+                logging.warning(f"RUNNING state update failed for {agent_id}: {e}")
             TOTAL_ATTEMPTS, backoffs = 3, [2, 4, 8]  # 3 total tries = 1 initial + up to 2 retries
             last_err = None
             for attempt in range(TOTAL_ATTEMPTS):
@@ -153,12 +163,18 @@ def run_pipeline(job_type, job_date, force=False):
         job = load_job(job_id, job_type, job_date)
         save_job(job, state="COMPLETE")
         store.remove_job_state(job_id)          # clean cross-run watchdog entry
+        # P0 FIX: state push failure must FAIL workflow (not warning) — otherwise next runner loses state
+        # GitHub requires contents: write — 403 previously hid as warning, now fails loudly
         try:
             if job_type == "monthly":
                 store.prune(retain_days=75)     # keep event DB lean each month
-            store.push(f"state: {job_id} complete ({job.get('last_success_stage','')})")
+            pushed = store.push(f"state: {job_id} complete ({job.get('last_success_stage','')})")
+            if not pushed:
+                logging.info(f"State already up-to-date for {job_id} — no push needed")
         except Exception as e:
-            logging.warning(f"persistent store push failed (non-blocking): {e}")
+            logging.error(f"persistent state push failed for {job_id}: {e} — failing workflow to prevent state loss")
+            print(f"::error::State push failed for {job_id} — check GitHub permissions (contents: write) — {e}")
+            raise SystemExit(1)
         logging.info(f"=== PIPELINE {job_id} COMPLETE ===")
         return "COMPLETE"
     finally:
@@ -224,4 +240,14 @@ if __name__ == "__main__":
         sys.exit(watchdog_check())
     if not (args.type and args.date):
         parser.error("--type and --date are required for a pipeline run")
-    run_pipeline(args.type, args.date, force=args.force)
+    # P0 FIX: Propagate pipeline exit code so GitHub Actions correctly marks SUCCESS/FAILURE
+    # Previously SKIPPED_LOCKED returned 0 (SUCCESS) even though pipeline never ran — now raises SystemExit(2)
+    result = run_pipeline(args.type, args.date, force=args.force)
+    if isinstance(result, str):
+        if result == "SKIPPED_DONE":
+            logging.info(f"Pipeline already COMPLETE — idempotent success")
+            sys.exit(0)
+        elif result.startswith("SKIPPED"):
+            print(f"::error::Pipeline skipped: {result}")
+            sys.exit(2)
+    sys.exit(0)

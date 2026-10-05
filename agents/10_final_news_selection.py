@@ -41,7 +41,13 @@ class Agent:
             published = store.published_event_ids()
         except Exception:
             published = set()
-        fresh = [i for i in items if i["event_id"] not in published] or items
+        # P0 FIX: Never fallback to published events — daily must not re-publish old news to fill quota
+        # Previously `or items` caused published events to reappear when fresh empty → duplicate
+        fresh = [i for i in items if i["event_id"] not in published]
+        if not fresh:
+            logging.warning(f"[{self.name}] no fresh events after published filter — will publish 0 (variable quantity, not filling with published)")
+            # Do not fallback to published; variable quantity allows 0-4 publish
+            fresh = []
         # Sort fresh by relevance before filtering so best quality survives cap
         fresh_sorted = sorted(fresh, key=lambda x: -x.get("student_relevance", x.get("importance_score",0)))
         candidates = [i for i in fresh_sorted if i.get("student_relevance", i.get("importance_score", 0)) >= floor]
@@ -126,6 +132,23 @@ class Agent:
         agri_n = sum(1 for c in chosen if c.get("agri_focus"))
         bank_n = sum(1 for c in chosen if c.get("banking_focus"))
         logging.info(f"[{self.name}] selected {len(chosen)} (candidates {len(candidates)}, target {lo}-{hi}, floor {floor}) agri {agri_n} banking {bank_n} cats {cats}")
+        # CORE coverage gate — GOOD >=70%, DEGRADED 50-70%, BLOCKED <50% (audit #9)
+        try:
+            from pipeline.collector import core_coverage_report
+            cov = core_coverage_report(candidates if candidates else items)
+            ratio = cov.get("coverage_ratio", 0)
+            if ratio >= 0.7:
+                logging.info(f"[{self.name}] CORE coverage GOOD {ratio:.0%} ({cov['covered']}/{cov['attempted']})")
+            elif ratio >= 0.5:
+                logging.warning(f"[{self.name}] CORE coverage DEGRADED {ratio:.0%} — {cov['missing'][:3]} missing, but continuing")
+            else:
+                logging.error(f"[{self.name}] CORE coverage BLOCKED {ratio:.0%} — too many CORE sources failed, refusing publish")
+                self.context["stage_failed"] = f"CORE coverage BLOCKED {ratio:.0%} ({cov['covered']}/{cov['attempted']}) — {cov['missing'][:2]}"
+                raise RuntimeError(self.context["stage_failed"])
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logging.warning(f"CORE gate check failed (non-blocking): {e}")
         # Variable quantity check — allow 4-15, never pad weak
         if len(chosen) < lo:
             # If we have fewer than lo but candidates were exactly that many, it's okay to publish low

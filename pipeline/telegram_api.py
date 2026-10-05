@@ -31,8 +31,14 @@ def call(method, **params):
 
 
 def _already_published(job_id):
-    """Idempotency guard — check persistent published_events.json before upload.
-    Prevents duplicate Telegram uploads if runner crashes after send but before state push."""
+    """Idempotency guard — check dedicated job-level registry (published_jobs.json) before upload.
+    P0 FIX: event_id mix was dangerous; now job_id → message_id mapping is explicit."""
+    try:
+        from pipeline import store as _store
+        return _store.is_job_published(job_id)
+    except Exception:
+        pass
+    # Fallback to legacy event check
     try:
         import json as _json, pathlib as _pl
         pf = _pl.Path("state/published_events.json")

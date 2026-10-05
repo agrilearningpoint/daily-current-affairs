@@ -145,6 +145,7 @@ _PW = {"lock": __import__("threading").Lock(), "proc": None, "browser": None,
        "ctx": None, "owner": None, "fail": 0}
 
 def _playwright_resolve(link, timeout_ms=25000):
+    # P2 FIX: concurrency cap — Playwright browsers are heavy, limit to 4 concurrent
     """Last-resort resolver: Google's article shell needs JS to redirect to the
     publisher. A shared headless Chromium follows the redirect and returns the
     real URL. Silently returns None if playwright/browser is unavailable

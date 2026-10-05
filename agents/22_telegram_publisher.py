@@ -35,8 +35,18 @@ class Agent:
             self.context["stage_failed"] = f"publish blocked: state={job.get('status')} (QA hard gate)"
             raise RuntimeError(self.context["stage_failed"])
         if job.get("telegram_message_id"):
-            logging.info(f"[{self.name}] already published msg_id={job['telegram_message_id']} — duplicate prevented")
+            logging.info(f"[{self.name}] already published msg_id={job['telegram_message_id']} — duplicate prevented (job state)")
             return self.context
+        # P0 FIX: Check dedicated job-level registry (crash-after-send guard)
+        try:
+            from pipeline import store as _store
+            if _store.is_job_published(self.job_id):
+                rec = _store.get_job_publication(self.job_id)
+                logging.info(f"[{self.name}] already published via registry msg_id={rec.get('message_id')} — duplicate prevented (registry)")
+                self.context["telegram_message_id"] = rec.get("message_id")
+                return self.context
+        except Exception:
+            pass
         chat = os.getenv("TELEGRAM_CHANNEL_ID") or os.getenv("TELEGRAM_CHAT_ID")
         if not chat:
             chat = "-1004485392227"   # Agri Learning Point channel — non-secret target id
@@ -51,14 +61,38 @@ class Agent:
                    f"📰 {len(c['items'])} verified news • MCQ practice included\n"
                    f"✅ All facts verified against primary sources\n"
                    f"📲 @Agrikrishna | YouTube: Agri Learning Point")
-        msg_id = send_document(chat, self.context["pdf_path"], caption, job_id=self.job_id)
+        # P0 FIX: Compute PDF SHA256 for Telegram document integrity verification
+        pdf_path = self.context["pdf_path"]
+        file_sha = None
+        try:
+            import hashlib as _hl
+            file_sha = _hl.sha256(open(pdf_path, "rb").read()).hexdigest()
+            try:
+                from pipeline import store as _s2
+                _s2.save_pdf_hash(self.job_id, pdf_path)
+            except Exception:
+                pass
+        except Exception as e:
+            logging.warning(f"[{self.name}] pdf hash compute failed: {e}")
+        msg_id = send_document(chat, pdf_path, caption, job_id=self.job_id)
+        # Persist BOTH registries: event-level + dedicated job-level (P0 FIX for atomic idempotency)
         try:
             from pipeline import store
             store.mark_published([i["event_id"] for i in c["items"]], self.job_id)
-        except Exception as ex:
-            logging.warning(f"[{self.name}] persistent published-log failed (non-blocking): {ex}")
+            try:
+                store.mark_job_published(self.job_id, chat, msg_id, file_sha or "")
+            except Exception as e2:
+                logging.warning(f"[{self.name}] job-level registry failed: {e2}")
+            pushed = store.push(f"state: {self.job_id} published msg_id={msg_id}")
+            if not pushed:
+                logging.info(f"[{self.name}] state already up-to-date after publish")
+        except Exception as e:
+            logging.error(f"[{self.name}] state push after publish failed: {e}")
+            print(f"::error::State push after Telegram publish failed — duplicate risk on retry: {e}")
+            raise
         self.context["telegram_message_id"] = msg_id
-        logging.info(f"[{self.name}] published message_id={msg_id}")
+        self.context["telegram_file_sha256"] = file_sha
+        logging.info(f"[{self.name}] published message_id={msg_id} sha={file_sha[:8] if file_sha else 'none'}")
         return self.context
 
     def verify(self):

@@ -40,7 +40,15 @@ class Agent:
             self.context["stage_failed"] = f"PDF missing/too small: {out}"
             raise RuntimeError(self.context["stage_failed"])
         self.context["pdf_path"] = out
-        logging.info(f"[{self.name}] PDF built: {out} ({os.path.getsize(out)//1024} KB)")
+        # PDF SHA256 for health audit + Telegram integrity (P2)
+        try:
+            from pipeline import store as _store
+            h = _store.save_pdf_hash(self.job_id, out)
+            self.context["pdf_sha256"] = h
+            logging.info(f"[{self.name}] PDF built: {out} ({os.path.getsize(out)//1024} KB) sha={h[:12] if h else 'none'}")
+        except Exception as e:
+            logging.warning(f"[{self.name}] pdf hash save failed: {e}")
+            logging.info(f"[{self.name}] PDF built: {out} ({os.path.getsize(out)//1024} KB)")
         return self.context
 
     def verify(self):

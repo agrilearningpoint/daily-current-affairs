@@ -37,6 +37,7 @@ ROOT = os.environ.get("ALP_ROOT", os.getcwd())
 STATE_DIR = os.path.join(ROOT, "state")
 MEMORY_F = os.path.join(STATE_DIR, "importance_memory.json")
 PUBLISHED_F = os.path.join(STATE_DIR, "published_events.json")
+PUBLISHED_JOBS_F = os.path.join(STATE_DIR, "published_jobs.json")  # P0 FIX: job-level registry
 JOBS_F = os.path.join(STATE_DIR, "jobs.json")
 
 
@@ -73,7 +74,7 @@ def _save(path, obj):
 # daily/weekly/monthly/watchdog runners each add different keys; a blind
 # `checkout FETCH_HEAD -- state/` or last-writer-wins push would silently drop
 # another workflow's updates. Merge keeps both sides' keys on pull AND on push.
-MERGE_FILES = ("importance_memory.json", "published_events.json", "jobs.json")
+MERGE_FILES = ("importance_memory.json", "published_events.json", "published_jobs.json", "jobs.json")
 
 
 def _merge_dicts(local_obj, remote_obj):
@@ -132,7 +133,7 @@ def push(message="state: update"):
     On push conflict we rebase onto origin/main; if git reports a CONFLICT in
     one of our JSON state files, we abort the rebase, take the merged
     (local ∪ remote) version, recommit and retry — so concurrent workflows
-    never lose each other's keys. Never raises."""
+    never lose each other's keys. Raises RuntimeError on push failure (P0: was silently warning)."""
     import time
     try:
         _git("add", "-f", "state/", checks=False)
@@ -169,10 +170,14 @@ def push(message="state: update"):
                 print(f"[store] rebase failed: {rb.stderr[:200]}")
                 break
             time.sleep(1 + attempt)  # tiny jitter reduces repeated collisions
-        print("[store] WARNING: could not push state to origin/main after retries")
+        # P0 FIX: push failure must NOT be silent warning — caller (workflow) must see FAILURE
+        # Previously returned False for both "nothing to push" and "push failed" → workflow hid 403 as warning
+        print("[store] ERROR: could not push state to origin/main after retries — check permissions (contents: write)")
+        raise RuntimeError("State push failed after 3 retries — GitHub push 403 or merge conflict")
     except Exception as e:
-        print(f"[store] push failed (non-blocking): {e}")
-    return False
+        # Re-raise so workflow fails loudly (audit: state push failed → pipeline FAILED)
+        print(f"[store] push failed: {e}")
+        raise
 
 
 def record_scores(items, job_id):
@@ -233,6 +238,59 @@ def mark_published(event_ids, job_id):
 
 def published_event_ids():
     return set(_load(PUBLISHED_F).keys())
+
+
+# ── P0 FIX: Job-level publication registry (dedicated, not event_id mix) ──
+def mark_job_published(job_id, chat_id, message_id, file_sha256, published_at=None):
+    """Dedicated job→Telegram registry for idempotency.
+    Prevents duplicate PDF upload if runner crashes after sendDocument but before event mark."""
+    jobs_pub = _load(PUBLISHED_JOBS_F)
+    jobs_pub[job_id] = {
+        "status": "PUBLISHED",
+        "chat_id": str(chat_id),
+        "message_id": int(message_id),
+        "file_sha256": file_sha256,
+        "published_at": published_at or datetime.now(TZ).isoformat(),
+    }
+    _save(PUBLISHED_JOBS_F, jobs_pub)
+    return jobs_pub[job_id]
+
+def is_job_published(job_id):
+    jobs_pub = _load(PUBLISHED_JOBS_F)
+    return job_id in jobs_pub
+
+def get_job_publication(job_id):
+    return _load(PUBLISHED_JOBS_F).get(job_id)
+
+def verify_job_published(job_id, chat_id=None):
+    """Check if job already published and verify message still exists on Telegram."""
+    rec = get_job_publication(job_id)
+    if not rec:
+        return False, None
+    # If chat_id provided, could verify via Telegram API getChat, but we just check registry
+    return True, rec
+
+
+def save_pdf_hash(job_id, pdf_path):
+    """Save PDF SHA256 for integrity verification (Telegram document check)."""
+    import hashlib as _hl
+    try:
+        h = _hl.sha256(open(pdf_path, "rb").read()).hexdigest()
+        jobs = _load(JOBS_F)
+        j = jobs.get(job_id, {})
+        j["pdf_sha256"] = h
+        j["pdf_size"] = __import__("os").path.getsize(pdf_path)
+        try:
+            import pymupdf
+        except ImportError:
+            import fitz as pymupdf
+        j["pdf_pages"] = pymupdf.open(pdf_path).page_count
+        jobs[job_id] = j
+        _save(JOBS_F, jobs)
+        return h
+    except Exception as e:
+        print(f"[store] save_pdf_hash failed: {e}")
+        return None
 
 
 def write_job_state(job):

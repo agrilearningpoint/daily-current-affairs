@@ -207,7 +207,17 @@ def html_items(source, url, tier, role=None, link_pattern=r'href=["\']([^"\']*(?
 
 
 def make_item(title, link, source, tier, published, summary, img, role=None):
-    eid = _hash(re.sub(r"\W+", " ", title.lower()).strip(), source.get("name", ""))
+    # P0 FIX: source-independent event fingerprint — same event from PIB/Reuters/The Hindu/Google must share same event_id
+    # Previously hash(title+source) gave different IDs for same news → duplicate across sources, published check failed
+    # Now: normalized title + date + key numbers + location = source-independent fingerprint
+    norm_title = re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+    # Extract key numbers (₹, %, crore) for fingerprint — different amounts → different events
+    nums = "".join(sorted(set(re.findall(r"\d+", title + " " + (summary or "")))))
+    date_key = published.strftime("%Y-%m-%d") if published else ""
+    # Use fingerprint: major words (first 6 tokens) + numbers + date + category hint
+    tokens = [w for w in norm_title.split() if len(w)>2][:6]
+    fingerprint = " ".join(tokens) + "|" + nums[:20] + "|" + date_key
+    eid = _hash(fingerprint)
     # Level-aware enrichment — production hierarchy (0=CORE ..5=FALLBACK)
     lvl = source.get("level", 0 if tier=="tier1" else (4 if tier=="tier2" else 5))
     return {
