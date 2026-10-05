@@ -1,8 +1,6 @@
-# Logs
-*.log
-
-# Output/Build artifacts
-output/
-
-# Python cache
+# Python
 __pycache__/
+*.pyc
+
+# Logs
+logs/

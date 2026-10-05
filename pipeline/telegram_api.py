@@ -31,11 +31,17 @@ def call(method, **params):
 
 
 def send_document(chat_id, pdf_path, caption):
-    with open(pdf_path, "rb") as f:
-        res = call("sendDocument", chat_id=chat_id,
-                   document=("document", f, "application/pdf"),
-                   caption=caption[:1024])
-    return res["message_id"]
+    files = {"document": (os.path.basename(pdf_path), open(pdf_path, "rb"), "application/pdf")}
+    r = requests.post(f"{API}{_token()}/sendDocument",
+                      data={"chat_id": chat_id, "caption": caption[:1024]},
+                      files=files, timeout=120)
+    try:
+        data = r.json()
+    except ValueError:
+        raise RuntimeError(f"Telegram sendDocument: bad response {r.status_code}")
+    if not data.get("ok"):
+        raise RuntimeError(f"Telegram sendDocument failed: {data.get('description')}")
+    return data["result"]["message_id"]
 
 
 def pin_message(chat_id, message_id):
