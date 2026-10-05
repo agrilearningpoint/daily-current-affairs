@@ -68,7 +68,14 @@ def run_pipeline(job_type, job_date, force=False):
             logging.info(f"RESUME: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
 
         job = load_job(job_id, job_type, job_date)
-        save_job(job, state="COLLECTING" if start_idx <= 2 else "RECOVERED")
+        # If QA already approved the PDF, restore that gate state so a resumed
+        # run doesn't wedge Agent 22 ("publish blocked: state=RECOVERED").
+        if job.get("last_success_stage") == "19_pdf_qa":
+            save_job(job, state="QA_APPROVED")
+        elif start_idx > 0:
+            save_job(job, state="RECOVERED")   # mid-pipeline resume: keep artefacts
+        else:
+            save_job(job, state="COLLECTING")
 
         for agent_id in WORKFLOW_ORDER[start_idx:]:
             attempts, backoffs = 3, [2, 4, 8]  # exponential backoff per README

@@ -123,13 +123,21 @@ def decode_gnews_link(gurl, guid=None, cache=None, gn_cache={}):
     """
     if cache is None:
         cache = _GN_DECODE_CACHE
-    if gurl in cache and cache[gurl]:
+    # cached result (positive -> return; negative/None -> retry decode)
+    if cache.get(gurl):
         return cache[gurl]
-    real = None
+    # 0) batch-decode cache seeded by verify_all: keys there are (link, guid)
+    # pairs as well as link-only; check both before decoding.
+    if not guid:
+        gn_key = (gurl, "")
+        if cache.get(gn_key):
+            return cache[gn_key]
     # 1) proper AES decoder (pipeline/gnews.py) — needs the feed entry's guid/cid.
     # Call via module attribute so tests can monkeypatch pipeline.gnews.decode_article_url.
     try:
         from pipeline import gnews as _gn
+        # Call via the module attribute so tests (and callers) can monkeypatch
+        # pipeline.gnews.decode_article_url and have it take effect here.
         cid = guid or ""
         real = _gn.decode_article_url(gurl, cid)
     except Exception:

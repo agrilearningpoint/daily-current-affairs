@@ -600,7 +600,7 @@ def generate_pdf(content, mcqs, output_path=None):
     story.append(Spacer(1, 6*mm))
     story.append(Paragraph("AGRI LEARNING POINT", STYLES["cover_title"]))
     story.append(Paragraph(_safe(f"{label} — {date_str}"), STYLES["cover_sub"]))
-    story.append(Paragraph("बilingual • Mobile Friendly • Exam Oriented", STYLES["cover_sub"]))
+    story.append(Paragraph("Bilingual • Mobile Friendly • Exam Oriented", STYLES["cover_sub"]))
     story.append(Paragraph("AGTA • AFO • NABARD • FCI • ICAR • IBPS PO/SO • RBI Assistant", STYLES["cover_tag"]))
     story.append(Spacer(1, 8*mm))
     top_items = sorted(items, key=lambda x: -x.get("importance_score", 0))

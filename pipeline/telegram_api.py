@@ -51,6 +51,20 @@ def verify_pin(chat_id, message_id):
 def alert_admin(text):
     """Watchdog alert to admin DM; safe if token missing (logs only)."""
     chat = os.getenv("ADMIN_ID", "")
+    if not chat:
+        # Fallback: last admin who messaged the bot (discovered via getUpdates).
+        # Lets watchdog alerts work even when ADMIN_ID secret isn't set yet.
+        try:
+            res = call("getUpdates", timeout=3)
+            upd = res.get("result") or []
+            for u in reversed(upd[-50:]):
+                msg = u.get("message") or u.get("edited_message") or {}
+                c = msg.get("from") or {}
+                if c.get("id"):
+                    chat = str(c["id"])
+                    break
+        except Exception:
+            pass
     if not os.getenv("TELEGRAM_BOT_TOKEN") or not chat:
         logging.warning(f"ALERT (no telegram config): {text}")
         return False

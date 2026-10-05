@@ -3,9 +3,9 @@
   "error": "publish blocked: state=RETRYING (QA hard gate)",
   "failed_at": "22_telegram_publisher",
   "job_id": "daily_2026-10-04",
-  "last_success_stage": "19_pdf_qa",
-  "status": "FAILED_FINAL",
-  "updated": "2026-10-05T16:45:04.300714+05:30"
+  "last_success_stage": "03_news_collection",
+  "status": "COLLECTED",
+  "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
   "error": "only 0 content-verified items (min 4)",

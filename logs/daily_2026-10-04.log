@@ -22,3 +22,110 @@
 [10:22:15] [FACT VERIFICATION AGENT] verified=0 dropped=47
 [10:22:15] Agent 04_fact_verification failed (attempt 4): only 0 content-verified items (min 4)
 [10:22:15] ALERT (no telegram config): 🚨 WATCHDOG ALERT: daily_2026-10-04 FAILED at 04_fact_verification — only 0 content-verified items (min 4)
+[10:46:27] === START PIPELINE daily_2026-10-04 ===
+[10:46:27] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[10:46:27] RESUME: from after 03_news_collection -> 04_fact_verification
+[10:46:27] --> Running 04_fact_verification (attempt 1)
+[10:48:13] [verifier] google-news URLs=47 decoded=46
+[10:49:39] === START PIPELINE daily_2026-10-04 ===
+[10:49:39] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[10:49:39] Job daily_2026-10-04 already RUNNING elsewhere (lock held) — exiting cleanly
+[10:50:05] === START PIPELINE daily_2026-10-04 ===
+[10:50:05] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[10:50:05] RESUME: from after 03_news_collection -> 04_fact_verification
+[10:50:05] --> Running 04_fact_verification (attempt 1)
+[10:51:31] [verifier] google-news URLs=47 decoded=47
+[10:52:45] === START PIPELINE daily_2026-10-04 ===
+[10:52:45] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[10:52:45] RESUME: from after 03_news_collection -> 04_fact_verification
+[10:52:45] --> Running 04_fact_verification (attempt 1)
+[10:54:16] [verifier] google-news URLs=47 decoded=47
+[11:07:26] [verifier] content-verified=17 dropped=30 in 881s
+[11:07:26] [FACT VERIFICATION AGENT] verified=17 dropped=30
+[11:07:26] --> Running 05_deduplication (attempt 1)
+[11:07:26] [DEDUPLICATION AGENT] 17 -> 17 unique events
+[11:07:26] --> Running 06_news_importance (attempt 1)
+[11:07:26] [NEWS IMPORTANCE AGENT] scored 17 events, top=32
+[11:07:26] --> Running 07_student_relevance (attempt 1)
+[11:07:26] [STUDENT RELEVANCE AGENT] relevant=5/17
+[11:07:26] --> Running 08_agriculture_expert (attempt 1)
+[11:07:26] [AGRICULTURE EXPERT AGENT] agriculture items=2
+[11:07:26] --> Running 09_banking_finance_expert (attempt 1)
+[11:07:26] [BANKING FINANCE EXPERT AGENT] banking items=2
+[11:07:26] --> Running 10_final_news_selection (attempt 1)
+[11:07:26] [FINAL NEWS SELECTION AGENT] selected 5 (target 10-12, floor 25)
+[11:07:26] --> Running 11_importance_memory (attempt 1)
+[11:07:26] [IMPORTANCE MEMORY AGENT] memory updated for 5 events (local + persistent)
+[11:07:26] --> Running 20_weekly_editor (attempt 1)
+[11:07:26] [WEEKLY EDITOR AGENT] skipped (job_type=daily)
+[11:07:26] --> Running 21_monthly_editor (attempt 1)
+[11:07:26] [MONTHLY EDITOR AGENT] skipped (job_type=daily)
+[11:07:26] --> Running 12_content_editor (attempt 1)
+[11:07:26] [CONTENT EDITOR AGENT] content ready: 5 items
+[11:07:26] --> Running 13_bilingual_editor (attempt 1)
+[11:07:26] [BILINGUAL EDITOR AGENT] bilingual ok (fixed 0)
+[11:07:26] --> Running 14_english_editor (attempt 1)
+[11:07:26] [ENGLISH EDITOR AGENT] english pass done
+[11:07:26] --> Running 15_image_agent (attempt 1)
+[11:07:26] [IMAGE SELECTOR AGENT] images attached: 0/5
+[11:07:26] --> Running 16_mcq_generator (attempt 1)
+[11:07:26] [MCQ GENERATOR AGENT] generated 5 MCQs
+[11:07:26] --> Running 17_mcq_validator (attempt 1)
+[11:07:26] --> Running 18_pdf_design (attempt 1)
+[11:07:29] [PDF DESIGN AGENT] PDF built: /workspace/output/Agri Learning Point 04 October 2026 Daily Current Affairs Mobile Bilingual FINAL.pdf (2066 KB)
+[11:07:29] --> Running 19_pdf_qa (attempt 1)
+[11:07:29] [PDF QA AGENT — HARD GATE] APPROVED (10 checks)
+[11:07:29] --> Running 22_telegram_publisher (attempt 1)
+[11:07:29] Agent 22_telegram_publisher failed (attempt 1): TELEGRAM_BOT_TOKEN is missing (set it in GitHub Secrets; never hardcode)
+[11:07:31] --> Running 22_telegram_publisher (attempt 2)
+[11:07:31] Agent 22_telegram_publisher failed (attempt 2): publish blocked: state=RETRYING (QA hard gate)
+[11:07:35] --> Running 22_telegram_publisher (attempt 3)
+[11:07:35] Agent 22_telegram_publisher failed (attempt 3): publish blocked: state=RETRYING (QA hard gate)
+[11:07:43] --> Running 22_telegram_publisher (attempt 4)
+[11:07:43] Agent 22_telegram_publisher failed (attempt 4): publish blocked: state=RETRYING (QA hard gate)
+[11:07:43] ALERT (no telegram config): 🚨 WATCHDOG ALERT: daily_2026-10-04 FAILED at 22_telegram_publisher — publish blocked: state=RETRYING (QA hard gate)
+[11:13:59] === START PIPELINE daily_2026-10-04 ===
+[11:13:59] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[11:13:59] RESUME: from after 19_pdf_qa -> 22_telegram_publisher
+[11:13:59] --> Running 22_telegram_publisher (attempt 1)
+[11:13:59] Agent 22_telegram_publisher failed (attempt 1): 'pdf_path'
+[11:14:01] --> Running 22_telegram_publisher (attempt 2)
+[11:14:01] Agent 22_telegram_publisher failed (attempt 2): publish blocked: state=RETRYING (QA hard gate)
+[11:14:05] --> Running 22_telegram_publisher (attempt 3)
+[11:14:05] Agent 22_telegram_publisher failed (attempt 3): publish blocked: state=RETRYING (QA hard gate)
+[11:14:13] --> Running 22_telegram_publisher (attempt 4)
+[11:14:13] Agent 22_telegram_publisher failed (attempt 4): publish blocked: state=RETRYING (QA hard gate)
+[11:14:13] ALERT (no telegram config): 🚨 WATCHDOG ALERT: daily_2026-10-04 FAILED at 22_telegram_publisher — publish blocked: state=RETRYING (QA hard gate)
+[11:14:26] === START PIPELINE daily_2026-10-04 ===
+[11:14:26] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[11:14:26] RESUME: from after 19_pdf_qa -> 22_telegram_publisher
+[11:14:26] --> Running 22_telegram_publisher (attempt 1)
+[11:14:26] Agent 22_telegram_publisher failed (attempt 1): 'pdf_path'
+[11:14:28] --> Running 22_telegram_publisher (attempt 2)
+[11:14:28] Agent 22_telegram_publisher failed (attempt 2): publish blocked: state=RETRYING (QA hard gate)
+[11:14:32] --> Running 22_telegram_publisher (attempt 3)
+[11:14:32] Agent 22_telegram_publisher failed (attempt 3): publish blocked: state=RETRYING (QA hard gate)
+[11:14:40] --> Running 22_telegram_publisher (attempt 4)
+[11:14:40] Agent 22_telegram_publisher failed (attempt 4): publish blocked: state=RETRYING (QA hard gate)
+[11:14:40] ALERT (no telegram config): 🚨 WATCHDOG ALERT: daily_2026-10-04 FAILED at 22_telegram_publisher — publish blocked: state=RETRYING (QA hard gate)
+[11:14:50] === START PIPELINE daily_2026-10-04 ===
+[11:14:50] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[11:14:50] RESUME: from after 19_pdf_qa -> 22_telegram_publisher
+[11:14:50] --> Running 22_telegram_publisher (attempt 1)
+[11:14:50] Agent 22_telegram_publisher failed (attempt 1): 'pdf_path'
+[11:14:52] --> Running 22_telegram_publisher (attempt 2)
+[11:14:52] Agent 22_telegram_publisher failed (attempt 2): publish blocked: state=RETRYING (QA hard gate)
+[11:14:56] --> Running 22_telegram_publisher (attempt 3)
+[11:14:56] Agent 22_telegram_publisher failed (attempt 3): publish blocked: state=RETRYING (QA hard gate)
+[11:15:04] --> Running 22_telegram_publisher (attempt 4)
+[11:15:04] Agent 22_telegram_publisher failed (attempt 4): publish blocked: state=RETRYING (QA hard gate)
+[11:15:04] ALERT (no telegram config): 🚨 WATCHDOG ALERT: daily_2026-10-04 FAILED at 22_telegram_publisher — publish blocked: state=RETRYING (QA hard gate)
+[11:15:21] === START PIPELINE daily_2026-10-04 ===
+[11:15:21] MASTER RULE: Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news for competitive-exam students.
+[11:15:21] --> Running 01_master_supervisor (attempt 1)
+[11:15:21] --> Running 02_scheduler (attempt 1)
+[11:15:21] --> Running 03_news_collection (attempt 1)
+[11:15:53] [collector] finished in 32.4s: 1627 unique items from 65 tier-1 sources (0 dead)
+[11:15:53] [NEWS COLLECTION AGENT] collected=140 in-window=37 errors=0
+[11:15:53] --> Running 04_fact_verification (attempt 1)
+[11:17:21] [verifier] google-news URLs=37 decoded=37

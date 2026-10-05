@@ -5,6 +5,3 @@ __pycache__/
 # Logs
 logs/
 *.log
-
-# Output artifacts
-output/

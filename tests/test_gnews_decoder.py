@@ -68,7 +68,10 @@ def test_verify_routes_to_aes_decoder_first(monkeypatch=None):
         # when AES fails -> legacy fallback is tried
         calls.clear()
         gnews.decode_article_url = lambda link, cid, timeout=9: None
-        verify._legacy_decode_gnews_link = lambda gurl, cache={}: "https://fallback.example/x"
+        def fake_legacy2(gurl, cache={}):
+            calls.append("legacy")
+            return "https://fallback.example/x"
+        verify._legacy_decode_gnews_link = fake_legacy2
         out2 = verify.decode_gnews_link(url + "#t2", guid="")
         assert out2 == "https://fallback.example/x"
         assert calls == ["legacy"], calls
@@ -93,8 +96,9 @@ def test_verify_all_seeds_cache_from_decode_many():
         # simulate what verify_all does at startup
         gn_map = gnews.decode_many([(it["source_url"], it.get("gnews_guid") or "")
                                    for it in items if "news.google.com" in it["source_url"]])
+        # production seeding (verify_all): key by link only so fetch_page hits cache
         for (l, g), u in gn_map.items():
-            cache[l] = u
+            _GN_DECODE_CACHE[l] = u
         assert verify.decode_gnews_link(key) == "https://official.example/article"
     finally:
         gnews.decode_many = orig_many
