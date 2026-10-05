@@ -15,6 +15,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.platypus.flowables import Flowable
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     PageBreak, KeepTogether, HRFlowable, Image, Frame, PageTemplate, NextPageTemplate
@@ -23,21 +24,87 @@ from reportlab.lib import colors
 from reportlab.graphics.shapes import Drawing, Circle, String as ShapeString, Rect
 from reportlab.graphics.charts.textlabels import Label
 import textwrap
-from PIL import Image as PILImage, ImageDraw, ImageFont
+import re
+from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
 import hashlib
 
+# --- P0 GUARD: RAQM/HarfBuzz is mandatory for Devanagari shaping in Pillow ---
+if not PILFeatures.check("raqm"):
+    raise RuntimeError(
+        "FATAL: Pillow RAQM support is required for Hindi/Devanagari rendering. "
+        "Install libraqm or use a Pillow wheel built with RAQM. "
+        "Silent fallback to unshaped draw.text() is forbidden in production."
+    )
+
+# Hidden-text-layer registry: every hindi_to_image() call records the exact
+# lines + geometry so onPage handlers can draw invisible selectable text behind it.
+_HINDI_TEXT_LAYERS = []
+
+def _clear_hindi_layers():
+    del _HINDI_TEXT_LAYERS[:]
+
 # --- HINDI RENDERING HELPER (Perfect Devanagari via Pillow + HarfBuzz) ---
+class _HindiTextFlowable(Flowable):
+    """Wraps a shaped Mukta PNG image AND draws the same text as invisible
+    selectable vector glyphs at the identical position/size.
+    Fixes: Hindi is searchable/copyable, no font-mismatch artifacts, and QA
+    extraction reflects the *entire* Hindi content (not just banner strings)."""
+    def __init__(self, img_flowable, layer):
+        Flowable.__init__(self)
+        self.img = img_flowable
+        self.layer = layer  # dict with lines/font_name/size_pt/line_spacing/align/left_pad_mm/path
+
+    def wrap(self, availWidth, availHeight):
+        w, h = self.img.wrap(availWidth, availHeight)
+        self._w, self._h = w, h
+        return w, h
+
+    def drawOn(self, canvas, x, y, _sW=0):
+        self.img.drawOn(canvas, x, y, _sW)
+        L = self.layer
+        w_pt, h_pt = L["path"]
+        size = L["size_pt"]
+        # Distribute lines evenly across image height (matches PNG slotting)
+        n = max(len(L["lines"]), 1)
+        slot = h_pt / n
+        canvas.saveState()
+        # Invisible-but-selectable text: PDF text render mode 3 (Tr 3).
+        # ReportLab emits Tr via the text object; drawString uses the canvas
+        # fast-path, so we inject Tr 3 directly into the content stream.
+        canvas._code.append('3 Tr')
+        canvas.setFont(L["font_name"], size)
+        for i, line in enumerate(L["lines"]):
+            lw = stringWidth(line, L["font_name"], size)
+            if L["align"] == "center":
+                tx = x + (w_pt - lw) / 2
+            elif L["align"] == "right":
+                tx = x + w_pt - lw - 6
+            else:
+                tx = x + L["left_pad_mm"] * mm + 2
+            ty = y + h_pt - (i + 1) * slot + slot * 0.16
+            canvas.drawString(tx, ty, line)
+        canvas._code.append('0 Tr')
+        canvas.restoreState()
+
+    def draw(self):
+        self.drawOn(self.canv, 0, 0)
+
+
 def hindi_to_image(text, width_mm=170, font_size_pt=8.5, bold=False, color="#212121", bg="white", line_spacing=1.35, align="left", left_padding_mm=0):
     HINDI_FONT_PATH = os.path.join(FONTS_DIR, "Mukta-Regular.ttf")
     HINDI_FONT_BOLD_PATH = os.path.join(FONTS_DIR, "Mukta-Bold.ttf")
     try:
-        dpi = 300
+        dpi = 450
         width_px = int(width_mm * dpi / 25.4)
         font_size_px = int(font_size_pt * dpi / 72 * 1.1)
         font_path = HINDI_FONT_BOLD_PATH if bold else HINDI_FONT_PATH
         if not os.path.exists(font_path):
             font_path = HINDI_FONT_PATH
-        font = ImageFont.truetype(font_path, font_size_px)
+        try:
+            font = ImageFont.truetype(font_path, font_size_px, layout_engine=ImageFont.Layout.RAQM)
+        except (ValueError, OSError):
+            # Explicit, non-silent guarantee: RAQM layout engine is mandatory.
+            raise RuntimeError("FATAL: Mukta TTF could not be loaded with RAQM layout engine")
         import re
         # Strip HTML tags like <b>, </b>, <font>, etc. for image rendering
         text = re.sub(r'<[^>]+>', '', text)
@@ -108,7 +175,19 @@ def hindi_to_image(text, width_mm=170, font_size_pt=8.5, bold=False, color="#212
         from reportlab.platypus import Image as RLImage
         pdf_width = width_mm * mm
         pdf_height = (height_px / width_px) * pdf_width
-        return RLImage(tmp_path, width=pdf_width, height=pdf_height)
+        # Register geometry for the hidden selectable-text layer.
+        layer = {
+            "path": (pdf_width, pdf_height),
+            "lines": lines,
+            "font_name": ("Mukta-Bold" if bold else "Mukta"),
+            "size_pt": float(font_size_pt),
+            "line_spacing": float(line_spacing),
+            "align": align,
+            "left_pad_mm": float(left_padding_mm),
+        }
+        return _HindiTextFlowable(RLImage(tmp_path, width=pdf_width, height=pdf_height), layer)
+    except RuntimeError:
+        raise  # never swallow the RAQM fatal guard
     except Exception as e:
         print(f"Hindi image fallback for '{text[:20]}': {e}")
         return Paragraph(f'<font name="{FONT_HINDI}">{text}</font>', ParagraphStyle("fallback", parent=STYLES["body_hi"], fontName=FONT_HINDI, fontSize=font_size_pt, leading=font_size_pt*1.4, textColor=HexColor(color)))
@@ -372,7 +451,7 @@ def section_banner(category_key, number="01"):
 def exam_fact_box(text_en, text_hi=None):
     # Yellow highlight box
     content = []
-    content.append(Paragraph('<b><font color="#F57F17">  ▶ EXAM FACT • परीक्षा तथ्य</font></b>', ParagraphStyle('ef_head', parent=STYLES['exam_fact'], textColor=COLORS["awards_gold"], fontSize=11, leading=13, spaceAfter=4)))
+    content.append(mixed_para('▶ EXAM FACT • परीक्षा तथ्य', 'ef_head', STYLES['exam_fact'], textColor=COLORS["awards_gold"], fontSize=11, leading=13, spaceAfter=4))
     content.append(Paragraph(text_en, STYLES['exam_fact']))
     if text_hi:
         try:
@@ -408,7 +487,7 @@ def static_facts_table(facts_dict):
     for k,v in facts_dict.items():
         rows.append([
             Paragraph(f'<b><font color="white">{k}</font></b>', STYLES['static_label']),
-            Paragraph(v, STYLES['static_text'])
+            mixed_para(v, 'sf_val', STYLES['static_text'])
         ])
     # Build table with 2 rows per line? For compact, use 2 column pairs if many
     # Single column table for simplicity
@@ -426,7 +505,7 @@ def static_facts_table(facts_dict):
     ]
     t.setStyle(TableStyle(style))
     # Wrap with header
-    header = Paragraph('<b><font color="#1B5E20" size="10">STATIC FACTS • स्थैतिक तथ्य</font></b>', ParagraphStyle('sf_head', parent=STYLES['static_text'], alignment=TA_LEFT, spaceAfter=5, textColor=COLORS["primary_green"], fontSize=10, leading=13))
+    header = mixed_para('STATIC FACTS • स्थैतिक तथ्य', 'sf_head', STYLES['static_text'], alignment=TA_LEFT, spaceAfter=5, textColor=COLORS["primary_green"], fontSize=10, leading=13)
     return [header, t]
 
 def news_card(headline_en, headline_hi, category_key, key_points_en, key_points_hi, static_facts, exam_fact_en, exam_fact_hi, source, image_path=None, image_caption=None, image_note=None):
@@ -494,7 +573,7 @@ def news_card(headline_en, headline_hi, category_key, key_points_en, key_points_
         story.append(Paragraph(f'<font color="#757575" size="5"><i>{image_note}</i></font>', ParagraphStyle('img_fallback2', parent=STYLES['static_text'], alignment=TA_CENTER, textColor=COLORS["light_text"])))
         story.append(Spacer(1, 2*mm))
 
-    story.append(Paragraph('<b><font color="#1B5E20">Key Points  •  मुख्य बिंदु</font></b>', ParagraphStyle('kp_head', parent=STYLES['body_en'], fontName=FONT_BOLD, fontSize=13, leading=17, textColor=COLORS["primary_green"], spaceAfter=4, spaceBefore=4)))
+    story.append(mixed_para('Key Points  •  मुख्य बिंदु', 'kp_head', STYLES['body_en'], fontName=FONT_BOLD, fontSize=13, leading=17, textColor=COLORS["primary_green"], spaceAfter=4, spaceBefore=4))
     
     # Bilingual paired (English + Hindi below, no labels) - human editorial style
     for en, hi in zip(key_points_en, key_points_hi):
@@ -585,7 +664,24 @@ CAT_MAP = {
 
 def _safe(s):
     """Escape XML-unsafe chars for ReportLab paragraphs."""
-    return (str(s) or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (str(s) or "") .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+
+def mixed_para(text, style_name, base_style, **kw):
+    """Single unified renderer for mixed Hindi+English strings.
+    English segments -> Poppins, Devanagari segments -> Mukta, in ONE flowable.
+    Fixes System-A/System-B split: banners like 'INDEX • विषय-सूची' now use the
+    same Mukta glyphs as the rest of the Hindi content."""
+    segs = []
+    for part in re.split(r"([\u0900-\u097F][^\u0900-\u097F]*|[^\u0900-\u097F]*[\u0900-\u097F])", text):
+        if not part:
+            continue
+        font = FONT_HINDI if DEVANAGARI_RE.search(part) else base_style.fontName
+        segs.append(f'<font name="{font}">{part}</font>')
+    st = ParagraphStyle(style_name, parent=base_style, **kw)
+    return Paragraph("".join(segs), st)
 
 
 def generate_pdf(content, mcqs, output_path=None):
@@ -635,7 +731,7 @@ def generate_pdf(content, mcqs, output_path=None):
     story.append(PageBreak())
 
     # ---------- INDEX ----------
-    story.append(Paragraph('<font color="#1B5E20"><b>INDEX • विषय-सूची</b></font>', ParagraphStyle("idx", parent=STYLES["headline_en"], fontSize=16)))
+    story.append(mixed_para('INDEX • विषय-सूची', "idx", STYLES["headline_en"], fontSize=16))
     by_cat = {}
     for it in items:
         by_cat.setdefault(CAT_MAP.get(it.get("category", "National"), "national"), []).append(it)
@@ -655,8 +751,7 @@ def generate_pdf(content, mcqs, output_path=None):
     story.append(PageBreak())
 
     # ---------- MOST IMPORTANT ONE-LINERS ----------
-    story.append(Paragraph('<font color="#E65100"><b>MOST IMPORTANT TODAY • सबसे महत्वपूर्ण</b></font>',
-                           ParagraphStyle("mi", parent=STYLES["headline_en"], fontSize=15)))
+    story.append(mixed_para('MOST IMPORTANT TODAY • सबसे महत्वपूर्ण', "mi", STYLES["headline_en"], fontSize=15))
     for it in top_items[:12]:
         fact = next(iter(it.get("static_facts", {}).values()), "")
         line = it["headline_en"].lstrip("> ") + (f"  →  {_safe(fact)}" if fact else "")
@@ -688,8 +783,7 @@ def generate_pdf(content, mcqs, output_path=None):
     story.append(PageBreak())
 
     # ---------- MCQs ----------
-    story.append(Paragraph('<font color="#2E7D32"><b>MCQ PRACTICE • बहुविकल्पीय प्रश्न</b></font>',
-                           ParagraphStyle("mcqh", parent=STYLES["headline_en"], fontSize=15)))
+    story.append(mixed_para('MCQ PRACTICE • बहुविकल्पीय प्रश्न', "mcqh", STYLES["headline_en"], fontSize=15))
     story.append(Spacer(1, 3*mm))
     for m in mcqs:
         story.extend(mcq_block(m["q_num"], _safe(m["question_en"]), m["question_hi"],
@@ -699,7 +793,7 @@ def generate_pdf(content, mcqs, output_path=None):
 
     # ---------- BACK COVER ----------
     story.append(Spacer(1, 40*mm))
-    story.append(Paragraph("धन्यवाद ! मिलते हैं अगली डोज के साथ 🙏", ParagraphStyle("tc", parent=STYLES["cover_title"], fontSize=20)))
+    story.append(mixed_para("धन्यवाद ! मिलते हैं अगली डोज के साथ", "tc", STYLES["cover_title"], fontSize=20))
     story.append(Paragraph("Agri Learning Point — BY Satyam Sir", STYLES["cover_sub"]))
     story.append(Spacer(1, 4*mm))
     story.append(Paragraph(f'© 2026 Agri Learning Point | Edition {date_str} | For educational purpose only.',
