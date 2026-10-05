@@ -497,7 +497,7 @@ def section_banner(category_key, number="01"):
 def exam_fact_box(text_en, text_hi=None):
     # Yellow highlight box
     content = []
-    content.append(mixed_para('▶ EXAM FACT • परीक्षा तथ्य', 'ef_head', STYLES['exam_fact'], textColor=COLORS["awards_gold"], fontSize=11, leading=13, spaceAfter=4))
+    content.append(mixed_para('▶ EXAM FACT • परीक्षा तथ्य', 'ef_head', STYLES['exam_fact'], textColor=COLORS["awards_gold"], fontSize=11, leading=13, spaceAfter=4, bg="#FFF9C4"))
     content.append(Paragraph(text_en, STYLES['exam_fact']))
     if text_hi:
         try:
@@ -716,18 +716,52 @@ def _safe(s):
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 
 def mixed_para(text, style_name, base_style, **kw):
-    """Single unified renderer for mixed Hindi+English strings.
-    English segments -> Poppins, Devanagari segments -> Mukta, in ONE flowable.
-    Fixes System-A/System-B split: banners like 'INDEX • विषय-सूची' now use the
-    same Mukta glyphs as the rest of the Hindi content."""
-    segs = []
-    for part in re.split(r"([\u0900-\u097F][^\u0900-\u097F]*|[^\u0900-\u097F]*[\u0900-\u097F])", text):
-        if not part:
-            continue
-        font = FONT_HINDI if DEVANAGARI_RE.search(part) else base_style.fontName
-        segs.append(f'<font name="{font}">{part}</font>')
+    """Production fix: Devanagari MUST go via RAQM (hindi_to_image), never via ReportLab direct TTF.
+    ReportLab does NOT do HarfBuzz shaping → ि-matra/reph misplace (मिलते→मलिते, विषय→वषिय).
+    Hindi rendering: Mukta + Pillow RAQM PNG + hidden selectable text layer.
+    Non-Hindi text stays as normal Paragraph for speed.
+    Special handling: bg/width_mm can be overridden via kw for table cells / banners."""
     st = ParagraphStyle(style_name, parent=base_style, **kw)
-    return Paragraph("".join(segs), st)
+    if DEVANAGARI_RE.search(text):
+        bold = ("Bold" in st.fontName or "SemiBold" in st.fontName or "Bold" in base_style.fontName)
+        # Allow caller to override width/bg for colored table cells etc.
+        width_mm = kw.pop("width_mm", None)
+        bg = kw.pop("bg", "white")
+        # Default widths: full page minus margins, but table cells need smaller
+        if width_mm is None:
+            # Heuristic: if style is for table cell, use narrower width
+            if style_name in ("sf_val", "static_label", "sf_head"):
+                width_mm = (PAGE_W / mm - 60) if style_name == "sf_val" else (PAGE_W / mm - 30)
+            elif style_name in ("ef_head",):
+                width_mm = (PAGE_W / mm - 32)
+            else:
+                width_mm = (PAGE_W / mm - 26)
+        # Color handling: st.textColor may be HexColor or white
+        try:
+            col_hex = st.textColor.hexval()
+            # hexval returns 0xRRGGBB integer
+            color_hex = f"#{col_hex:06x}"[-7:]
+            if color_hex.startswith("0x"):
+                color_hex = "#" + color_hex[2:]
+        except Exception:
+            try:
+                color_hex = st.textColor.hexval().replace("0x", "#") if hasattr(st.textColor, "hexval") else "#212121"
+            except Exception:
+                color_hex = "#212121"
+        # Ensure # format
+        if not color_hex.startswith("#"):
+            color_hex = "#212121"
+        align = {TA_CENTER: "center", TA_RIGHT: "right"}.get(st.alignment, "left")
+        return hindi_to_image(
+            text,
+            width_mm=width_mm,
+            font_size_pt=st.fontSize,
+            bold=bold,
+            color=color_hex,
+            bg=bg,
+            align=align,
+        )
+    return Paragraph(text, st)
 
 
 def generate_pdf(content, mcqs, output_path=None):
