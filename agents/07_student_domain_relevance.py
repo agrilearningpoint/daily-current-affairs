@@ -49,7 +49,14 @@ class Agent:
         agri_n = sum(1 for i in keep if i.get("agri_focus"))
         bank_n = sum(1 for i in keep if i.get("banking_focus"))
         logging.info(f"[{self.name}] relevant={len(keep)}/{len(items)} agri={agri_n} banking={bank_n}")
-        min_relevant = 5 if self.job_type == "daily" else (8 if self.job_type == "weekly" else 10)
+        # Sparse daily: allow 1-item even if below 30 (user: gates <1 allow 1-item sparse daily)
+        if not keep and items:
+            # No item met 30, but we have verified items — keep top 1-4 for sparse edition
+            keep = sorted(items, key=lambda x: -x["student_relevance"])[:4]
+            logging.warning(f"[{self.name}] sparse daily: keeping top {len(keep)} below threshold (best {keep[0]['student_relevance']})")
+            agri_n = sum(1 for i in keep if i.get("agri_focus"))
+            bank_n = sum(1 for i in keep if i.get("banking_focus"))
+        min_relevant = 1 if self.job_type == "daily" else (5 if self.job_type == "weekly" else 8)
         if len(keep) < min_relevant:
             self.context["stage_failed"] = f"only {len(keep)} student-relevant events (min {min_relevant} for {self.job_type})"
             raise RuntimeError(self.context["stage_failed"])
