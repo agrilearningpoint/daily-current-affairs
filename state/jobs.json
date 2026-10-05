@@ -1,11 +1,11 @@
 {
  "daily_2026-10-04": {
-  "error": "only 0 content-verified items (min 5)",
+  "error": "only 0 content-verified items (min 4)",
   "failed_at": "04_fact_verification",
   "job_id": "daily_2026-10-04",
   "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-04T17:57:37.609878+05:30"
+  "updated": "2026-10-05T15:52:15.558679+05:30"
  },
  "daily_2026-10-05": {
   "error": "only 0 content-verified items (min 4)",
