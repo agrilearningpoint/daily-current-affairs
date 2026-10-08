@@ -30,5 +30,13 @@
   "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
   "updated": "2026-10-08T08:23:40.447563+05:30"
+ },
+ "daily_2026-10-08": {
+  "error": "only 0 content-verified items (min 5 for daily)",
+  "failed_at": "04_fact_verification",
+  "job_id": "daily_2026-10-08",
+  "last_success_stage": "03_news_collection",
+  "status": "FAILED_FINAL",
+  "updated": "2026-10-08T12:04:05.975503+05:30"
  }
 }
