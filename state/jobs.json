@@ -13,7 +13,7 @@
   "job_id": "daily_2026-10-05",
   "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-10T21:51:12.918263+05:30"
+  "updated": "2026-10-11T01:42:39.248891+05:30"
  },
  "daily_2026-10-06": {
   "error": "only 0 content-verified items (min 5 for daily)",
