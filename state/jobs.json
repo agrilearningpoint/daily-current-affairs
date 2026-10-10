@@ -48,11 +48,11 @@
   "updated": "2026-10-10T11:20:13.943096+05:30"
  },
  "daily_2026-10-10": {
-  "error": "only 4 content-verified items (min 5 for daily)",
+  "error": "only 3 content-verified items (min 5 for daily)",
   "failed_at": "04_fact_verification",
   "job_id": "daily_2026-10-10",
   "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-11T01:45:39.866643+05:30"
+  "updated": "2026-10-11T05:09:25.044035+05:30"
  }
 }
