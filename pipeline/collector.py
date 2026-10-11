@@ -10,6 +10,10 @@ import hashlib, logging, os, re, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
+try:
+    from pipeline.model_manager import batch_process as _batch
+    HAS_BATCH=True
+except: HAS_BATCH=False
 import feedparser
 import requests
 from bs4 import BeautifulSoup

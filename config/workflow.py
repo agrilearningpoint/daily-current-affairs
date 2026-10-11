@@ -17,6 +17,7 @@ Numbering keeps original IDs (gaps are intentional history markers).
 """
 
 WORKFLOW_ORDER = [
+    "00_model_orchestrator",       # NEW: sets 6 keys models + load distribution + batching
     "03_news_collection",          # incl. scheduler window (was 02)
     "04_fact_verification",
     "05_deduplication",
