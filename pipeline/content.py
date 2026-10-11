@@ -362,3 +362,99 @@ def validate_mcqs(mcqs, content_items):
             errs.append("auto 'none of these' not allowed")
         (valid if not errs else rejected).append({**m, "errors": errs} if errs else m)
     return valid, rejected
+
+
+def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
+    """Smart AI Router augmentation — AI crafts the QUESTION around a verbatim fact;
+    options are built by us (correct = verbatim substring, distractors = real values
+    from OTHER news / persistent memory) so validator grounding + master rule
+    ('never invent facts', 'distractors are real values from other news') always hold.
+    Returns [] on any router failure (deterministic MCQs already written)."""
+    import json, logging
+    try:
+        from pipeline.ai_router import route
+    except ImportError:
+        return []
+    mem_nums, mem_names, _heads = _memory_pools()
+    pool_nums, pool_names = [], []
+    for ci in content_items:
+        pool_nums += list(ci.get("static_facts", {}).values())
+        pool_names += CAP_RE.findall(ci.get("headline_en", ""))
+    pool_nums = [v for v in dict.fromkeys(pool_nums + mem_nums)]
+    pool_names = [v for v in dict.fromkeys(pool_names + mem_names + DOMAIN_ORGS)]
+    existing_q = {re.sub(r"\W+", "", (m.get("question_en") or "").lower())[:60] for m in existing_mcqs}
+    added = []
+
+    def _opts(correct, distractors):
+        d = [x for x in dict.fromkeys(distractors)
+             if x and x != correct][:4]
+        if len(d) < 2:
+            return None, None
+        opts = [correct] + d[:4]
+        rnd = int(hashlib.sha1((correct + str(len(opts))).encode()).hexdigest(), 16) % len(opts)
+        opts = opts[rnd:] + opts[:rnd]
+        return opts[:5], "ABCDE"[opts.index(correct)]
+
+    for ci in content_items:
+        if len(added) >= max_add:
+            break
+        own_text = ci.get("headline_en", "") + " " + " ".join(ci.get("key_points_en", []))
+        facts = [v for v in ci.get("static_facts", {}).values() if v in own_text]
+        if not facts:
+            continue
+        prompt = (
+            "Write ONE competitive-exam MCQ question line about a specific fact in this news.\n"
+            f"NEWS: {own_text[:900]}\n"
+            "Respond ONLY as JSON: {\"question\": \"...\", \"fact\": \"<exact substring of the news text "
+            "that answers it>\", \"exam_point\": \"<10-word why-it-matters\"}\n"
+            "The \"fact\" MUST be copied verbatim (character-for-character) from the news text.")
+        try:
+            out = route(prompt, task="mcq")
+            m = re.search(r"\{[\s\S]*\}", out)
+            if not m:
+                continue
+            data = json.loads(m.group())
+        except Exception as e:
+            logging.warning(f"[ai_augment_mcqs] route fail: {e}")
+            continue
+        q, fact, ep = (data.get("question") or "").strip(), (data.get("fact") or "").strip(), \
+                      (data.get("exam_point") or "Prelims-relevant factual question.").strip()
+        # GROUNDING GATE: fact must be a verbatim substring of the item's own verified text
+        if not q or not fact or fact not in own_text:
+            continue
+        qkey = re.sub(r"\W+", "", q.lower())[:60]
+        if qkey in existing_q:
+            continue
+        distr = [v for v in (pool_nums if any(ch.isdigit() for ch in fact) else pool_names)
+                 if v not in own_text]
+        opts, corr = _opts(fact, distr)
+        if not opts:
+            continue
+        added.append({"type": "ai-direct", "question_en": q[:200], "question_hi": "",
+                      "options": opts, "correct": corr,
+                      "explanation_en": f"Verbatim from verified source: “{fact}”.",
+                      "explanation_hi": "", "exam_point": ep[:120],
+                      "event_id": ci["event_id"], "source_url": ci["source"]["url"]})
+        existing_q.add(qkey)
+
+    if not added:
+        return []
+    # --- batch Hindi translation (one router call) ---
+    try:
+        lines = []
+        for m in added:
+            lines += [m["question_en"], m["explanation_en"]]
+        out = route("Translate each line to Hindi (Devanagari, exam style). Return exactly "
+                    f"{len(lines)} lines, one per input, no numbering:\n" + "\n".join(lines),
+                    task="bilingual", needs_hindi=True)
+        got = [l.strip() for l in str(out).splitlines() if l.strip()]
+        if len(got) == len(lines):
+            for i, m in enumerate(added):
+                m["question_hi"] = got[2 * i]
+                m["explanation_hi"] = got[2 * i + 1]
+    except Exception as e:
+        logging.warning(f"[ai_augment_mcqs] Hindi batch fail: {e}")
+    for m in added:  # never ship empty Hindi fields (PDF renders them directly)
+        m["question_hi"] = m.get("question_hi") or m["question_en"]
+        m["explanation_hi"] = m.get("explanation_hi") or m["explanation_en"]
+    return added

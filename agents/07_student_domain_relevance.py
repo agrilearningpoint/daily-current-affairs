@@ -48,11 +48,11 @@ class Agent:
         keep = [i for i in items if i["student_relevance"] >= 30]
         # SPARSE DAILY TOP-UP: 1-3 relevant items = thin edition; fill to 4 with next-best
         # verified items (still real verified news, ranked by relevance — never invented)
-        if self.job_type == "daily" and 0 < len(keep) < 4 and len(items) > len(keep):
+        if self.job_type == "daily" and 0 < len(keep) < 6 and len(items) > len(keep):
             kept_ids = {i.get("event_id") for i in keep}
             rest = sorted([i for i in items if i.get("event_id") not in kept_ids],
                           key=lambda x: -x["student_relevance"])
-            keep += rest[:4 - len(keep)]
+            keep += rest[:6 - len(keep)]
             keep.sort(key=lambda x: -x["student_relevance"])
             logging.warning(f"[{self.name}] sparse daily top-up: keep={len(keep)} (filled from next-best verified)")
         agri_n = sum(1 for i in keep if i.get("agri_focus"))

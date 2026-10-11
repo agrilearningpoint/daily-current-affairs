@@ -27,11 +27,24 @@ class Agent:
 
     def run(self):
         import logging
-        from pipeline.content import generate_mcqs
+        from pipeline.content import generate_mcqs, ai_augment_mcqs
         from pipeline.state import CONTENT_DIR, MCQ_DIR, data_path, read_json, write_json_atomic
         c = read_json(data_path(CONTENT_DIR, self.job_id))
         mcqs = generate_mcqs(c["items"])
         n_items = len(c["items"])
+        # --- AI augmentation (Smart AI Router): top up toward 12-15 exam MCQs when the
+        # deterministic pass yields fewer. Grounded + schema-converted; [] on any failure ---
+        cap = {"daily": 18, "weekly": 25, "monthly": 30}.get(self.job_type, 18)
+        if len(mcqs) < 12:
+            try:
+                extra = ai_augment_mcqs(c["items"], mcqs, max_add=min(6, cap - len(mcqs)))
+                if extra:
+                    mcqs += extra
+                    for i, m in enumerate(mcqs, 1):
+                        m["q_num"] = i
+                    logging.info(f"[{self.name}] AI augmentation: +{len(extra)} grounded MCQs")
+            except Exception as e:
+                logging.warning(f"[{self.name}] AI augmentation skipped: {e}")
         if len(mcqs) < min(8, n_items):
             self.context["stage_failed"] = f"only {len(mcqs)} MCQs generated for {n_items} news (need >=min(8,n))"
             raise RuntimeError(self.context["stage_failed"])

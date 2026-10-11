@@ -121,6 +121,44 @@ def discover_openrouter_free():
         logging.debug(f"[AI Router] discover fail: {e}")
     return []
 
+# ---------- NewsData.io collection (6th key) ----------
+def collect_news(query, language="en", country="in", limit=10):
+    """NewsData.io API — paginated (free tier: 10 results/page, 200 credits/day)."""
+    key = _env("NEWSDATA_API_KEY")
+    if not key:
+        raise RuntimeError("NEWSDATA_API_KEY not set")
+    articles, page_token = [], None
+    for _page in range(min(3, (limit + 9) // 10)):  # max 3 pages = 3 credits per query
+        params = {"apikey": key, "q": query, "language": language,
+                  "country": country, "size": 10}
+        if page_token:
+            params["page"] = page_token
+        _rate_ok("newsdata")
+        try:
+            r = requests.get("https://newsdata.io/api/1/news", params=params, timeout=20)
+            if r.status_code != 200:
+                logging.warning(f"[AI Router] NewsData {r.status_code}: {r.text[:120]}")
+                break
+            data = r.json()
+            articles.extend(data.get("results") or [])
+            page_token = data.get("nextPage")
+            if not page_token or len(articles) >= limit:
+                break
+            time.sleep(1.5)  # NewsData free tier is strict between pages
+        except Exception as e:
+            logging.warning(f"[AI Router] NewsData fail: {e}")
+            break
+    return articles[:limit]
+
+
+def read_url(url):
+    """Pasted-dashboard API compat: raises on failure instead of returning None."""
+    text = call_jina(url)
+    if not text:
+        raise RuntimeError(f"Jina could not read {url[:80]}")
+    return text
+
+
 # ---------- smart routing ----------
 TASK_ORDER = {
     "verify":    ["groq", "gemini", "openrouter", "mistral"],
@@ -130,10 +168,14 @@ TASK_ORDER = {
     "scoring":   ["gemini", "groq", "openrouter"],
 }
 
-def route(prompt, task="content"):
-    """Pick provider by task, fallback on error, self-heal on 404. Returns text str."""
+def route(prompt, task="content", needs_hindi=False):
+    """Pick provider by task, fallback on error, self-heal on 404. Returns text str.
+    needs_hindi=True forces Gemini-first (best Devanagari quality)."""
+    order = TASK_ORDER.get(task, TASK_ORDER["content"])
+    if needs_hindi:
+        order = ["gemini"] + [p for p in order if p != "gemini"]
     last_err = None
-    for provider in TASK_ORDER.get(task, TASK_ORDER["content"]):
+    for provider in order:
         for model in PROVIDERS[provider]["models"]:
             try:
                 if provider == "gemini":

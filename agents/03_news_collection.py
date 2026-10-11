@@ -33,12 +33,51 @@ class Agent:
         import logging
         from pipeline.collector import collect_all, collect_window, in_window
         from pipeline.state import RAW_DIR, data_path, write_json_atomic
-        items, errors = collect_all(max_items=140, job_type=self.job_type)
+        items, errors = collect_all(max_items=200, job_type=self.job_type)
         start, end = collect_window(self.job_type, self.context["job_date"])
         # scheduler context (merged from former Agent 02)
         self.context["window_start"] = start.isoformat()
         self.context["window_end"] = end.isoformat()
         fresh = [i for i in items if in_window(i, start, end)]
+        # --- NewsData.io boost via Smart AI Router (6th key): targeted agri/banking/economy
+        # queries in English + Hindi — fills the CORE gap when RSS/official sources are dry ---
+        try:
+            from pipeline.ai_router import collect_news
+            from pipeline.collector import make_item, parse_dt, to_ist
+            seen_urls = {i.get("source_url") for i in fresh}
+            added = 0
+            for q, lang in (("agriculture farmer India", "en"),
+                            ("RBI bank economy government scheme", "en"),
+                            ("कृषि किसान योजना", "hi")):
+                try:
+                    arts = collect_news(q, language=lang, country="in", limit=10)
+                except Exception as e:
+                    logging.warning(f"[{self.name}] NewsData '{q[:28]}' fail: {e}")
+                    continue
+                for a in arts:
+                    title = (a.get("title") or "").strip()
+                    link = (a.get("link") or "").strip()
+                    ps = a.get("pubDate") or a.get("published_date")
+                    if not title or not link or link in seen_urls or not ps:
+                        continue  # undated items cannot prove the 24h window — skip
+                    try:
+                        pub = to_ist(parse_dt(ps))
+                    except Exception:
+                        continue
+                    src = {"name": a.get("source_name") or "NewsData", "level": 4, "priority": 78,
+                           "verification_required": True, "access_method": "api", "frequency": "daily"}
+                    it = make_item(title, link, src, "tier2", pub,
+                                   (a.get("description") or "")[:600],
+                                   a.get("image_url") or "", role="discovery")
+                    if not in_window(it, start, end):
+                        continue
+                    fresh.append(it)
+                    seen_urls.add(link)
+                    added += 1
+            if added:
+                logging.info(f"[{self.name}] NewsData boost: +{added} in-window items (total {len(fresh)})")
+        except ImportError:
+            pass
         # CORE coverage gate (P0 #6)
         try:
             from pipeline.collector import core_coverage_report
