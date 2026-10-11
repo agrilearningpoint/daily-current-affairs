@@ -148,6 +148,65 @@ def build_content(items, job_meta):
 MCQ_TPL_NUMBER = ("इस घटना से जुड़ी राशि/संख्या कौन-सी है? Which figure/number is associated with this event?")
 
 
+def _memory_pools():
+    """Distractor pools from PERSISTENT memory of past news — keeps the rule
+    'distractors are real values from OTHER news' even on sparse 1-item days."""
+    nums, names, heads = [], [], []
+    mem = {}
+    try:
+        from pipeline.store import load_memory
+        mem = load_memory() or {}
+    except Exception:
+        mem = {}
+    if not mem:
+        import json, pathlib
+        for p in ("data/memory/importance_memory.json",):
+            try:
+                if pathlib.Path(p).exists():
+                    mem = json.loads(pathlib.Path(p).read_text(encoding="utf-8")) or {}
+                    break
+            except Exception:
+                pass
+    for ev in list(mem.values())[:300]:
+        hl = (ev.get("headline") or "").strip()
+        facts = (ev.get("raw_facts") or "").strip()
+        text = hl + " " + facts
+        if not text.strip():
+            continue
+        nums += NUM_RE.findall(text)
+        names += CAP_RE.findall(hl)
+        if hl:
+            heads.append(hl[:150])
+    nums = [v for v in dict.fromkeys(nums)]
+    names = [v for v in dict.fromkeys(names)]
+    heads = list(dict.fromkeys(heads))
+    return nums, names, heads
+
+
+DOMAIN_ORGS = ["NABARD", "Reserve Bank of India", "ICAR", "Food Corporation of India",
+               "SEBI", "NITI Aayog", "World Bank", "Ministry of Finance",
+               "Ministry of Agriculture", "National Bank for Agriculture and Rural Development"]
+
+
+def _num_variants(s):
+    """Clearly-wrong numeric variants of a true figure (x2, x0.5, x3) — last-resort
+    distractors when no real figures from other news exist (sparse days)."""
+    out = []
+    m = re.search(r"\d[\d,.]*", s)
+    if not m:
+        return out
+    raw = m.group(0)
+    try:
+        x = float(raw.replace(",", ""))
+    except ValueError:
+        return out
+    for f in (2, 0.5, 3):
+        y = x * f
+        ys = f"{y:,.0f}" if float(y).is_integer() else f"{y:,.2f}"
+        out.append(s.replace(raw, ys, 1))
+    return out
+
+
 def generate_mcqs(content_items, target=(12, 15)):
     """Deterministic exam-style MCQs built ONLY from verified content (zero invention).
     Five README-promised types, all fact-locked to the item's own source text:
@@ -165,6 +224,17 @@ def generate_mcqs(content_items, target=(12, 15)):
         pool_names += CAP_RE.findall(ci["headline_en"])
     pool_nums = [v for v in dict.fromkeys(pool_nums)]
     pool_names = [v for v in dict.fromkeys(pool_names)]
+    # SPARSE-DAY FIX: with few items, distractor pools are too small (need >=2 per MCQ).
+    # Top up with REAL values from persistent memory of past news (still other-news facts,
+    # never invented) + domain orgs; numeric last resort = clearly-wrong variants.
+    mem_nums, mem_names, mem_heads = _memory_pools()
+    own_text_all = " ".join(ci["headline_en"] + " " + " ".join(ci["key_points_en"])
+                            for ci in content_items)
+    if len(pool_nums) < 4:
+        pool_nums += [v for v in mem_nums if v not in pool_nums and v not in own_text_all]
+    if len(pool_names) < 4:
+        pool_names += [v for v in mem_names if v not in pool_names and v not in own_text_all]
+        pool_names += [v for v in DOMAIN_ORGS if v not in pool_names and v not in own_text_all]
 
     def shuffled_opts(correct, distractors):
         opts = [correct] + list(distractors)
@@ -191,6 +261,7 @@ def generate_mcqs(content_items, target=(12, 15)):
                             r"Committee|Bank|Organisation|Organization)\b[^.;|]{0,70}", re.I)
     RANK_RE = re.compile(r"\b(\d+(?:st|nd|rd|th))\s+(?:position|rank|place)|ranked\s+(\d+(?:st|nd|rd|th))", re.I)
 
+    sparse_multi = len(content_items) <= 2  # sparse day: allow several MCQs per item
     for ci in content_items:
         if len(mcqs) >= target[1]:
             break
@@ -203,11 +274,12 @@ def generate_mcqs(content_items, target=(12, 15)):
         if cands and add("static-number",
                          f"{hl} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
                          f"{hlh} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
-                         cands[0], pool_nums,
+                         cands[0], pool_nums + _num_variants(cands[0]),
                          f"As per {ci['source']['name']}: “{hl}” — the reported figure is {cands[0]}.",
                          f"{ci['source']['name']} के अनुसार — रिपोर्ट की गई संख्या {cands[0]} है।",
                          ci, ci["exam_fact_en"][:120]):
-            continue
+            if not sparse_multi:
+                continue
         # --- Type C: scheme–ministry/organisation pairing ---
         org_m = MIN_ORG_RE.search(own_text)
         if org_m and add("scheme-ministry",
@@ -217,7 +289,8 @@ def generate_mcqs(content_items, target=(12, 15)):
                          f"Source text pairs this event with: {org_m.group(0)[:80].strip()}.",
                          f"स्रोत पाठ में इस घटना का संबंध {org_m.group(0)[:80].strip()} से बताया गया है।",
                          ci, "Scheme–Ministry जोड़ी prelims में बार-बार पूछी जाती है।"):
-            continue
+            if not sparse_multi:
+                continue
         # --- Type D: rank/index question ---
         rk = RANK_RE.search(own_text)
         if rk and add("report-rank",
@@ -227,7 +300,8 @@ def generate_mcqs(content_items, target=(12, 15)):
                        f"Rank mentioned verbatim in verified source: {(rk.group(1) or rk.group(2))}.",
                        f"सत्यापित स्रोत में उल्लिखित रैंक: {(rk.group(1) or rk.group(2))}।",
                        ci, "Index/Ranking – country/score prelims favourite है।"):
-            continue
+            if not sparse_multi:
+                continue
         # --- Type B: entity-name question ---
         names = [n for n in CAP_RE.findall(ci["headline_en"]) if len(n) > 3]
         if names and add("who-org",
@@ -237,17 +311,21 @@ def generate_mcqs(content_items, target=(12, 15)):
                          f"Source {ci['source']['name']}: {names[0]} appears verbatim in the verified headline.",
                          f"स्रोत {ci['source']['name']}: {names[0]} सिरहेड में मौजूद है।",
                          ci, "Agency/ministry name prelims में सीधे पूछा जाता है।"):
-            continue
+            if not sparse_multi:
+                continue
         # --- Type E: statement-based (correct = verbatim key point of THIS event) ---
         others = [p for o in content_items if o["event_id"] != ci["event_id"]
                   for p in o["key_points_en"][:1]]
+        if len(others) < 2:  # sparse day: past news headlines from memory = wrong statements
+            others += [hh for hh in mem_heads
+                       if hh != ci["headline_en"] and hh not in own_text][:6]
         if ci["key_points_en"] and others and add(
                 "statement",
                 f"“{hl[:70]}” घटना के बारे में कौन-सी कथन सत्य है?",
                 f"“{hlh[:70]}” घटना के बारे में कौन-सा कथन सत्य है?",
                 ci["key_points_en"][0][:150], others,
-                f"Statement directly quoted from verified reporting by {ci['source']['name']}.",
-                f"यह कथन {ci['source']['name']} की सत्यापित रिपोर्ट से सीधे लिया गया है।",
+                f"Statement directly quoted from verified reporting by {ci['source']['name']}: “{ci['key_points_en'][0][:150]}”.",
+                f"यह कथन {ci['source']['name']} की सत्यापित रिपोर्ट से सीधे लिया गया है: “{ci['key_points_en'][0][:150]}”।",
                 ci, "Statement-based questions अब सबसे common prelims pattern है।"):
             pass
 
