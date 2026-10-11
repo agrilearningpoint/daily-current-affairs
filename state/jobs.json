@@ -8,12 +8,12 @@
   "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
-  "error": "publish blocked: state=RETRYING (QA hard gate)",
-  "failed_at": "22_telegram_publisher",
+  "error": "only 0 content-verified items (min 1 for daily)",
+  "failed_at": "04_fact_verification",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "22_telegram_publisher",
+  "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-11T14:22:33.660800+05:30"
+  "updated": "2026-10-11T20:41:37.519451+05:30"
  },
  "daily_2026-10-06": {
   "error": "only 0 content-verified items (min 5 for daily)",
