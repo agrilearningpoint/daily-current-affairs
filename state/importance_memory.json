@@ -206,12 +206,40 @@
     "date": "2026-10-11",
     "job": "daily_2026-10-11",
     "score": 20.0
+   },
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-10",
+    "score": 20.0
    }
   ],
   "source_level": 4,
   "source_name": "Asianet Newsable",
   "source_url": "https://newsable.asianetnews.com/business/india-mobile-congress-2026-ends-with-focus-on-ai-5g-rural-tech-articleshow-gazycru",
   "student_relevance": 45,
+  "trend": "STABLE"
+ },
+ "80254c449a8bc0cf": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-11",
+  "headline": "First Session: Let's Talk About Good Practices for Sustainable Agriculture - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 22,
+  "last_seen": "2026-10-11",
+  "raw_facts": "First Session: Let's Talk About Good Practices for Sustainable Agriculture Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-10",
+    "score": 22.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxQZWw1a1ZjVzFxdk9SZTZqSDhRVXF5VlF1VHNJemtWX1VPUkRzZHZWdDhVVmg0UDA4WWNVUDRMTTJ0R0labUxrRWotUDRFeDEwOTM4cTB1UEtIbEozOGFqbVN4dXRKNHM2S24xNlF2c1ZVZXNtbnpvN09Fd2p0WnloSGE2bE14VjhybEU2U2FuTEVSMjBkQWc?oc=5",
+  "student_relevance": 47,
   "trend": "NEW"
  },
  "811c5539ee681150": {
@@ -235,6 +263,29 @@
   "source_name": "FAO",
   "source_url": "https://news.google.com/rss/articles/CBMirAJBVV95cUxQbThwTk02ZEE1aEROMm02QWt0anBySVV2RGphYUtQbnBwbEhfZUQwNlAwLVEza2VYV0RKX1liN0ZvM2JpQ3lRRFlxS2ZWUkV0T0YwS2NUZ3pMN2Fjc1FiS1NlTV9iMUlzUXhVZmFFR1ZrYXJiZjZBTjVmYmhXaUxOTWhwdFZGLXBUUGZfYmptR1hicWtWNUNIaHpNak9UWUNjd2hjdHNpOWxSN0RrdnRiWHdpaklJMFBvU0NReWQydG84dnhZbGVTa1hqWVRxcGtyNTNKQ3p0c2t3LWxTSUUtaEt3SzBKY29BcFNJSEsyclhhZFVpVVd5SFdTckhXeXFzcXBub1ZlYWhGRWFuOEFfeGlFRVljQUZiNW5uZTY4Y1d6WlFvOXQ2ZnFydHg?oc=5",
   "student_relevance": 54,
+  "trend": "NEW"
+ },
+ "8bafb2356c1b0716": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-11",
+  "headline": "Supporting regional fishery bodies to implement international agreements - Pêches et aquaculture de la FAO - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 37,
+  "last_seen": "2026-10-11",
+  "raw_facts": "Supporting regional fishery bodies to implement international agreements - Pêches et aquaculture de la FAO Food and Agriculture Organization | Also reported: Integrating climate change into the work of regional fishery bodies - Pêches et aquaculture de la FAO - Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-10",
+    "score": 37.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMiakFVX3lxTFBBN01DWVZ2Q2wwdHNMUExmR21NWE5vMWlMa0dxSEo5ajNfNkdGQ09iT2FUVG5FVDZDY2tkRnVSNFM1bnFjN0tYNjVyOGhxaUNEU0JubERfc3VhbXZ0bnFUZ214WVlGVWVkWUE?oc=5",
+  "student_relevance": 62,
   "trend": "NEW"
  },
  "90006ae76c4448ea": {
@@ -306,6 +357,29 @@
   "student_relevance": 20,
   "trend": "NEW"
  },
+ "9f2f418903a77e7f": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-11",
+  "headline": "Government of India Ministry of Earth Sciences India Meteorological Department Press Release Date: 10th October 2026 Time of Iss - IMD",
+  "headline_hi": "",
+  "importance_score": 15,
+  "last_seen": "2026-10-11",
+  "raw_facts": "Government of India Ministry of Earth Sciences India Meteorological Department Press Release Date: 10th October 2026 Time of Iss IMD",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-10",
+    "score": 15.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "IMD",
+  "source_url": "https://news.google.com/rss/articles/CBMihwFBVV95cUxObGhzeHhYNW5wOUJkYVJKNFV6U1d3VThJN1o0VVlmZnRaLWlkeVVTOTZSQzFPLTVMSHZxZ0MzdTUtUktmaUhJZHFzNlRNNlRzbWZyTEZhMm1EZGtiQlpRcEJnMm1HWWlpZm5RVFVyQk43LTNIQmx4V0pZYWoxcHhlaGVmeGVDaVk?oc=5",
+  "student_relevance": 23,
+  "trend": "NEW"
+ },
  "aad4015b2380a25d": {
   "first_seen": "2026-10-05",
   "headline": "National Advisory Board on Management of Genetic Resources Charts Roadmap for Strengthening India's Agrobiodiversity Conservation and Sustainable Utilization | ",
@@ -355,6 +429,29 @@
   "student_relevance": 46,
   "trend": "NEW"
  },
+ "e43a0effec3eedbb": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-11",
+  "headline": "Farmer's Son Starts Barosi With Rs 15 Lakh, Builds a Shark Tank-Featured Ghee Brand at Rs 56 Cr",
+  "headline_hi": "",
+  "importance_score": 23,
+  "last_seen": "2026-10-11",
+  "raw_facts": "India has always had a love-hate relationship with ghee. People once thought ghee was harmful because it contained bad fat and raised cholesterol. But that image has changed in recent years. The Indian ghee market was valued at Rs 3,774.5 billion in 2025 and is expected to grow at a CAGR of 7.70% and reach Rs 7,532.7 billion in 2034, according to IMARC Group. Brands that sell ghee have experienced this shift very closely. \"In the last 6-7 years, there has been a new awareness of ghee. Consumers see and buy it from a health and wellness perspective. It is good for you; it has good fats, and it ",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-10",
+    "score": 23.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Startuppedia",
+  "source_url": "https://startuppedia.in/startup-stories/farmers-son-starts-barosi-with-rs-15-lakh-builds-a-shark-tank-featured-ghee-brand-at-rs-56-cr-12659457",
+  "student_relevance": 48,
+  "trend": "NEW"
+ },
  "ee24ef37ff7a9266": {
   "first_seen": "2026-10-05",
   "headline": "UPI: Transforming India's Payment Landscape - PIB",
@@ -389,6 +486,29 @@
   "source_name": "The Hindu National",
   "source_url": "https://www.thehindu.com/news/cities/chennai/chennai-metro-phase-two-inauguration-poonamallee-vadapalani-narendra-modi-visit-schedule-cm-vijay-meeting-live-updates/article71570613.ece",
   "student_relevance": 24,
+  "trend": "NEW"
+ },
+ "ff944301163a8b77": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Science & Technology",
+  "first_seen": "2026-10-11",
+  "headline": "10th Edition of India Mobile Congress 2026 Concludes Successfully",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-11",
+  "raw_facts": "The 10th edition of the India Mobile Congress 2026 concluded on Saturday with a focus on artificial intelligence (AI) applications in agriculture, youth-led robotics, autonomous AI agents for 5G networks and expanding digital connectivity to underserved communities. Held under the theme ‘Scale Without Boundaries’, the four-day event brought together policymakers, industry leaders, researchers, startups and […] The post 10th Edition of India Mobile Congress 2026 Concludes Successfully appeared first on Tech Achieve Media.",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-10",
+    "score": 20.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Tech Achieve Media",
+  "source_url": "https://techachievemedia.com/live-coverage/10th-edition-of-india-mobile-congress-2026-concludes-successfully/",
+  "student_relevance": 32,
   "trend": "NEW"
  }
 }

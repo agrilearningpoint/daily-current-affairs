@@ -48,12 +48,15 @@
   "updated": "2026-10-10T11:20:13.943096+05:30"
  },
  "daily_2026-10-10": {
-  "error": "only 1 content-verified items (min 5 for daily)",
-  "failed_at": "04_fact_verification",
+  "error": null,
+  "failed_at": null,
   "job_id": "daily_2026-10-10",
-  "last_success_stage": "03_news_collection",
-  "status": "FAILED_FINAL",
-  "updated": "2026-10-11T07:44:34.449887+05:30"
+  "last_success_stage": "19_pdf_qa",
+  "pdf_pages": 15,
+  "pdf_sha256": "9fd1a5e8b2433066e4fc2167953741b144b110aa958aadc1210354326750ee2b",
+  "pdf_size": 6244186,
+  "status": "RUNNING",
+  "updated": "2026-10-11T20:47:12.592789+05:30"
  },
  "weekly_2026-10-11": {
   "error": "CORE coverage BLOCKED 10% (2/20) — ['PIB — Press Information Bureau', 'Ministry of Agriculture & Farmers Welfare']",
