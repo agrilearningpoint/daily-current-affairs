@@ -38,13 +38,54 @@ class Agent:
             self.context["stage_failed"] = "content editor produced 0 items"
             raise RuntimeError(self.context["stage_failed"])
         # --- merged bilingual pass (former Agent 13): guarantee Hindi fields exist ---
+        # Smart AI Router: Hindi via Gemini (best quality) -> Groq -> Mistral,
+        # chunked 3 items/chunk with 5s delay so free-tier limits never hit.
         from pipeline.content import translate_headline
+        try:
+            from pipeline.ai_router import chunked, route
+            HAS_ROUTER = True
+        except ImportError:
+            HAS_ROUTER = False
         fixed = 0
-        for it in content["items"]:
-            if not it.get("headline_hi"):
-                it["headline_hi"] = ">> " + translate_headline(it["headline_en"]); fixed += 1
-            if not it.get("key_points_hi"):
-                it["key_points_hi"] = [translate_headline(p) for p in it["key_points_en"]]; fixed += 1
+
+        def _translate_batch(batch):
+            nonlocal fixed
+            for it in batch:
+                need = []
+                if not it.get("headline_hi"):
+                    need.append(it["headline_en"])
+                if not it.get("key_points_hi"):
+                    need.extend(it["key_points_en"])
+                if not need:
+                    continue
+                lines = None
+                if HAS_ROUTER:
+                    try:
+                        prompt = ("Translate each line to Hindi (Devanagari script, exam-style, "
+                                  "keep numbers/names/schemes as-is). Return exactly "
+                                  f"{len(need)} lines, one per input, no numbering:\n" + "\n".join(need))
+                        out = route(prompt, task="bilingual")
+                        got = [l.strip() for l in str(out).splitlines() if l.strip()]
+                        if len(got) == len(need):
+                            lines = got
+                    except Exception as e:
+                        logging.warning(f"[{self.name}] AI router translate fail: {e}")
+                if not lines:  # safe offline fallback
+                    lines = [">> " + translate_headline(x) for x in need]
+                idx = 0
+                if not it.get("headline_hi"):
+                    it["headline_hi"] = lines[idx]; idx += 1
+                if not it.get("key_points_hi"):
+                    it["key_points_hi"] = lines[idx:idx + len(it["key_points_en"])]
+                fixed += 1
+            return batch
+
+        pending = [it for it in content["items"]
+                   if not it.get("headline_hi") or not it.get("key_points_hi")]
+        if HAS_ROUTER and len(pending) > 3:
+            chunked(pending, _translate_batch, chunk_size=3, delay=5)
+        else:
+            _translate_batch(pending)
         # --- merged english QA pass (former Agent 14): cleanup + source-link validation ---
         import re as _re
         for it in content["items"]:

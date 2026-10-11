@@ -22,7 +22,7 @@ def _env(key):
             pass
     return v
 
-def call_groq(prompt, model="llama-3.1-70b-versatile"):
+def call_groq(prompt, model="openai/gpt-oss-20b"):
     key = _env("GROQ_API_KEY")
     if not key:
         raise RuntimeError("GROQ_API_KEY missing")
@@ -56,18 +56,21 @@ def call_mistral(prompt, model="mistral-large-latest"):
     return r.json()["choices"][0]["message"]["content"].strip(), f"mistral/{model}"
 
 def call_jina_reader(url):
-    """Fetch URL via Jina Reader API (better JS handling)"""
+    """Fetch URL via Jina Reader API (correct endpoint: r.jina.ai, better JS handling)"""
     key = _env("JINA_API_KEY")
-    if not key:
-        return None
-    try:
-        # Jina Reader: https://cc.jina.ai/http://example.com  with Authorization
-        jurl = f"https://cc.jina.ai/{url}" if not url.startswith("https://cc.jina.ai") else url
-        r = requests.get(jurl, headers={"Authorization": f"Bearer {key}", "X-Return-Format":"markdown"}, timeout=30)
-        if r.status_code == 200 and len(r.text) > 500:
-            return r.text
-    except Exception as e:
-        logging.debug(f"jina fetch failed {url[:60]}: {e}")
+    headers = {"Accept": "text/plain", "User-Agent": "AgriLearningPoint/1.0"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    for attempt in range(2):  # auth first, then no-auth fallback
+        try:
+            r = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=30)
+            if r.status_code == 200 and len(r.text) > 300:
+                return r.text
+            if r.status_code in (401, 403):
+                headers.pop("Authorization", None)
+                continue
+        except Exception as e:
+            logging.debug(f"jina fetch failed {url[:60]}: {e}")
     return None
 
 def fetch_newsdata(query="agriculture india", language="en"):

@@ -10,8 +10,8 @@ import os, time, json, logging, requests, pathlib
 
 PROVIDER_MODELS = {
     "gemini": ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-flash"],
-    "groq": ["llama-3.1-8b-instant", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"],
-    "openrouter": ["google/gemini-flash-1.5:free", "meta-llama/llama-3.1-8b-instruct:free", "mistralai/mistral-7b-instruct:free", "qwen/qwen-2-7b-instruct:free"],
+    "groq": ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"],
+    "openrouter": ["apodex/apodex-1.1-mini:free", "nvidia/nemotron-3.5-lightning:free", "liquid/lfm-2.5-2.6b:free", "google/gemini-flash-1.5:free"],
     "mistral": ["mistral-small-latest", "mistral-large-latest", "open-mistral-7b", "open-mixtral-8x7b"],
 }
 
