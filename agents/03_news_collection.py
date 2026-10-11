@@ -60,6 +60,9 @@ class Agent:
                     ps = a.get("pubDate") or a.get("published_date")
                     if not title or not link or link in seen_urls or not ps:
                         continue  # undated items cannot prove the 24h window — skip
+                    if re.search(r"job description|vacanc|careers?\b|hiring|tender|obituar|subscription|login",
+                                 title, re.I):
+                        continue  # noise pages — zero exam value
                     try:
                         pub = to_ist(parse_dt(ps))
                     except Exception:
