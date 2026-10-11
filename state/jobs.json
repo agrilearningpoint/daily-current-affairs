@@ -64,11 +64,11 @@
   "updated": "2026-10-11T11:50:20.674956+05:30"
  },
  "weekly_2026-10-11": {
-  "error": "only 1 student-relevant events (min 8 for weekly)",
+  "error": "only 2 student-relevant events (min 8 for weekly)",
   "failed_at": "07_student_domain_relevance",
   "job_id": "weekly_2026-10-11",
   "last_success_stage": "06_news_importance",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-11T11:46:31.886035+05:30"
+  "updated": "2026-10-11T14:22:57.511524+05:30"
  }
 }
