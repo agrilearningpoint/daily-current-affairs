@@ -61,7 +61,7 @@
   "job_id": "daily_2026-10-11",
   "last_success_stage": "03_news_collection",
   "status": "RUNNING",
-  "updated": "2026-10-11T17:26:34.396458+05:30"
+  "updated": "2026-10-11T17:39:31.098518+05:30"
  },
  "weekly_2026-10-11": {
   "error": "only 2 student-relevant events (min 8 for weekly)",
