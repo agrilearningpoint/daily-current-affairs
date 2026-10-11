@@ -34,8 +34,10 @@ class Agent:
         valid, rejected = validate_mcqs(mcqs, c["items"])
         if rejected:
             logging.warning(f"[{self.name}] REJECTED {len(rejected)} MCQs: {[r['errors'] for r in rejected]}")
-        if len(valid) < 5:
-            self.context["stage_failed"] = f"only {len(valid)} valid MCQs after validation"
+        # Sparse daily: allow 1 MCQ (was 5 too strict for 4-news edition)
+        min_valid = 1 if self.job_type == "daily" else 5
+        if len(valid) < min_valid:
+            self.context["stage_failed"] = f"only {len(valid)} valid MCQs after validation (min {min_valid})"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(MCQ_DIR, self.job_id, "_validated"), valid)
         return self.context

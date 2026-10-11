@@ -1,5 +1,16 @@
 # GK-Parchi style self-healing Gemini
 import os, requests
+# Load .env if present (local dev)
+try:
+    import pathlib as _pl
+    _envp = _pl.Path('.env')
+    if _envp.exists():
+        for _line in _envp.read_text().splitlines():
+            if '=' in _line and not _line.strip().startswith('#'):
+                _k,_v=_line.split('=',1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+except Exception:
+    pass
 MODEL_CANDIDATES = ["gemini-flash-latest","gemini-2.5-flash","gemini-2.0-flash","gemini-1.5-flash"]
 def get_available_models(api_key):
     try:

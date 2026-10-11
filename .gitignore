@@ -26,3 +26,5 @@ assets/images/
 .DS_Store
 .vscode/
 .venv/
+.env
+!.env.example
