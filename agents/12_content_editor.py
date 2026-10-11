@@ -80,8 +80,19 @@ class Agent:
                 fixed += 1
             return batch
 
-        pending = [it for it in content["items"]
-                   if not it.get("headline_hi") or not it.get("key_points_hi")]
+        def _needs_hi(it):
+            # ">> " prefix = untranslated English fallback marker from build_content —
+            # treat as missing so the AI router (Gemini Hindi) gets a chance
+            h = it.get("headline_hi") or ""
+            kh = it.get("key_points_hi") or []
+            return (not h or h.startswith(">> ")) or (not kh or any(str(x).startswith(">> ") for x in kh))
+
+        pending = [it for it in content["items"] if _needs_hi(it)]
+        for it in pending:  # clear fallback markers so _translate_batch regenerates
+            if (it.get("headline_hi") or "").startswith(">> "):
+                it["headline_hi"] = ""
+            if any(str(x).startswith(">> ") for x in (it.get("key_points_hi") or [])):
+                it["key_points_hi"] = []
         if HAS_ROUTER and len(pending) > 3:
             chunked(pending, _translate_batch, chunk_size=3, delay=5)
         else:
