@@ -14,12 +14,40 @@
     "date": "2026-10-11",
     "job": "daily_2026-10-11",
     "score": 14.0
+   },
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-11",
+    "score": 14.0
    }
   ],
   "source_level": 4,
   "source_name": "The Hindu National",
   "source_url": "https://www.thehindu.com/news/national/west-bengal/three-out-of-19-sir-tribunals-vacant-eci-awaits-names-from-calcutta-hc/article71571244.ece",
   "student_relevance": 39,
+  "trend": "STABLE"
+ },
+ "4015b4041ccb2d96": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "International",
+  "first_seen": "2026-10-11",
+  "headline": "E-autos remain out of service as Rs. 30,000 subsidy per auto delayed in Keralam",
+  "headline_hi": "",
+  "importance_score": 10,
+  "last_seen": "2026-10-11",
+  "raw_facts": "Thirty of the 105 e-autos run by the Ernakulam Jilla Autorickshaw Drivers Cooperative Society have been idle for a year, with the society moving the High Court over the stalled subsidy",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-11",
+    "score": 10.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/kerala/e-autos-remain-out-of-service-as-rs-30000-subsidy-per-auto-delayed-in-kerala/article71570877.ece",
+  "student_relevance": 22,
   "trend": "NEW"
  },
  "47a6fc762a6bf79f": {
@@ -117,6 +145,29 @@
   "student_relevance": 16,
   "trend": "NEW"
  },
+ "95946c04d7036026": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-11",
+  "headline": "BJP-led folk artistes embark on beating ‘Dappu’ for 75 hours, with an eye on Guinness",
+  "headline_hi": "",
+  "importance_score": 10,
+  "last_seen": "2026-10-11",
+  "raw_facts": "Around 2,000 artistes began a 75-hour non-stop drum-beating event in Tirupati to mark PM Modi’s 75th birthday, as part of the BJP’s month-long ‘Seva Sankalp Abhiyan’",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-11",
+    "score": 10.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/andhra-pradesh/bjp-led-folk-artistes-embark-on-beating-dappu-for-75-hours-with-an-eye-on-guinness/article71570979.ece",
+  "student_relevance": 18,
+  "trend": "NEW"
+ },
  "9aac17c186673a5a": {
   "agri_focus": false,
   "banking_focus": false,
@@ -177,6 +228,29 @@
     "score": 20.0
    }
   ],
+  "trend": "NEW"
+ },
+ "f65f93b228b21496": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-11",
+  "headline": "PM Modi in Chennai LIVE | Prime Minister inaugurates Metro Rail's Phase 2 stretch, ₹13000-crore worth development projects",
+  "headline_hi": "",
+  "importance_score": 16,
+  "last_seen": "2026-10-11",
+  "raw_facts": "Six years after the work began, Chennai Metro Rail Limited (CMRL)’s first train ran from Porur Bypass at noon on October 11, 2026, with Mr. Modi and Chief Minister C. Joseph Vijay being the first few commuters.",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-11",
+    "score": 16.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/cities/chennai/chennai-metro-phase-two-inauguration-poonamallee-vadapalani-narendra-modi-visit-schedule-cm-vijay-meeting-live-updates/article71570613.ece",
+  "student_relevance": 24,
   "trend": "NEW"
  }
 }
