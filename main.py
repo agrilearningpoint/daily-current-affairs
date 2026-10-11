@@ -97,14 +97,17 @@ def run_pipeline(job_type, job_date, force=False):
                        "05_deduplication": "DEDUPLICATED", "06_news_importance": "SCORED",
                        "10_final_news_selection": "SELECTED", "12_content_editor": "CONTENT_READY",
                        "17_mcq_validator": "MCQ_VALIDATED", "18_pdf_design": "PDF_GENERATED",
-                       "19_pdf_qa": "QA_APPROVED"}
+                       "19_pdf_qa": "QA_APPROVED",
+                       "22_telegram_publisher": "PUBLISHED", "23_telegram_pin_verifier": "PIN_VERIFIED"}
 
         for agent_id in WORKFLOW_ORDER[start_idx:]:
             # P0 FIX: Granular RUNNING tracking so watchdog can see exactly which stage is active
             # Previously state stayed at COLLECTED while 04 was running and crash left stale state
             try:
                 job = load_job(job_id, job_type, job_date)
-                save_job(job, state="RUNNING", stage=agent_id, current_stage=agent_id, heartbeat_at=now_iso(), started_at=now_iso())
+                # NOTE: no stage= here — last_success_stage must only be written on
+                # SUCCESS (Agent 22's QA gate reads it). Watchdog uses current_stage.
+                save_job(job, state="RUNNING", current_stage=agent_id, heartbeat_at=now_iso(), started_at=now_iso())
                 store.write_job_state(job)
             except Exception as e:
                 logging.warning(f"RUNNING state update failed for {agent_id}: {e}")

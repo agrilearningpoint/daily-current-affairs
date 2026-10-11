@@ -31,8 +31,14 @@ class Agent:
         from pipeline.state import load_job, CONTENT_DIR, data_path, read_json
         from pipeline.telegram_api import send_document
         job = load_job(self.job_id, self.job_type, self.context["job_date"])
-        if job.get("status") != "QA_APPROVED":
-            self.context["stage_failed"] = f"publish blocked: state={job.get('status')} (QA hard gate)"
+        # QA HARD GATE: publish only after 19_pdf_qa succeeded. The orchestrator sets
+        # state=RUNNING before every stage (watchdog tracking), so the real gate is
+        # "last successful stage == 19_pdf_qa" — not the transient RUNNING status.
+        qa_ok = job.get("status") == "QA_APPROVED" or (
+            job.get("status") in ("RUNNING", "RETRYING") and job.get("last_success_stage") == "19_pdf_qa")
+        if not qa_ok:
+            self.context["stage_failed"] = (f"publish blocked: state={job.get('status')} "
+                                            f"last_stage={job.get('last_success_stage')} (QA hard gate)")
             raise RuntimeError(self.context["stage_failed"])
         if job.get("telegram_message_id"):
             logging.info(f"[{self.name}] already published msg_id={job['telegram_message_id']} — duplicate prevented (job state)")

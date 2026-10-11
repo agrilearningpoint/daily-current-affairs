@@ -48,8 +48,12 @@ class Agent:
         pdf = self.context.get("pdf_path", "")
         if not (os.path.exists(pdf) and os.path.getsize(pdf) > 20000):
             problems.append("PDF missing/too small")
-        if job.get("status") != "PIN_VERIFIED":
-            problems.append(f"unexpected state at watchdog: {job.get('status')}")
+        # Orchestrator sets RUNNING before every stage; real gate = pin verifier succeeded
+        pin_ok = job.get("status") == "PIN_VERIFIED" or (
+            job.get("status") in ("RUNNING", "RETRYING")
+            and job.get("last_success_stage") == "23_telegram_pin_verifier")
+        if not pin_ok:
+            problems.append(f"unexpected state at watchdog: {job.get('status')} last_stage={job.get('last_success_stage')}")
         if problems:
             alert_admin(f"⚠️ {self.job_id} watchdog found: " + "; ".join(problems))
             self.context["stage_failed"] = "watchdog audit failed: " + "; ".join(problems)
