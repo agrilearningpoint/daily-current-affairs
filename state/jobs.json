@@ -56,12 +56,12 @@
   "updated": "2026-10-11T07:44:34.449887+05:30"
  },
  "daily_2026-10-11": {
-  "error": "only 0 content-verified items (min 5 for daily)",
-  "failed_at": "04_fact_verification",
+  "error": "expected 'except' or 'finally' block (content.py, line 105)",
+  "failed_at": "12_content_editor",
   "job_id": "daily_2026-10-11",
-  "last_success_stage": "03_news_collection",
+  "last_success_stage": "12_content_editor",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-11T14:24:52.732070+05:30"
+  "updated": "2026-10-11T17:24:18.513851+05:30"
  },
  "weekly_2026-10-11": {
   "error": "only 2 student-relevant events (min 8 for weekly)",

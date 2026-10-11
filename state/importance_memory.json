@@ -1,4 +1,27 @@
 {
+ "0907dd4d50b4e04b": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-11",
+  "headline": "Three out of 19 SIR tribunals vacant; ECI awaits names from Calcutta HC",
+  "headline_hi": "",
+  "importance_score": 14,
+  "last_seen": "2026-10-11",
+  "raw_facts": "While these tribunals report to Calcutta High Court, ECI provides them with secretarial assistance, including staff and digital platform for online hearings.",
+  "scores": [
+   {
+    "date": "2026-10-11",
+    "job": "daily_2026-10-11",
+    "score": 14.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/west-bengal/three-out-of-19-sir-tribunals-vacant-eci-awaits-names-from-calcutta-hc/article71571244.ece",
+  "student_relevance": 39,
+  "trend": "NEW"
+ },
  "47a6fc762a6bf79f": {
   "first_seen": "2026-10-05",
   "headline": "Website of Jal Jeevan Mission, Uttar Pradesh | Governance | Governance & Planning | Category - National Portal of India",
