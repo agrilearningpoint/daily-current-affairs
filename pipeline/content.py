@@ -101,12 +101,7 @@ def polish_with_ai(text, source_text):
     if not key:
         return text
     try:
-        import re
-try:
-    from pipeline.model_manager import batch_process, call_with_fallback
-    HAS_MANAGER = True
-except ImportError:
-    HAS_MANAGER = Falsequests as _rq
+        import requests as _rq
         r = _rq.post("https://api.openai.com/v1/chat/completions",
                      headers={"Authorization": f"Bearer {key}"},
                      json={"model": os.getenv("ALP_LLM", "gpt-4o-mini"),
