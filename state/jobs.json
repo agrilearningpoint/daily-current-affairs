@@ -54,5 +54,13 @@
   "last_success_stage": "03_news_collection",
   "status": "FAILED_FINAL",
   "updated": "2026-10-11T07:44:34.449887+05:30"
+ },
+ "weekly_2026-10-11": {
+  "error": "only 1 student-relevant events (min 8 for weekly)",
+  "failed_at": "07_student_domain_relevance",
+  "job_id": "weekly_2026-10-11",
+  "last_success_stage": "06_news_importance",
+  "status": "FAILED_FINAL",
+  "updated": "2026-10-11T11:46:31.886035+05:30"
  }
 }
