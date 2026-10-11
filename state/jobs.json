@@ -8,12 +8,12 @@
   "updated": "2026-10-05T16:45:53.646679+05:30"
  },
  "daily_2026-10-05": {
-  "error": "only 0 content-verified items (min 1 for daily)",
-  "failed_at": "04_fact_verification",
+  "error": "name 're' is not defined",
+  "failed_at": "03_news_collection",
   "job_id": "daily_2026-10-05",
-  "last_success_stage": "03_news_collection",
+  "last_success_stage": "00_model_orchestrator",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-11T20:41:37.519451+05:30"
+  "updated": "2026-10-12T01:09:04.288628+05:30"
  },
  "daily_2026-10-06": {
   "error": "only 0 content-verified items (min 5 for daily)",
