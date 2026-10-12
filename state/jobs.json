@@ -13,7 +13,7 @@
   "job_id": "daily_2026-10-05",
   "last_success_stage": "00_model_orchestrator",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-12T04:43:09.372455+05:30"
+  "updated": "2026-10-12T07:57:42.711118+05:30"
  },
  "daily_2026-10-06": {
   "error": "only 0 content-verified items (min 5 for daily)",
