@@ -1,216 +1,298 @@
 # -*- coding: utf-8 -*-
-"""
-AI ROUTER — Smart load-balanced LLM router for AGRI LEARNING POINT BY SATYAM SIR
-6 Free APIs: Gemini, Groq, OpenRouter, Mistral, Jina Reader, NewsData
-- Auto-fallback per task   - RPM rate-limit tracking   - Chunked processing
-- Self-healing: discovers new free models from provider /models endpoints
-"""
-import os, time, logging, pathlib
-import requests
+"""SMART AI ROUTER — Intelligent Multi-Provider Load Balancer"""
+import os, json, time, logging, re
+from datetime import datetime
+from typing import Optional, Dict, List, Callable
+
+logger = logging.getLogger(__name__)
 
 PROVIDERS = {
-    "gemini":     {"rpm": 15, "rpd": 250,   "models": ["gemini-1.5-flash", "gemini-2.0-flash"]},
-    "groq":       {"rpm": 30, "rpd": 14400, "models": ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"]},
-    "openrouter": {"rpm": 20, "rpd": 500,   "models": ["apodex/apodex-1.1-mini:free", "nvidia/nemotron-3.5-lightning:free", "liquid/lfm-2.5-2.6b:free", "google/gemini-flash-1.5:free"]},
-    "mistral":    {"rpm": 1,  "rpd": 50,    "models": ["open-mistral-7b", "mistral-small-latest"]},
-    "jina":       {"rpm": 20, "rpd": 1000,  "models": []},
-    "newsdata":   {"rpm": 10, "rpd": 200,   "models": []},
+    "gemini": {
+        "name": "Google Gemini", "env_key": "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "free_models": ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b"],
+        "rate_limits": {"rpm": 15, "rpd": 250},
+        "strengths": ["content", "translation", "bilingual", "hindi", "mcq", "summary", "verification"],
+        "hindi_quality": 0.95, "priority": 1,
+    },
+    "groq": {
+        "name": "Groq", "env_key": "GROQ_API_KEY",
+        "base_url": "https://api.groq.com/openai/v1",
+        "free_models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
+        "rate_limits": {"rpm": 30, "rpd": 14400},
+        "strengths": ["verification", "mcq", "scoring", "fast_parallel", "content", "summary"],
+        "hindi_quality": 0.75, "priority": 2,
+    },
+    "openrouter": {
+        "name": "OpenRouter", "env_key": "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
+        "free_models": ["meta-llama/llama-4-maverick:free", "deepseek/deepseek-r1:free",
+                        "qwen/qwen-2.5-72b-instruct:free", "google/gemma-3-27b-it:free"],
+        "rate_limits": {"rpm": 20, "rpd": 500},
+        "strengths": ["fallback", "content", "verification", "diversity", "bilingual", "mcq"],
+        "hindi_quality": 0.80, "priority": 3,
+    },
+    "mistral": {
+        "name": "Mistral", "env_key": "MISTRAL_API_KEY",
+        "base_url": "https://api.mistral.ai/v1",
+        "free_models": ["mistral-small-latest", "open-mistral-7b"],
+        "rate_limits": {"rpm": 1, "rpd": 50},
+        "strengths": ["structure", "mcq", "validation", "content"],
+        "hindi_quality": 0.60, "priority": 4,
+    },
+    "jina": {
+        "name": "Jina Reader", "env_key": "JINA_API_KEY",
+        "base_url": "https://r.jina.ai",
+        "free_models": ["reader"],
+        "rate_limits": {"rpm": 20, "rpd": 1000},
+        "strengths": ["web_scraping", "content_extraction", "search"],
+        "hindi_quality": 0.0, "priority": 1,
+    },
+    "newsdata": {
+        "name": "NewsData", "env_key": "NEWSDATA_API_KEY",
+        "base_url": "https://newsdata.io/api/1",
+        "free_models": ["news"],
+        "rate_limits": {"rpm": 2, "rpd": 200},
+        "strengths": ["news_collection", "india_news", "hindi_news"],
+        "hindi_quality": 0.0, "priority": 1,
+    },
 }
-_usage = {k: [] for k in PROVIDERS}
 
-def _env(k):
-    v = os.getenv(k, "")
-    if not v:
-        p = pathlib.Path(".env")
-        if p.exists():
-            for line in p.read_text().splitlines():
-                if line.startswith(k + "="):
-                    v = line.split("=", 1)[1].strip()
-                    break
-    return v.strip().strip('"').strip("'")
+class RateLimitTracker:
+    def __init__(self):
+        self.usage = {}
+        self._state_file = os.path.join(os.getcwd(), "data", "ai_router_state.json")
+        self._load_state()
 
-def _rate_ok(provider):
-    """Track RPM per provider; sleep if near limit."""
-    now = time.time()
-    _usage[provider] = [t for t in _usage[provider] if now - t < 60]
-    if len(_usage[provider]) >= PROVIDERS[provider]["rpm"]:
-        sleep = 60 - (now - _usage[provider][0]) + 1
-        logging.warning(f"[AI Router] {provider} RPM hit, sleeping {sleep:.1f}s")
-        time.sleep(min(max(sleep, 1), 15))
-    _usage[provider].append(time.time())
-
-# ---------- provider calls (all return plain text str) ----------
-def call_jina(url):
-    """Jina Reader — fetch page as markdown via r.jina.ai (correct reader endpoint)."""
-    key = _env("JINA_API_KEY")
-    headers = {"Accept": "text/plain", "User-Agent": "AgriLearningPoint/1.0"}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
-    for attempt in range(2):  # auth, then no-auth fallback
+    def _load_state(self):
         try:
-            _rate_ok("jina")
-            r = requests.get("https://r.jina.ai/" + url, headers=headers, timeout=30)
-            if r.status_code == 200 and len(r.text) > 300:
-                return r.text
-            if r.status_code in (401, 403):
-                headers.pop("Authorization", None)
+            if os.path.exists(self._state_file):
+                with open(self._state_file) as f:
+                    self.usage = json.load(f)
+        except Exception:
+            self.usage = {}
+
+    def _save_state(self):
+        try:
+            os.makedirs(os.path.dirname(self._state_file), exist_ok=True)
+            with open(self._state_file, "w") as f:
+                json.dump(self.usage, f)
+        except Exception:
+            pass
+
+    def can_use(self, provider: str) -> bool:
+        limits = PROVIDERS[provider]["rate_limits"]
+        now = datetime.now()
+        if provider not in self.usage:
+            self.usage[provider] = {"requests": [], "date": now.strftime("%Y-%m-%d")}
+        state = self.usage[provider]
+        if state.get("date") != now.strftime("%Y-%m-%d"):
+            state["requests"] = []
+            state["date"] = now.strftime("%Y-%m-%d")
+        recent = [t for t in state["requests"] if (now - datetime.fromisoformat(t)).total_seconds() < 60]
+        state["requests"] = recent
+        if len(recent) >= limits["rpm"] * 0.8:
+            return False
+        if len(state["requests"]) >= limits["rpd"] * 0.8:
+            return False
+        return True
+
+    def record_usage(self, provider: str):
+        now = datetime.now()
+        if provider not in self.usage:
+            self.usage[provider] = {"requests": [], "date": now.strftime("%Y-%m-%d")}
+        state = self.usage[provider]
+        if state.get("date") != now.strftime("%Y-%m-%d"):
+            state["requests"] = []
+            state["date"] = now.strftime("%Y-%m-%d")
+        state["requests"].append(now.isoformat())
+        self._save_state()
+
+class AIRouter:
+    def __init__(self):
+        self.tracker = RateLimitTracker()
+        self.failed_models = {}
+        self._available = self._check_providers()
+        logger.info(f"[AI Router] Available: {list(self._available.keys())}")
+
+    def _check_providers(self):
+        available = {}
+        for name, cfg in PROVIDERS.items():
+            key = os.environ.get(cfg["env_key"], "")
+            if key and len(key) > 5:
+                available[name] = cfg
+        return available
+
+    def _select_provider(self, task: str, needs_hindi: bool = False):
+        candidates = []
+        for name, cfg in self._available.items():
+            if name in ("jina", "newsdata"):
                 continue
-        except Exception as e:
-            logging.debug(f"[AI Router] jina fail: {e}")
-    return None
+            if task not in cfg["strengths"] and "fallback" not in cfg["strengths"]:
+                continue
+            if needs_hindi and cfg["hindi_quality"] < 0.5:
+                continue
+            if not self.tracker.can_use(name):
+                continue
+            score = (1.0 / cfg["priority"])
+            if needs_hindi:
+                score *= cfg["hindi_quality"]
+            candidates.append((name, score))
+        if not candidates:
+            for name in self._available:
+                if name not in ("jina", "newsdata") and self.tracker.can_use(name):
+                    candidates.append((name, 0.1))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0][0]
 
-def call_gemini(prompt):
-    key = _env("GEMINI_API_KEY")
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY missing")
-    _rate_ok("gemini")
-    from pipeline.gemini_helper import call_gemini as _call
-    text, model = _call(prompt, key)
-    return text
+    def _select_model(self, provider: str):
+        models = PROVIDERS[provider]["free_models"]
+        for model in models:
+            if self.failed_models.get(model, 0) < 3:
+                return model
+        return None
 
-def call_groq(prompt, model="openai/gpt-oss-20b"):
-    key = _env("GROQ_API_KEY")
-    if not key:
-        raise RuntimeError("GROQ_API_KEY missing")
-    _rate_ok("groq")
-    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                      headers={"Authorization": f"Bearer {key}"},
-                      json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3},
-                      timeout=60)
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"].strip()
+    def _call_gemini(self, model, prompt, system=""):
+        import requests
+        key = os.environ["GEMINI_API_KEY"]
+        url = f"{PROVIDERS['gemini']['base_url']}/models/{model}:generateContent?key={key}"
+        body = {"contents": [{"parts": [{"text": prompt}]}]}
+        if system:
+            body["system_instruction"] = {"parts": [{"text": system}]}
+        r = requests.post(url, json=body, timeout=60)
+        if r.status_code != 200:
+            raise Exception(f"Gemini {r.status_code}: {r.text[:200]}")
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-def call_openrouter(prompt, model="apodex/apodex-1.1-mini:free"):
-    key = _env("OPENROUTER_API_KEY")
-    if not key:
-        raise RuntimeError("OPENROUTER_API_KEY missing")
-    _rate_ok("openrouter")
-    r = requests.post("https://openrouter.ai/api/v1/chat/completions",
-                      headers={"Authorization": f"Bearer {key}", "HTTP-Referer": "https://agrilearningpoint.com"},
-                      json={"model": model, "messages": [{"role": "user", "content": prompt}]},
-                      timeout=60)
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"].strip()
+    def _call_openai_compat(self, provider, model, prompt, system=""):
+        import requests
+        cfg = PROVIDERS[provider]
+        key = os.environ[cfg["env_key"]]
+        url = f"{cfg['base_url']}/chat/completions"
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        if provider == "openrouter":
+            headers["HTTP-Referer"] = "https://agrilearningpoint.github.io"
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        r = requests.post(url, headers=headers, json={"model": model, "messages": messages, "temperature": 0.3}, timeout=60)
+        if r.status_code != 200:
+            raise Exception(f"{provider} {r.status_code}: {r.text[:200]}")
+        return r.json()["choices"][0]["message"]["content"]
 
-def call_mistral(prompt, model="open-mistral-7b"):
-    key = _env("MISTRAL_API_KEY")
-    if not key:
-        raise RuntimeError("MISTRAL_API_KEY missing")
-    _rate_ok("mistral")
-    r = requests.post("https://api.mistral.ai/v1/chat/completions",
-                      headers={"Authorization": f"Bearer {key}"},
-                      json={"model": model, "messages": [{"role": "user", "content": prompt}]},
-                      timeout=60)
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"].strip()
-
-def discover_openrouter_free():
-    """Self-healing: pull current free models from OpenRouter /models."""
-    key = _env("OPENROUTER_API_KEY")
-    try:
-        h = {"Authorization": f"Bearer {key}"} if key else {}
-        r = requests.get("https://openrouter.ai/api/v1/models", headers=h, timeout=15)
-        if r.status_code == 200:
-            data = r.json().get("data", [])
-            free = [m["id"] for m in data if m.get("id", "").endswith(":free")]
-            if free:
-                PROVIDERS["openrouter"]["models"] = free[:5]
-                logging.info(f"[AI Router] discovered {len(free)} free OpenRouter models: {free[:3]}")
-                return free[:5]
-    except Exception as e:
-        logging.debug(f"[AI Router] discover fail: {e}")
-    return []
-
-# ---------- NewsData.io collection (6th key) ----------
-def collect_news(query, language="en", country="in", limit=10):
-    """NewsData.io API — paginated (free tier: 10 results/page, 200 credits/day)."""
-    key = _env("NEWSDATA_API_KEY")
-    if not key:
-        raise RuntimeError("NEWSDATA_API_KEY not set")
-    articles, page_token = [], None
-    for _page in range(min(3, (limit + 9) // 10)):  # max 3 pages = 3 credits per query
-        params = {"apikey": key, "q": query, "language": language,
-                  "country": country, "size": 10}
-        if page_token:
-            params["page"] = page_token
-        _rate_ok("newsdata")
-        try:
-            r = requests.get("https://newsdata.io/api/1/news", params=params, timeout=20)
-            if r.status_code != 200:
-                logging.warning(f"[AI Router] NewsData {r.status_code}: {r.text[:120]}")
-                break
-            data = r.json()
-            articles.extend(data.get("results") or [])
-            page_token = data.get("nextPage")
-            if not page_token or len(articles) >= limit:
-                break
-            time.sleep(1.5)  # NewsData free tier is strict between pages
-        except Exception as e:
-            logging.warning(f"[AI Router] NewsData fail: {e}")
-            break
-    return articles[:limit]
-
-
-def read_url(url):
-    """Pasted-dashboard API compat: raises on failure instead of returning None."""
-    text = call_jina(url)
-    if not text:
-        raise RuntimeError(f"Jina could not read {url[:80]}")
-    return text
-
-
-# ---------- smart routing ----------
-TASK_ORDER = {
-    "verify":    ["groq", "gemini", "openrouter", "mistral"],
-    "content":   ["groq", "gemini", "openrouter", "mistral"],
-    "bilingual": ["gemini", "groq", "mistral"],          # Gemini best Hindi
-    "mcq":       ["groq", "openrouter", "gemini"],
-    "scoring":   ["gemini", "groq", "openrouter"],
-}
-
-def route(prompt, task="content", needs_hindi=False):
-    """Pick provider by task, fallback on error, self-heal on 404. Returns text str.
-    needs_hindi=True forces Gemini-first (best Devanagari quality)."""
-    order = TASK_ORDER.get(task, TASK_ORDER["content"])
-    if needs_hindi:
-        order = ["gemini"] + [p for p in order if p != "gemini"]
-    last_err = None
-    for provider in order:
-        for model in PROVIDERS[provider]["models"]:
+    def generate(self, prompt, task="content", system="", needs_hindi=False, max_retries=3):
+        task_systems = {
+            "content": "You are a bilingual current affairs writer for competitive exam students. Write clear, accurate content. Never invent facts.",
+            "verification": "You are a fact-checker. Verify claims strictly. Respond in JSON: {verified: bool, confidence: float, claims_verified: [], claims_unverified: [], reason: str}",
+            "bilingual": "Translate to Hindi (Devanagari). Keep numbers/names as-is. Return same number of lines as input.",
+            "mcq": "Create MCQs for Indian competitive exams. 4 options, exactly 1 correct. Include explanation. Respond in JSON array.",
+            "summary": "Summarize news concisely. Extract key facts, dates, numbers.",
+            "translation": "Translate accurately. Use Devanagari for Hindi.",
+            "scoring": "Rate importance 0-100 based on exam relevance, student impact, policy significance.",
+        }
+        if not system:
+            system = task_systems.get(task, "")
+        last_error = None
+        for attempt in range(max_retries):
+            provider = self._select_provider(task, needs_hindi)
+            if not provider:
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+                    continue
+                raise Exception("All AI providers exhausted")
+            model = self._select_model(provider)
+            if not model:
+                continue
             try:
+                logger.info(f"[AI Router] {provider}/{model} (task={task})")
                 if provider == "gemini":
-                    return call_gemini(prompt)
-                if provider == "groq":
-                    return call_groq(prompt, model)
-                if provider == "openrouter":
-                    return call_openrouter(prompt, model)
-                if provider == "mistral":
-                    return call_mistral(prompt, model)
+                    result = self._call_gemini(model, prompt, system)
+                else:
+                    result = self._call_openai_compat(provider, model, prompt, system)
+                self.tracker.record_usage(provider)
+                if model in self.failed_models:
+                    del self.failed_models[model]
+                return result
             except Exception as e:
-                last_err = e
-                msg = str(e).lower()
-                logging.warning(f"[AI Router] {provider}/{model} fail ({msg[:80]}) -> next")
-                if "404" in msg or "model_not_found" in msg or "does not exist" in msg:
-                    if provider == "openrouter":
-                        discover_openrouter_free()
-                    break  # refresh list before retrying provider
-                if "429" in msg or "rate" in msg or "quota" in msg:
-                    break  # provider exhausted -> next provider
-    raise RuntimeError(f"[AI Router] all providers failed for task={task}: {last_err}")
+                last_error = e
+                self.failed_models[model] = self.failed_models.get(model, 0) + 1
+                self.tracker.record_usage(provider)
+                time.sleep(1 + attempt)
+        raise Exception(f"AI generation failed: {last_error}")
 
-# ---------- chunked processing ----------
-def chunked(items, func, chunk_size=5, delay=3):
-    """Run func on chunks of items with delay between chunks (rate-limit safe)."""
-    out = []
+    def read_url(self, url):
+        import requests
+        key = os.environ.get("JINA_API_KEY", "")
+        headers = {"Accept": "text/markdown"}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+        r = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=30)
+        if r.status_code == 200:
+            self.tracker.record_usage("jina")
+            return r.text
+        raise Exception(f"Jina error: {r.status_code}")
+
+    def collect_news(self, query, language="en", country="in", limit=50):
+        import requests
+        key = os.environ.get("NEWSDATA_API_KEY", "")
+        if not key:
+            raise Exception("NEWSDATA_API_KEY not set")
+        url = f"{PROVIDERS['newsdata']['base_url']}/news"
+        params = {"apikey": key, "q": query, "language": language, "country": country, "size": min(limit, 10)}
+        articles = []
+        data = {}
+        for _ in range((limit + 9) // 10):
+            if _ > 0 and not data.get("nextPage"):
+                break
+            if _ > 0:
+                params["page"] = data["nextPage"]
+                time.sleep(1)
+            try:
+                r = requests.get(url, params=params, timeout=15)
+                if r.status_code != 200:
+                    break
+                data = r.json()
+                articles.extend(data.get("results", []))
+                self.tracker.record_usage("newsdata")
+            except Exception:
+                break
+        return articles[:limit]
+
+_router_instance = None
+
+def get_router():
+    global _router_instance
+    if _router_instance is None:
+        _router_instance = AIRouter()
+    return _router_instance
+
+def route(prompt, task="content", needs_hindi=False, **kwargs):
+    return get_router().generate(prompt, task=task, needs_hindi=needs_hindi, **kwargs)
+
+def chunked(items, process_fn, chunk_size=5, delay=3):
+    results = []
     total = (len(items) + chunk_size - 1) // chunk_size
     for i in range(0, len(items), chunk_size):
-        batch = items[i:i + chunk_size]
-        logging.info(f"[AI Router] chunk {i // chunk_size + 1}/{total} size={len(batch)}")
-        res = func(batch)
-        if isinstance(res, list):
-            out.extend(res)
-        elif res is not None:
-            out.append(res)
+        chunk = items[i:i + chunk_size]
+        n = (i // chunk_size) + 1
+        logger.info(f"[AI Router] Chunk {n}/{total} ({len(chunk)} items)")
+        try:
+            result = process_fn(chunk)
+            if isinstance(result, list):
+                results.extend(result)
+            else:
+                results.append(result)
+        except Exception as e:
+            logger.error(f"[AI Router] Chunk {n} failed: {e}")
         if i + chunk_size < len(items):
             time.sleep(delay)
-    return out
+    return results
+
+def read_url(url):
+    return get_router().read_url(url)
+
+def collect_news(query, **kwargs):
+    return get_router().collect_news(query, **kwargs)
