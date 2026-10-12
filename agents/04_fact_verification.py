@@ -1,107 +1,115 @@
 # -*- coding: utf-8 -*-
-"""
-FACT VERIFICATION AGENT
-Main focus: हर news को primary source से verify करना; unverified कभी आगे न जाएँ।
+"""FACT VERIFICATION AGENT v2 — Jina Reader + AI Router — FIXES Stage 04 failure"""
+import re, json, logging
 
-Command:
-> "Verify every news item against its primary/official source. Check the source URL resolves, record source tier, published time and confidence. Tier-2/3 items must be traceable to a primary source or are marked unverified and dropped."
-
-Work: Primary-source gate
-Real implementation: pipeline/ library (state machine + quality gates). Empty stage output = FAILURE.
-"""
-
-COMMAND = """Verify every news item against its primary/official source. Check the source URL resolves, record source tier, published time and confidence. Tier-2/3 items must be traceable to a primary source or are marked unverified and dropped."""
-
-MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
-
-DETAILS = """- HTTP-resolve each source_url (confidence by status + tier)
-- Emits per-item verification record {event_id, claim, source_url, source_type, published_at, verified, confidence}
-- Unverifiable Tier-2/3 items are DROPPED (never published)"""
-
+COMMAND = "Verify every news item against its primary source."
+MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
 
 class Agent:
-    """FACT VERIFICATION AGENT — real implementation"""
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
         self.job_type = job_type
         self.context = context
-        self.name = "FACT VERIFICATION AGENT"
+        self.name = "FACT VERIFICATION AGENT v2"
 
     def run(self):
-        import logging
         from pipeline.state import RAW_DIR, VERIFIED_DIR, data_path, read_json, write_json_atomic
-        # Smart AI Router + Jina Reader (chunked, rate-limit safe)
-        try:
-            from pipeline.ai_router import chunked, call_jina
-            from pipeline.verify import verify_all
-            HAS_ROUTER = True
-        except ImportError:
-            from pipeline.verify import verify_all
-            HAS_ROUTER = False
         raw = read_json(data_path(RAW_DIR, self.job_id), {"items": []})["items"]
-        # budget guard: tier-1 first, cap at 120
         items = sorted(raw, key=lambda x: (x.get("source_tier") != "tier1",
-                                           -(len(x.get("headline_en") or ""))))[:120]
-        if HAS_ROUTER and len(items) > 5:
-            # Chunked verification: 5 items/chunk, 3s delay — avoids 429
-            def _verify_batch(batch):
-                v, d = verify_all(batch)
-                return v
-            verified_chunks = chunked(items, _verify_batch, chunk_size=5, delay=3)
-            # Flatten and dedup by event_id
-            seen = set()
-            verified = []
-            for v in verified_chunks:
-                if v.get("event_id") not in seen:
-                    seen.add(v["event_id"])
-                    verified.append(v)
-            dropped = [i for i in items if i["event_id"] not in seen]
-        else:
-            verified, dropped = verify_all(items)
-        logging.info(f"[{self.name}] verified={len(verified)} dropped={len(dropped)} (AI Router chunked={HAS_ROUTER})")
-        # --- Jina Reader rescue pass: direct HTTP fail (JS-heavy/403) but page may resolve via r.jina.ai ---
-        if HAS_ROUTER and len(verified) < (12 if self.job_type == "daily" else 20) and dropped:
-            rescued = 0
-            for rec in list(dropped)[:8]:  # cap 8 rescues to respect Jina 20 RPM
-                url = rec.get("source_url") or rec.get("url")
-                if not url or not str(url).startswith("http"):
-                    continue
-                try:
-                    page = call_jina(url)
-                except Exception as e:
-                    logging.warning(f"[{self.name}] jina rescue fail {url[:60]}: {e}")
-                    continue
-                if not page or len(page) < 400:
-                    continue
-                # keyword check: >=50% of headline tokens must appear in page text
-                import re as _re
-                page_low = page.lower()
-                tokens = [t for t in _re.findall(r"[a-zA-Z\u0900-\u097F]{4,}",
-                          (rec.get("headline_en") or rec.get("claim") or "").lower())]
-                if tokens and sum(1 for t in tokens if t in page_low) / len(tokens) >= 0.5:
-                    rec.update({"verified": True, "confidence": max(rec.get("confidence", 0), 0.7),
-                                "source_type": rec.get("source_type", "") + "+jina"})
-                    verified.append(rec)
-                    dropped.remove(rec)
-                    rescued += 1
-            if rescued:
-                logging.info(f"[{self.name}] Jina rescue: +{rescued} verified (total {len(verified)})")
-        # P0 FIX: variable quantity — daily sparse allowed (user: gates <1 allow 1-item sparse daily)
-        # Previously 5 was too strict for stale windows / degraded CORE → 0 verified failure
-        min_verified = 1 if self.job_type == "daily" else (5 if self.job_type == "weekly" else 8)
+                     -(len(x.get("headline_en") or ""))))[:120]
+        logging.info(f"[{self.name}] Processing {len(items)} items...")
+        try:
+            from pipeline.ai_router import get_router, chunked
+            router = get_router()
+            def verify_chunk(chunk):
+                return [self._verify_ai(router, item) for item in chunk]
+            all_results = chunked(items, verify_chunk, chunk_size=5, delay=3)
+        except Exception as e:
+            logging.warning(f"[{self.name}] AI Router unavailable ({e}), fallback to HTTP")
+            all_results = [self._verify_http(item) for item in items]
+        verified = [v for v in all_results if v and v.get("verified")]
+        dropped = [v for v in all_results if v and not v.get("verified")]
+        logging.info(f"[{self.name}] verified={len(verified)} dropped={len(dropped)}")
+        min_verified = 5 if self.job_type == "daily" else (8 if self.job_type == "weekly" else 10)
         if len(verified) < min_verified:
-            self.context["stage_failed"] = f"only {len(verified)} content-verified items (min {min_verified} for {self.job_type})"
+            self.context["stage_failed"] = f"only {len(verified)} verified (min {min_verified})"
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(VERIFIED_DIR, self.job_id), {"items": verified, "dropped": len(dropped)})
         return self.context
 
+    def _verify_ai(self, router, item):
+        url = item.get("source_url", "")
+        headline = item.get("headline_en", "")
+        tier = item.get("source_tier", "tier3")
+        page_content = ""
+        try:
+            page_content = router.read_url(url)
+        except Exception as e:
+            logging.warning(f"Jina failed for {url}: {e}")
+            page_content = self._fetch_direct(url)
+        if not page_content or len(page_content) < 100:
+            return {**item, "verified": False, "confidence": 0.2,
+                    "claims_unverified": ["URL not accessible"]}
+        prompt = f"""Verify if this headline is supported by the article.
+
+HEADLINE: {headline}
+
+ARTICLE (first 3000 chars):
+{page_content[:3000]}
+
+Respond ONLY in JSON: {{"verified": true/false, "confidence": 0.0-1.0, "claims_verified": [], "claims_unverified": [], "reason": "brief"}}"""
+        try:
+            response = router.generate(prompt, task="verification")
+            json_match = re.search(r'\{[^}]+\}', response, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+            else:
+                result = {"verified": False, "confidence": 0.5, "claims_verified": [], "claims_unverified": ["Parse failed"]}
+        except Exception as e:
+            result = {"verified": False, "confidence": 0.4, "claims_unverified": [str(e)[:100]]}
+        threshold = {"tier1": 0.70, "tier2": 0.85, "tier3": 0.90}.get(tier, 0.90)
+        return {
+            **item, "verified": result.get("confidence", 0) >= threshold,
+            "confidence": result.get("confidence", 0),
+            "claims_verified": result.get("claims_verified", []),
+            "claims_unverified": result.get("claims_unverified", []),
+            "source_url": url, "source_type": tier,
+            "published_at": item.get("pub_time_ist"), "claim": headline,
+        }
+
+    def _verify_http(self, item):
+        import requests
+        url = item.get("source_url", "")
+        tier = item.get("source_tier", "tier3")
+        try:
+            r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"}, allow_redirects=True)
+            if r.status_code != 200:
+                return {**item, "verified": False, "confidence": 0.2}
+            from pipeline.verify import score_item
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', r.text[:5000], re.I)
+            title = title_match.group(1) if title_match else ""
+            conf, cv, cu = score_item(item, title, r.text[:200000])
+            threshold = {"tier1": 0.70, "tier2": 0.85, "tier3": 0.90}.get(tier, 0.90)
+            return {**item, "verified": conf >= threshold, "confidence": conf,
+                    "claims_verified": cv, "claims_unverified": cu,
+                    "source_url": url, "source_type": tier,
+                    "published_at": item.get("pub_time_ist"), "claim": item.get("headline_en", "")}
+        except Exception as e:
+            return {**item, "verified": False, "confidence": 0.1, "claims_unverified": [str(e)[:100]]}
+
+    def _fetch_direct(self, url):
+        import requests
+        try:
+            r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"}, allow_redirects=True)
+            if r.status_code == 200:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(r.text[:400000], "lxml")
+                for tag in soup(["script", "style", "noscript"]):
+                    tag.decompose()
+                return soup.get_text(" ", strip=True)[:50000]
+        except Exception:
+            pass
+        return ""
+
     def verify(self):
-        """QA check for this agent's output."""
         return not self.context.get("stage_failed")
-
-
-if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
-    print(Agent("test_2026-10-04", "daily", ctx).run())
