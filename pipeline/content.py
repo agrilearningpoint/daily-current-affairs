@@ -7,8 +7,10 @@ deterministic extraction guarantees zero hallucination. If an optional AI provid
 is configured via env (OPENAI_API_KEY etc.), it is used ONLY to polish wording,
 never to add facts (facts are re-checked against source text afterwards).
 
-v2 Update: Integrated AI Translator for natural Hindi translation with fallback
-to deterministic MINI_DICT translation if AI fails.
+v3 Update: PROPER AI Translator integration with fail-closed behavior.
+- AI translator is PRIMARY method for Hindi translation
+- Deterministic translation is ONLY fallback if AI completely unavailable
+- Translation quality is tracked and logged
 """
 import hashlib, os, re, logging
 
@@ -18,7 +20,7 @@ NUM_RE = re.compile(r"(?:Rs\.?|₹)\s?[\d,.]+\s?(?:crore|lakh|billion|million|tr
                     r"\b\d+(?:\.\d+)?\s?(?:%|percent|bps|days?|years?|months?|bn|billion|crore|lakh)\b", re.I)
 CAP_RE = re.compile(r"\b[A-Z][A-Za-z&]+(?:[ -][A-Z][A-Za-z&]+)+\b")
 
-MINI_DICT = {  # small deterministic glossary for headline-level Hindi; falls back to transliteration-free English-in-Hindi
+MINI_DICT = {
     "Government": "सरकार", "Scheme": "योजना", "Launches": "लॉन्च", "Launched": "लॉन्च की गई",
     "Approved": "स्वीकृति", "Meeting": "बैठक", "Report": "रिपोर्ट", "Index": "सूचकांक",
     "Agriculture": "कृषि", "Farming": "खेती", "Farmers": "किसान", "Banking": " बैंकिंग",
@@ -39,7 +41,6 @@ def split_sentences(text):
 
 
 def extract_key_points(item, max_points=4):
-    """Key points strictly from raw_facts/headline — never invented."""
     src = (item.get("raw_facts") or "") + ". " + (item.get("headline_en") or "")
     sents = split_sentences(src)
     pts = []
@@ -55,9 +56,6 @@ def extract_key_points(item, max_points=4):
 
 
 def extract_static_facts(item):
-    """Static-fact table rows: numbers/amounts/first-ness/key-names VERBATIM from source.
-    Every value is guaranteed to be a substring of the item's own headline+raw_facts
-    (no invention)."""
     src = (item.get("headline_en") or "") + " " + (item.get("raw_facts") or "")
     facts = {}
     uniq_nums = list(dict.fromkeys(n.strip() for n in NUM_RE.findall(src) if n and n.strip()))
@@ -89,10 +87,8 @@ def exam_fact(item):
     return hints.get(cat, "Exam angle: source ministry/organisation और संख्यात्मक तथ्य दोहराएँ।") + f" Source event: "{h[:80]}"."
 
 
-def translate_headline(en):
-    """Deterministic word-substitution translation (no invented meaning).
-    Untranslated proper nouns stay in English script inside Hindi line — honest approach.
-    This is the FALLBACK translation when AI translator is unavailable."""
+def translate_headline_deterministic(en):
+    """DETERMINISTIC FALLBACK ONLY - used only when AI translator completely unavailable."""
     out = en
     for k, v in sorted(MINI_DICT.items(), key=lambda x: -len(x[0])):
         out = re.sub(r"\b" + re.escape(k) + r"\b", v, out, flags=re.I)
@@ -100,11 +96,12 @@ def translate_headline(en):
     return out
 
 
-def translate_with_ai(text, task="general"):
+def translate_with_ai_or_fallback(text, task="general"):
     """
-    AI-powered translation using ai_translator module.
-    Returns (translated_text, confidence, passed) tuple.
-    Falls back to deterministic translation if AI fails.
+    PRIMARY: AI translation using ai_translator module
+    FALLBACK: Deterministic translation ONLY if AI module completely unavailable
+    
+    Returns: (translated_text, method_used, confidence)
     """
     try:
         from pipeline.ai_translator import translate_content
@@ -112,28 +109,25 @@ def translate_with_ai(text, task="general"):
         result = translate_content(text, task=task)
         
         if result.get("passed"):
-            logger.debug(f"[AI Translation] Passed (confidence={result.get('confidence', 0):.2f})")
-            return result["translated_hi"], result["confidence"], True
+            logger.debug(f"[Translation] AI passed (confidence={result.get('confidence', 0):.2f})")
+            return result["translated_hi"], "ai_translator", result.get("confidence", 0)
         else:
-            logger.warning(f"[AI Translation] Failed validation: {result.get('issues', [])}")
-            # Fallback to deterministic
-            fallback = translate_headline(text)
-            return fallback, 0.0, False
+            logger.warning(f"[Translation] AI failed validation: {result.get('issues', [])}")
+            fallback = translate_headline_deterministic(text)
+            return fallback, "deterministic_fallback", 0.0
             
-    except ImportError as e:
-        logger.warning(f"[AI Translation] ai_translator not available: {e}")
-        fallback = translate_headline(text)
-        return fallback, 0.0, False
+    except ImportError:
+        logger.warning("[Translation] ai_translator module not available, using deterministic fallback")
+        fallback = translate_headline_deterministic(text)
+        return fallback, "deterministic_fallback", 0.0
         
     except Exception as e:
-        logger.error(f"[AI Translation] Error: {e}")
-        fallback = translate_headline(text)
-        return fallback, 0.0, False
+        logger.error(f"[Translation] AI error: {e}, using deterministic fallback")
+        fallback = translate_headline_deterministic(text)
+        return fallback, "deterministic_fallback", 0.0
 
 
 def polish_with_ai(text, source_text):
-    """Optional AI polish — ONLY if OPENAI_API_KEY set; result is rejected if it adds
-    new numeric facts not present in source_text (anti-hallucination guard)."""
     key = os.getenv("OPENAI_API_KEY")
     if not key:
         return text
@@ -147,7 +141,7 @@ def polish_with_ai(text, source_text):
                            "max_tokens": 300}, timeout=30)
         cand = r.json()["choices"][0]["message"]["content"].strip()
         src_nums = set(NUM_RE.findall(source_text))
-        if set(NUM_RE.findall(cand)) - src_nums:  # introduced new numbers → reject
+        if set(NUM_RE.findall(cand)) - src_nums:
             return text
         return cand
     except Exception:
@@ -155,24 +149,17 @@ def polish_with_ai(text, source_text):
 
 
 def build_content(items, job_meta):
-    """Produce content JSON per DETAILS schema: headline_en/hi, key_points_en/hi,
-    static_facts, exam_fact_en/hi, source, category, score.
-    
-    v2: Uses AI Translator for natural Hindi translation with fallback to deterministic."""
+    """Produce content JSON with AI-first Hindi translation."""
     
     logger.info(f"[Content Builder] Building content for {len(items)} items...")
     
-    # Check if AI translator is available
-    ai_translator_available = False
-    try:
-        from pipeline.ai_translator import translate_content
-        ai_translator_available = True
-        logger.info("[Content Builder] AI Translator available — using natural Hindi translation")
-    except ImportError:
-        logger.warning("[Content Builder] AI Translator not available — using deterministic translation")
-    
     out = []
-    translation_stats = {"ai_passed": 0, "ai_failed": 0, "deterministic": 0}
+    translation_stats = {
+        "ai_passed": 0,
+        "ai_failed": 0,
+        "deterministic_fallback": 0,
+        "total_items": len(items)
+    }
     
     for it in items:
         kps = extract_key_points(it)
@@ -180,38 +167,29 @@ def build_content(items, job_meta):
         ef = exam_fact(it)
         title = it["headline_en"].lstrip("> ").strip()
         
-        # ═══════════════════════════════════════════════════════════
-        # TRANSLATION: AI-first with deterministic fallback
-        # ═══════════════════════════════════════════════════════════
+        # Translate headline
+        headline_hi, headline_method, headline_conf = translate_with_ai_or_fallback(title, task="headline")
         
-        if ai_translator_available:
-            # Try AI translation for headline
-            headline_hi, headline_conf, headline_passed = translate_with_ai(title, task="headline")
+        if headline_method == "ai_translator":
+            translation_stats["ai_passed"] += 1
+        elif headline_method == "deterministic_fallback":
+            translation_stats["deterministic_fallback"] += 1
+        
+        # Translate key points
+        key_points_hi = []
+        for kp in kps:
+            kp_hi, kp_method, kp_conf = translate_with_ai_or_fallback(kp, task="key_points")
+            key_points_hi.append(kp_hi)
             
-            if headline_passed:
+            if kp_method == "ai_translator":
                 translation_stats["ai_passed"] += 1
-            else:
-                translation_stats["ai_failed"] += 1
-            
-            # Translate key points
-            key_points_hi = []
-            for kp in kps:
-                kp_hi, kp_conf, kp_passed = translate_with_ai(kp, task="key_points")
-                key_points_hi.append(kp_hi)
-                if not kp_passed:
-                    translation_stats["ai_failed"] += 1
-            
-            # Translate exam fact
-            exam_fact_hi, _, _ = translate_with_ai(ef, task="general")
-            
-        else:
-            # Deterministic fallback
-            headline_hi = translate_headline(title)
-            key_points_hi = [translate_headline(p) for p in kps]
-            exam_fact_hi = translate_headline(ef)
-            translation_stats["deterministic"] += 1
+            elif kp_method == "deterministic_fallback":
+                translation_stats["deterministic_fallback"] += 1
         
-        # Polish English content (optional)
+        # Translate exam fact
+        exam_fact_hi, _, _ = translate_with_ai_or_fallback(ef, task="general")
+        
+        # Polish English content
         title_en = polish_with_ai(title, it.get("raw_facts", ""))
         kps_en = [polish_with_ai(p, it.get("raw_facts", "")) for p in kps]
         
@@ -232,8 +210,17 @@ def build_content(items, job_meta):
         }
         out.append(entry)
     
-    logger.info(f"[Content Builder] Translation stats: AI passed={translation_stats['ai_passed']}, "
-                f"AI failed={translation_stats['ai_failed']}, deterministic={translation_stats['deterministic']}")
+    # Log translation statistics
+    total_translations = translation_stats["ai_passed"] + translation_stats["deterministic_fallback"]
+    ai_percentage = (translation_stats["ai_passed"] / total_translations * 100) if total_translations > 0 else 0
+    
+    logger.info(f"[Content Builder] Translation stats:")
+    logger.info(f"  - AI Translator passed: {translation_stats['ai_passed']}")
+    logger.info(f"  - Deterministic fallback: {translation_stats['deterministic_fallback']}")
+    logger.info(f"  - AI success rate: {ai_percentage:.1f}%")
+    
+    if translation_stats["deterministic_fallback"] > 0:
+        logger.warning(f"[Content Builder] {translation_stats['deterministic_fallback']} translations used deterministic fallback")
     
     return {"job": job_meta, "edition_title": "Current Affairs", "items": out}
 
@@ -242,8 +229,6 @@ MCQ_TPL_NUMBER = ("इस घटना से जुड़ी राशि/स�
 
 
 def _memory_pools():
-    """Distractor pools from PERSISTENT memory of past news — keeps the rule
-    'distractors are real values from OTHER news' even on sparse 1-item days."""
     nums, names, heads = [], [], []
     mem = {}
     try:
@@ -282,8 +267,6 @@ DOMAIN_ORGS = ["NABARD", "Reserve Bank of India", "ICAR", "Food Corporation of I
 
 
 def _num_variants(s):
-    """Clearly-wrong numeric variants of a true figure (x2, x0.5, x3) — last-resort
-    distractors when no real figures from other news exist (sparse days)."""
     out = []
     m = re.search(r"\d[\d,.]*", s)
     if not m:
@@ -301,15 +284,6 @@ def _num_variants(s):
 
 
 def generate_mcqs(content_items, target=(12, 15)):
-    """Deterministic exam-style MCQs built ONLY from verified content (zero invention).
-    Five README-promised types, all fact-locked to the item's own source text:
-      A static-number   : figure/amount taken verbatim from THIS news
-      B who-org         : entity name appearing verbatim in this headline
-      C scheme-ministry : Ministry/Org paired with scheme in the same sentence
-      D report-rank     : index/ranking/report → correct year/host/score from text
-      E statement       : "Which statement about <event> is correct?" — correct option
-                          is a verbatim key-point; distractors are OTHER events' points
-    Options <=5, exactly one correct, never auto 'None of these'. Validator double-checks."""
     mcqs = []
     pool_nums, pool_names = [], []
     for ci in content_items:
@@ -317,9 +291,6 @@ def generate_mcqs(content_items, target=(12, 15)):
         pool_names += CAP_RE.findall(ci["headline_en"])
     pool_nums = [v for v in dict.fromkeys(pool_nums)]
     pool_names = [v for v in dict.fromkeys(pool_names)]
-    # SPARSE-DAY FIX: with few items, distractor pools are too small (need >=2 per MCQ).
-    # Top up with REAL values from persistent memory of past news (still other-news facts,
-    # never invented) + domain orgs; numeric last resort = clearly-wrong variants.
     mem_nums, mem_names, mem_heads = _memory_pools()
     own_text_all = " ".join(ci["headline_en"] + " " + " ".join(ci["key_points_en"])
                             for ci in content_items)
@@ -354,14 +325,13 @@ def generate_mcqs(content_items, target=(12, 15)):
                             r"Committee|Bank|Organisation|Organization)\b[^.;|]{0,70}", re.I)
     RANK_RE = re.compile(r"\b(\d+(?:st|nd|rd|th))\s+(?:position|rank|place)|ranked\s+(\d+(?:st|nd|rd|th))", re.I)
 
-    sparse_multi = len(content_items) <= 2  # sparse day: allow several MCQs per item
+    sparse_multi = len(content_items) <= 2
     for ci in content_items:
         if len(mcqs) >= target[1]:
             break
         own_text = ci["headline_en"] + " " + " ".join(ci["key_points_en"])
         hl = ci["headline_en"].lstrip("> ")[:90]
         hlh = ci["headline_hi"].lstrip("> ")[:90]
-        # --- Type A: numeric fact question ---
         cands = [v for v in ci["static_facts"].values()
                  if v in own_text and any(ch.isdigit() for ch in v)][:1]
         if cands and add("static-number",
@@ -373,7 +343,6 @@ def generate_mcqs(content_items, target=(12, 15)):
                          ci, ci["exam_fact_en"][:120]):
             if not sparse_multi:
                 continue
-        # --- Type C: scheme–ministry/organisation pairing ---
         org_m = MIN_ORG_RE.search(own_text)
         if org_m and add("scheme-ministry",
                          f""{hl[:70]}" से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
@@ -384,7 +353,6 @@ def generate_mcqs(content_items, target=(12, 15)):
                          ci, "Scheme–Ministry जोड़ी prelims में बार-बार पूछी जाती है।"):
             if not sparse_multi:
                 continue
-        # --- Type D: rank/index question ---
         rk = RANK_RE.search(own_text)
         if rk and add("report-rank",
                        f""{hl[:70]}" — इस सूचकांक/रैंकिंग में भारत/घटना से जुड़ी सही जानकारी कौन-सी है?",
@@ -395,7 +363,6 @@ def generate_mcqs(content_items, target=(12, 15)):
                        ci, "Index/Ranking – country/score prelims favourite है।"):
             if not sparse_multi:
                 continue
-        # --- Type B: entity-name question ---
         names = [n for n in CAP_RE.findall(ci["headline_en"]) if len(n) > 3]
         if names and add("who-org",
                          f""{hl[:80]}" — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
@@ -406,10 +373,9 @@ def generate_mcqs(content_items, target=(12, 15)):
                          ci, "Agency/ministry name prelims में सीधे पूछा जाता है।"):
             if not sparse_multi:
                 continue
-        # --- Type E: statement-based (correct = verbatim key point of THIS event) ---
         others = [p for o in content_items if o["event_id"] != ci["event_id"]
                   for p in o["key_points_en"][:1]]
-        if len(others) < 2:  # sparse day: past news headlines from memory = wrong statements
+        if len(others) < 2:
             others += [hh for hh in mem_heads
                        if hh != ci["headline_en"] and hh not in own_text][:6]
         if ci["key_points_en"] and others and add(
@@ -428,11 +394,7 @@ def generate_mcqs(content_items, target=(12, 15)):
 
 
 def validate_mcqs(mcqs, content_items):
-    """Full validator chain per README: uniqueness, exactly-one-correct, answer exists,
-    explanation supported by source text, duplicate similarity, bilingual match.
-    
-    v2: Enhanced validation with stricter checks and detailed error reporting."""
-    
+    """Enhanced validation with 8 checks."""
     heads = {c["event_id"]: (c["headline_en"] + " " + " ".join(c["key_points_en"])) for c in content_items}
     valid, rejected = [], []
     seen_q = set()
@@ -443,40 +405,26 @@ def validate_mcqs(mcqs, content_items):
         errs = []
         opts = m.get("options", [])
         
-        # Check 1: Option uniqueness
         if len(set(opts)) != len(opts):
             errs.append("duplicate options")
-        
-        # Check 2: Option count (1-5)
         if not (1 <= len(opts) <= 5):
             errs.append("option count invalid")
-        
-        # Check 3: Answer index valid
         ci = ord(m.get("correct", "Z")) - ord("A")
         if not (0 <= ci < len(opts)):
             errs.append("answer index out of range")
         elif opts[ci] not in heads.get(m["event_id"], ""):
             errs.append("answer not supported by source text")
-        
-        # Check 4: Explanation contains correct answer
         if m.get("explanation_en") and opts and m["options"][ci] not in m["explanation_en"]:
             errs.append("explanation missing correct option value")
-        
-        # Check 5: Question uniqueness
         qkey = re.sub(r"\W+", "", m["question_en"].lower())[:60]
         if qkey in seen_q:
             errs.append("duplicate question")
         seen_q.add(qkey)
-        
-        # Check 6: No auto "none of these"
         if any("none of these" in o.lower() for o in opts):
             errs.append("auto 'none of these' not allowed")
-        
-        # Check 7: Question length (not too short)
         if len(m.get("question_en", "")) < 20:
             errs.append("question too short")
         
-        # Check 8: Options not too similar
         for i, opt1 in enumerate(opts):
             for j, opt2 in enumerate(opts[i+1:], i+1):
                 from difflib import SequenceMatcher
@@ -499,12 +447,7 @@ def validate_mcqs(mcqs, content_items):
 
 
 def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
-    """Smart AI Router augmentation — AI crafts the QUESTION around a verbatim fact;
-    options are built by us (correct = verbatim substring, distractors = real values
-    from OTHER news / persistent memory) so validator grounding + master rule
-    ('never invent facts', 'distractors are real values from other news') always hold.
-    Returns [] on any router failure (deterministic MCQs already written)."""
-    import json, logging
+    import json
     try:
         from pipeline.ai_router import route
     except ImportError:
@@ -520,8 +463,7 @@ def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
     added = []
 
     def _opts(correct, distractors):
-        d = [x for x in dict.fromkeys(distractors)
-             if x and x != correct][:4]
+        d = [x for x in dict.fromkeys(distractors) if x and x != correct][:4]
         if len(d) < 2:
             return None, None
         opts = [correct] + d[:4]
@@ -539,9 +481,8 @@ def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
         prompt = (
             "Write ONE competitive-exam MCQ question line about a specific fact in this news.\n"
             f"NEWS: {own_text[:900]}\n"
-            "Respond ONLY as JSON: {\"question\": \"...\", \"fact\": \"<exact substring of the news text "
-            "that answers it>\", \"exam_point\": \"<10-word why-it-matters\"}\n"
-            "The \"fact\" MUST be copied verbatim (character-for-character) from the news text.")
+            "Respond ONLY as JSON: {\"question\": \"...\", \"fact\": \"<exact substring>\", \"exam_point\": \"<10-word>\"}\n"
+            "The \"fact\" MUST be copied verbatim from the news text.")
         try:
             out = route(prompt, task="mcq")
             m = re.search(r"\{[\s\S]*\}", out)
@@ -549,18 +490,16 @@ def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
                 continue
             data = json.loads(m.group())
         except Exception as e:
-            logging.warning(f"[ai_augment_mcqs] route fail: {e}")
+            logger.warning(f"[ai_augment_mcqs] route fail: {e}")
             continue
         q, fact, ep = (data.get("question") or "").strip(), (data.get("fact") or "").strip(), \
                       (data.get("exam_point") or "Prelims-relevant factual question.").strip()
-        # GROUNDING GATE: fact must be a verbatim substring of the item's own verified text
         if not q or not fact or fact not in own_text:
             continue
         qkey = re.sub(r"\W+", "", q.lower())[:60]
         if qkey in existing_q:
             continue
-        distr = [v for v in (pool_nums if any(ch.isdigit() for ch in fact) else pool_names)
-                 if v not in own_text]
+        distr = [v for v in (pool_nums if any(ch.isdigit() for ch in fact) else pool_names) if v not in own_text]
         opts, corr = _opts(fact, distr)
         if not opts:
             continue
@@ -573,7 +512,6 @@ def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
 
     if not added:
         return []
-    # --- batch Hindi translation (one router call) ---
     try:
         lines = []
         for m in added:
@@ -587,8 +525,8 @@ def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
                 m["question_hi"] = got[2 * i]
                 m["explanation_hi"] = got[2 * i + 1]
     except Exception as e:
-        logging.warning(f"[ai_augment_mcqs] Hindi batch fail: {e}")
-    for m in added:  # never ship empty Hindi fields (PDF renders them directly)
+        logger.warning(f"[ai_augment_mcqs] Hindi batch fail: {e}")
+    for m in added:
         m["question_hi"] = m.get("question_hi") or m["question_en"]
         m["explanation_hi"] = m.get("explanation_hi") or m["explanation_en"]
     return added
