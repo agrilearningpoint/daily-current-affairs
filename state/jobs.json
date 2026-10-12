@@ -47,6 +47,14 @@
   "status": "FAILED_FINAL",
   "updated": "2026-10-12T08:03:11.476046+05:30"
  },
+ "daily_2026-10-12": {
+  "error": "name 're' is not defined",
+  "failed_at": "03_news_collection",
+  "job_id": "daily_2026-10-12",
+  "last_success_stage": "00_model_orchestrator",
+  "status": "FAILED_FINAL",
+  "updated": "2026-10-12T11:59:54.677281+05:30"
+ },
  "weekly_2026-10-11": {
   "error": "name 're' is not defined",
   "failed_at": "03_news_collection",
