@@ -45,7 +45,7 @@
   "job_id": "daily_2026-10-09",
   "last_success_stage": "00_model_orchestrator",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-12T04:48:45.671788+05:30"
+  "updated": "2026-10-12T08:03:11.476046+05:30"
  },
  "weekly_2026-10-11": {
   "error": "name 're' is not defined",
