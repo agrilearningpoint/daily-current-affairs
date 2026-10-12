@@ -1,4 +1,27 @@
 {
+ "019a93844e92aa23": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Economy",
+  "first_seen": "2026-10-13",
+  "headline": "SIP inflows hit all-time high of Rs 32,490 crore in September: AMFI data",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Mumbai, Oct 12 (IANS) Monthly mutual fund inflows through systematic investment plans (SIPs) hit a new all-time high in September, rising to Rs 32,490 crore from Rs 32,297 crore in August, according to data released by the Association of Mutual Funds in India (AMFI) on Monday. While total mutual fund industry assets under management stood at Rs 82.64 lakh crore and equity net inflow surged by 30.6 per cent to Rs 38,306.55 crore. AMFI data showed open-ended equity schemes mobilised Rs 74,831.96 crore during the month against redemption of Rs 36,525.41 crore. Net AUM for equity schemes stood at ",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 20.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Thehawk",
+  "source_url": "https://www.thehawk.in/news/economy-and-business/sip-inflows-hit-all-time-high-of-rs-32490-crore-in-september-amfi-data",
+  "student_relevance": 35,
+  "trend": "NEW"
+ },
  "0907dd4d50b4e04b": {
   "agri_focus": false,
   "banking_focus": true,
@@ -48,6 +71,75 @@
   "source_name": "FAO",
   "source_url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxOazhJdDE5MmhMV3F0eTFTT2diTUFFZkVHaFFzVGI1UldydjR6ZG9Pa2ExTUs5ckJmTzJIU05XTm9uRGZ5dnhGWVZQanVqdWoxVXdPSzZZcGNvWFBKckJ6d1U1blNpb0ltQjlGeUoyREJadmhjcUFzYzd3c2Qxa1VqNE9BMmFrNTJh?oc=5",
   "student_relevance": 45,
+  "trend": "NEW"
+ },
+ "366279499a0ff005": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "International",
+  "first_seen": "2026-10-13",
+  "headline": "Jio IPO may be valued at Rs 11 lakh crore: What it means for RIL, Bharti Airtel and telecom stocks",
+  "headline_hi": "",
+  "importance_score": 18,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Jio Platforms’ proposed Rs 30,000 crore IPO could become India’s biggest-ever share sale, valuing Mukesh Ambani’s digital business at up to Rs 11 lakh crore. With global and domestic investors showing interest, the listing will test Jio’s valuation against Bharti Airtel, potentially reshape telecom sector dynamics and offer investors a direct route to participate in Reliance’s digital growth story.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 18.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Economic Times",
+  "source_url": "https://economictimes.indiatimes.com/markets/ipos/fpos/jio-ipo-may-be-valued-at-rs-11-lakh-crore-what-it-means-for-ril-bharti-airtel-and-telecom-stocks/articleshow/134885702.cms",
+  "student_relevance": 30,
+  "trend": "NEW"
+ },
+ "3a68c14bf31d9398": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Government Schemes",
+  "first_seen": "2026-10-13",
+  "headline": "दिल्ली में EV खरीदने वालों की Good News: 100% रोड टैक्स माफ, 2700 लोगों को फायदा, बांटे गए 7.91 करोड़ इंसेंटिव",
+  "headline_hi": "",
+  "importance_score": 11,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Delhi EV Policy 2026 Incentives दिल्ली EV पॉलिसी 2026 के तहत 8 अक्टूबर तक 7.91 करोड़ रुपये के इंसेंटिव बांटे गए। जानें इलेक्ट्रिक गाड़ी खरीदने और पुरानी गाड़ी स्क्रैप कराने पर किसे कितना फायदा मिला।",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 11.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "One India",
+  "source_url": "https://hindi.oneindia.com/news/delhi/delhi-ev-policy-2026-incentives-offered-motorists-touch-rs-791-crore-road-tax-waiver-1666431.html",
+  "student_relevance": 31,
+  "trend": "NEW"
+ },
+ "3b46348ead73c82a": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-13",
+  "headline": "Spectrum Digital Appoints Narin Shetty as Group President – Marketing & Growth Mumbai, India #Ad",
+  "headline_hi": "",
+  "importance_score": 24,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Narin Shetty will lead marketing, growth and strategic business initiatives at Spectrum Digital as the company prepares for its next phase of expansion. The post Spectrum Digital Appoints Narin Shetty as Group President – Marketing & Growth Mumbai, India #Ad appeared first on MEDIANAMA.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 24.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Medianama",
+  "source_url": "https://www.medianama.com/2026/10/223-spectrum-digital-appoints-narin-shetty-as-group-president-marketing-growth-mumbai-india-ad/",
+  "student_relevance": 32,
   "trend": "NEW"
  },
  "4015b4041ccb2d96": {
@@ -380,6 +472,29 @@
   "student_relevance": 23,
   "trend": "NEW"
  },
+ "a4e08b419914de66": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Economy",
+  "first_seen": "2026-10-13",
+  "headline": "Bombay Chamber Hosts Interactive Meeting on “Doing Business with Romania” to Strengthen India–Romania Trade and Investment Ties",
+  "headline_hi": "",
+  "importance_score": 19,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Bombay Chamber Hosts Interactive Meeting on “Doing Business with Romania” to Strengthen India–Romania Trade and Investment Ties The international Trade & Commerce Commitee of Bombay Chamber on October 7th, 2026 hosted an Interactive Meeting on “Doing Business with Romania” in partnership with the Embassy of Romania, and the Hon. Consul of Romaina, Mumbai, at The Ruby,",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 19.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Bombay Chamber -",
+  "source_url": "https://bombaychamber.com/industry-news/bombay-chamber-hosts-interactive-meeting-on-doing-business-with-romania-to-strengthen-india-romania-trade-and-investment-ties/",
+  "student_relevance": 34,
+  "trend": "NEW"
+ },
  "aad4015b2380a25d": {
   "first_seen": "2026-10-05",
   "headline": "National Advisory Board on Management of Genetic Resources Charts Roadmap for Strengthening India's Agrobiodiversity Conservation and Sustainable Utilization | ",
@@ -391,6 +506,29 @@
     "score": 32.0
    }
   ],
+  "trend": "NEW"
+ },
+ "bc42e73b88639603": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "Ranveer Singh Car Collection: Dhurandhar Star Buys Rs 2 Crore BMW i7 Electric Sedan, Drives It Home",
+  "headline_hi": "",
+  "importance_score": 15,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Ranveer Singh has reportedly bought a BMW i7 luxury electric sedan worth over Rs 2 crore. The actor was spotted driving the car on Mumbai roads.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 15.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "News 18",
+  "source_url": "https://www.news18.com/movies/bollywood/ranveer-singh-car-collection-dhurandhar-star-buys-rs-2-crore-bmw-i7-electric-sedan-drives-it-home-10377841.html",
+  "student_relevance": 40,
   "trend": "NEW"
  },
  "c30216e0c3baeae9": {
