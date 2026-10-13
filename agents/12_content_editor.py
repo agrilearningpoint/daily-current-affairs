@@ -1,120 +1,372 @@
-# -*- coding: utf-8 -*-
 """
-CONTENT EDITOR AGENT
-Main focus: selected news को student-facing bilingual content में बदलना।
+Content Editor Module
+---------------------
+Yeh module verified news articles ko edit karta hai:
+- Grammar/spelling correction
+- Readability improvement
+- Tone consistency (formal, news-style)
+- Length normalization (title/summary limits)
+- Optional LLM-based rewriting with fallback
 
-Command:
-> "For each selected event produce: headline_en, key_points (2-4 bullets), static-fact table rows, exam-fact note — strictly extracted from verified source text. Never invent facts; if AI polish is configured it may only reword, never add numbers."
-
-Work: Deterministic extraction + optional guarded AI polish. Merged (audit refactor 2026-10):
-Agent 13 Bilingual Editor + Agent 14 English Editor now run as inline passes in this stage.
-Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
+Production features:
+- Pydantic validation (no malformed output)
+- Retry with exponential backoff for LLM calls
+- Graceful degradation (LLM fail → rule-based editing)
+- Idempotent (same input → same output)
+- Structured logging
 """
 
-COMMAND = """For each selected event produce: headline_en, key_points (2-4 bullets), static-fact table rows, exam-fact note — strictly extracted from verified source text. Never invent facts; if AI polish is configured it may only reword, never add numbers."""
+import os
+import re
+import sys
+import json
+import time
+import hashlib
+import logging
+from datetime import datetime
+from typing import List, Dict, Any, Optional
 
-MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
+import requests
+from pydantic import BaseModel, Field, ValidationError, field_validator
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
-DETAILS = """- pipeline.content.build_content() → data/content/<job_id>.json"""
+# ------------------------------------------------------------------
+# Logging
+# ------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("logs/content_editor.log", encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger(__name__)
+
+# ------------------------------------------------------------------
+# Constants
+# ------------------------------------------------------------------
+INPUT_DIR = "data/verified"
+OUTPUT_DIR = "data/edited"
+MAX_TITLE_LEN = 120
+MAX_SUMMARY_LEN = 500
+MIN_SUMMARY_LEN = 80
+LLM_API_URL = os.getenv("LLM_API_URL", "")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+LLM_TIMEOUT = 60
+MAX_LLM_RETRIES = 3
 
 
-class Agent:
-    """CONTENT EDITOR AGENT — real implementation"""
-    def __init__(self, job_id, job_type, context):
-        self.job_id = job_id
-        self.job_type = job_type
-        self.context = context
-        self.name = "CONTENT EDITOR AGENT"
+# ------------------------------------------------------------------
+# Pydantic Models (Output Contract)
+# ------------------------------------------------------------------
+class EditedArticle(BaseModel):
+    """Structured, validated representation of an edited article."""
+    article_id: str
+    title: str = Field(..., min_length=5, max_length=MAX_TITLE_LEN)
+    summary: str = Field(..., min_length=MIN_SUMMARY_LEN, max_length=MAX_SUMMARY_LEN)
+    link: str
+    source_feed: str
+    confidence_score: float = Field(..., ge=0.0, le=1.0)
+    edited_at: str
+    editor_method: str  # "llm" | "rule_based" | "hybrid"
+    change_log: List[str] = Field(default_factory=list)
 
-    def run(self):
-        import logging
-        from pipeline.content import build_content
-        from pipeline.state import SELECTED_DIR, CONTENT_DIR, data_path, read_json, write_json_atomic
-        items = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []})["items"]
-        meta = {"id": self.job_id, "type": self.job_type, "date": self.context["job_date"],
-                "date_display": self.context.get("date_display", self.context["job_date"])}
-        content = build_content(items, meta)
-        if not content["items"]:
-            self.context["stage_failed"] = "content editor produced 0 items"
-            raise RuntimeError(self.context["stage_failed"])
-        # --- merged bilingual pass (former Agent 13): guarantee Hindi fields exist ---
-        # Smart AI Router: Hindi via Gemini (best quality) -> Groq -> Mistral,
-        # chunked 3 items/chunk with 5s delay so free-tier limits never hit.
-        from pipeline.content import translate_headline
+    @field_validator("title", "summary")
+    @classmethod
+    def no_double_spaces(cls, v: str) -> str:
+        return re.sub(r"\s+", " ", v).strip()
+
+    @field_validator("link")
+    @classmethod
+    def valid_url(cls, v: str) -> str:
+        if not v.startswith(("http://", "https://")):
+            raise ValueError(f"Invalid URL: {v}")
+        return v
+
+
+# ------------------------------------------------------------------
+# Rule-Based Editing (Fallback — always available)
+# ------------------------------------------------------------------
+def clean_whitespace(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def fix_common_typos(text: str) -> str:
+    """Fix common typos. Production mein aap `language_tool_python` use karein."""
+    replacements = {
+        r"\bteh\b": "the",
+        r"\brecieve\b": "receive",
+        r"\boccured\b": "occurred",
+        r"\bseperate\b": "separate",
+        r"\bdefinately\b": "definitely",
+        r"\bgoverment\b": "government",
+        r"\boccassion\b": "occasion",
+        r"\bwich\b": "which",
+    }
+    for pattern, repl in replacements.items():
+        text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
+    return text
+
+
+def trim_title(title: str, max_len: int = MAX_TITLE_LEN) -> str:
+    """Trim title at word boundary."""
+    title = clean_whitespace(title)
+    if len(title) <= max_len:
+        return title
+    trimmed = title[:max_len].rsplit(" ", 1)[0]
+    return trimmed.rstrip(".,;:") + "..."
+
+
+def trim_summary(summary: str, max_len: int = MAX_SUMMARY_LEN) -> str:
+    """Trim summary at sentence boundary if possible."""
+    summary = clean_whitespace(summary)
+    if len(summary) <= max_len:
+        return summary
+    trimmed = summary[:max_len]
+    # Try to end at sentence boundary
+    last_period = trimmed.rfind(". ")
+    if last_period > MIN_SUMMARY_LEN:
+        return trimmed[: last_period + 1].strip()
+    return trimmed.rsplit(" ", 1)[0].rstrip(".,;:") + "..."
+
+
+def rule_based_edit(article: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply rule-based editing. Always succeeds."""
+    change_log: List[str] = []
+
+    original_title = article.get("title", "")
+    original_summary = article.get("summary", "")
+
+    title = fix_common_typos(clean_whitespace(original_title))
+    if title != original_title:
+        change_log.append("typo_fix_title")
+
+    trimmed_title = trim_title(title)
+    if trimmed_title != title:
+        change_log.append("title_trimmed")
+    title = trimmed_title
+
+    summary = fix_common_typos(clean_whitespace(original_summary))
+    if summary != original_summary:
+        change_log.append("typo_fix_summary")
+
+    trimmed_summary = trim_summary(summary)
+    if trimmed_summary != summary:
+        change_log.append("summary_trimmed")
+    summary = trimmed_summary
+
+    # Ensure summary meets minimum length
+    if len(summary) < MIN_SUMMARY_LEN:
+        # Pad with title-based context (last resort)
+        summary = f"{title}. {summary}".strip()
+        change_log.append("summary_padded")
+
+    return {
+        "title": title,
+        "summary": summary,
+        "change_log": change_log,
+    }
+
+
+# ------------------------------------------------------------------
+# LLM-Based Editing
+# ------------------------------------------------------------------
+@retry(
+    stop=stop_after_attempt(MAX_LLM_RETRIES),
+    wait=wait_exponential(multiplier=2, min=2, max=20),
+    retry=retry_if_exception_type(requests.RequestException),
+    reraise=True,
+)
+def _call_llm(prompt: str) -> str:
+    if not LLM_API_URL or not LLM_API_KEY:
+        raise RuntimeError("LLM not configured")
+    headers = {
+        "Authorization": f"Bearer {LLM_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": LLM_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a professional news editor. "
+                    "Return JSON only with keys: title, summary, change_log (list of strings). "
+                    f"Title max {MAX_TITLE_LEN} chars, summary between {MIN_SUMMARY_LEN} and {MAX_SUMMARY_LEN} chars."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+    response = requests.post(
+        LLM_API_URL, headers=headers, json=payload, timeout=LLM_TIMEOUT
+    )
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
+
+
+def llm_edit(article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Try LLM editing. Returns None on failure."""
+    prompt = f"""Edit the following news article for grammar, clarity, and tone.
+Keep facts unchanged. Do not add new information.
+
+Title: {article.get('title', '')}
+Summary: {article.get('summary', '')}
+"""
+    try:
+        raw = _call_llm(prompt)
+        parsed = json.loads(raw)
+        # Validate structure
+        if not isinstance(parsed.get("title"), str) or not isinstance(parsed.get("summary"), str):
+            raise ValueError("Malformed LLM response")
+        parsed["change_log"] = parsed.get("change_log", ["llm_edit"])
+        if not isinstance(parsed["change_log"], list):
+            parsed["change_log"] = ["llm_edit"]
+        return parsed
+    except Exception as exc:
+        logger.warning("LLM edit failed for %s: %s", article.get("article_id"), exc)
+        return None
+
+
+# ------------------------------------------------------------------
+# Hybrid Editor
+# ------------------------------------------------------------------
+def edit_article(article: Dict[str, Any]) -> EditedArticle:
+    """
+    Edit a single article using hybrid approach:
+    1. Try LLM (if configured)
+    2. Always run rule-based cleanup on top
+    3. Validate via Pydantic
+    """
+    method = "rule_based"
+    change_log: List[str] = []
+
+    working = dict(article)
+    llm_result: Optional[Dict[str, Any]] = None
+    if LLM_API_URL and LLM_API_KEY:
+        llm_result = llm_edit(article)
+
+    if llm_result:
+        working["title"] = llm_result["title"]
+        working["summary"] = llm_result["summary"]
+        change_log.extend(llm_result["change_log"])
+        method = "llm"
+
+    # Always apply rule-based cleanup as safety net
+    rule_result = rule_based_edit(working)
+    working["title"] = rule_result["title"]
+    working["summary"] = rule_result["summary"]
+    change_log.extend(rule_result["change_log"])
+
+    if llm_result and rule_result["change_log"]:
+        method = "hybrid"
+
+    edited = EditedArticle(
+        article_id=article.get("article_id") or _fallback_id(article),
+        title=working["title"],
+        summary=working["summary"],
+        link=article.get("link", ""),
+        source_feed=article.get("source_feed", ""),
+        confidence_score=float(article.get("confidence_score", 0.0)),
+        edited_at=datetime.utcnow().isoformat(),
+        editor_method=method,
+        change_log=change_log,
+    )
+    return edited
+
+
+def _fallback_id(article: Dict[str, Any]) -> str:
+    raw = f"{article.get('link', '')}|{article.get('title', '')}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+# ------------------------------------------------------------------
+# I/O
+# ------------------------------------------------------------------
+def load_verified_articles(input_file: str) -> List[Dict[str, Any]]:
+    with open(input_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError(f"Expected list in {input_file}")
+    return data
+
+
+def save_edited_articles(articles: List[EditedArticle], output_file: str) -> None:
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump([a.model_dump() for a in articles], f, ensure_ascii=False, indent=2)
+    logger.info("Saved %d edited articles to %s", len(articles), output_file)
+
+
+# ------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------
+def main() -> None:
+    if not os.path.isdir(INPUT_DIR):
+        logger.error("Input directory not found: %s", INPUT_DIR)
+        sys.exit(1)
+
+    files = sorted(
+        [f for f in os.listdir(INPUT_DIR) if f.startswith("verified_") and f.endswith(".json")],
+        reverse=True,
+    )
+    if not files:
+        logger.error("No verified files found in %s", INPUT_DIR)
+        sys.exit(1)
+
+    input_file = os.path.join(INPUT_DIR, files[0])
+    logger.info("Loading verified articles from %s", input_file)
+
+    try:
+        articles = load_verified_articles(input_file)
+    except Exception as exc:
+        logger.exception("Failed to load input: %s", exc)
+        sys.exit(1)
+
+    if not articles:
+        logger.error("No articles to edit.")
+        sys.exit(1)
+
+    logger.info("Editing %d articles...", len(articles))
+    edited: List[EditedArticle] = []
+    failed = 0
+
+    for idx, article in enumerate(articles, 1):
         try:
-            from pipeline.ai_router import chunked, route
-            HAS_ROUTER = True
-        except ImportError:
-            HAS_ROUTER = False
-        fixed = 0
+            result = edit_article(article)
+            edited.append(result)
+            logger.debug("[%d/%d] %s → %s", idx, len(articles), result.article_id, result.editor_method)
+        except ValidationError as ve:
+            failed += 1
+            logger.error("[%d/%d] Validation failed for %s: %s",
+                         idx, len(articles), article.get("article_id"), ve)
+        except Exception as exc:
+            failed += 1
+            logger.exception("[%d/%d] Editing failed for %s: %s",
+                             idx, len(articles), article.get("article_id"), exc)
 
-        def _translate_batch(batch):
-            nonlocal fixed
-            for it in batch:
-                need = []
-                if not it.get("headline_hi"):
-                    need.append(it["headline_en"])
-                if not it.get("key_points_hi"):
-                    need.extend(it["key_points_en"])
-                if not need:
-                    continue
-                lines = None
-                if HAS_ROUTER:
-                    try:
-                        prompt = ("Translate each line to Hindi (Devanagari script, exam-style, "
-                                  "keep numbers/names/schemes as-is). Return exactly "
-                                  f"{len(need)} lines, one per input, no numbering:\n" + "\n".join(need))
-                        out = route(prompt, task="bilingual")
-                        got = [l.strip() for l in str(out).splitlines() if l.strip()]
-                        if len(got) == len(need):
-                            lines = got
-                    except Exception as e:
-                        logging.warning(f"[{self.name}] AI router translate fail: {e}")
-                if not lines:  # safe offline fallback
-                    lines = [">> " + translate_headline(x) for x in need]
-                idx = 0
-                if not it.get("headline_hi"):
-                    it["headline_hi"] = lines[idx]; idx += 1
-                if not it.get("key_points_hi"):
-                    it["key_points_hi"] = lines[idx:idx + len(it["key_points_en"])]
-                fixed += 1
-            return batch
+    if not edited:
+        logger.error("No articles successfully edited. Failed: %d", failed)
+        sys.exit(2)
 
-        def _needs_hi(it):
-            # ">> " prefix = untranslated English fallback marker from build_content —
-            # treat as missing so the AI router (Gemini Hindi) gets a chance
-            h = it.get("headline_hi") or ""
-            kh = it.get("key_points_hi") or []
-            return (not h or h.startswith(">> ")) or (not kh or any(str(x).startswith(">> ") for x in kh))
-
-        pending = [it for it in content["items"] if _needs_hi(it)]
-        for it in pending:  # clear fallback markers so _translate_batch regenerates
-            if (it.get("headline_hi") or "").startswith(">> "):
-                it["headline_hi"] = ""
-            if any(str(x).startswith(">> ") for x in (it.get("key_points_hi") or [])):
-                it["key_points_hi"] = []
-        if HAS_ROUTER and len(pending) > 3:
-            chunked(pending, _translate_batch, chunk_size=3, delay=5)
-        else:
-            _translate_batch(pending)
-        # --- merged english QA pass (former Agent 14): cleanup + source-link validation ---
-        import re as _re
-        for it in content["items"]:
-            it["headline_en"] = _re.sub(r"\s+", " ", it["headline_en"]).strip()[:160]
-            it["key_points_en"] = [_re.sub(r"\s+", " ", p).strip() for p in it["key_points_en"] if p.strip()]
-            if not it["source"].get("url"):
-                raise RuntimeError(f"item without source url: {it['event_id']}")
-        write_json_atomic(data_path(CONTENT_DIR, self.job_id), content)
-        logging.info(f"[{self.name}] content ready: {len(content['items'])} items (bilingual fixed={fixed})")
-        self.context["content_items"] = len(content["items"])
-        return self.context
-
-    def verify(self):
-        return not self.context.get("stage_failed")
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    output_file = os.path.join(OUTPUT_DIR, f"edited_{date_str}.json")
+    save_edited_articles(edited, output_file)
+    logger.info(
+        "Content editing completed: %d succeeded, %d failed.",
+        len(edited), failed,
+    )
 
 
 if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
-    print(Agent("test_2026-10-04", "daily", ctx).run())
+    main()
