@@ -96,6 +96,29 @@
   "student_relevance": 45,
   "trend": "NEW"
  },
+ "32400129e9c5fcec": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "Job Description - National on Animal Health Expert (2602118) - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 25,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Job Description - National on Animal Health Expert (2602118) Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 25.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxNYk1wVFRtUTM1cnR6U0Q2LVBOR28yRUlHZ0ZDcGVqQzJRU3ByYTJXbXF1SlF4SG9jVTJmdXhxZkpGZncxZXhiUlpKaGNXbVJhV0xuZElSWGxHSmhCbWh2R2FDTlVkcXJZY1NXSjN6VXZZZWpmNWszeUpxckE4VmdrVFpmNmpRMmdYd3htSFdSRXBFZ1BLOGpIUWQ2M0lBem5zRlZxRDJieWtmTVAwT2lWWXRNT2NtUC0z?oc=5",
+  "student_relevance": 50,
+  "trend": "NEW"
+ },
  "366279499a0ff005": {
   "agri_focus": false,
   "banking_focus": false,
@@ -188,6 +211,29 @@
   "student_relevance": 22,
   "trend": "NEW"
  },
+ "41799c6016fdcc3a": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "Events - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Events Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 20.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMiSEFVX3lxTE1VdThaS2RPOF9pVmdoeWhqcFBsaFFLUE1LS05jMG95aXdEa2JKb2Y5Vk1IWWJvTGJvMmZXbkp4MW50NzJjWmJmRQ?oc=5",
+  "student_relevance": 45,
+  "trend": "NEW"
+ },
  "47a6fc762a6bf79f": {
   "first_seen": "2026-10-05",
   "headline": "Website of Jal Jeevan Mission, Uttar Pradesh | Governance | Governance & Planning | Category - National Portal of India",
@@ -268,6 +314,29 @@
   "source_name": "The Hindu National",
   "source_url": "https://www.thehindu.com/news/national/karnataka/shivaraj-patil-demands-12-hour-power-supply/article71547520.ece",
   "student_relevance": 16,
+  "trend": "NEW"
+ },
+ "6c861b5ed1fc1ae6": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Government Schemes",
+  "first_seen": "2026-10-13",
+  "headline": "Highlights - Ministry of Statistics and Program Implementation",
+  "headline_hi": "",
+  "importance_score": 21,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Highlights Ministry of Statistics and Program Implementation | Also reported: - Ministry of Statistics and Program Implementation; - Ministry of Statistics and Program Implementation; - Ministry of Statistics and Program Implementation",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 21.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "MoSPI",
+  "source_url": "https://news.google.com/rss/articles/CBMitAFBVV95cUxORTZHakhZS0xBXzcwWnJCb0E2SlBnV3lrNXVGZmk5dVRjdDBWVVQzdEZ1WjVBa1BIVzdHektuVGRRaHpBdzZqOFgxRS05MXpfd3lNWXJrN0h1Z0pkQnB5djhrZWRBTzMzVVgyUmQwYndrTUsyY0dJOFNWT096T2NMRjNSamdaVEZMMUprUFdGVTJYb0JKV2dzeklmVk05bUVsaTZCbWZ1SEQyOG1QRm9oQUpqTWo?oc=5",
+  "student_relevance": 41,
   "trend": "NEW"
  },
  "711210498f946834": {
@@ -357,6 +426,75 @@
   "student_relevance": 44,
   "trend": "NEW"
  },
+ "7a72db102b6120ee": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "20, Tue - Side Events - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "20, Tue - Side Events Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 20.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMiYkFVX3lxTE1PcDk2OUF0bExGQnVFcjg1SHY3VFNvXzQ2SEMyU0I4Q1BFZ3ZCWng5aUtvZ2NVQU1CdnU2dmpZZ09uR0JURzBBUkNETTJxM0hPMTdTRjl0YmMySmZOY3gzdlFn?oc=5",
+  "student_relevance": 45,
+  "trend": "NEW"
+ },
+ "7bab7995eaa95bf4": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "Login - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Login Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 20.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMingFBVV95cUxNaWxISGc4U3RDeDk1ZFRybDB6bmJ1Rmdjb3pqVnkyNDg1WHJEajkzekEwdW5yMHIxNC1OajB2NjE2eEdIekFkOG0ySUFNSGIxak05Y0xiRmZPeFlUbkdqVnU1b1hMekI4X3FwSzVPZG54TXotVHQ1Y3JkRWw3SHVNYmFpWm9jSV9VbER1Mi12alJtS04wYzI0NnFQYVAzQQ?oc=5",
+  "student_relevance": 45,
+  "trend": "NEW"
+ },
+ "7f97ed624063c7e7": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "World Food Forum 2026: Flagship event opens under theme “Innovate Today. Nourish Tomorrow.” - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 22,
+  "last_seen": "2026-10-13",
+  "raw_facts": "World Food Forum 2026: Flagship event opens under theme “Innovate Today. Nourish Tomorrow.” Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 22.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMixwFBVV95cUxQTmM3RWlRcXotSU81b19ZNnBVSmxadXV0Z0FUODVGMm9jX3JTd3BEMmhKTTRXOGU3bVFTUXRFN0R4eTBjdmlST05JS1BCLS01ZlcxUzJqMWtyWUFnVjR4S25tTGZRN0sxeTNNNkRHQU9PcnNTZkFyZmszeWRwYnRvdFpFcXFnYTZpWnBvSzlfRE00bDNnU1FMRmFnTWlwcFBzb0ZDUExqZXJYSDBNRGNMMDVTdEdNel8wWlRwbTd2aTExbUdDWk1J?oc=5",
+  "student_relevance": 47,
+  "trend": "NEW"
+ },
  "80254c449a8bc0cf": {
   "agri_focus": true,
   "banking_focus": false,
@@ -401,6 +539,29 @@
   "source_name": "FAO",
   "source_url": "https://news.google.com/rss/articles/CBMirAJBVV95cUxQbThwTk02ZEE1aEROMm02QWt0anBySVV2RGphYUtQbnBwbEhfZUQwNlAwLVEza2VYV0RKX1liN0ZvM2JpQ3lRRFlxS2ZWUkV0T0YwS2NUZ3pMN2Fjc1FiS1NlTV9iMUlzUXhVZmFFR1ZrYXJiZjZBTjVmYmhXaUxOTWhwdFZGLXBUUGZfYmptR1hicWtWNUNIaHpNak9UWUNjd2hjdHNpOWxSN0RrdnRiWHdpaklJMFBvU0NReWQydG84dnhZbGVTa1hqWVRxcGtyNTNKQ3p0c2t3LWxTSUUtaEt3SzBKY29BcFNJSEsyclhhZFVpVVd5SFdTckhXeXFzcXBub1ZlYWhGRWFuOEFfeGlFRVljQUZiNW5uZTY4Y1d6WlFvOXQ2ZnFydHg?oc=5",
   "student_relevance": 54,
+  "trend": "NEW"
+ },
+ "827439bad2867d66": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "Job Description - Disaster Risk Management and Climate Change Adaptation Specialist (2602114) - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Job Description - Disaster Risk Management and Climate Change Adaptation Specialist (2602114) Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 20.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxOQjBsUGtrdjczM09uRzREZXktZW4yR3MzREpHcG5LT255MXRKVlROeUdUOUxLVG10X3Q5RjNKVUlvWU1fdjliallka0JPbW9ZUXdKSkE4ZnItVGhVaTl6WkdDdWdQSnZkVEZuaGtiQ3JFbHpEVXZxMzhkSjRseUg5TU9tSFFxZlc4UVh6MzBuemQ1VnJoUklxNnM0VWhiNUN3cVo0UHNrN2JTX2YyWkZWRWFMVHFLQ1c3?oc=5",
+  "student_relevance": 45,
   "trend": "NEW"
  },
  "8bafb2356c1b0716": {
@@ -541,6 +702,52 @@
   "student_relevance": 23,
   "trend": "NEW"
  },
+ "a0d68d6dfe202a58": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "MDR on UPI: Keralam hotels association says will stop accepting UPI payments above ₹2,000 from October 15",
+  "headline_hi": "",
+  "importance_score": 13,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Announcement following introduction of 0.4% UPI merchant discount rate, which the association says will impose additional financial burden on small establishments",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 13.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/kerala/mdr-on-upi-keralam-hotels-association-says-will-stop-accepting-upi-payments-above-2000-from-october-15/article71578221.ece",
+  "student_relevance": 38,
+  "trend": "NEW"
+ },
+ "a324b8df420ac60e": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "Press Releases - Reserve Bank of India",
+  "headline_hi": "",
+  "importance_score": 25,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Press Releases Reserve Bank of India",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 25.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "RBI",
+  "source_url": "https://news.google.com/rss/articles/CBMieEFVX3lxTE9DT2x5N0NTbVJWU1pFa3hwUFQ0STlNSDlFaUZoTUVoYTk1dGllZFk1TWo0RVhIcTcyc0RRVm5iRnJhd0pnWXhDTHQ4YlJGb0dreDZRekg3WWhISWFWbWpaM2R4c29LV1dRTl9ic1lfMzJvcHBvbklmbg?oc=5",
+  "student_relevance": 50,
+  "trend": "NEW"
+ },
  "a4e08b419914de66": {
   "agri_focus": false,
   "banking_focus": false,
@@ -575,6 +782,75 @@
     "score": 32.0
    }
   ],
+  "trend": "NEW"
+ },
+ "aaee37bc74c9926b": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "YM11 - Young Scientists Group: Young women navigating agrifood systems in conflict settings - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "YM11 - Young Scientists Group: Young women navigating agrifood systems in conflict settings Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 20.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPTG9FTzlZWVVrcVlneG5wT3VkX21vU0JOR3ZyRzdTXzNiWVFEem1OT1lZazJDUW5XVm5sMDItVXhHZEpqc2JvdU1yTXotVUNGM0RJR2xzakY3SzZsWmJ3cEZWYjVaUXVxS0dGWVZoOURGbERSUGoxdldMeUVnTldjTG1kdE01czRRVHZPbzV0MmhFVUFqY1h0RVJoZnROSm5vWlZxQWtLazJ2TzI0QmlYT3pPNHJEMWYyUXpVY0FMdUQtV1JNMm5LbA?oc=5",
+  "student_relevance": 45,
+  "trend": "NEW"
+ },
+ "ad01069d0e6a1489": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Economy",
+  "first_seen": "2026-10-13",
+  "headline": "Tata Motors, Stellantis Broaden Partnership for Technology and Export Growth",
+  "headline_hi": "",
+  "importance_score": 22,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Tata Motors and Stellantis are expanding their collaboration in vehicle technology and global exports, highlighting the growing importance of strategic partnerships in the automotive industry. The broader cooperation is expected to support technology development, improve product capabilities and create opportunities to strengthen the companies’ presence in international markets. Collaboration between automotive manufacturers can also help […] The post Tata Motors, Stellantis Broaden Partnership for Technology and Export Growth appeared first on India Seatrade News.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 22.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "India Seatrade News",
+  "source_url": "https://indiaseatradenews.com/tata-motors-stellantis-broaden-partnership-for-technology-and-export-growth/",
+  "student_relevance": 37,
+  "trend": "NEW"
+ },
+ "ad4bf924af9a4c34": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "Event | Small AI: More and Better Jobs | Annual Meetings 2026 - World Bank Live",
+  "headline_hi": "",
+  "importance_score": 17,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Event | Small AI: More and Better Jobs | Annual Meetings 2026 World Bank Live",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 17.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "World Bank",
+  "source_url": "https://news.google.com/rss/articles/CBMif0FVX3lxTFA2SUdxaUs4UUhiY2lHV0ZDMGpHNW9tWkFPTmowdDhIVG9RbkxFTUNKMWM1ZTNwX21SamlhS1dTeUVrVGF5RHRPajB6T1NibFA5ZXlPSUI1a0VPZ2RMUF96MmxVRVJhUnVtNjVCMGZ3WjF0bUNuRE45OHZJNXh4MDg?oc=5",
+  "student_relevance": 42,
   "trend": "NEW"
  },
  "b56b3a676df3fcc8": {
@@ -623,6 +899,29 @@
   "student_relevance": 40,
   "trend": "NEW"
  },
+ "bf8566dd0e07534a": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "What is the electoral roll cyber scam in which a 79-year-old Pune man lost ₹11.92 lakh?",
+  "headline_hi": "",
+  "importance_score": 13,
+  "last_seen": "2026-10-13",
+  "raw_facts": "The case raises questions about how banking credentials were compromised and whether personal information associated with electoral applications was obtained through phishing or other means",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 13.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Hindu National",
+  "source_url": "https://www.thehindu.com/news/national/maharashtra/what-is-the-electoral-roll-cyber-scam-in-which-a-79-year-old-pune-man-lost-1192-lakh/article71578039.ece",
+  "student_relevance": 38,
+  "trend": "NEW"
+ },
  "c30216e0c3baeae9": {
   "first_seen": "2026-10-05",
   "headline": "Financial Inclusion in India: Banking Every Citizen, Empowering Every Household - PIB",
@@ -634,6 +933,29 @@
     "score": 20.0
    }
   ],
+  "trend": "NEW"
+ },
+ "d412d9c90c106288": {
+  "agri_focus": true,
+  "banking_focus": false,
+  "category": "Agriculture",
+  "first_seen": "2026-10-13",
+  "headline": "Job Description - Programme Assistant (2602116) - Food and Agriculture Organization",
+  "headline_hi": "",
+  "importance_score": 20,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Job Description - Programme Assistant (2602116) Food and Agriculture Organization",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 20.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "FAO",
+  "source_url": "https://news.google.com/rss/articles/CBMifkFVX3lxTE4xTURHNXM0bXZISUN1dzVmcmpVTUdNVFRvOXRrR05oWmx5Qk51cFpOVWJIRHRlX0EyNUFyZTBXRXBPdXpYVUxVMFZaRHotb01hVU9Jdl8wT1pvZWdtbHEwUndqY3lkNUM1TXlONmVrMTUxRUtrY3hfejZXbW5RZw?oc=5",
+  "student_relevance": 45,
   "trend": "NEW"
  },
  "dd3fe03aebacac7f": {
@@ -739,6 +1061,52 @@
   "source_name": "The Hindu National",
   "source_url": "https://www.thehindu.com/news/cities/chennai/chennai-metro-phase-two-inauguration-poonamallee-vadapalani-narendra-modi-visit-schedule-cm-vijay-meeting-live-updates/article71570613.ece",
   "student_relevance": 24,
+  "trend": "NEW"
+ },
+ "faa956eaa8fd014b": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "World Bank Group Launches Philanthropy Hub to Unlock Capital, Knowledge and Networks for Development - World Bank Group",
+  "headline_hi": "",
+  "importance_score": 17,
+  "last_seen": "2026-10-13",
+  "raw_facts": "World Bank Group Launches Philanthropy Hub to Unlock Capital, Knowledge and Networks for Development World Bank Group",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 17.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "World Bank",
+  "source_url": "https://news.google.com/rss/articles/CBMi2AFBVV95cUxPZHZTN0JleHFyX2JpR2JDLVdrMUxrN3lPZUgyRnpKOXRiRkhwekRaZGpOdFlXNXZGZWU2X1paOU9wZFNXZ1dIenpkY05DX0ptbU1XeTgyWEx0Y3ZWSkRoZ3lzWjBMUjI5ZDlTRC1nMThpa2l6S1hIcS12d0FrcWlSTTdYQUxqbkhQb1ZzVzM0TEFRa2s3UW56ODU1TG1tZ243aDZEMk5CT0tPWGZBbUt0OGlJa2h1U0Ruby1KakgxMG9HejFtMzMycnFuazJCUlZpSGczQmpTNjA?oc=5",
+  "student_relevance": 42,
+  "trend": "NEW"
+ },
+ "ff848185f11b241f": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-13",
+  "headline": "Vygr PR Network Launches Eight Festive Season PR Packages for Brands Competing in India's Rs 60,000 Crore Ad Season",
+  "headline_hi": "",
+  "importance_score": 22,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Mumbai (Maharashtra) [India], October 12: Vygr Media has launched the Vygr Festive Special Packages, a set of eight festive season PR packages for founders, consumer brands, financial services firms and growth-stage companies. The packages are built for brands that want earned media coverage and stronger brand visibility while festive attention is at its peak.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-13",
+    "score": 22.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Business Standard",
+  "source_url": "https://www.business-standard.com/content/press-releases-ani/vygr-pr-network-launches-eight-festive-season-pr-packages-for-brands-competing-in-india-s-rs-60-000-crore-ad-season-126101300021_1.html",
+  "student_relevance": 30,
   "trend": "NEW"
  },
  "ff944301163a8b77": {

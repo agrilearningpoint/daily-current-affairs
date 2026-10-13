@@ -55,6 +55,14 @@
   "status": "FAILED_FINAL",
   "updated": "2026-10-12T15:12:12.276515+05:30"
  },
+ "daily_2026-10-13": {
+  "error": "MCQ validation failed with exception: 'list' object has no attribute 'values'. Cannot proceed with unvalidated MCQs.",
+  "failed_at": "16_mcq_generator",
+  "job_id": "daily_2026-10-13",
+  "last_success_stage": "15_image_agent",
+  "status": "FAILED_FINAL",
+  "updated": "2026-10-13T12:53:03.117867+05:30"
+ },
  "weekly_2026-10-11": {
   "error": "only 3 student-relevant events (min 5 for weekly)",
   "failed_at": "07_student_domain_relevance",
