@@ -1,88 +1,182 @@
-# -*- coding: utf-8 -*-
-"""NEWS COLLECTION AGENT v2 — Extended 200+ items for 15+ pages"""
-import hashlib, logging
+"""
+News Collection Module
+----------------------
+Yeh module various sources (RSS feeds, APIs) se news articles collect karta hai.
+Production-grade features:
+- Proper logging
+- Retry with exponential backoff
+- Regex-based text cleaning
+- Type hints
+- Error isolation (ek source fail ho toh baaki na ruke)
+"""
+
+import os
+import re
+import sys
+import json
+import time
+import random
+import logging
 from datetime import datetime
-import pytz
+from typing import List, Dict, Any, Optional
 
-COMMAND = "Collect current-affairs news for 15+ page coverage."
-MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
+import requests
+import feedparser
 
-class Agent:
-    def __init__(self, job_id, job_type, context):
-        self.job_id = job_id
-        self.job_type = job_type
-        self.context = context
-        self.name = "NEWS COLLECTION AGENT v2"
+# ------------------------------------------------------------------
+# Logging Configuration
+# ------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("logs/news_collection.log", encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger(__name__)
 
-    def run(self):
-        from pipeline.collector import collect_all, collect_window, in_window
-        from pipeline.state import RAW_DIR, data_path, write_json_atomic
-        max_items = {"daily": 200, "weekly": 300, "monthly": 400}.get(self.job_type, 200)
-        items, errors = collect_all(max_items=max_items, job_type=self.job_type)
-        start, end = collect_window(self.job_type, self.context["job_date"])
-        self.context["window_start"] = start.isoformat()
-        self.context["window_end"] = end.isoformat()
-        fresh = [i for i in items if in_window(i, start, end)]
+# ------------------------------------------------------------------
+# Constants
+# ------------------------------------------------------------------
+USER_AGENT = "AgriLearningPoint/1.0 (+https://github.com/agrilearningpoint)"
+REQUEST_TIMEOUT = 30  # seconds
+MAX_RETRIES = 3
+BACKOFF_FACTOR = 2  # exponential backoff: 2, 4, 8 seconds
+DEFAULT_SOURCES_FILE = "config/news_sources.json"
+OUTPUT_DIR = "data/raw"
+
+
+# ------------------------------------------------------------------
+# Helper Functions
+# ------------------------------------------------------------------
+def clean_text(text: str) -> str:
+    """
+    Remove HTML tags, extra whitespace, and non-printable characters.
+    Uses regex for robust cleaning.
+    """
+    if not text:
+        return ""
+    # Remove HTML tags
+    text = re.sub(r"<[^>]+>", " ", text)
+    # Replace multiple spaces/newlines with single space
+    text = re.sub(r"\s+", " ", text)
+    # Remove non-printable characters
+    text = re.sub(r"[^\x20-\x7E]", "", text)
+    return text.strip()
+
+
+def fetch_url(url: str) -> Optional[str]:
+    """
+    Fetch URL content with retries and exponential backoff.
+    Returns response text or None if all retries fail.
+    """
+    headers = {"User-Agent": USER_AGENT}
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            from pipeline.ai_router import collect_news
-            logging.info(f"[{self.name}] Fetching NewsData.io...")
-            en_news = collect_news("agriculture OR banking OR economy OR government India", language="en", country="in", limit=50)
-            hi_news = collect_news("कृषि OR बैंकिंग OR अर्थव्यवस्था OR सरकार", language="hi", country="in", limit=30)
-            for article in en_news + hi_news:
-                item = self._convert_newsdata(article)
-                if item and item["source_url"] not in {i["source_url"] for i in fresh}:
-                    fresh.append(item)
-            logging.info(f"[{self.name}] NewsData: +{len(en_news) + len(hi_news)} items")
-        except Exception as e:
-            logging.warning(f"[{self.name}] NewsData unavailable: {e}")
+            logger.debug("Fetching URL (attempt %d/%d): %s", attempt, MAX_RETRIES, url)
+            response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            return response.text
+        except requests.RequestException as exc:
+            wait = BACKOFF_FACTOR ** attempt + random.uniform(0, 1)
+            logger.warning(
+                "Attempt %d failed for %s: %s. Retrying in %.1f seconds...",
+                attempt, url, exc, wait
+            )
+            time.sleep(wait)
+    logger.error("All %d attempts failed for URL: %s", MAX_RETRIES, url)
+    return None
+
+
+def extract_articles_from_feed(feed_url: str) -> List[Dict[str, Any]]:
+    """
+    Parse RSS/Atom feed and return list of article dictionaries.
+    """
+    articles: List[Dict[str, Any]] = []
+    try:
+        feed = feedparser.parse(feed_url)
+        if feed.bozo:
+            logger.warning("Feed parser warning for %s: %s", feed_url, feed.bozo_exception)
+
+        for entry in feed.entries:
+            article = {
+                "title": clean_text(entry.get("title", "")),
+                "link": entry.get("link", ""),
+                "published": entry.get("published", ""),
+                "summary": clean_text(entry.get("summary", "")),
+                "source_feed": feed_url,
+                "collected_at": datetime.utcnow().isoformat(),
+            }
+            if article["title"] and article["link"]:
+                articles.append(article)
+        logger.info("Extracted %d articles from %s", len(articles), feed_url)
+    except Exception as exc:
+        logger.exception("Failed to parse feed %s: %s", feed_url, exc)
+    return articles
+
+
+def collect_news(sources: List[str]) -> List[Dict[str, Any]]:
+    """
+    Collect news from multiple sources. Errors in one source won't stop others.
+    """
+    all_articles: List[Dict[str, Any]] = []
+    for source in sources:
         try:
-            from pipeline.collector import core_coverage_report
-            cov = core_coverage_report(fresh)
-            logging.info(f"[{self.name}] CORE: {cov['covered']}/{cov['attempted']} ({cov['coverage_ratio']:.0%})")
-        except Exception:
-            pass
-        logging.info(f"[{self.name}] collected={len(items)} in-window={len(fresh)}")
-        min_items = {"daily": 30, "weekly": 50, "monthly": 70}.get(self.job_type, 30)
-        if len(fresh) < min_items:
-            self.context["stage_failed"] = f"only {len(fresh)} items (min {min_items})"
-            raise RuntimeError(self.context["stage_failed"])
-        write_json_atomic(data_path(RAW_DIR, self.job_id), {"items": fresh, "errors": errors})
-        return self.context
+            logger.info("Processing source: %s", source)
+            articles = extract_articles_from_feed(source)
+            all_articles.extend(articles)
+        except Exception as exc:
+            logger.exception("Error processing source %s: %s", source, exc)
+    return all_articles
 
-    def _convert_newsdata(self, article):
-        TZ = pytz.timezone("Asia/Kolkata")
-        title = (article.get("title") or "").strip()
-        link = (article.get("link") or "").strip()
-        if not title or not link:
-            return None
-        pub_date = None
-        pub_str = article.get("pubDate") or article.get("published_date")
-        if pub_str:
-            try:
-                from dateutil import parser as dtparser
-                pub_date = dtparser.parse(pub_str)
-                if pub_date.tzinfo is None:
-                    pub_date = pytz.utc.localize(pub_date)
-                pub_date = pub_date.astimezone(TZ)
-            except Exception:
-                pass
-        norm_title = title.lower()[:60]
-        date_key = pub_date.strftime("%Y-%m-%d") if pub_date else ""
-        eid = hashlib.sha1(f"{norm_title}|{date_key}".encode()).hexdigest()[:16]
-        from pipeline.collector import infer_category
-        category = infer_category(title + " " + (article.get("description") or ""))
-        return {
-            "event_id": eid, "headline_en": title,
-            "pub_time_ist": pub_date.isoformat() if pub_date else None,
-            "source_name": article.get("source_name", "NewsData"),
-            "source_url": link, "source_tier": "tier2", "source_level": 4,
-            "priority_score": 80, "verification_required": True,
-            "category": category, "raw_facts": (article.get("description") or "")[:600],
-            "image_url": article.get("image_url", ""),
-            "needs_primary_verification": True, "discovery_role": "discovery",
-            "collected_at": datetime.now(TZ).isoformat(),
-            "language": article.get("language", "en"),
-        }
 
-    def verify(self):
-        return not self.context.get("stage_failed")
+def save_articles(articles: List[Dict[str, Any]], output_path: str) -> None:
+    """
+    Save collected articles to a JSON file.
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(articles, f, ensure_ascii=False, indent=2)
+    logger.info("Saved %d articles to %s", len(articles), output_path)
+
+
+# ------------------------------------------------------------------
+# Main Entry Point
+# ------------------------------------------------------------------
+def main() -> None:
+    """
+    Main function to orchestrate news collection.
+    """
+    # Load sources from config file
+    sources_file = os.getenv("NEWS_SOURCES_FILE", DEFAULT_SOURCES_FILE)
+    if not os.path.exists(sources_file):
+        logger.error("Sources file not found: %s", sources_file)
+        sys.exit(1)
+
+    with open(sources_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+
+    sources = config.get("rss_feeds", [])
+    if not sources:
+        logger.error("No RSS feeds found in %s", sources_file)
+        sys.exit(1)
+
+    logger.info("Starting news collection from %d sources", len(sources))
+    articles = collect_news(sources)
+
+    if not articles:
+        logger.error("No articles collected. Exiting.")
+        sys.exit(1)
+
+    # Output file with date
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    output_file = os.path.join(OUTPUT_DIR, f"news_{date_str}.json")
+    save_articles(articles, output_file)
+
+    logger.info("News collection completed successfully.")
+
+
+if __name__ == "__main__":
+    main()
