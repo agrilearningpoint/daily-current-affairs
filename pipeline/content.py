@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 CONTENT EDITOR + BILINGUAL + MCQ LIBRARY (Agents 12-14, 16)
 
@@ -57,7 +57,7 @@ HEADLINE_PREFIX = ">> "
 MIN_OPTIONS = 4              # standard exam MCQ = 4 options (A-D); 5 allowed
 MAX_OPTIONS = 5
 SIMILARITY_LIMIT = 0.85      # text options more similar than this are rejected
-MEMORY_DEFAULT_PATH = "data/memory/importance_memory.json"
+MEMORY_DEFAULT_PATH = "state/importance_memory.json"
 
 # Kept only for backward compatibility with older imports (mixed-language, unused).
 MCQ_TPL_NUMBER = ("\u0907\u0938 \u0918\u091f\u0928\u093e \u0938\u0947 \u091c\u0941\u0921\u093c\u0940 "
