@@ -11,8 +11,16 @@ v3 Update: PROPER AI Translator integration with fail-closed behavior.
 - AI translator is PRIMARY method for Hindi translation
 - Deterministic translation is ONLY fallback if AI completely unavailable
 - Translation quality is tracked and logged
+
+P0 FIXES (2026-10 audit):
+- Fixed ALL broken f-strings (nested double quotes) -> SyntaxError on Python < 3.12
+- Added translate_headline() alias (agents/12_content_editor.py imports this name)
+- validate_mcqs(): fixed IndexError crash when 'correct' letter is invalid/missing
+- build_content(): safe .get() for source fields (no KeyError on malformed items)
+- MINI_DICT: removed stray leading space in "बैंकिंग" value
 """
 import hashlib, os, re, logging
+from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +31,7 @@ CAP_RE = re.compile(r"\b[A-Z][A-Za-z&]+(?:[ -][A-Z][A-Za-z&]+)+\b")
 MINI_DICT = {
     "Government": "सरकार", "Scheme": "योजना", "Launches": "लॉन्च", "Launched": "लॉन्च की गई",
     "Approved": "स्वीकृति", "Meeting": "बैठक", "Report": "रिपोर्ट", "Index": "सूचकांक",
-    "Agriculture": "कृषि", "Farming": "खेती", "Farmers": "किसान", "Banking": " बैंकिंग",
+    "Agriculture": "कृषि", "Farming": "खेती", "Farmers": "किसान", "Banking": "बैंकिंग",
     "Reserve Bank": "भारतीय रिज़र्व बैंक", "Budget": "बजट", "Ministry": "मंत्रालय",
     "India": "भारत", "Indian": "भारतीय", "New": "नया", "National": "राष्ट्रीय",
     "International": "अंतर्राष्ट्रीय", "Conference": "सम्मेलन", "Summit": "शिखर सम्मेलन",
@@ -84,7 +92,10 @@ def exam_fact(item):
         "Sports": "Tournament–winner–host triplet static GK में बार-बार आता है।",
         "National": "Appointments/awards — name + designation + tenure रिकॉर्ड करें।",
     }
-    return hints.get(cat, "Exam angle: source ministry/organisation और संख्यात्मक तथ्य दोहराएँ।") + f" Source event: "{h[:80]}"."
+    # P0 FIX (line 87 SyntaxError): nested double quotes inside f-string are invalid
+    # on Python < 3.12. Escaped \" works on every Python version.
+    return hints.get(cat, "Exam angle: source ministry/organisation और संख्यात्मक तथ्य दोहराएँ।") \
+        + f" Source event: \"{h[:80]}\"."
 
 
 def translate_headline_deterministic(en):
@@ -96,18 +107,25 @@ def translate_headline_deterministic(en):
     return out
 
 
+def translate_headline(text):
+    """Backward-compatible alias — agents/12_content_editor.py does
+    `from pipeline.content import translate_headline`. Without this alias that
+    agent crashes with ImportError and the whole pipeline stops at stage 12."""
+    return translate_headline_deterministic(text)
+
+
 def translate_with_ai_or_fallback(text, task="general"):
     """
     PRIMARY: AI translation using ai_translator module
     FALLBACK: Deterministic translation ONLY if AI module completely unavailable
-    
+
     Returns: (translated_text, method_used, confidence)
     """
     try:
         from pipeline.ai_translator import translate_content
-        
+
         result = translate_content(text, task=task)
-        
+
         if result.get("passed"):
             logger.debug(f"[Translation] AI passed (confidence={result.get('confidence', 0):.2f})")
             return result["translated_hi"], "ai_translator", result.get("confidence", 0)
@@ -115,12 +133,12 @@ def translate_with_ai_or_fallback(text, task="general"):
             logger.warning(f"[Translation] AI failed validation: {result.get('issues', [])}")
             fallback = translate_headline_deterministic(text)
             return fallback, "deterministic_fallback", 0.0
-            
+
     except ImportError:
         logger.warning("[Translation] ai_translator module not available, using deterministic fallback")
         fallback = translate_headline_deterministic(text)
         return fallback, "deterministic_fallback", 0.0
-        
+
     except Exception as e:
         logger.error(f"[Translation] AI error: {e}, using deterministic fallback")
         fallback = translate_headline_deterministic(text)
@@ -150,9 +168,9 @@ def polish_with_ai(text, source_text):
 
 def build_content(items, job_meta):
     """Produce content JSON with AI-first Hindi translation."""
-    
+
     logger.info(f"[Content Builder] Building content for {len(items)} items...")
-    
+
     out = []
     translation_stats = {
         "ai_passed": 0,
@@ -160,39 +178,39 @@ def build_content(items, job_meta):
         "deterministic_fallback": 0,
         "total_items": len(items)
     }
-    
+
     for it in items:
         kps = extract_key_points(it)
         sf = extract_static_facts(it)
         ef = exam_fact(it)
         title = it["headline_en"].lstrip("> ").strip()
-        
+
         # Translate headline
         headline_hi, headline_method, headline_conf = translate_with_ai_or_fallback(title, task="headline")
-        
+
         if headline_method == "ai_translator":
             translation_stats["ai_passed"] += 1
         elif headline_method == "deterministic_fallback":
             translation_stats["deterministic_fallback"] += 1
-        
+
         # Translate key points
         key_points_hi = []
         for kp in kps:
             kp_hi, kp_method, kp_conf = translate_with_ai_or_fallback(kp, task="key_points")
             key_points_hi.append(kp_hi)
-            
+
             if kp_method == "ai_translator":
                 translation_stats["ai_passed"] += 1
             elif kp_method == "deterministic_fallback":
                 translation_stats["deterministic_fallback"] += 1
-        
+
         # Translate exam fact
         exam_fact_hi, _, _ = translate_with_ai_or_fallback(ef, task="general")
-        
+
         # Polish English content
         title_en = polish_with_ai(title, it.get("raw_facts", ""))
         kps_en = [polish_with_ai(p, it.get("raw_facts", "")) for p in kps]
-        
+
         entry = {
             "event_id": it["event_id"],
             "category": it.get("category", "National"),
@@ -203,25 +221,26 @@ def build_content(items, job_meta):
             "static_facts": sf,
             "exam_fact_en": ef,
             "exam_fact_hi": exam_fact_hi,
-            "source": {"name": it["source_name"], "url": it["source_url"],
-                       "tier": it["source_tier"], "date": it.get("pub_time_ist")},
+            # P0 FIX: .get() defaults — malformed/weekly-memory items must not KeyError
+            "source": {"name": it.get("source_name", ""), "url": it.get("source_url", ""),
+                       "tier": it.get("source_tier", ""), "date": it.get("pub_time_ist")},
             "importance_score": it.get("importance_score", 0),
             "image_path": it.get("image_path", ""),
         }
         out.append(entry)
-    
+
     # Log translation statistics
     total_translations = translation_stats["ai_passed"] + translation_stats["deterministic_fallback"]
     ai_percentage = (translation_stats["ai_passed"] / total_translations * 100) if total_translations > 0 else 0
-    
-    logger.info(f"[Content Builder] Translation stats:")
+
+    logger.info("[Content Builder] Translation stats:")
     logger.info(f"  - AI Translator passed: {translation_stats['ai_passed']}")
     logger.info(f"  - Deterministic fallback: {translation_stats['deterministic_fallback']}")
     logger.info(f"  - AI success rate: {ai_percentage:.1f}%")
-    
+
     if translation_stats["deterministic_fallback"] > 0:
         logger.warning(f"[Content Builder] {translation_stats['deterministic_fallback']} translations used deterministic fallback")
-    
+
     return {"job": job_meta, "edition_title": "Current Affairs", "items": out}
 
 
@@ -334,19 +353,21 @@ def generate_mcqs(content_items, target=(12, 15)):
         hlh = ci["headline_hi"].lstrip("> ")[:90]
         cands = [v for v in ci["static_facts"].values()
                  if v in own_text and any(ch.isdigit() for ch in v)][:1]
+        # P0 FIX: every f-string below previously had UNESCAPED nested double quotes
+        # (e.g. f"...: "{hl}" ...") which is a SyntaxError on Python < 3.12.
         if cands and add("static-number",
                          f"{hl} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
                          f"{hlh} — इससे जुड़ी सही संख्या/राशि कौन-सी है?",
                          cands[0], pool_nums + _num_variants(cands[0]),
-                         f"As per {ci['source']['name']}: "{hl}" — the reported figure is {cands[0]}.",
+                         f"As per {ci['source']['name']}: \"{hl}\" — the reported figure is {cands[0]}.",
                          f"{ci['source']['name']} के अनुसार — रिपोर्ट की गई संख्या {cands[0]} है।",
                          ci, ci["exam_fact_en"][:120]):
             if not sparse_multi:
                 continue
         org_m = MIN_ORG_RE.search(own_text)
         if org_m and add("scheme-ministry",
-                         f""{hl[:70]}" से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
-                         f""{hlh[:70]}" से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
+                         f"\"{hl[:70]}\" से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
+                         f"\"{hlh[:70]}\" से कौन-सा मंत्रालय/संगठन मुख्यतः जुड़ा है?",
                          org_m.group(0)[:80].strip(), pool_names,
                          f"Source text pairs this event with: {org_m.group(0)[:80].strip()}.",
                          f"स्रोत पाठ में इस घटना का संबंध {org_m.group(0)[:80].strip()} से बताया गया है।",
@@ -355,8 +376,8 @@ def generate_mcqs(content_items, target=(12, 15)):
                 continue
         rk = RANK_RE.search(own_text)
         if rk and add("report-rank",
-                       f""{hl[:70]}" — इस सूचकांक/रैंकिंग में भारत/घटना से जुड़ी सही जानकारी कौन-सी है?",
-                       f""{hlh[:70]}" — इस सूचकांक/रैंकिंग में सही जानकारी कौन-सी है?",
+                       f"\"{hl[:70]}\" — इस सूचकांक/रैंकिंग में भारत/घटना से जुड़ी सही जानकारी कौन-सी है?",
+                       f"\"{hlh[:70]}\" — इस सूचकांक/रैंकिंग में सही जानकारी कौन-सी है?",
                        (rk.group(1) or rk.group(2)), pool_names,
                        f"Rank mentioned verbatim in verified source: {(rk.group(1) or rk.group(2))}.",
                        f"सत्यापित स्रोत में उल्लिखित रैंक: {(rk.group(1) or rk.group(2))}।",
@@ -365,8 +386,8 @@ def generate_mcqs(content_items, target=(12, 15)):
                 continue
         names = [n for n in CAP_RE.findall(ci["headline_en"]) if len(n) > 3]
         if names and add("who-org",
-                         f""{hl[:80]}" — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
-                         f""{hlh[:80]}" — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
+                         f"\"{hl[:80]}\" — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
+                         f"\"{hlh[:80]}\" — इस खबर में प्रमुख संस्था/नाम कौन-सा है?",
                          names[0], pool_names,
                          f"Source {ci['source']['name']}: {names[0]} appears verbatim in the verified headline.",
                          f"स्रोत {ci['source']['name']}: {names[0]} सिरहेड में मौजूद है।",
@@ -380,11 +401,11 @@ def generate_mcqs(content_items, target=(12, 15)):
                        if hh != ci["headline_en"] and hh not in own_text][:6]
         if ci["key_points_en"] and others and add(
                 "statement",
-                f""{hl[:70]}" घटना के बारे में कौन-सी कथन सत्य है?",
-                f""{hlh[:70]}" घटना के बारे में कौन-सा कथन सत्य है?",
+                f"\"{hl[:70]}\" घटना के बारे में कौन-सी कथन सत्य है?",
+                f"\"{hlh[:70]}\" घटना के बारे में कौन-सा कथन सत्य है?",
                 ci["key_points_en"][0][:150], others,
-                f"Statement directly quoted from verified reporting by {ci['source']['name']}: "{ci['key_points_en'][0][:150]}".",
-                f"यह कथन {ci['source']['name']} की सत्यापित रिपोर्ट से सीधे लिया गया है: "{ci['key_points_en'][0][:150]}"।",
+                f"Statement directly quoted from verified reporting by {ci['source']['name']}: \"{ci['key_points_en'][0][:150]}\".",
+                f"यह कथन {ci['source']['name']} की सत्यापित रिपोर्ट से सीधे लिया गया है: \"{ci['key_points_en'][0][:150]}\"।",
                 ci, "Statement-based questions अब सबसे common prelims pattern है।"):
             pass
 
@@ -394,55 +415,64 @@ def generate_mcqs(content_items, target=(12, 15)):
 
 
 def validate_mcqs(mcqs, content_items):
-    """Enhanced validation with 8 checks."""
+    """Enhanced validation with 8 checks. Returns (valid_list, rejected_list)."""
     heads = {c["event_id"]: (c["headline_en"] + " " + " ".join(c["key_points_en"])) for c in content_items}
     valid, rejected = [], []
     seen_q = set()
-    
+
     validation_stats = {"total": len(mcqs), "passed": 0, "failed": 0}
-    
+
     for m in mcqs:
         errs = []
         opts = m.get("options", [])
-        
+
         if len(set(opts)) != len(opts):
             errs.append("duplicate options")
         if not (1 <= len(opts) <= 5):
             errs.append("option count invalid")
-        ci = ord(m.get("correct", "Z")) - ord("A")
-        if not (0 <= ci < len(opts)):
+
+        # P0 FIX (IndexError crash): original code did
+        #   ci = ord(m.get("correct","Z")) - ord("A")   # e.g. "Z" -> 25
+        #   ... then m["options"][ci] OUTSIDE the bounds-check -> IndexError crash.
+        # Now we validate the index FIRST and only index opts when safe.
+        correct_letter = m.get("correct", "")
+        ci_idx = ord(correct_letter) - ord("A") if isinstance(correct_letter, str) and len(correct_letter) == 1 else -1
+        idx_ok = 0 <= ci_idx < len(opts)
+        if not idx_ok:
             errs.append("answer index out of range")
-        elif opts[ci] not in heads.get(m["event_id"], ""):
-            errs.append("answer not supported by source text")
-        if m.get("explanation_en") and opts and m["options"][ci] not in m["explanation_en"]:
-            errs.append("explanation missing correct option value")
-        qkey = re.sub(r"\W+", "", m["question_en"].lower())[:60]
+        else:
+            src_text = heads.get(m.get("event_id", ""), "")
+            if opts[ci_idx] not in src_text:
+                errs.append("answer not supported by source text")
+            if m.get("explanation_en") and opts[ci_idx] not in m["explanation_en"]:
+                errs.append("explanation missing correct option value")
+
+        qkey = re.sub(r"\W+", "", (m.get("question_en") or "").lower())[:60]
         if qkey in seen_q:
             errs.append("duplicate question")
         seen_q.add(qkey)
-        if any("none of these" in o.lower() for o in opts):
+        if any("none of these" in str(o).lower() for o in opts):
             errs.append("auto 'none of these' not allowed")
         if len(m.get("question_en", "")) < 20:
             errs.append("question too short")
-        
-        for i, opt1 in enumerate(opts):
-            for j, opt2 in enumerate(opts[i+1:], i+1):
-                from difflib import SequenceMatcher
-                similarity = SequenceMatcher(None, opt1.lower(), opt2.lower()).ratio()
+
+        for i in range(len(opts)):
+            for j in range(i + 1, len(opts)):
+                similarity = SequenceMatcher(None, str(opts[i]).lower(), str(opts[j]).lower()).ratio()
                 if similarity > 0.85:
                     errs.append(f"options {i} and {j} too similar ({similarity:.0%})")
                     break
-        
+
         if errs:
             rejected.append({**m, "errors": errs})
             validation_stats["failed"] += 1
         else:
             valid.append(m)
             validation_stats["passed"] += 1
-    
+
     logger.info(f"[MCQ Validation] {validation_stats['passed']}/{validation_stats['total']} MCQs passed "
                 f"({validation_stats['failed']} rejected)")
-    
+
     return valid, rejected
 
 
@@ -503,9 +533,10 @@ def ai_augment_mcqs(content_items, existing_mcqs, max_add=6):
         opts, corr = _opts(fact, distr)
         if not opts:
             continue
+        # P0 FIX: broken f-string (nested double quotes) -> escaped
         added.append({"type": "ai-direct", "question_en": q[:200], "question_hi": "",
                       "options": opts, "correct": corr,
-                      "explanation_en": f"Verbatim from verified source: "{fact}".",
+                      "explanation_en": f"Verbatim from verified source: \"{fact}\".",
                       "explanation_hi": "", "exam_point": ep[:120],
                       "event_id": ci["event_id"], "source_url": ci["source"]["url"]})
         existing_q.add(qkey)
