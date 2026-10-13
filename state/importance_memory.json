@@ -50,6 +50,29 @@
   "student_relevance": 39,
   "trend": "STABLE"
  },
+ "2642f7e39dd46015": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "International",
+  "first_seen": "2026-10-13",
+  "headline": "Pakistani woman offering namaz in the middle of an Adelaide road gets killed by car: Australian court suspends driver’s prison sentence",
+  "headline_hi": "",
+  "importance_score": 10,
+  "last_seen": "2026-10-13",
+  "raw_facts": "An Australian court suspended the prison sentence of driver Ashton Friend, who struck and killed 20-year-old Pakistani student Samia Malik",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 10.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Op India",
+  "source_url": "https://www.opindia.com/news-updates/pakistani-woman-offering-namaz-in-the-middle-of-an-adelaide-road-gets-killed-by-car-australian-court-suspends/",
+  "student_relevance": 22,
+  "trend": "NEW"
+ },
  "292f79fd3eea624b": {
   "agri_focus": true,
   "banking_focus": false,
@@ -311,6 +334,29 @@
   "student_relevance": 45,
   "trend": "STABLE"
  },
+ "79200e600cfff23d": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "Bank Of India Declares ₹575.40 Crore Future Enterprises Loan Account As Fraud, Full Provision Made",
+  "headline_hi": "",
+  "importance_score": 19,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Bank of India declares Future Enterprises' Rs 575.40 crore NPA account as fraud, makes full provision for the exposure and reports the matter to RBI in its latest regulatory filing.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 19.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Free Press Journal",
+  "source_url": "https://www.freepressjournal.in/business/bank-of-india-declares-57540-crore-future-enterprises-loan-account-as-fraud-full-provision-made",
+  "student_relevance": 44,
+  "trend": "NEW"
+ },
  "80254c449a8bc0cf": {
   "agri_focus": true,
   "banking_focus": false,
@@ -426,6 +472,29 @@
   "student_relevance": 18,
   "trend": "NEW"
  },
+ "95ce8d369decf1ed": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-13",
+  "headline": "Amazon Great Indian Festival 2026: Asus Vivobook 15 is available with over Rs 32,000 discount, check details",
+  "headline_hi": "",
+  "importance_score": 13,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Amazon Great Indian Festival 2026: Asus Vivobook 15 is available with over Rs 32,000 discount, check details",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 13.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Digit",
+  "source_url": "https://www.digit.in/news/laptops/amazon-great-indian-festival-2026-asus-vivobook-15-is-available-with-over-rs-32000-discount-check-details.html",
+  "student_relevance": 21,
+  "trend": "NEW"
+ },
  "9aac17c186673a5a": {
   "agri_focus": false,
   "banking_focus": false,
@@ -506,6 +575,29 @@
     "score": 32.0
    }
   ],
+  "trend": "NEW"
+ },
+ "b56b3a676df3fcc8": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Economy",
+  "first_seen": "2026-10-13",
+  "headline": "Gold ETF inflows jump to Rs 4,451 crore in September: Why are investors turning to the yellow metal?",
+  "headline_hi": "",
+  "importance_score": 10,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Gold ETFs attracted Rs 4,451 crore in September, the highest monthly inflow in seven months, despite a broader mutual fund outflow trend. Investors turned to gold amid geopolitical tensions, economic uncertainty, and a correction in prices.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 10.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "Et Now",
+  "source_url": "https://www.etnownews.com/markets/gold-etf-inflows-jump-september-investors-turn-to-gold-safe-haven-asset-article-156324247",
+  "student_relevance": 25,
   "trend": "NEW"
  },
  "bc42e73b88639603": {
@@ -601,6 +693,29 @@
     "score": 20.0
    }
   ],
+  "trend": "NEW"
+ },
+ "f13605a8eccd3219": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "National",
+  "first_seen": "2026-10-13",
+  "headline": "Sona Mohapatra defends 'Dhurandhar: The Revenge' Grammy submissions: 'There’s a good reason why these musicians have no choice'",
+  "headline_hi": "",
+  "importance_score": 18,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Sona Mohapatra champions the cause of Indian musicians striving for Grammy acknowledgment, shedding light on the lack of appreciation and support for local talent in India. She points out that these artists often seek validation from international platforms. Mohapatra advocates for fostering an environment where all music receives due respect in India. Notably, 'Dhurandhar 2' is vying for nine categories at the forthcoming Grammy Awards.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "daily_2026-10-05",
+    "score": 18.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Times Of India",
+  "source_url": "https://timesofindia.indiatimes.com/entertainment/hindi/bollywood/news/sona-mohapatra-defends-dhurandhar-the-revenge-grammy-submissions-theres-a-good-reason-why-these-musicians-have-no-choice/articleshow/134894464.cms",
+  "student_relevance": 26,
   "trend": "NEW"
  },
  "f65f93b228b21496": {
