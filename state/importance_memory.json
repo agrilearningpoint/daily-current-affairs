@@ -50,6 +50,52 @@
   "student_relevance": 39,
   "trend": "STABLE"
  },
+ "0b8ebbf1a2cac380": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "RBI tightens rules on rupee non-deliverable contracts, widens 20% cash reserve requirement",
+  "headline_hi": "",
+  "importance_score": 19,
+  "last_seen": "2026-10-13",
+  "raw_facts": "The Reserve Bank of India on Monday tightened rules on rupee non-deliverable derivative contracts, limiting overseas clients to using them only for hedging, and widened a 20% cash reserve requirement to banks' own rupee currency hedges.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "weekly_2026-10-11",
+    "score": 19.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Economic Times",
+  "source_url": "https://economictimes.indiatimes.com/markets/forex/forex-news/rbi-tightens-rules-on-rupee-non-deliverable-contracts-widens-20-cash-reserve-requirement/articleshow/134905710.cms",
+  "student_relevance": 44,
+  "trend": "NEW"
+ },
+ "207c2950bba38ffc": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute",
+  "headline_hi": "",
+  "importance_score": 21,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Old Monk has announced a loss exceeding Rs 500 crore after the Food Safety and Standards Authority of India (FSSAI) imposed conditions on the sale of the popular rum in Maharashtra. The regulator has insisted that the product must be labelled as “rum-like” instead of the traditional “rum” description. This dispute was brought before the […] The post Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute appeared first on The CSR Journal.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "weekly_2026-10-11",
+    "score": 21.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Csr Journal",
+  "source_url": "https://thecsrjournal.in/old-monk-reports-rs-500-crore-loss-amid-labelling-dispute",
+  "student_relevance": 46,
+  "trend": "NEW"
+ },
  "2642f7e39dd46015": {
   "agri_focus": false,
   "banking_focus": false,
@@ -922,6 +968,29 @@
   "student_relevance": 38,
   "trend": "NEW"
  },
+ "bfb1f59f16e168e4": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "The value of private investment in AI in India in 2025 that tripled from $1.2 billion in 2024. However, only 23.4% of Indian firms reported using AI, compared w",
+  "headline_hi": "",
+  "importance_score": 28,
+  "last_seen": "2026-10-13",
+  "raw_facts": "The value of private investment in AI in India in 2025 that tripled from $1.2 billion in 2024. However, only 23.4% of Indian firms reported using AI, compared with 42.7% of firms in the United States, according to a recent World Bank survey.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "weekly_2026-10-11",
+    "score": 28.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Global Indian",
+  "source_url": "https://www.globalindian.com/worldinnumbers/the-value-of-private-investment-in-ai-in-india-in-2025-that-tripled-from-1-2-billion-in-2024-however-only-23-4-per-cent-of-indian-firms-reported-using-ai-compared-with-42-7-per-cent-of-firms-in-th/",
+  "student_relevance": 53,
+  "trend": "NEW"
+ },
  "c30216e0c3baeae9": {
   "first_seen": "2026-10-05",
   "headline": "Financial Inclusion in India: Banking Every Citizen, Empowering Every Household - PIB",
@@ -933,6 +1002,29 @@
     "score": 20.0
    }
   ],
+  "trend": "NEW"
+ },
+ "c6f104c61430957e": {
+  "agri_focus": false,
+  "banking_focus": false,
+  "category": "Economy",
+  "first_seen": "2026-10-13",
+  "headline": "Fitch unit raises India FY27 growth forecast to 7.5%",
+  "headline_hi": "",
+  "importance_score": 19,
+  "last_seen": "2026-10-13",
+  "raw_facts": "BMI has raised India's economic growth forecast for 2026-27 to 7.5% from the previous estimate of 6.8%. The agency cites strong growth momentum and ongoing investment in artificial intelligence as key factors. However, risks from rising oil prices and potential El Nino disruptions could negatively impact growth. Additionally, the forecast for 2027-28 has been adjusted down to 6.3%, reflecting concerns for household consumption.",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "weekly_2026-10-11",
+    "score": 19.0
+   }
+  ],
+  "source_level": 4,
+  "source_name": "The Economic Times",
+  "source_url": "https://economictimes.indiatimes.com/news/economy/fitch-unit-ups-indias-fy27-growth-forecast-to-75-amid-ai-investment-boom-but-cautions-on-oil-prices-and-el-nino-risks/articleshow/134901962.cms",
+  "student_relevance": 34,
   "trend": "NEW"
  },
  "d412d9c90c106288": {
@@ -1130,6 +1222,29 @@
   "source_name": "Tech Achieve Media",
   "source_url": "https://techachievemedia.com/live-coverage/10th-edition-of-india-mobile-congress-2026-concludes-successfully/",
   "student_relevance": 32,
+  "trend": "NEW"
+ },
+ "ffc9b691b280b8d0": {
+  "agri_focus": false,
+  "banking_focus": true,
+  "category": "Banking & Finance",
+  "first_seen": "2026-10-13",
+  "headline": "Unlocking $5.79 Billion in private financing: The World Bank Group Is leading the charge for Private Capital Mobilization in Nigeria - World Bank Group",
+  "headline_hi": "",
+  "importance_score": 18,
+  "last_seen": "2026-10-13",
+  "raw_facts": "Unlocking $5.79 Billion in private financing: The World Bank Group Is leading the charge for Private Capital Mobilization in Nigeria World Bank Group",
+  "scores": [
+   {
+    "date": "2026-10-13",
+    "job": "weekly_2026-10-11",
+    "score": 18.0
+   }
+  ],
+  "source_level": 0,
+  "source_name": "World Bank",
+  "source_url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPd3ZqU3BEX2VHTWNsaHBRTk5qYVNaUk5CblRrNzNUSVZ0ZXkyTmgwamJXMkFTa056U2Y2cnNoV1V3cGFqM1NGU1ZCczlyeHI3SUctRVAyRGltdFdVNml4cWY2dnFyOXNoSV9mTmVfUDNFcGRrbDFieUc2ZEZCTUM5TkJqMnRiX1N5bG9EMGt1RWJGZmxxcF9kODlZQktHZXdXNHdSVGVnZXVRZTEwdF81bENfZ1pxT0ZlOHhzNjEyY29WYUFWZnBQZQ?oc=5",
+  "student_relevance": 43,
   "trend": "NEW"
  }
 }
