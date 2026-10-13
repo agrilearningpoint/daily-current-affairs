@@ -56,11 +56,11 @@
   "updated": "2026-10-12T15:12:12.276515+05:30"
  },
  "weekly_2026-10-11": {
-  "error": "name 're' is not defined",
-  "failed_at": "03_news_collection",
+  "error": "only 3 student-relevant events (min 5 for weekly)",
+  "failed_at": "07_student_domain_relevance",
   "job_id": "weekly_2026-10-11",
-  "last_success_stage": "00_model_orchestrator",
+  "last_success_stage": "06_news_importance",
   "status": "FAILED_FINAL",
-  "updated": "2026-10-12T15:06:53.201543+05:30"
+  "updated": "2026-10-13T07:08:55.978653+05:30"
  }
 }
