@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "RSS feed configuration for source fetch stage",
+  "rss_feeds": [
+    "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3",
+    "https://www.thehindu.com/business/agri-business/feeder/default.rss",
+    "https://www.downtoearth.org.in/rss/agriculture",
+    "https://krishijagran.com/rss/",
+    "https://www.agrifarming.in/feed",
+    "https://www.rbi.org.in/pressreleases_rss.xml",
+    "https://www.thehindu.com/business/Economy/feeder/default.rss",
+    "https://economictimes.indiatimes.com/industry/agriculture/rssfeeds/13352306.cms",
+    "https://www.thehindu.com/news/national/feeder/default.rss",
+    "https://www.thehindu.com/sci-tech/feeder/default.rss",
+    "https://www.downtoearth.org.in/rss/climate-change"
+  ],
+  "sources": [
+    "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3",
+    "https://www.thehindu.com/business/agri-business/feeder/default.rss",
+    "https://www.downtoearth.org.in/rss/agriculture",
+    "https://krishijagran.com/rss/",
+    "https://www.agrifarming.in/feed",
+    "https://www.rbi.org.in/pressreleases_rss.xml",
+    "https://www.thehindu.com/business/Economy/feeder/default.rss",
+    "https://economictimes.indiatimes.com/industry/agriculture/rssfeeds/13352306.cms",
+    "https://www.thehindu.com/news/national/feeder/default.rss",
+    "https://www.thehindu.com/sci-tech/feeder/default.rss",
+    "https://www.downtoearth.org.in/rss/climate-change"
+  ]
+}
