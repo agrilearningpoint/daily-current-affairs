@@ -171,6 +171,19 @@ def _extract_sources_from_python(module_path: Path) -> List[str]:
         logger.warning("Failed to import %s: %s", module_path, exc)
         return []
 
+    feed_url_provider = getattr(mod, "get_rss_feed_urls", None)
+    if callable(feed_url_provider):
+        try:
+            job_type = os.getenv("ALP_JOB_TYPE", "daily")
+            urls = feed_url_provider(job_type)
+            if isinstance(urls, (list, tuple)):
+                return list(dict.fromkeys(
+                    str(url).strip() for url in urls if str(url).strip()
+                ))
+        except Exception as exc:
+            logger.warning("Failed to load RSS URLs from %s: %s", module_path, exc)
+            return []
+
     # Common attribute names
     for attr in ("RSS_FEEDS", "FEEDS", "SOURCES", "rss_feeds", "sources"):
         val = getattr(mod, attr, None)
