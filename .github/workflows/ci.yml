@@ -1,0 +1,348 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+# Cancel previous runs of same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  # Disable heavy AI calls during CI
+  ALP_DISABLE_LLM_VERIFY: "1"
+  ALP_DISABLE_POLISH: "1"
+  ALP_TRANSLATION_STRICT: "1"
+  OPENAI_API_KEY: ""
+  LLM_API_URL: ""
+  LLM_API_KEY: ""
+
+jobs:
+  # =========================================================================
+  # JOB 1: Lint & Syntax (fast, fails early)
+  # =========================================================================
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install ruff==0.6.9
+
+      - name: Install project deps (best-effort)
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt || echo "::warning::Some deps failed to install"
+          fi
+        continue-on-error: true
+
+      - name: Python syntax check (py_compile)
+        run: |
+          set -e
+          echo "Checking syntax for all Python files..."
+          FAILED=0
+          while IFS= read -r -d '' f; do
+            if ! python -m py_compile "$f"; then
+              echo "::error file=$f::Syntax error"
+              FAILED=1
+            fi
+          done < <(find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./.venv/*" \
+            -not -path "*/__pycache__/*" \
+            -print0)
+          if [ $FAILED -ne 0 ]; then
+            echo "::error::Syntax errors found. Fix before merging."
+            exit 1
+          fi
+          echo "✔ All Python files compile."
+
+      - name: Ruff lint (undefined names, unused imports, style)
+        run: |
+          ruff check . \
+            --select=E,F,W \
+            --ignore=E501,E402,W503,W605,E722 \
+            --output-format=github \
+            --exclude=.git,__pycache__,.venv,venv,build,dist
+        continue-on-error: false
+
+      - name: Validate JSON configs
+        run: |
+          set -e
+          echo "Validating JSON files..."
+          FAILED=0
+          while IFS= read -r -d '' f; do
+            if ! python -m json.tool "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::Invalid JSON"
+              FAILED=1
+            fi
+          done < <(find . -name "*.json" \
+            -not -path "./.git/*" \
+            -not -path "./node_modules/*" \
+            -not -path "*/data/*" \
+            -print0)
+          if [ $FAILED -ne 0 ]; then
+            exit 1
+          fi
+          echo "✔ All JSON files valid."
+
+      - name: Verify critical imports work
+        run: |
+          python - <<'PY'
+          import importlib, sys
+          modules = [
+              "main",
+              "pipeline.state",
+              "agents.03_news_collection",
+              "agents.04_fact_verification",
+              "agents.22_telegram_publisher",
+          ]
+          failed = []
+          for mod in modules:
+              try:
+                  importlib.import_module(mod)
+                  print(f"✔ {mod}")
+              except Exception as e:
+                  print(f"::error::Import failed for {mod}: {e}")
+                  failed.append(mod)
+          if failed:
+              print(f"::error::{len(failed)} critical module(s) failed to import")
+              sys.exit(1)
+          PY
+
+  # =========================================================================
+  # JOB 2: Unit Tests
+  # =========================================================================
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest==8.3.3 pytest-cov==5.0.0
+
+      - name: Prepare dirs
+        run: |
+          mkdir -p data/raw data/verified data/edited data/jobs logs state/locks state/metrics
+
+      - name: Run tests
+        run: |
+          if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
+            pytest tests/ -v --maxfail=5 --tb=short
+          else
+            echo "::warning::No tests directory or empty — skipping"
+          fi
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs-${{ github.run_id }}
+          path: |
+            logs/
+            .pytest_cache/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # =========================================================================
+  # JOB 3: Security Scan
+  # =========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit==1.7.10
+
+      - name: Bandit (SAST — hardcoded secrets, insecure calls)
+        run: |
+          bandit -r agents/ pipeline/ config/ src/ main.py \
+            -x "*/tests/*,*/test_*.py" \
+            -ll \
+            -f txt \
+            --exit-zero
+          # Non-blocking for now (--exit-zero). Switch to fail if hardened.
+        continue-on-error: true
+
+      - name: Check for accidentally committed secrets
+        run: |
+          echo "Scanning for potential secrets..."
+          FAILED=0
+          # Look for common secret patterns (excluding .env.example)
+          for pattern in "sk-[A-Za-z0-9]{20,}" "ghp_[A-Za-z0-9]{36}" "AKIA[0-9A-Z]{16}"; do
+            if grep -rEn "$pattern" . \
+              --include="*.py" --include="*.yml" --include="*.yaml" --include="*.json" \
+              --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=data \
+              --exclude="*.example" 2>/dev/null | grep -v "\.env\.example"; then
+              echo "::error::Potential secret pattern found: $pattern"
+              FAILED=1
+            fi
+          done
+          if [ $FAILED -ne 0 ]; then
+            echo "::error::Possible secrets committed. Remove them and rotate keys."
+            exit 1
+          fi
+          echo "✔ No obvious secrets found."
+
+  # =========================================================================
+  # JOB 4: Workflow CLI Contract Validation
+  # =========================================================================
+  cli-contract:
+    name: Validate CLI Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: main.py CLI smoke test
+        run: |
+          echo "Checking main.py CLI contract..."
+          python main.py --help > /tmp/help.txt 2>&1 || {
+            echo "::error::main.py --help failed"
+            cat /tmp/help.txt
+            exit 1
+          }
+          cat /tmp/help.txt
+
+          # Verify required flags exist
+          for flag in "--job-type" "--watchdog" "--date" "--reset"; do
+            if ! grep -q -- "$flag" /tmp/help.txt; then
+              echo "::error::main.py missing expected CLI flag: $flag"
+              exit 1
+            fi
+            echo "✔ main.py supports $flag"
+          done
+
+          # Verify --type alias works (workflow compat)
+          if ! grep -q -- "--type" /tmp/help.txt; then
+            echo "::warning::--type alias not documented in help output"
+          fi
+
+      - name: Validate workflow command lines
+        run: |
+          echo "Validating workflow commands use correct CLI..."
+          FAILED=0
+          # Every main.py invocation must use --job-type or --type or --watchdog
+          while IFS= read -r line; do
+            if echo "$line" | grep -q "main.py"; then
+              if echo "$line" | grep -qE "main\.py\s+--job-type|main\.py\s+--type|main\.py\s+--watchdog"; then
+                echo "✔ $line"
+              else
+                echo "::warning::Suspicious main.py call: $line"
+              fi
+            fi
+          done < <(grep -rE "python.*main\.py" .github/workflows/ 2>/dev/null || true)
+          exit $FAILED
+
+  # =========================================================================
+  # JOB 5: Migration Script Dry Run (does state file load?)
+  # =========================================================================
+  state-load:
+    name: State File Load Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: lint
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Load state/jobs.json (backward compat check)
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          state_file = Path("state/jobs.json")
+          if not state_file.exists():
+              print("::notice::No state/jobs.json — skipping")
+              sys.exit(0)
+
+          try:
+              data = json.loads(state_file.read_text(encoding="utf-8"))
+          except Exception as e:
+              print(f"::error::Cannot parse state/jobs.json: {e}")
+              sys.exit(1)
+
+          # Normalize container
+          jobs = data.get("jobs", data) if isinstance(data, dict) else {}
+          if not isinstance(jobs, dict):
+              print(f"::error::jobs.json top-level must be dict, got {type(jobs).__name__}")
+              sys.exit(1)
+
+          # Validate with main.py's model
+          try:
+              from main import PipelineState
+              state = PipelineState(**({"jobs": jobs, "version": data.get("version", 1)}
+                                        if "jobs" in data else {"jobs": jobs}))
+              print(f"✔ Loaded {len(state.jobs)} jobs successfully")
+              for jid, job in list(state.jobs.items())[:5]:
+                  print(f"    {jid:25s} status={job.status:15s} type={job.job_type}")
+          except Exception as e:
+              print(f"::error::Pydantic validation failed: {e}")
+              sys.exit(1)
+          PY
