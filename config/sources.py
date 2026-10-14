@@ -160,6 +160,22 @@ def get_daily_sources(job_type="daily"):
     raise ValueError(f"Unsupported job_type: {job_type!r}")
 
 
+def get_rss_feed_urls(job_type="daily") -> list[str]:
+    """Return unique RSS and configured fallback feed URLs for a job type."""
+    urls = []
+    seen = set()
+    for source in get_daily_sources(job_type):
+        for field in ("rss", "fallback_rss"):
+            url = source.get(field)
+            if not isinstance(url, str):
+                continue
+            url = url.strip()
+            if url.startswith(("http://", "https://")) and url not in seen:
+                seen.add(url)
+                urls.append(url)
+    return urls
+
+
 def get_sources_by_level(level: int):
     return list(ALL_LEVELS.get(int(level), []))
 
