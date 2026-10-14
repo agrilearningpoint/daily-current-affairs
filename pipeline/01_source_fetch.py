@@ -1,398 +1,305 @@
-"""
-Source Fetcher Module
----------------------
-Yeh module configured RSS/Atom feeds + APIs se raw news articles fetch karta hai.
+"""Stage 01 — Canonical RSS source fetch for the daily pipeline.
 
-Production features:
-- Parallel fetching with bounded concurrency (ThreadPoolExecutor)
-- Per-source timeout + retry with exponential backoff
-- Source health tracking (dead feeds identified, warned)
-- Content sanitization (HTML strip, unicode normalize, control char removal)
-- De-duplication (by URL + content hash)
-- Size limits (prevents memory blowup)
-- Graceful degradation (partial success > total failure)
-- Atomic output write
+Task 01 rewrite. This module is the single production collection path wired
+into main.py's DAILY_STAGES. It reads the canonical source registry from
+pipeline.source_registry (config.feeds.VERIFIED_RSS + config.sources.ALL_SOURCES)
+and writes one raw-edition JSON file per job.
+
+Contract:
+- Input:  enabled SourceSpec list (validated at startup; fail-loud).
+- Output: data/raw/<job_id>.json   (falls back to daily_YYYY-MM-DD.json form)
+- Schema: {"job_id", "job_date", "collected_at", "window_start", "window_end",
+           "sources_total", "sources_failed", "articles": [Article...]}
+- Article keys are a superset of what downstream stages consume:
+  title, link, summary, published, source_feed, collected_at, content_hash,
+  plus provenance fields source_name/source_id/source_tier/category/language.
+- Never uses local wall-clock as the job date when ALP_JOB_DATE is provided.
+- Empty successful parse result => hard failure (exit 2); no silent empty run.
 """
 
+from __future__ import annotations
+
+import hashlib
+import json
 import os
 import re
 import sys
-import json
 import time
-import html
-import hashlib
-import logging
-import argparse
-import unicodedata
-from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Optional, Tuple
+from urllib.parse import urlparse
 
-import requests
-import feedparser
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
+# --- optional third-party deps with clear actionable errors ---------------
+try:
+    import feedparser  # type: ignore
+except ImportError as exc:  # pragma: no cover
+    raise SystemExit(
+        "ERROR: 'feedparser' is required by stage 01 but not installed. "
+        "Run: pip install -r requirements.txt"
+    ) from exc
+
+try:
+    import requests  # type: ignore
+except ImportError as exc:  # pragma: no cover
+    raise SystemExit(
+        "ERROR: 'requests' is required by stage 01 but not installed. "
+        "Run: pip install -r requirements.txt"
+    ) from exc
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pipeline.source_registry import SourceConfigError, SourceSpec, load_sources
+
+ROOT = Path(os.environ.get("ALP_ROOT", Path(__file__).resolve().parent.parent))
+RAW_DIR = ROOT / "data" / "raw"
+
+HTTP_TIMEOUT = int(os.environ.get("FETCH_TIMEOUT", "20"))
+MAX_RETRIES = int(os.environ.get("FETCH_RETRIES", "2"))
+USER_AGENT = os.environ.get(
+    "FETCH_USER_AGENT",
+    "AgriLearningPointBot/1.0 (+https://github.com/agrilearningpoint)",
 )
 
-# ------------------------------------------------------------------
-# Logging
-# ------------------------------------------------------------------
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("logs/source_fetch.log", encoding="utf-8"),
-    ],
-)
-logger = logging.getLogger(__name__)
 
-# ------------------------------------------------------------------
-# Constants
-# ------------------------------------------------------------------
-CONFIG_FILE = "config/sources.json"
-OUTPUT_DIR = "data/raw"
-HEALTH_FILE = "state/source_health.json"
-
-USER_AGENT = "AgriLearningPoint-Bot/1.0 (+https://github.com/agrilearningpoint)"
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
-MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
-MAX_WORKERS = int(os.getenv("MAX_WORKERS", "8"))
-MAX_RESPONSE_BYTES = int(os.getenv("MAX_RESPONSE_BYTES", str(5 * 1024 * 1024)))  # 5 MB
-MAX_ARTICLES_PER_SOURCE = int(os.getenv("MAX_ARTICLES_PER_SOURCE", "100"))
-
-# Sanitization
-HTML_TAG_RE = re.compile(r"<[^>]+>")
-CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-WHITESPACE_RE = re.compile(r"\s+")
+# --------------------------------------------------------------------------
+# Job context helpers
+# --------------------------------------------------------------------------
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
-# ------------------------------------------------------------------
-# Utilities
-# ------------------------------------------------------------------
-def clean_text(text: str, max_len: int = 5000) -> str:
+def get_job_context() -> Tuple[str, str]:
+    """Return (job_id, job_date) honouring explicit orchestrator env vars.
+
+    Backfill safety rule: if ALP_JOB_DATE is set, it wins over wall clock.
+    We never silently replace an explicitly requested date with today.
     """
-    Sanitize text for downstream processing:
-    - HTML tag strip
-    - HTML entity unescape
-    - Unicode NFC normalize
-    - Control chars remove
-    - Whitespace collapse
-    - Length cap
+    job_date = os.environ.get("ALP_JOB_DATE", "").strip()
+    job_id = os.environ.get("ALP_JOB_ID", "").strip()
+    if not job_date:
+        job_date = _utcnow().strftime("%Y-%m-%d")
+    if not job_id:
+        job_type = os.environ.get("ALP_JOB_TYPE", "daily").strip() or "daily"
+        job_id = f"{job_type}_{job_date}"
+    return job_id, job_date
+
+
+def resolve_window(job_date: str) -> Tuple[datetime, datetime]:
+    """Compute the collection window using the project's existing policy.
+
+    Existing documented behaviour (collect_window in the previous collector):
+    - scheduled/manual runs for *today*: last 24 hours ending now.
+    - backfill runs for an explicit past date: that calendar day 00:00–24:00 UTC.
+    We preserve that policy rather than inventing a new one.
     """
-    if not text:
-        return ""
-    # Strip tags BEFORE unescaping entities (order matters)
-    text = HTML_TAG_RE.sub(" ", text)
-    text = html.unescape(text)
-    text = unicodedata.normalize("NFC", text)
-    text = CONTROL_CHAR_RE.sub("", text)
-    text = WHITESPACE_RE.sub(" ", text).strip()
-    if len(text) > max_len:
-        text = text[:max_len].rstrip()
-    return text
+    try:
+        target = datetime.strptime(job_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        # Malformed explicit date must not fall back to wall clock silently.
+        raise SystemExit(f"ERROR: invalid ALP_JOB_DATE {job_date!r} (want YYYY-MM-DD)")
+    today = _utcnow().date()
+    if target.date() == today:
+        end = _utcnow()
+        start = end - timedelta(hours=24)
+    else:
+        start = target
+        end = target + timedelta(days=1)
+    return start, end
 
 
-def content_hash(article: Dict[str, Any]) -> str:
-    """Stable hash for dedup across sources."""
-    raw = f"{article.get('title', '').lower()}|{article.get('link', '')}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+# --------------------------------------------------------------------------
+# Parsing / normalisation helpers
+# --------------------------------------------------------------------------
+def parse_entry_time(entry) -> Optional[datetime]:
+    """Extract a timezone-aware publication datetime from a feed entry."""
+    for key in ("published_parsed", "updated_parsed"):
+        st = getattr(entry, key, None)
+        if st:
+            try:
+                return datetime.fromtimestamp(time.mktime(st), tz=timezone.utc)
+            except (ValueError, OverflowError, OSError):
+                continue
+    for key in ("published", "updated"):
+        raw = getattr(entry, key, None)
+        if isinstance(raw, str):
+            try:
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+            except ValueError:
+                continue
+    return None
 
 
 def normalize_url(url: str) -> str:
-    """Strip tracking params and fragments for dedup."""
+    """Normalize scheme/host case and strip fragment; keep query params intact."""
     if not url:
         return ""
-    # Remove fragment
-    url = url.split("#", 1)[0]
-    # Remove common tracking params
-    if "?" in url:
-        base, qs = url.split("?", 1)
-        keep = []
-        for pair in qs.split("&"):
-            k = pair.split("=", 1)[0].lower()
-            if k.startswith(("utm_", "fbclid", "gclid", "ref", "_ga")):
-                continue
-            keep.append(pair)
-        url = base + ("?" + "&".join(keep) if keep else "")
-    return url.rstrip("/")
-
-
-# ------------------------------------------------------------------
-# Source Health Tracking
-# ------------------------------------------------------------------
-def load_health(path: str = HEALTH_FILE) -> Dict[str, Any]:
-    if not os.path.exists(path):
-        return {"version": 1, "sources": {}}
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"version": 1, "sources": {}}
+        p = urlparse(url.strip())
+        scheme = p.scheme.lower() or "https"
+        netloc = p.netloc.lower()
+        path = p.path or "/"
+        query = f"?{p.query}" if p.query else ""
+        return f"{scheme}://{netloc}{path.rstrip('/')}{query}"
+    except ValueError:
+        return url.strip()
 
 
-def save_health(health: Dict[str, Any], path: str = HEALTH_FILE) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(health, f, ensure_ascii=False, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+def content_hash(title: str, summary: str, link: str) -> str:
+    """Stable dedup fingerprint: normalized title+summary+link."""
+    norm = re.sub(r"\s+", " ", f"{title}|{summary[:300]}|{normalize_url(link)}")
+    return hashlib.sha256(norm.encode("utf-8", "ignore")).hexdigest()[:16]
 
 
-def update_health(
-    health: Dict[str, Any],
-    source_url: str,
-    success: bool,
-    article_count: int = 0,
-    error: Optional[str] = None,
-) -> None:
-    sources = health.setdefault("sources", {})
-    entry = sources.setdefault(source_url, {
-        "success_count": 0,
-        "failure_count": 0,
-        "consecutive_failures": 0,
-        "last_success_at": None,
-        "last_failure_at": None,
-        "last_error": None,
-        "last_article_count": 0,
-    })
-    now = datetime.now(timezone.utc).isoformat()
-    if success:
-        entry["success_count"] += 1
-        entry["consecutive_failures"] = 0
-        entry["last_success_at"] = now
-        entry["last_article_count"] = article_count
-        entry["last_error"] = None
-    else:
-        entry["failure_count"] += 1
-        entry["consecutive_failures"] += 1
-        entry["last_failure_at"] = now
-        entry["last_error"] = (error or "")[:500]
+def clean_text(s: Optional[str]) -> str:
+    if not s:
+        return ""
+    s = re.sub(r"<[^>]+>", " ", s)          # strip HTML tags
+    s = re.sub(r"&[a-z]+;|&#\d+;", " ", s, flags=re.I)  # crude entity cleanup
+    return re.sub(r"\s+", " ", s).strip()
 
 
-# ------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Fetching
-# ------------------------------------------------------------------
-@retry(
-    stop=stop_after_attempt(MAX_RETRIES),
-    wait=wait_exponential(multiplier=2, min=2, max=20),
-    retry=retry_if_exception_type(requests.RequestException),
-    reraise=True,
-)
-def _fetch_raw(url: str) -> bytes:
-    """Fetch URL with retry + timeout + size guard."""
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-    }
-    with requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT, stream=True) as r:
-        r.raise_for_status()
-        content = b""
-        for chunk in r.iter_content(chunk_size=65536):
-            content += chunk
-            if len(content) > MAX_RESPONSE_BYTES:
-                raise requests.RequestException(
-                    f"Response exceeds {MAX_RESPONSE_BYTES} bytes"
-                )
-        return content
+# --------------------------------------------------------------------------
+def fetch_feed(spec: SourceSpec) -> Tuple[Optional[bytes], Optional[str]]:
+    """Fetch one feed with retries. Returns (payload_bytes, error_message)."""
+    last_err: Optional[str] = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            resp = requests.get(
+                spec.rss_url,
+                timeout=HTTP_TIMEOUT,
+                headers={"User-Agent": USER_AGENT},
+            )
+            if resp.status_code == 200 and resp.content:
+                return resp.content, None
+            last_err = f"HTTP {resp.status_code}"
+        except requests.RequestException as exc:
+            last_err = f"{type(exc).__name__}: {exc}"
+        if attempt < MAX_RETRIES:
+            time.sleep(min(2 ** attempt, 4))
+    return None, last_err
 
 
-def parse_feed(raw_bytes: bytes) -> Any:
-    """Parse RSS/Atom safely."""
-    # feedparser handles bytes; pass through
-    return feedparser.parse(raw_bytes)
+def collect(spec: SourceSpec, win_start: datetime, win_end: datetime,
+            logs: list) -> Tuple[list, Optional[str]]:
+    """Fetch + parse one source. Returns (articles, fatal_error_or_None).
 
-
-def extract_articles_from_feed(
-    feed_url: str,
-    feed_data: Any,
-    collected_at: str,
-) -> List[Dict[str, Any]]:
+    Malformed individual entries are skipped and logged; they never abort the
+    whole feed. A failed feed returns fatal_error so other feeds still count.
     """
-    Extract & sanitize articles from a parsed feed.
-    Skips entries without title/link, caps per-source count.
-    """
-    articles: List[Dict[str, Any]] = []
+    payload, err = fetch_feed(spec)
+    if payload is None:
+        return [], f"{spec.name}: fetch failed ({err})"
 
-    if getattr(feed_data, "bozo", 0):
-        logger.warning("Feed parse warning for %s: %s", feed_url, feed_data.bozo_exception)
+    parsed = feedparser.parse(payload)
+    if getattr(parsed, "bozo", 0) and not parsed.entries:
+        return [], f"{spec.name}: unparseable feed body (bozo={parsed.bozo})"
 
-    for entry in feed_data.entries[:MAX_ARTICLES_PER_SOURCE]:
-        title = clean_text(entry.get("title", ""), max_len=500)
-        link = normalize_url(entry.get("link", "").strip())
-        summary = clean_text(
-            entry.get("summary", "") or entry.get("description", ""),
-            max_len=3000,
-        )
-        published = clean_text(
-            entry.get("published", "") or entry.get("updated", ""),
-            max_len=100,
-        )
-
-        if not title or not link:
-            continue
-        if not link.startswith(("http://", "https://")):
-            continue
-
-        article = {
-            "title": title,
-            "link": link,
-            "summary": summary,
-            "published": published,
-            "source_feed": feed_url,
-            "collected_at": collected_at,
-        }
-        article["content_hash"] = content_hash(article)
-        articles.append(article)
-
-    return articles
-
-
-def fetch_source(
-    source_url: str,
-    collected_at: str,
-) -> Tuple[str, List[Dict[str, Any]], Optional[str]]:
-    """
-    Fetch & parse one source. Returns (url, articles, error).
-    Never raises — always returns a tuple.
-    """
-    try:
-        raw = _fetch_raw(source_url)
-        feed = parse_feed(raw)
-        articles = extract_articles_from_feed(source_url, feed, collected_at)
-        logger.info("✔ %s → %d articles", source_url, len(articles))
-        return source_url, articles, None
-    except Exception as exc:
-        logger.warning("✘ %s → %s", source_url, exc)
-        return source_url, [], str(exc)
+    articles = []
+    now_iso = _utcnow().isoformat()
+    for i, entry in enumerate(parsed.entries):
+        try:
+            title = clean_text(getattr(entry, "title", ""))
+            link = str(getattr(entry, "link", "") or "").strip()
+            if not title or not link.lower().startswith(("http://", "https://")):
+                logs.append(f"{spec.name} entry[{i}]: skipped (missing title/link)")
+                continue
+            pub_dt = parse_entry_time(entry)
+            if pub_dt is None:
+                logs.append(f"{spec.name} entry[{i}]: no publication date; excluded")
+                continue  # do NOT treat undated items as current news
+            if not (win_start <= pub_dt < win_end):
+                continue  # outside the job window
+            summary = clean_text(
+                getattr(entry, "summary", "")
+                or getattr(entry, "description", "")
+            )
+            articles.append({
+                "title": title,
+                "link": normalize_url(link),
+                "summary": summary,
+                "published": pub_dt.isoformat(),
+                "source_feed": spec.rss_url,
+                "source_id": spec.source_id,
+                "source_name": spec.name,
+                "source_tier": spec.tier,
+                "category": spec.category,
+                "language": spec.language,
+                "official": spec.official,
+                "collected_at": now_iso,
+                "content_hash": content_hash(title, summary, link),
+            })
+        except Exception as exc:  # defensive: one bad entry must not kill feed
+            logs.append(f"{spec.name} entry[{i}]: malformed ({type(exc).__name__}); skipped")
+    return articles, None
 
 
-# ------------------------------------------------------------------
-# Deduplication
-# ------------------------------------------------------------------
-def deduplicate_articles(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Dedup by URL first, then by content_hash.
-    Keeps the article with longer summary (better content).
-    """
-    by_url: Dict[str, Dict[str, Any]] = {}
-    for art in articles:
-        url = art.get("link", "")
-        if not url:
-            continue
-        existing = by_url.get(url)
-        if existing is None or len(art.get("summary", "")) > len(existing.get("summary", "")):
-            by_url[url] = art
-
-    by_hash: Dict[str, Dict[str, Any]] = {}
-    for art in by_url.values():
-        h = art.get("content_hash") or content_hash(art)
-        if h not in by_hash:
-            by_hash[h] = art
-
-    result = list(by_hash.values())
-    logger.info("Dedup: %d → %d articles", len(articles), len(result))
-    return result
-
-
-# ------------------------------------------------------------------
-# Config
-# ------------------------------------------------------------------
-def load_sources(config_path: str = CONFIG_FILE) -> List[str]:
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Config not found: {config_path}")
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
-
-    # Support both {"rss_feeds": [...]} and {"sources": [{"url": ...}]}
-    if isinstance(config, list):
-        return [str(s) for s in config if s]
-    if "rss_feeds" in config:
-        return [str(s) for s in config["rss_feeds"] if s]
-    if "sources" in config:
-        return [str(s.get("url") if isinstance(s, dict) else s) for s in config["sources"] if s]
-    raise ValueError("Config must have 'rss_feeds' or 'sources' key.")
-
-
-# ------------------------------------------------------------------
-# Output
-# ------------------------------------------------------------------
-def save_articles(articles: List[Dict[str, Any]], output_file: str) -> None:
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    tmp = f"{output_file}.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(articles, f, ensure_ascii=False, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, output_file)
-    logger.info("Saved %d articles to %s", len(articles), output_file)
-
-
-# ------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Main
-# ------------------------------------------------------------------
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Fetch news from configured sources")
-    p.add_argument("--config", default=CONFIG_FILE)
-    p.add_argument("--workers", type=int, default=MAX_WORKERS)
-    p.add_argument("--max-per-source", type=int, default=MAX_ARTICLES_PER_SOURCE)
-    p.add_argument("--fail-on-empty", action="store_true",
-                   help="Exit non-zero if no articles collected")
-    return p.parse_args()
-
-
+# --------------------------------------------------------------------------
 def main() -> int:
-    args = parse_args()
-    global MAX_ARTICLES_PER_SOURCE
-    MAX_ARTICLES_PER_SOURCE = args.max_per_source
-
     try:
-        sources = load_sources(args.config)
-    except Exception as exc:
-        logger.error("Failed to load sources: %s", exc)
-        return 1
+        specs = load_sources()
+    except SourceConfigError as exc:
+        print(f"FATAL SOURCE CONFIG ERROR:\n{exc}", file=sys.stderr)
+        return 2
 
-    if not sources:
-        logger.error("No sources configured.")
-        return 1
+    job_id, job_date = get_job_context()
+    win_start, win_end = resolve_window(job_date)
 
-    logger.info("Starting fetch from %d sources (workers=%d)", len(sources), args.workers)
-    collected_at = datetime.now(timezone.utc).isoformat()
-    all_articles: List[Dict[str, Any]] = []
-    health = load_health()
+    all_articles: list = []
+    seen_hashes: set = set()
+    failed_sources = 0
+    logs: list = []
 
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(fetch_source, url, collected_at): url for url in sources}
-        for fut in as_completed(futures):
-            url, articles, error = fut.result()
-            all_articles.extend(articles)
-            update_health(health, url, success=error is None,
-                          article_count=len(articles), error=error)
+    for spec in specs:
+        arts, fatal = collect(spec, win_start, win_end, logs)
+        if fatal:
+            failed_sources += 1
+            print(f"WARN [{spec.name}] {fatal}", file=sys.stderr)
+            continue
+        added = 0
+        for art in arts:
+            if art["content_hash"] in seen_hashes:
+                continue
+            seen_hashes.add(art["content_hash"])
+            all_articles.append(art)
+            added += 1
+        print(f"[{spec.name}] kept {added} articles")
 
-    save_health(health)
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = RAW_DIR / f"{job_id}.json"
+    edition = {
+        "job_id": job_id,
+        "job_date": job_date,
+        "collected_at": _utcnow().isoformat(),
+        "window_start": win_start.isoformat(),
+        "window_end": win_end.isoformat(),
+        "sources_total": len(specs),
+        "sources_failed": failed_sources,
+        "skip_log": logs[-200:],  # bounded diagnostics, not full spam
+        "articles": all_articles,
+    }
+    tmp = out_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(edition, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, out_path)  # atomic publish
 
-    all_articles = deduplicate_articles(all_articles)
+    print(f"Wrote {len(all_articles)} articles -> {out_path}")
 
     if not all_articles:
-        logger.error("No articles collected from any source.")
-        if args.fail_on_empty:
-            return 2
-        # Still emit empty file so downstream doesn't break on missing input
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        save_articles([], os.path.join(OUTPUT_DIR, f"news_{date_str}.json"))
-        return 0
-
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    output_file = os.path.join(OUTPUT_DIR, f"news_{date_str}.json")
-    save_articles(all_articles, output_file)
-    logger.info("Source fetch stage completed: %d unique articles.", len(all_articles))
+        # Loud failure: an empty edition must never flow downstream silently.
+        print(
+            "FATAL: zero articles collected within the job window "
+            f"({win_start:%Y-%m-%d %H:%M} → {win_end:%Y-%m-%d %H:%M} UTC); "
+            f"{failed_sources}/{len(specs)} sources failed.",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 
