@@ -2,33 +2,31 @@
 """
 State Migration & Cleanup Script
 ================================
-Yeh script `state/jobs.json` ko safely clean karta hai jab:
-- Invalid `last_success_stage` ho (e.g. daily job mein `21_monthly_editor`)
-- FAILED_FINAL jobs stuck ho
-- RUNNING jobs ghanton se atke ho
-- job_type mismatch ho job_id se
+One-time cleanup for legacy state/jobs.json.
 
-Features:
-- Dry-run mode (preview only)
-- Automatic backup before write
-- Append-only archive (history preserved)
-- Atomic state writes
-- Idempotent (safe to run multiple times)
+Fixes:
+- Invalid last_success_stage per job_type (e.g. daily has 21_monthly_editor)
+- Legacy statuses (COLLECTED, RETRYING, QA_REJECTED, etc.) → FAILED for retry
+- Stuck RUNNING jobs (> threshold hours) → FAILED
+- FAILED_FINAL → FAILED (--reset-failed-final)
+- Missing job_type inferred from job_id
+- Missing timestamps filled
+- Field aliases normalized (updated/failed_at → updated_at/failed_stage)
+
+Safety:
+- Dry-run mode (no writes)
+- Auto-backup before write
+- Append-only archive (full history)
+- Atomic write (temp + fsync + os.replace)
+- Idempotent (safe to re-run)
 - Detailed JSON report
-- Reads valid stages from main.py if possible; else uses built-in defaults
 
 Usage:
-  # 1. Preview kya change hoga
-  python maintenance/migrate_state.py --dry-run
-
-  # 2. Apply cleanup (FAILED_FINAL → FAILED for retry)
-  python maintenance/migrate_state.py --reset-failed-final
-
-  # 3. Sirf stuck RUNNING clean karo
-  python maintenance/migrate_state.py --stuck-hours 4
-
-  # 4. Ek specific job reset karo
-  python maintenance/migrate_state.py --reset-job daily_2026-10-13
+    python maintenance/migrate_state.py --dry-run
+    python maintenance/migrate_state.py --reset-failed-final
+    python maintenance/migrate_state.py --reset-job daily_2026-10-13
+    python maintenance/migrate_state.py --stuck-hours 4
+    python maintenance/migrate_state.py --no-backup
 """
 from __future__ import annotations
 
@@ -38,65 +36,61 @@ import logging
 import os
 import shutil
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # --------------------------------------------------------------------------- #
-# Logging
+# Paths & Logging
 # --------------------------------------------------------------------------- #
+REPO_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = REPO_ROOT / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("logs/state_migration.log", encoding="utf-8"),
+        logging.FileHandler(str(LOGS_DIR / "state_migration.log"), encoding="utf-8"),
     ],
 )
 logger = logging.getLogger("state_migration")
 
-# --------------------------------------------------------------------------- #
-# Paths & Constants
-# --------------------------------------------------------------------------- #
-REPO_ROOT = Path(__file__).resolve().parent.parent
 STATE_FILE = REPO_ROOT / "state" / "jobs.json"
 BACKUP_DIR = REPO_ROOT / "state" / "backups"
 ARCHIVE_FILE = REPO_ROOT / "state" / "archive" / "jobs_archive.json"
 REPORT_FILE = REPO_ROOT / "state" / "migration_report.json"
 
-# Valid stage names per job type. Update these if main.py changes.
-# Derived from repo structure (agents/, pipeline/) + jobs.json observed history.
+# --------------------------------------------------------------------------- #
+# Valid Stages per Job Type (mirror of main.py)
+# --------------------------------------------------------------------------- #
 VALID_STAGES: Dict[str, List[str]] = {
     "daily": [
-        "00_model_orchestrator",
-        "01_source_fetch",
-        "03_news_collection",
-        "04_fact_verification",
-        "05_deduplication",
-        "06_news_importance",
-        "07_student_domain_relevance",
-        "10_final_news_selection",
-        "11_importance_memory",
-        "12_content_editor",
-        "16_mcq_generator",
-        "22_telegram_publisher",
+        "00_model_orchestrator", "01_source_fetch", "03_news_collection",
+        "04_fact_verification", "05_deduplication", "06_news_importance",
+        "07_student_domain_relevance", "10_final_news_selection",
+        "11_importance_memory", "12_content_editor", "16_mcq_generator",
+        "17_mcq_validator", "18_pdf_design", "19_pdf_qa",
+        "22_telegram_publisher", "23_telegram_pin_verifier",
+        "24_final_health_audit",
     ],
-    "weekly": [
-        "20_weekly_editor",
-        "22_telegram_publisher",
-    ],
-    "monthly": [
-        "21_monthly_editor",
-        "22_telegram_publisher",
-    ],
+    "weekly": ["20_weekly_editor", "22_telegram_publisher"],
+    "monthly": ["21_monthly_editor", "22_telegram_publisher"],
 }
 
-VALID_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED", "FAILED_FINAL", "COLLECTED"}
-# Note: COLLECTED is included because it appeared in jobs.json — if it's an invalid
-# intermediate state, we'll convert it to FAILED during migration.
+VALID_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED", "FAILED_FINAL"}
 
-# A RUNNING job older than this is stuck
+# Legacy intermediate statuses → normalize to FAILED for retry
+LEGACY_FAILED_STATUSES = {
+    "COLLECTED", "COLLECTING", "VERIFYING", "VERIFIED", "DEDUPLICATED",
+    "SCORED", "SELECTED", "CONTENT_READY", "MCQ_READY", "MCQ_VALIDATED",
+    "PDF_GENERATED", "QA_APPROVED", "QA_REJECTED", "PUBLISHED", "PIN_VERIFIED",
+    "COMPLETE", "CREATED", "RETRYING", "RECOVERED",
+}
+
 DEFAULT_STUCK_HOURS = 2
 
 
@@ -107,7 +101,7 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def parse_iso_safe(value: Optional[str]) -> Optional[datetime]:
+def parse_iso(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
     try:
@@ -119,10 +113,7 @@ def parse_iso_safe(value: Optional[str]) -> Optional[datetime]:
         return None
 
 
-def infer_job_type(job_id: str, declared_type: Optional[str]) -> Optional[str]:
-    """Prefer declared_type if valid, else infer from job_id prefix."""
-    if declared_type in VALID_STAGES:
-        return declared_type
+def infer_job_type(job_id: str) -> Optional[str]:
     if job_id.startswith("daily_"):
         return "daily"
     if job_id.startswith("weekly_"):
@@ -132,33 +123,8 @@ def infer_job_type(job_id: str, declared_type: Optional[str]) -> Optional[str]:
     return None
 
 
-def try_load_stages_from_main() -> Optional[Dict[str, List[str]]]:
-    """
-    Try to read stage lists from main.py dynamically so we stay in sync.
-    Returns None if not found — fall back to VALID_STAGES.
-    """
-    main_path = REPO_ROOT / "main.py"
-    if not main_path.exists():
-        return None
-    try:
-        # Light-weight: exec main.py in a namespace and grab known vars
-        ns: Dict[str, Any] = {}
-        src = main_path.read_text(encoding="utf-8")
-        # Only exec top-level assignments — safe-ish for local tooling
-        exec(compile(src, str(main_path), "exec"), ns)  # noqa: S102
-        found: Dict[str, List[str]] = {}
-        for key in ("DAILY_STAGES", "WEEKLY_STAGES", "MONTHLY_STAGES"):
-            value = ns.get(key)
-            if isinstance(value, list) and all(isinstance(x, str) for x in value):
-                found[key.replace("_STAGES", "").lower()] = value
-        return found or None
-    except Exception as exc:
-        logger.warning("main.py stage discovery failed: %s — using built-in defaults", exc)
-        return None
-
-
 # --------------------------------------------------------------------------- #
-# Migration Action
+# Action tracking
 # --------------------------------------------------------------------------- #
 class Action:
     __slots__ = ("job_id", "field", "old", "new", "reason")
@@ -186,124 +152,149 @@ class Action:
 # --------------------------------------------------------------------------- #
 # Per-Job Analysis
 # --------------------------------------------------------------------------- #
-def analyze_job(
+def analyze(
     job_id: str,
     job: Dict[str, Any],
     reset_failed_final: bool,
     stuck_hours: int,
-    stage_map: Dict[str, List[str]],
 ) -> Tuple[Dict[str, Any], List[Action], List[str]]:
-    """Return (patched_job, actions, warnings). Does NOT mutate input."""
     patched = dict(job)
     actions: List[Action] = []
     warnings: List[str] = []
 
-    # ---- 1. job_type ----
-    declared_type = job.get("job_type")
-    inferred_type = infer_job_type(job_id, declared_type)
-    if inferred_type is None:
-        warnings.append(f"Unknown job_type for {job_id} (declared={declared_type!r}) — skipping")
+    # ---- 1. job_type infer/fix ----
+    jt = infer_job_type(job_id)
+    if jt is None:
+        warnings.append(f"Unknown job_type for {job_id} — skipping")
         return patched, actions, warnings
+    if job.get("job_type") != jt:
+        actions.append(Action(job_id, "job_type", job.get("job_type"), jt,
+                              "inferred from job_id prefix"))
+        patched["job_type"] = jt
 
-    if declared_type != inferred_type:
-        actions.append(Action(job_id, "job_type", declared_type, inferred_type,
-                              "corrected from job_id prefix"))
-        patched["job_type"] = inferred_type
+    valid_stages = VALID_STAGES[jt]
 
-    valid_stages = stage_map.get(inferred_type, [])
-
-    # ---- 2. status ----
-    status = job.get("status")
+    # ---- 2. Status normalization ----
+    status = str(job.get("status", "")).upper()
     if status not in VALID_STATUSES:
-        actions.append(Action(job_id, "status", status, "FAILED",
-                              f"unknown status {status!r}"))
-        patched["status"] = "FAILED"
-        status = "FAILED"
-    elif status == "COLLECTED":
-        # Intermediate state that never completed — treat as FAILED for retry
-        actions.append(Action(job_id, "status", "COLLECTED", "FAILED",
-                              "intermediate COLLECTED state never progressed"))
-        patched["status"] = "FAILED"
-        status = "FAILED"
-
-    # ---- 3. last_success_stage ----
-    lss = job.get("last_success_stage")
-    if lss is not None and lss not in valid_stages:
-        actions.append(Action(job_id, "last_success_stage", lss, None,
-                              f"stage {lss!r} not valid for job_type={inferred_type}"))
-        patched["last_success_stage"] = None
-
-    # ---- 4. failed_stage ----
-    fs = job.get("failed_stage")
-    if fs is not None and fs not in valid_stages:
-        actions.append(Action(job_id, "failed_stage", fs, None,
-                              f"stage {fs!r} not valid for job_type={inferred_type}"))
-        patched["failed_stage"] = None
-
-    # ---- 5. stuck RUNNING ----
-    if status == "RUNNING":
-        updated_at = parse_iso_safe(job.get("updated_at"))
-        if updated_at is None:
-            actions.append(Action(job_id, "status", "RUNNING", "FAILED",
-                                  "RUNNING without valid updated_at"))
+        if status in LEGACY_FAILED_STATUSES:
+            actions.append(Action(job_id, "status", status, "FAILED",
+                                  "legacy intermediate status → FAILED"))
             patched["status"] = "FAILED"
-            patched["error"] = "Recovered: RUNNING with invalid timestamp"
             status = "FAILED"
         else:
-            age = now_utc() - updated_at
-            if age > timedelta(hours=stuck_hours):
-                actions.append(Action(job_id, "status", "RUNNING", "FAILED",
-                                      f"stuck RUNNING for {age.total_seconds()/3600:.1f}h"))
-                patched["status"] = "FAILED"
-                patched["error"] = f"Recovered: stuck RUNNING (age={age})"
-                status = "FAILED"
+            actions.append(Action(job_id, "status", status, "FAILED",
+                                  "unknown status → FAILED"))
+            patched["status"] = "FAILED"
+            status = "FAILED"
+
+    # ---- 3. last_success_stage validity ----
+    lss = job.get("last_success_stage")
+    if lss and lss not in valid_stages:
+        actions.append(Action(job_id, "last_success_stage", lss, None,
+                              f"stage not valid for {jt}"))
+        patched["last_success_stage"] = None
+
+    # ---- 4. failed_at / failed_stage validity ----
+    for field in ("failed_at", "failed_stage"):
+        fs = job.get(field)
+        if fs and fs not in valid_stages:
+            actions.append(Action(job_id, field, fs, None,
+                                  f"stage not valid for {jt}"))
+            patched[field] = None
+
+    # ---- 5. Stuck RUNNING ----
+    if status == "RUNNING":
+        upd = parse_iso(job.get("updated_at") or job.get("updated"))
+        if upd is None:
+            actions.append(Action(job_id, "status", "RUNNING", "FAILED",
+                                  "RUNNING without valid timestamp"))
+            patched["status"] = "FAILED"
+            status = "FAILED"
+        elif (now_utc() - upd) > timedelta(hours=stuck_hours):
+            age_h = (now_utc() - upd).total_seconds() / 3600
+            actions.append(Action(job_id, "status", "RUNNING", "FAILED",
+                                  f"stuck RUNNING for {age_h:.1f}h"))
+            patched["status"] = "FAILED"
+            patched["error"] = f"Recovered: stuck RUNNING ({age_h:.1f}h)"
+            status = "FAILED"
 
     # ---- 6. FAILED_FINAL → FAILED ----
     if status == "FAILED_FINAL" and reset_failed_final:
         actions.append(Action(job_id, "status", "FAILED_FINAL", "FAILED",
                               "reset for retry"))
         patched["status"] = "FAILED"
-        if patched.get("failed_stage"):
-            actions.append(Action(job_id, "failed_stage", patched["failed_stage"], None,
-                                  "cleared on reset"))
-            patched["failed_stage"] = None
-        if patched.get("error"):
-            actions.append(Action(job_id, "error", "<cleared>", None,
-                                  "cleared on reset"))
-            patched["error"] = None
+        for field in ("failed_at", "failed_stage", "error"):
+            if patched.get(field):
+                actions.append(Action(job_id, field, "<cleared>", None,
+                                      "cleared on FAILED_FINAL reset"))
+                patched[field] = None
 
-    # ---- 7. attempts ----
-    attempts = job.get("attempts", 0)
-    if not isinstance(attempts, int) or attempts < 0:
-        actions.append(Action(job_id, "attempts", attempts, 0, "invalid → 0"))
+    # ---- 7. Field aliases → canonical ----
+    if "updated" in patched and "updated_at" not in patched:
+        patched["updated_at"] = patched.pop("updated")
+    if "created" in patched and "created_at" not in patched:
+        patched["created_at"] = patched.pop("created")
+    if "failed_at" in patched and "failed_stage" not in patched:
+        patched["failed_stage"] = patched.pop("failed_at")
+
+    # ---- 8. Timestamps filled ----
+    now_str = now_utc().isoformat()
+    if not parse_iso(patched.get("updated_at")):
+        patched["updated_at"] = now_str
+    if not parse_iso(patched.get("created_at")):
+        patched["created_at"] = now_str
+
+    # ---- 9. attempts int ----
+    try:
+        patched["attempts"] = max(0, int(patched.get("attempts", 0)))
+    except (TypeError, ValueError):
         patched["attempts"] = 0
-
-    # ---- 8. timestamps ----
-    for ts_field in ("created_at", "updated_at"):
-        if not parse_iso_safe(job.get(ts_field)):
-            new_ts = now_utc().isoformat()
-            actions.append(Action(job_id, ts_field, job.get(ts_field), new_ts,
-                                  f"invalid/missing {ts_field}"))
-            patched[ts_field] = new_ts
 
     return patched, actions, warnings
 
 
 # --------------------------------------------------------------------------- #
-# Backup / Archive / Report
+# Atomic I/O
 # --------------------------------------------------------------------------- #
-def backup_state(state_file: Path) -> Optional[Path]:
-    if not state_file.exists():
+def load_state() -> Any:
+    if not STATE_FILE.exists():
+        raise FileNotFoundError(f"State not found: {STATE_FILE}")
+    return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+
+
+def save_state(state: Any) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=".jobs_", suffix=".tmp", dir=str(STATE_FILE.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, STATE_FILE)
+    except Exception:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        raise
+
+
+def backup_state() -> Optional[Path]:
+    if not STATE_FILE.exists():
         return None
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     ts = now_utc().strftime("%Y%m%d_%H%M%S")
     dst = BACKUP_DIR / f"jobs_{ts}.json"
-    shutil.copy2(state_file, dst)
+    shutil.copy2(STATE_FILE, dst)
     logger.info("Backup: %s", dst)
     return dst
 
 
-def append_to_archive(original_jobs: Dict[str, Any]) -> None:
+def append_archive(jobs_snapshot: Dict[str, Any]) -> None:
     ARCHIVE_FILE.parent.mkdir(parents=True, exist_ok=True)
     if ARCHIVE_FILE.exists():
         try:
@@ -315,68 +306,45 @@ def append_to_archive(original_jobs: Dict[str, Any]) -> None:
 
     archive.setdefault("snapshots", []).append({
         "archived_at": now_utc().isoformat(),
-        "count": len(original_jobs),
-        "jobs": original_jobs,
+        "count": len(jobs_snapshot),
+        "jobs": jobs_snapshot,
     })
 
     tmp = ARCHIVE_FILE.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(archive, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.write_text(json.dumps(archive, ensure_ascii=False, indent=2),
+                   encoding="utf-8")
     os.replace(tmp, ARCHIVE_FILE)
-    logger.info("Archived %d jobs → %s", len(original_jobs), ARCHIVE_FILE)
-
-
-def write_report(actions: List[Action], warnings: List[str], stats: Dict[str, Any], dry_run: bool) -> None:
-    REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    report = {
-        "generated_at": now_utc().isoformat(),
-        "dry_run": dry_run,
-        "stats": stats,
-        "warnings": warnings,
-        "actions": [a.to_dict() for a in actions],
-    }
-    REPORT_FILE.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("Report: %s", REPORT_FILE)
+    logger.info("Archived %d jobs → %s", len(jobs_snapshot), ARCHIVE_FILE)
 
 
 # --------------------------------------------------------------------------- #
-# Atomic Write
-# --------------------------------------------------------------------------- #
-def save_state(state: Dict[str, Any], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
-
-
-# --------------------------------------------------------------------------- #
-# Main migration
+# Migration
 # --------------------------------------------------------------------------- #
 def migrate(
-    state_file: Path,
     dry_run: bool,
     reset_failed_final: bool,
     stuck_hours: int,
     no_backup: bool,
     reset_job: Optional[str],
 ) -> int:
-    if not state_file.exists():
-        logger.error("State file not found: %s", state_file)
+    if not STATE_FILE.exists():
+        logger.error("State file not found: %s", STATE_FILE)
         return 1
 
-    state = json.loads(state_file.read_text(encoding="utf-8"))
-    jobs = state.get("jobs", {})
-    if not isinstance(jobs, dict):
-        logger.error("Malformed state: 'jobs' is not a dict")
+    state = load_state()
+
+    # Support both {"jobs": {...}} and flat {job_id: {...}}
+    if isinstance(state, dict) and "jobs" in state and isinstance(state["jobs"], dict):
+        jobs = state["jobs"]
+        wrapper = state
+    elif isinstance(state, dict):
+        jobs = state
+        wrapper = {"jobs": jobs, "version": 1}
+    else:
+        logger.error("Malformed state: top-level must be a dict")
         return 1
 
-    logger.info("Loaded %d job records from %s", len(jobs), state_file)
-
-    # Discover stages
-    discovered = try_load_stages_from_main()
-    stage_map = discovered if discovered else VALID_STAGES
-    logger.info("Using stage map: %s", {k: len(v) for k, v in stage_map.items()})
+    logger.info("Loaded %d job records from %s", len(jobs), STATE_FILE)
 
     original_snapshot = json.loads(json.dumps(jobs))
     new_jobs: Dict[str, Any] = {}
@@ -388,11 +356,12 @@ def migrate(
             all_warnings.append(f"Malformed job entry: {job_id}")
             continue
 
-        # If --reset-job specified, force only that job to FAILED
+        # Manual reset for a single job
         if reset_job and job_id == reset_job:
             j = dict(job)
             j["status"] = "FAILED"
             j["failed_stage"] = None
+            j["failed_at"] = None
             j["error"] = None
             j["updated_at"] = now_utc().isoformat()
             all_actions.append(Action(job_id, "status", job.get("status"), "FAILED",
@@ -400,11 +369,10 @@ def migrate(
             new_jobs[job_id] = j
             continue
 
-        patched, acts, warns = analyze_job(
+        patched, acts, warns = analyze(
             job_id, job,
             reset_failed_final=reset_failed_final,
             stuck_hours=stuck_hours,
-            stage_map=stage_map,
         )
         new_jobs[job_id] = patched
         all_actions.extend(acts)
@@ -424,7 +392,7 @@ def migrate(
     for a in all_actions:
         stats["actions_by_field"][a.field] = stats["actions_by_field"].get(a.field, 0) + 1
 
-    # ---- Human-readable summary ----
+    # ---- Print summary ----
     print("\n" + "=" * 72)
     print(f"STATE MIGRATION {'(DRY RUN)' if dry_run else ''}")
     print("=" * 72)
@@ -446,10 +414,21 @@ def migrate(
     if all_warnings:
         print(f"\n--- Warnings ---")
         for w in all_warnings:
-            print(f"  ⚠️  {w}")
+            print(f"  ⚠  {w}")
     print("=" * 72 + "\n")
 
-    write_report(all_actions, all_warnings, stats, dry_run)
+    # ---- Report ----
+    REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_FILE.write_text(
+        json.dumps({
+            "generated_at": now_utc().isoformat(),
+            "dry_run": dry_run,
+            "stats": stats,
+            "warnings": all_warnings,
+            "actions": [a.to_dict() for a in all_actions],
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     if dry_run:
         logger.info("Dry-run complete. No changes applied.")
@@ -460,18 +439,17 @@ def migrate(
         return 0
 
     if not no_backup:
-        backup_state(state_file)
-    else:
-        logger.warning("Skipping backup (--no-backup)")
+        backup_state()
+    append_archive(original_snapshot)
 
-    append_to_archive(original_snapshot)
-
-    state["jobs"] = new_jobs
-    state["version"] = int(state.get("version", 1)) + 1
-    state["last_migrated_at"] = now_utc().isoformat()
-    save_state(state, state_file)
-    logger.info("✔ Migration applied: %d actions. version → %s",
-                len(all_actions), state["version"])
+    wrapper["jobs"] = new_jobs
+    wrapper["version"] = int(wrapper.get("version", 1)) + 1
+    wrapper["last_migrated_at"] = now_utc().isoformat()
+    save_state(wrapper)
+    logger.info(
+        "✔ Migration applied: %d actions. version → %s",
+        len(all_actions), wrapper["version"],
+    )
     return 0
 
 
@@ -482,17 +460,22 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Clean & migrate state/jobs.json",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python maintenance/migrate_state.py --dry-run
+  python maintenance/migrate_state.py --reset-failed-final
+  python maintenance/migrate_state.py --reset-job daily_2026-10-13
+  python maintenance/migrate_state.py --stuck-hours 4
+""",
     )
-    p.add_argument("--state-file", type=Path, default=STATE_FILE,
-                   help=f"Path to jobs.json (default: {STATE_FILE})")
     p.add_argument("--dry-run", action="store_true",
                    help="Preview changes without writing")
     p.add_argument("--reset-failed-final", action="store_true",
                    help="Reset FAILED_FINAL jobs → FAILED for retry")
     p.add_argument("--stuck-hours", type=int, default=DEFAULT_STUCK_HOURS,
-                   help=f"Hours after which RUNNING is 'stuck' (default: {DEFAULT_STUCK_HOURS})")
+                   help=f"Stuck RUNNING threshold (default: {DEFAULT_STUCK_HOURS}h)")
     p.add_argument("--reset-job", type=str, default=None,
-                   help="Force a specific job_id to FAILED for retry")
+                   help="Force a specific job_id to FAILED")
     p.add_argument("--no-backup", action="store_true",
                    help="Skip backup (NOT recommended)")
     return p.parse_args()
@@ -500,11 +483,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    # Ensure logs/ exists
-    (REPO_ROOT / "logs").mkdir(exist_ok=True)
     try:
         return migrate(
-            state_file=args.state_file,
             dry_run=args.dry_run,
             reset_failed_final=args.reset_failed_final,
             stuck_hours=args.stuck_hours,
