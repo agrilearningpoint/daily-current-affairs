@@ -29,6 +29,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
+# The orchestrator runs this file directly, so add the repository root for
+# imports from the config package.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import requests
 import feedparser
 from tenacity import (
@@ -305,20 +311,35 @@ def deduplicate_articles(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
-def load_sources(config_path: str = CONFIG_FILE) -> List[str]:
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Config not found: {config_path}")
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
+def load_sources(config_path: Optional[str] = None) -> List[str]:
+    """Load RSS URLs from an explicit/legacy JSON file or the Python registry."""
+    # Keep support for local legacy JSON configs, but use config/sources.py
+    # when the repository's default JSON file is absent.
+    if config_path is None and os.path.isfile(CONFIG_FILE):
+        config_path = CONFIG_FILE
 
-    # Support both {"rss_feeds": [...]} and {"sources": [{"url": ...}]}
-    if isinstance(config, list):
-        return [str(s) for s in config if s]
-    if "rss_feeds" in config:
-        return [str(s) for s in config["rss_feeds"] if s]
-    if "sources" in config:
-        return [str(s.get("url") if isinstance(s, dict) else s) for s in config["sources"] if s]
-    raise ValueError("Config must have 'rss_feeds' or 'sources' key.")
+    if config_path is not None:
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Config not found: {config_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        # Support both {"rss_feeds": [...]} and {"sources": [{"url": ...}]}
+        if isinstance(config, list):
+            return [str(s) for s in config if s]
+        if isinstance(config, dict) and "rss_feeds" in config:
+            return [str(s) for s in config["rss_feeds"] if s]
+        if isinstance(config, dict) and "sources" in config:
+            return [
+                str(s.get("url") if isinstance(s, dict) else s)
+                for s in config["sources"] if s
+            ]
+        raise ValueError("Config must have 'rss_feeds' or 'sources' key.")
+
+    from config.sources import get_rss_feed_urls
+
+    job_type = os.getenv("ALP_JOB_TYPE", "daily")
+    return get_rss_feed_urls(job_type)
 
 
 # ------------------------------------------------------------------
@@ -340,7 +361,11 @@ def save_articles(articles: List[Dict[str, Any]], output_file: str) -> None:
 # ------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fetch news from configured sources")
-    p.add_argument("--config", default=CONFIG_FILE)
+    p.add_argument(
+        "--config",
+        default=None,
+        help="Optional JSON source config; defaults to config/sources.py registry",
+    )
     p.add_argument("--workers", type=int, default=MAX_WORKERS)
     p.add_argument("--max-per-source", type=int, default=MAX_ARTICLES_PER_SOURCE)
     p.add_argument("--fail-on-empty", action="store_true",
