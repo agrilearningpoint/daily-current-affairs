@@ -174,7 +174,7 @@ jobs:
       - name: Run tests
         run: |
           if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
-            pytest tests/ -v --maxfail=5 --tb=short
+            python -m pytest tests/ -v --maxfail=5 --tb=short
           else
             echo "::warning::No tests directory or empty — skipping"
           fi
