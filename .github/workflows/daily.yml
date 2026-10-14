@@ -69,6 +69,59 @@ jobs:
                    data/scored data/selected data/content data/mcq \
                    data/memory output
 
+      - name: Resolve edition and previous checkpoint run
+        id: edition
+        env:
+          REQUESTED_DATE: ${{ github.event.inputs.date }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone, date
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          value = os.environ.get("REQUESTED_DATE", "").strip() or datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+          date.fromisoformat(value)
+          job_id = f"daily_{value}"
+          data = json.loads(Path("state/jobs.json").read_text()) if Path("state/jobs.json").exists() else {}
+          job = data.get("jobs", data).get(job_id, {})
+          run_id = str(job.get("checkpoint_run_id") or job.get("github_run_id", ""))
+          with open(os.environ["GITHUB_ENV"], "a") as handle:
+              handle.write(f"EDITION_DATE={value}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"previous_run={run_id if run_id.isdigit() else ''}\n")
+          PY
+
+      - name: Restore prior edition checkpoints
+        if: steps.edition.outputs.previous_run != ''
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: pipeline-checkpoints
+          run-id: ${{ steps.edition.outputs.previous_run }}
+          github-token: ${{ github.token }}
+          path: .
+
+      - name: Persist start marker for hard-interruption recovery
+        env:
+          STATE_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python - <<'PY'
+          import os
+          from main import job_context_env, load_jobs_state, update_job, STAGES_BY_TYPE, ROOT
+          from pipeline.checkpoints import resume_after
+          ctx = job_context_env("daily", os.environ["EDITION_DATE"])
+          job = load_jobs_state(strict=True).get(ctx["ALP_JOB_ID"], {})
+          names = [stage[0] for stage in STAGES_BY_TYPE["daily"]]
+          if job.get("status") != "success" or resume_after(ROOT, ctx["ALP_JOB_ID"], job, names) != names[-1]:
+              if job.get("window", {}).get("start") and job.get("window", {}).get("end"):
+                  ctx["ALP_WINDOW_START"] = job["window"]["start"]
+                  ctx["ALP_WINDOW_END"] = job["window"]["end"]
+              update_job(ctx["ALP_JOB_ID"], status="running", context=ctx, record_attempt=False)
+          PY
+          python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: daily started"
+
       - name: Run daily pipeline
         id: pipeline
         env:
@@ -77,18 +130,28 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EDITION_DATE: ${{ env.EDITION_DATE }}
+          RESET_REQUEST: ${{ github.event.inputs.reset }}
           MIN_CONFIDENCE_THRESHOLD: "0.3"
           MIN_VERIFIED_COUNT: "1"
         run: |
-          ARGS="--job-type daily"
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            ARGS="$ARGS --date ${{ github.event.inputs.date }}"
-          fi
-          if [ "${{ github.event.inputs.reset }}" = "true" ]; then
-            ARGS="$ARGS --reset"
-          fi
-          echo "Running: python main.py $ARGS"
-          python main.py $ARGS
+          ARGS=(--job-type daily --date "$EDITION_DATE")
+          if [ "$RESET_REQUEST" = "true" ]; then ARGS+=(--reset); fi
+          python main.py "${ARGS[@]}"
+
+      - name: Save edition checkpoints (always)
+        id: checkpoint_upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-checkpoints
+          path: |
+            data/
+            output/
+            logs/qa/
+          retention-days: 30
+          overwrite: true
+          if-no-files-found: warn
 
       - name: Upload logs (always)
         if: always()
@@ -117,38 +180,31 @@ jobs:
       # --------------------------------------------------------------------- #
       # Conflict-safe state commit
       # --------------------------------------------------------------------- #
+      - name: Record uploaded checkpoint reference
+        if: always() && steps.checkpoint_upload.outputs.artifact-id != ''
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, timezone
+          from main import load_jobs_state, save_jobs_state, JOBS_STATE_PATH
+          from pipeline.persistence import file_lock
+          job_id = "daily_" + os.environ["EDITION_DATE"]
+          with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+              jobs = load_jobs_state(strict=True)
+              if job_id in jobs:
+                  jobs[job_id]["checkpoint_run_id"] = os.environ["GITHUB_RUN_ID"]
+                  jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+                  save_jobs_state(jobs)
+          PY
+
       - name: Commit state changes
         if: always()
+        env:
+          STATE_BRANCH: ${{ github.ref_name }}
         run: |
-          set -e
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add state/jobs.json state/importance_memory.json state/metrics/ recovery_plan.json 2>/dev/null || true
-
-          if git diff --cached --quiet; then
-            echo "No state changes to commit."
-            exit 0
-          fi
-
-          git commit -m "chore(daily): update state [skip ci] $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
-
-          # Retry push with rebase (handles concurrent weekly/monthly commits)
-          for attempt in 1 2 3; do
-            if git push; then
-              echo "✔ Pushed state on attempt $attempt"
-              exit 0
-            fi
-            echo "Push failed (attempt $attempt) — fetching & rebasing..."
-            git fetch origin "${GITHUB_REF_NAME}" || true
-            git rebase "origin/${GITHUB_REF_NAME}" || {
-              git rebase --abort || true
-              git pull --no-rebase -X ours origin "${GITHUB_REF_NAME}" || true
-            }
-            sleep $((attempt * 5))
-          done
-          echo "::warning::Could not push state after 3 attempts"
-        continue-on-error: true
+          python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: daily checkpoint"
 
       # --------------------------------------------------------------------- #
       # Notifications

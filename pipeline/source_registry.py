@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import List
+from urllib.parse import urlparse
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
@@ -152,11 +153,19 @@ def _load_all_sources(specs: List[SourceSpec]) -> None:
         if rss in seen_urls:
             continue  # already covered by VERIFIED_RSS — do not duplicate fetches
         seen_urls.add(rss)
-        tier_raw = entry.get("tier", 3)
+        level = entry.get("level")
+        inferred = 1 if isinstance(level, int) and level <= 3 else 2 if level == 4 else 3
+        tier_raw = entry.get("tier", inferred)
         try:
-            tier = int(tier_raw)
+            tier = int(str(tier_raw).removeprefix("tier"))
+            if tier not in {1, 2, 3}:
+                raise ValueError("invalid tier")
         except (TypeError, ValueError):
-            tier = 3
+            problems.append(f"{where}: invalid tier {tier_raw!r}")
+            continue
+        publisher_host = urlparse(entry.get("url", "")).hostname
+        feed_host = urlparse(rss).hostname
+        direct = bool(publisher_host and feed_host and (feed_host == publisher_host or feed_host.endswith("." + publisher_host)))
         specs.append(
             SourceSpec(
                 source_id=str(entry.get("id") or f"src-{idx:02d}"),
@@ -164,7 +173,7 @@ def _load_all_sources(specs: List[SourceSpec]) -> None:
                 rss_url=rss,
                 tier=tier,
                 category=str(entry.get("category", "general")),
-                official=bool(entry.get("official", False)),
+                official=bool(entry.get("official", tier == 1 and direct)),
                 language=str(entry.get("language", "en")),
                 enabled=bool(entry.get("enabled", True)),
                 verification_policy=str(entry.get("verification_policy", "corroborate")),

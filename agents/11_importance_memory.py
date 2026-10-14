@@ -50,7 +50,9 @@ class Agent:
         try:
             store.record_scores(scored, self.job_id)
         except Exception as ex:
-            logging.warning(f"[{self.name}] persistent store merge failed (non-blocking): {ex}")
+            logging.error(f"[{self.name}] persistent store merge failed: {ex}")
+            self.context["stage_failed"] = True
+            return self.context
         logging.info(f"[{self.name}] memory updated for {len(sel)} events (local + persistent)")
         return self.context
 

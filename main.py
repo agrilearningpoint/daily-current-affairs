@@ -25,7 +25,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -33,6 +33,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # ---------------------------------------------------------------------------
+from pipeline.persistence import file_lock, redact, write_json_atomic
+from pipeline.checkpoints import capture, resume_after
+
 # Stage registry (local mirror of config/workflow.py — MUST be kept in sync;
 # tests/test_stage_registry.py enforces this contract).
 #
@@ -53,23 +56,26 @@ DAILY_STAGES: list[tuple[str, str, bool]] = [
     ("06_news_importance",            "agents/06_news_importance.py",             True),
     ("07_student_domain_relevance",   "agents/07_student_domain_relevance.py",    True),
     ("10_final_news_selection",       "agents/10_final_news_selection.py",        True),
-    ("11_importance_memory",          "agents/11_importance_memory.py",           False),
+    ("11_importance_memory",          "agents/11_importance_memory.py",           True),
     ("12_content_editor",             "agents/12_content_editor.py",              True),
     ("16_mcq_generator",              "agents/16_mcq_generator.py",               True),
     ("17_mcq_validator",              "agents/17_mcq_validator.py",               True),
     ("18_pdf_design",                 "agents/18_pdf_design.py",                  True),
     ("19_pdf_qa",                     "agents/19_pdf_qa.py",                      True),
     ("22_telegram_publisher",         "agents/22_telegram_publisher.py",          True),
-    ("23_telegram_pin_verifier",      "agents/23_telegram_pin_verifier.py",       False),
+    ("23_telegram_pin_verifier",      "agents/23_telegram_pin_verifier.py",       True),
+    ("24_final_health_audit",          "agents/24_final_health_audit.py",          True),
 ]
 
 WEEKLY_STAGES: list[tuple[str, str, bool]] = [
+    DAILY_STAGES[0],
     ("20_weekly_editor", "agents/20_weekly_editor.py", True),
-]
+] + DAILY_STAGES[8:]
 
 MONTHLY_STAGES: list[tuple[str, str, bool]] = [
+    DAILY_STAGES[0],
     ("21_monthly_editor", "agents/21_monthly_editor.py", True),
-]
+] + DAILY_STAGES[8:]
 
 STAGES_BY_TYPE = {
     "daily": DAILY_STAGES,
@@ -113,13 +119,18 @@ def job_context_env(job_type: str, date_str: str | None) -> dict[str, str]:
     if not date_str:
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
-        datetime.strptime(date_str, "%Y-%m-%d")
+        date.fromisoformat(date_str)
     except ValueError:
         raise SystemExit(
             f"invalid job date {date_str!r}; expected YYYY-MM-DD "
             f"(e.g. --date 2026-10-14)"
         )
+    from pipeline.windows import collect_window
+    window_start, window_end = collect_window(job_type, date_str)
     return {
+        "ALP_OUTPUT_PREFIX": f"{job_type}_{date_str}",
+        "ALP_WINDOW_START": window_start.isoformat(),
+        "ALP_WINDOW_END": window_end.isoformat(),
         "ALP_JOB_ID": f"{job_type}_{date_str}",
         "ALP_JOB_TYPE": job_type,
         "ALP_JOB_DATE": date_str,
@@ -174,31 +185,44 @@ def load_jobs_state(*, strict: bool = False) -> dict:
 
 
 def save_jobs_state(state: dict) -> None:
-    """Atomic write of full job-state map."""
-    JOBS_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp = JOBS_STATE_PATH.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, JOBS_STATE_PATH)
+    """Atomic, flushed write; update_job locks read-modify-write operations."""
+    write_json_atomic(JOBS_STATE_PATH, state)
 
 
 def update_job(job_id: str, *, status: str | None = None,
                last_stage: str | None = None, error: str | None = None,
-               started_new: bool = False) -> dict:
-    """One place that mutates a job entry, then persists atomically."""
-    state = load_jobs_state()
-    entry = state.setdefault(job_id, {})
-    now_iso = datetime.now(timezone.utc).isoformat()
-    if started_new and not entry.get("started_at"):
-        entry["started_at"] = now_iso
-    if status is not None:
-        entry["status"] = status
-    if last_stage is not None:
-        entry["last_success_stage"] = last_stage
-    if error is not None:
-        entry["last_error"] = error[:500]
-    entry["updated_at"] = now_iso
-    save_jobs_state(state)
-    return entry
+               started_new: bool = False, artifacts: dict | None = None,
+               context: dict | None = None, record_attempt: bool = True) -> dict:
+    with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+        state = load_jobs_state(strict=True)
+        entry = state.setdefault(job_id, {})
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if started_new:
+            entry["started_at"] = now_iso
+            entry.pop("last_success_stage", None)
+            entry.pop("last_error", None)
+            entry.pop("failed_stage", None)
+            entry["artifacts"] = {}
+        if context:
+            entry["run_attempts"] = int(entry.get("run_attempts", 0)) + int(record_attempt)
+            entry.update(job_id=job_id, job_type=context["ALP_JOB_TYPE"],
+                         job_date=context["ALP_JOB_DATE"], dry_run=os.getenv("DRY_RUN", "0") == "1")
+            entry["window"] = {"start": context["ALP_WINDOW_START"], "end": context["ALP_WINDOW_END"]}
+            if os.getenv("GITHUB_RUN_ID"):
+                entry["github_run_id"] = os.environ["GITHUB_RUN_ID"]
+        if status is not None:
+            entry["status"] = status
+        if last_stage is not None:
+            entry["last_success_stage"] = last_stage
+            entry.pop("last_error", None)
+            entry.pop("failed_stage", None)
+        if error is not None:
+            entry["last_error"] = error[:2000]
+        if artifacts is not None:
+            entry["artifacts"] = artifacts
+        entry["updated_at"] = now_iso
+        save_jobs_state(state)
+        return entry
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +250,7 @@ def run_stage(name: str, script_rel: str, critical: bool,
 
     env = os.environ.copy()
     env.update(extra_env)  # canonical ALP_JOB_* context reaches every stage
+    env["ALP_STAGE_ID"] = name
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT), env.get("PYTHONPATH", "")]))
 
     attempts = MAX_RETRIES + 1
@@ -240,9 +265,14 @@ def run_stage(name: str, script_rel: str, critical: bool,
                 text=True,
                 timeout=STAGE_TIMEOUT_SECONDS,
             )
+            output = redact((result.stdout or "") + "\n" + (result.stderr or ""), env)
+            stage_log = ROOT / "logs" / "stages" / extra_env["ALP_JOB_ID"] / f"{name}.log"
+            stage_log.parent.mkdir(parents=True, exist_ok=True)
+            with stage_log.open("a", encoding="utf-8") as handle:
+                handle.write(f"\n--- attempt {attempt}; exit {result.returncode} ---\n{output}\n")
             if result.returncode == 0:
                 return True, f"ok (attempt {attempt})"
-            last_err = _truncate((result.stdout or "") + "\n" + (result.stderr or "")) or \
+            last_err = _truncate(output) or \
                        f"exit code {result.returncode}"
         except subprocess.TimeoutExpired:
             last_err = f"timeout after {STAGE_TIMEOUT_SECONDS}s"
@@ -264,19 +294,17 @@ def run_stage(name: str, script_rel: str, critical: bool,
 # ---------------------------------------------------------------------------
 
 def resolve_resume_stage(job_id: str, stages: list[tuple[str, str, bool]]) -> str | None:
-    """If the job was interrupted mid-run, return the last completed stage name.
+    """Resume interrupted/failed editions only with intact edition-local outputs.
 
-    Only 'running' jobs resume. Terminal states (success/failed) restart clean
-    so a fixed bug isn't blocked by an old partial state.
+    --reset is the explicit restart path after code/content changes. When a new
+    Actions runner has no restored outputs, rewind rather than skipping stages.
     """
     entry = load_jobs_state().get(job_id, {})
-    if entry.get("status") != "running":
+    if entry.get("status") not in {"running", "failed", "success"}:
         return None
-    last = entry.get("last_success_stage")
-    names = [n for n, _, _ in stages]
-    if last in names:
-        return last
-    return None
+    if entry.get("dry_run") != (os.getenv("DRY_RUN", "0") == "1"):
+        return None
+    return resume_after(ROOT, job_id, entry, [name for name, _, _ in stages])
 
 
 # ---------------------------------------------------------------------------
@@ -288,10 +316,24 @@ def execute_job(job_type: str, date_str: str | None) -> int:
     job_id = ctx["ALP_JOB_ID"]
     stages = STAGES_BY_TYPE[job_type]
 
+    previous = load_jobs_state().get(job_id, {})
+    same_mode = previous.get("dry_run") == (os.getenv("DRY_RUN", "0") == "1")
+    names = [name for name, _, _ in stages]
+    if previous.get("status") == "success" and same_mode and resume_after(ROOT, job_id, previous, names) == names[-1]:
+        log(f"job '{job_id}' already complete with intact checkpoints; use --reset for a fresh edition")
+        return 0
     resume_from = resolve_resume_stage(job_id, stages)
     skipping = resume_from is not None
 
-    update_job(job_id, status="running", started_new=True)
+    previous = load_jobs_state().get(job_id, {})
+    if same_mode and isinstance(previous.get("window"), dict) and previous["window"].get("start") and previous["window"].get("end"):
+        ctx["ALP_WINDOW_START"] = previous["window"]["start"]
+        ctx["ALP_WINDOW_END"] = previous["window"]["end"]
+    artifacts = dict(previous.get("artifacts", {})) if resume_from else {}
+    if resume_from:
+        prefix = [n for n, _, _ in stages][: [n for n, _, _ in stages].index(resume_from) + 1]
+        artifacts = {path: record for path, record in artifacts.items() if record.get("stage") in prefix}
+    update_job(job_id, status="running", started_new=not skipping, context=ctx, artifacts=artifacts)
     log(f"{job_type} job '{job_id}' — {len(stages)} stages"
         + (f", resuming after completed stage '{resume_from}'" if skipping else ""))
 
@@ -306,12 +348,21 @@ def execute_job(job_type: str, date_str: str | None) -> int:
 
         ok, msg = run_stage(name, script, critical, extra_env=ctx)
         if ok:
+            try:
+                artifacts = capture(ROOT, job_id, name, artifacts)
+            except (ValueError, OSError) as exc:
+                ok, msg = False, str(exc)
+        if ok:
             log(f"stage {name}: {msg}")
-            update_job(job_id, status="running", last_stage=name)
+            update_job(job_id, status="running", last_stage=name, artifacts=artifacts)
         else:
             log_err(f"stage {name}: {msg}")
             if critical:
-                update_job(job_id, status="failed", error=f"{name}: {msg}")
+                entry = update_job(job_id, status="failed", error=f"{name}: {msg}")
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state[job_id]["failed_stage"] = name
+                    save_jobs_state(state)
                 log(f"job '{job_id}' FAILED at critical stage {name}")
                 return 1
             update_job(job_id, error=f"non-critical {name}: {msg}")
@@ -335,7 +386,13 @@ def watchdog(stuck_hours: float | None = None) -> int:
 
     Exit codes: 0 = healthy, 1 = recovery actions exist, 2 = state unreadable.
     """
-    state = load_jobs_state()
+    try:
+        state = load_jobs_state(strict=True)
+    except (ValueError, OSError) as exc:
+        log_err(f"watchdog: state unreadable: {exc}")
+        return 2
+    aliases = {"RUNNING": "running", "FAILED": "failed", "FAILED_FINAL": "failed"}
+    state = {jid: dict(entry, status=aliases.get(entry["status"], entry["status"])) for jid, entry in state.items()}
     now = datetime.now(timezone.utc)
     stuck: list[str] = []
     failed: list[str] = []
@@ -344,7 +401,10 @@ def watchdog(stuck_hours: float | None = None) -> int:
         status = entry.get("status")
         ts = entry.get("updated_at", "")
         try:
-            age_h = (now - datetime.fromisoformat(ts)).total_seconds() / 3600.0
+            updated = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            if updated.tzinfo is None:
+                updated = updated.replace(tzinfo=timezone.utc)
+            age_h = (now - updated).total_seconds() / 3600.0
         except (ValueError, TypeError):
             age_h = float("inf")
         if status == "running" and age_h > (RUNNING_STUCK_HOURS if stuck_hours is None else stuck_hours):
@@ -352,7 +412,17 @@ def watchdog(stuck_hours: float | None = None) -> int:
         elif status == "failed" and age_h <= FAILED_LOOKBACK_HOURS:
             failed.append(jid)
 
-    actions = [{"job_id": j, "action": "retry"} for j in sorted(set(stuck) | set(failed))]
+    try:
+        max_recovery = int(os.getenv("ALP_RECOVERY_MAX_ATTEMPTS", "6"))
+        if max_recovery < 1:
+            raise ValueError("recovery budget must be positive")
+        actions = [{"job_id": j, "action": "retry"} for j in sorted(set(stuck) | set(failed))
+                   if int(state[j].get("run_attempts", 0)) < max_recovery]
+    except (TypeError, ValueError):
+        write_json_atomic(ROOT / "recovery_plan.json", {"generated_at": now.isoformat(), "actions": [],
+                                                      "error": "invalid recovery budget or run-attempt counter"})
+        log_err("watchdog: invalid recovery budget or run-attempt counter; manual attention required")
+        return 2
     plan = {
         "generated_at": now.isoformat(),
         "stuck_running": stuck,
@@ -360,16 +430,16 @@ def watchdog(stuck_hours: float | None = None) -> int:
         "actions": actions,
     }
 
-    out = ROOT / "state" / "recovery_plan.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    tmp = out.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(plan, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, out)
+    out = ROOT / "recovery_plan.json"
+    write_json_atomic(out, plan)
 
     print(json.dumps(plan, indent=2, ensure_ascii=False))
     if actions:
         log(f"watchdog: {len(actions)} job(s) need recovery")
         return 1
+    if stuck or failed:
+        log_err("watchdog: recovery budget exhausted; manual attention required")
+        return 2
     log("watchdog: all clear")
     return 0
 
@@ -398,12 +468,19 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.watchdog:
         return watchdog(args.stuck_hours)
-    if args.reset:
-        job_id = job_context_env(args.type, args.date)["ALP_JOB_ID"]
-        state = load_jobs_state()
-        state.pop(job_id, None)
-        save_jobs_state(state)
-    return execute_job(args.type, args.date)
+    try:
+        with file_lock(JOBS_STATE_PATH.parent / "locks" / "pipeline.lock", blocking=False):
+            if args.reset:
+                job_id = job_context_env(args.type, args.date)["ALP_JOB_ID"]
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state.pop(job_id, None)
+                    save_jobs_state(state)
+            return execute_job(args.type, args.date)
+    except BlockingIOError:
+        log_err("another pipeline process holds the run lock; no state changed")
+        return 1
+
 
 
 if __name__ == "__main__":

@@ -119,7 +119,8 @@ def test_live_publish_rejects_unreviewed_translation(tmp_path, monkeypatch):
     assert not publisher.publish_pdf(pdf, {"records": {}})
 
 
-def test_daily_pipeline_end_to_end_without_external_services(tmp_path):
+@pytest.mark.parametrize("interrupt_feed", [False, True])
+def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt_feed):
     """Run actual stage subprocesses against a local synthetic RSS feed."""
     root = tmp_path / "repo"
     root.mkdir()
@@ -146,6 +147,10 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path):
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            if interrupt_feed and not getattr(self.server, "dropped_once", False):
+                self.server.dropped_once = True
+                self.connection.close()
+                return
             self.send_response(200)
             self.send_header("Content-Type", "application/rss+xml")
             self.end_headers()
@@ -169,6 +174,17 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path):
             [sys.executable, str(root / "main.py"), "--job-type", "daily", "--date", "2026-10-05"],
             cwd=root, env=env, capture_output=True, text=True, timeout=90,
         )
+        if interrupt_feed:
+            assert result.returncode == 1, result.stdout + result.stderr
+            failed = json.loads((root / "state/jobs.json").read_text())["daily_2026-10-05"]
+            assert failed["status"] == "failed" and failed["failed_stage"] == "01_source_fetch"
+            assert not (root / "state/published_jobs.json").exists()
+            result = subprocess.run(
+                [sys.executable, str(root / "main.py"), "--type", "daily", "--date", "2026-10-05"],
+                cwd=root, env=env, capture_output=True, text=True, timeout=90)
+            recovered = json.loads((root / "state/jobs.json").read_text())["daily_2026-10-05"]
+            assert recovered["window"] == failed["window"]
+            assert recovered["run_attempts"] == 2
     finally:
         server.shutdown()
         server.server_close()
@@ -183,3 +199,64 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path):
     qa = json.loads((root / f"logs/qa/{job_id}_qa.json").read_text())
     assert qa["passed"] and qa["file_sha256"] == hashlib.sha256(pdf.read_bytes()).hexdigest()
     assert not (root / "state/published_jobs.json").exists(), "dry-run must not write a real publication ledger"
+
+    # With the RSS server now OFFLINE, completed daily jobs must be a real no-op.
+    health = json.loads((root / f"logs/qa/{job_id}_health.json").read_text())
+    assert health["passed"] and state[job_id]["last_success_stage"] == "24_final_health_audit"
+    before = (root / "state/jobs.json").read_bytes()
+    rerun = subprocess.run([sys.executable, str(root / "main.py"), "--type", "daily", "--date", "2026-10-05"],
+                           cwd=root, env=env, capture_output=True, text=True, timeout=90)
+    assert rerun.returncode == 0, rerun.stdout + rerun.stderr
+    assert "already complete with intact checkpoints" in rerun.stdout
+    assert (root / "state/jobs.json").read_bytes() == before
+
+    # Both period editions use the verified shared database with ALL network unavailable.
+    for kind, edition in [("weekly", "2026-10-04"), ("monthly", "2026-10-14")]:
+        run = subprocess.run([sys.executable, str(root / "main.py"), "--type", kind, "--date", edition],
+                             cwd=root, env=env, capture_output=True, text=True, timeout=90)
+        assert run.returncode == 0, run.stdout + run.stderr
+        period_id = f"{kind}_{edition}"
+        state = json.loads((root / "state/jobs.json").read_text())
+        assert state[period_id]["status"] == "success"
+        assert state[period_id]["last_success_stage"] == "24_final_health_audit"
+        health = json.loads((root / f"logs/qa/{period_id}_health.json").read_text())
+        assert health["passed"] and health["dry_run"]
+        verification = subprocess.run([sys.executable, str(ROOT / "scripts/verify_e2e.py"), "--root", str(root),
+                                       "--job-type", kind, "--date", edition],
+                                      env=env, capture_output=True, text=True, timeout=30)
+        assert verification.returncode == 0, verification.stdout + verification.stderr
+    assert not (root / "state/published_jobs.json").exists()
+
+    # Simulate an interrupted process immediately after PDF QA. No RSS is available.
+    state = json.loads((root / "state/jobs.json").read_text())
+    state[job_id]["status"] = "running"
+    state[job_id]["last_success_stage"] = "19_pdf_qa"
+    (root / "state/jobs.json").write_text(json.dumps(state))
+    raw_before = (root / f"data/raw/{job_id}.json").read_bytes()
+    recovery = subprocess.run([sys.executable, str(root / "main.py"), "--type", "daily", "--date", "2026-10-05"],
+                              cwd=root, env=env, capture_output=True, text=True, timeout=90)
+    assert recovery.returncode == 0, recovery.stdout + recovery.stderr
+    assert "resuming after completed stage '19_pdf_qa'" in recovery.stdout
+    assert (root / f"data/raw/{job_id}.json").read_bytes() == raw_before
+    assert not (root / "state/published_jobs.json").exists()
+
+
+@pytest.mark.parametrize("message_id", [None, 0, -1, True, "5"])
+def test_live_publish_rejects_invalid_message_ids(tmp_path, monkeypatch, message_id):
+    publisher = load_publisher()
+    monkeypatch.setattr(publisher, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(publisher, "DRY_RUN", False)
+    monkeypatch.setattr(publisher, "call_with_retry", lambda *a, **k: {"message_id": message_id})
+    monkeypatch.setattr(publisher, "save_ledger", lambda *a: None)
+    pdf = tmp_path / "daily_2026-10-05.pdf"
+    pdf.write_bytes(b"unit-test PDF bytes")
+    qa = tmp_path / "logs/qa/daily_2026-10-05_qa.json"
+    qa.parent.mkdir(parents=True)
+    qa.write_text(json.dumps({"passed": True, "job_id": pdf.stem,
+                              "file_sha256": hashlib.sha256(pdf.read_bytes()).hexdigest()}))
+    content = tmp_path / "data/content/daily_2026-10-05.json"
+    content.parent.mkdir(parents=True)
+    content.write_text(json.dumps({"items": [{"needs_review": False, "verification_passed": True}]}))
+    ledger = {"records": {}}
+    assert not publisher.publish_pdf(pdf, ledger)
+    assert all(record["status"] != "success" for record in ledger["records"].values())

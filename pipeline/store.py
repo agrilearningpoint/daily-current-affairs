@@ -76,7 +76,7 @@ def _file_lock(path: Path) -> Iterator[None]:
     try:
         try:
             import fcntl
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX)
         except ImportError:
             # Windows fallback — best effort (skip if unavailable)
             pass
@@ -93,10 +93,7 @@ def _file_lock(path: Path) -> Iterator[None]:
         except ImportError:
             pass
         os.close(fd)
-        try:
-            os.remove(str(lock_path))
-        except OSError:
-            pass
+        # Keep the lock inode: unlinking allows a third process to bypass a waiter.
 
 
 # --------------------------------------------------------------------------- #

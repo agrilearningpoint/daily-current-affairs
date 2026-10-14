@@ -70,6 +70,8 @@ def job_context() -> Tuple[str, str, datetime]:
     job_id = os.environ.get("ALP_JOB_ID", "").strip() or f"daily_{job_date}"
     from pipeline.windows import collect_window
     _, window_end = collect_window(os.getenv("ALP_JOB_TYPE", "daily"), job_date)
+    if os.getenv("ALP_WINDOW_END"):
+        window_end = datetime.fromisoformat(os.environ["ALP_WINDOW_END"])
     window_end = window_end.astimezone(timezone.utc)
     return job_id, job_date, window_end
 
@@ -153,6 +155,8 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             "source_name": spec.name,
             "source_id": spec.source_id,
             "source_tier": spec.tier,
+            "publisher_url": spec.extra.get("url", spec.rss_url),
+            **({"source_level": spec.extra["level"]} if "level" in spec.extra else {}),
             "official": spec.official,
             "category": spec.category,
             "language": spec.language,
@@ -166,6 +170,8 @@ def main() -> int:
     job_id, job_date, window_end = job_context()
     from pipeline.windows import collect_window
     window_start, _ = collect_window(os.getenv("ALP_JOB_TYPE", "daily"), job_date)
+    if os.getenv("ALP_WINDOW_START"):
+        window_start = datetime.fromisoformat(os.environ["ALP_WINDOW_START"])
     window_start = window_start.astimezone(timezone.utc)
 
     try:

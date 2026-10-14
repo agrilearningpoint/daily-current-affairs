@@ -119,7 +119,8 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
     except requests.Timeout:
         return {"status": "timeout", "detail": "15s timeout"}
     except Exception as exc:
-        return {"status": "error", "detail": str(exc)[:200]}
+        from pipeline.persistence import redact
+        return {"status": "error", "detail": redact(str(exc), os.environ)[:200]}
 
 
 def atomic_write(path: Path, data: Any) -> None:

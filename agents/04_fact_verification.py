@@ -40,6 +40,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+from difflib import SequenceMatcher
 
 import requests
 
@@ -134,6 +136,16 @@ def content_hash(article: Dict[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 # Strategy 1: Cross-Source Corroboration
 # --------------------------------------------------------------------------- #
+def independent_domain(url):
+    """Group sibling subdomains; recognize common multi-label public suffixes."""
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    labels = host.split(".")
+    suffixes = {"co.in", "gov.in", "nic.in", "org.in", "net.in", "ac.in", "edu.in",
+                "co.uk", "org.uk", "com.au", "co.jp", "co.nz", "com.br"}
+    count = 3 if ".".join(labels[-2:]) in suffixes else 2
+    return ".".join(labels[-count:])
+
+
 def cross_source_score(
     article: Dict[str, Any],
     all_articles: List[Dict[str, Any]],
@@ -149,20 +161,29 @@ def cross_source_score(
         return 0.3, []  # no terms → weak but non-zero
 
     article_link = article.get("link", "")
+    own_host = independent_domain(article_link)
     corroborating: List[str] = []
-
+    title = clean_text(article.get("title", "")).lower()
+    numbers = {float(value) for value in re.findall(r"\b\d+(?:\.\d+)?\b", title)}
     for other in all_articles:
-        if other.get("link") == article_link:
+        other_link = other.get("link", "")
+        host = independent_domain(other_link)
+        # Syndicated pages or another article in the same feed are not independent proof.
+        if not host or host == own_host or other_link == article_link:
             continue
-        other_text = f"{other.get('title', '')} {other.get('summary', '')}"
+        other_title = clean_text(other.get("title", "")).lower()
+        other_numbers = {float(value) for value in re.findall(r"\b\d+(?:\.\d+)?\b", other_title)}
+        if numbers and other_numbers and numbers != other_numbers:
+            continue
+        other_text = f"{other_title} {other.get('summary', '')}"
         other_terms = set(extract_key_terms(other_text))
         if not other_terms:
             continue
-        overlap = len(art_terms & other_terms) / max(len(art_terms), 1)
-        if overlap >= similarity_threshold:
-            src = other.get("source_feed", "unknown")
-            if src not in corroborating:
-                corroborating.append(src)
+        overlap = len(art_terms & other_terms) / max(len(art_terms | other_terms), 1)
+        similarity = SequenceMatcher(None, title, other_title).ratio()
+        if overlap >= max(similarity_threshold, 0.55) and similarity >= 0.65:
+            if host not in corroborating:
+                corroborating.append(host)
 
     n = len(corroborating)
     if n >= 3:
@@ -317,7 +338,15 @@ def verify_article(
         method = "heuristic+cross_source"
 
     all_flags = heur_flags + llm_flags
-    is_verified = final >= MIN_CONFIDENCE_THRESHOLD
+    dry_run = os.getenv("DRY_RUN", "0") == "1"
+    host = (urlparse(article.get("link", "")).hostname or "").removeprefix("www.")
+    publisher = (urlparse(article.get("publisher_url") or article.get("source_feed", "")).hostname or "").removeprefix("www.")
+    primary = (article.get("official") is True and bool(publisher)
+               and (host == publisher or host.endswith("." + publisher)))
+    provenance = primary or len(corroborating) >= 2
+    is_verified = final >= MIN_CONFIDENCE_THRESHOLD and (dry_run or provenance)
+    if not provenance:
+        all_flags.append("independent_source_verification_missing")
 
     return {
         **article,
@@ -334,6 +363,8 @@ def verify_article(
         "corroborating_sources": corroborating,
         "flags": all_flags,
         "is_verified": is_verified,
+        "verification_mode": "dry_run" if dry_run else "live",
+        "provenance_verified": provenance,
     }
 
 

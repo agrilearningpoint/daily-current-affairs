@@ -233,29 +233,9 @@ def try_llm_digest(articles: List[Dict[str, Any]], start: datetime, end: datetim
 
 # --------------------------------------------------------------------------- #
 def main() -> int:
-    start, end = resolve_week_range()
-    logger.info("Weekly window: %s → %s", start.isoformat(), end.isoformat())
-
-    articles = load_articles(start, end)
-    articles = dedup_articles(articles)
-    articles = rank_articles(articles)
-
-    if not articles:
-        # Emit empty digest — non-fatal, so daily flow isn't blocked
-        logger.warning("No articles for this week — emitting empty digest.")
-        digest = build_rule_based([], start, end)
-        date_str = end.strftime("%Y-%m-%d")
-        atomic_write(OUTPUT_DIR / f"weekly_{date_str}.json", digest)
-        return 0  # EXIT 0 so downstream doesn't fail
-
-    digest = try_llm_digest(articles, start, end) or build_rule_based(articles, start, end)
-
-    date_str = end.strftime("%Y-%m-%d")
-    out = OUTPUT_DIR / f"weekly_{date_str}.json"
-    atomic_write(out, digest)
-    logger.info("✔ Weekly digest: %d articles, %d sections → %s",
-                len(articles), len(digest["sections"]), out)
-    return 0
+    from pipeline.agent_context import get_context
+    from pipeline.period_editor import prepare
+    return prepare(get_context())
 
 
 if __name__ == "__main__":

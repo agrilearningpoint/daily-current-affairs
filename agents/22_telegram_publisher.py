@@ -379,8 +379,8 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
             content = json.loads((REPO_ROOT / "data/content" / f"{job_id}.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return False
-        if not content.get("items") or any(i.get("needs_review") for i in content["items"]):
-            logger.error("Content still needs translation review; publish blocked")
+        if not content.get("items") or any(not isinstance(i, dict) or i.get("needs_review") is not False or i.get("verification_passed") is not True for i in content["items"]):
+            logger.error("Content lacks verified provenance or completed translation review; publish blocked")
             return False
     key = _ledger_key(job_id, TELEGRAM_CHAT_ID, fh)
 
@@ -414,6 +414,8 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
             caption=caption, parse_mode=TELEGRAM_PARSE_MODE,
         )
         msg_id = result.get("message_id")
+        if type(msg_id) is not int or msg_id <= 0:
+            raise TelegramAPIError("sendDocument returned no valid message_id")
         ledger["records"][key] = {
             "job_id": job_id,
             "chat_id": TELEGRAM_CHAT_ID,

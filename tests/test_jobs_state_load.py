@@ -82,13 +82,13 @@ def test_missing_state_is_allowed(state_file):
     assert main.load_jobs_state(strict=True) == {}
 
 
-def test_resume_reads_wrapped_state(state_file):
+def test_resume_rewinds_wrapped_state_with_missing_artifacts(state_file):
     state_file.write_text(json.dumps({"jobs": {
         "daily_2026-10-14": {
             "status": "running", "last_success_stage": "05_deduplication",
         },
     }}), encoding="utf-8")
-    assert main.resolve_resume_stage("daily_2026-10-14", main.DAILY_STAGES) == "05_deduplication"
+    assert main.resolve_resume_stage("daily_2026-10-14", main.DAILY_STAGES) is None
 
 
 def test_ci_state_load_step_passes_on_committed_state():

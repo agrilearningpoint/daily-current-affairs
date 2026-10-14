@@ -324,6 +324,10 @@ def main() -> int:
     items = read_news_items(path)
     job = {"id": ctx.job_id, "type": ctx.job_type, "date": ctx.job_date,
            "date_display": datetime.strptime(ctx.job_date, "%Y-%m-%d").strftime("%d %B %Y")}
+    job["period_start"] = os.getenv("ALP_WINDOW_START", "")
+    job["period_end"] = os.getenv("ALP_WINDOW_END", "")
+    if ctx.job_type == "monthly" and job["period_start"]:
+        job["date_display"] = datetime.fromisoformat(job["period_start"]).strftime("%B %Y")
     # Dictionary fallback is for offline previews only, never live publication.
     dry_run = os.getenv("DRY_RUN", "0") == "1"
     os.environ["ALP_TRANSLATION_STRICT"] = "0" if dry_run else "1"

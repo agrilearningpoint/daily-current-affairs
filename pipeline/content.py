@@ -578,7 +578,8 @@ def _build_entry(it, stats):
                    "tier": it.get("source_tier", ""), "date": it.get("pub_time_ist")},
         "importance_score": it.get("importance_score", 0),
         "image_path": it.get("image_path", ""),
-        "needs_review": bool(flags),          # True => Hindi came from the dictionary fallback
+        "needs_review": bool(flags) or not (it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live"),
+        "verification_passed": it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live",
     }
 
 
