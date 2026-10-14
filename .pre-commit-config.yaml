@@ -1,0 +1,46 @@
+# =============================================================================
+# Pre-commit hooks — runs on `git commit`
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+# =============================================================================
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.(md|txt)$
+      - id: end-of-file-fixer
+        exclude: \.(md|txt)$
+      - id: check-yaml
+      - id: check-json
+        exclude: ^(state/|data/|logs/)
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        exclude: ^(agents/\d+|state/|data/|logs/)
+      - id: ruff-format
+        exclude: ^(state/|data/|logs/)
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests]
+        args: ["--ignore-missing-imports", "--no-error-summary"]
+        exclude: ^(tests/|maintenance/|agents/\d+)
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        args: ["-ll", "-x", "tests,maintenance"]
+        exclude: ^(state/|data/|logs/)
