@@ -122,10 +122,10 @@
       "job_type": "daily",
       "status": "FAILED",
       "created_at": "2026-10-14T06:57:23.793480+00:00",
-      "updated_at": "2026-10-14T06:57:30.468860+00:00",
+      "updated_at": "2026-10-14T11:10:07.055441+00:00",
       "last_success_stage": "00_model_orchestrator",
       "failed_stage": "01_source_fetch",
-      "attempts": 1,
+      "attempts": 2,
       "error": "01_source_fetch: stage execution failed",
       "job_date": null,
       "stage_history": []
