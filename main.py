@@ -4,17 +4,23 @@ Pipeline Orchestrator — Production Grade
 =========================================
 Daily / Weekly / Monthly news pipeline orchestrator.
 
-Backward-compatible with legacy state/jobs.json:
-- Field aliases: updated<->updated_at, created<->created_at, failed_at<->failed_stage
-- Missing job_type inferred from job_id prefix (daily_/weekly_/monthly_)
-- Legacy intermediate statuses (COLLECTED, RETRYING, QA_REJECTED, ...) → FAILED
-
-Critical fixes vs previous version:
-- SCRIPTS_DIR dynamically resolved (agents/ + pipeline/)
-- Missing CRITICAL stage => job FAILED (never silently SKIPPED)
+Key features:
+- Backward-compatible with legacy state/jobs.json
+- Multi-path stage resolution (agents/ + pipeline/)
+- Job context passed to subprocesses via env vars (ALP_JOB_ID, etc.)
+- Missing CRITICAL stage => job FAILED (never silently skipped)
 - --type alias for --job-type (workflow compatibility)
-- --watchdog flag support (README compliant)
-- pipeline/state.py state-machine sync (best-effort)
+- --watchdog mode (stuck job detection + recovery plan)
+- pipeline/state.py sync (best-effort)
+- Atomic state writes + job locks
+
+Env vars passed to subprocesses:
+  ALP_JOB_ID          — e.g. "daily_2026-10-14"
+  ALP_JOB_TYPE        — "daily" | "weekly" | "monthly"
+  ALP_JOB_DATE        — "2026-10-14"
+  ALP_OUTPUT_PREFIX   — same as ALP_JOB_ID (for filenames)
+  ALP_STAGE_ID        — current stage id
+  JOB_TYPE            — legacy alias (same as ALP_JOB_TYPE)
 """
 from __future__ import annotations
 
@@ -30,6 +36,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -53,6 +60,7 @@ WATCHDOG_STUCK_HOURS_DEFAULT = int(os.getenv("WATCHDOG_STUCK_HOURS", "2"))
 # Canonical orchestrator statuses
 VALID_ORCH_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED", "FAILED_FINAL"}
 
+
 # --------------------------------------------------------------------------- #
 # Logging
 # --------------------------------------------------------------------------- #
@@ -71,13 +79,24 @@ logger = logging.getLogger("orchestrator")
 
 
 # --------------------------------------------------------------------------- #
-# Pydantic Models — Backward Compatible
+# Enums
+# --------------------------------------------------------------------------- #
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    FAILED_FINAL = "FAILED_FINAL"
+
+
+# --------------------------------------------------------------------------- #
+# Pydantic Models — Backward Compatible with Legacy jobs.json
 # --------------------------------------------------------------------------- #
 class JobRecord(BaseModel):
     """
     Job record with backward-compatible field aliases.
 
-    Supports BOTH schemas:
+    Supports BOTH:
         main.py style:    updated_at, failed_stage, created_at, job_type
         pipeline style:   updated,    failed_at,    created,    (no job_type)
     """
@@ -103,7 +122,7 @@ class JobRecord(BaseModel):
             return data
         d = dict(data)
 
-        # --- Field aliases: legacy → canonical ---
+        # Field aliases: legacy → canonical
         if "updated" in d and not d.get("updated_at"):
             d["updated_at"] = d.pop("updated")
         if "created" in d and not d.get("created_at"):
@@ -111,7 +130,7 @@ class JobRecord(BaseModel):
         if "failed_at" in d and not d.get("failed_stage"):
             d["failed_stage"] = d.pop("failed_at")
 
-        # --- Infer job_type from job_id if missing ---
+        # Infer job_type from job_id
         if not d.get("job_type"):
             jid = str(d.get("job_id", ""))
             if jid.startswith("daily_"):
@@ -123,22 +142,20 @@ class JobRecord(BaseModel):
             else:
                 d["job_type"] = "daily"
 
-        # --- Fill missing timestamps ---
+        # Fill missing timestamps
         now = datetime.now(timezone.utc).isoformat()
         d.setdefault("created_at", now)
         d.setdefault("updated_at", now)
 
-        # --- Normalize legacy status → orchestrator status ---
+        # Normalize legacy status
         status = str(d.get("status", "PENDING"))
         if status not in VALID_ORCH_STATUSES:
             original = status
             d["status"] = "FAILED"
             if not d.get("error"):
                 d["error"] = f"Legacy status '{original}' normalized to FAILED for retry"
-            # If a legacy intermediate state existed, keep last_success_stage
-            # so orchestrator can resume from the correct point.
 
-        # --- Sanity: attempts must be int >= 0 ---
+        # Sanity: attempts
         try:
             d["attempts"] = max(0, int(d.get("attempts", 0)))
         except (TypeError, ValueError):
@@ -202,7 +219,7 @@ STAGE_MAP: Dict[str, List[Tuple[str, bool, List[str]]]] = {
     "monthly": MONTHLY_STAGES,
 }
 
-# stage_id → pipeline/state.py state
+# Stage → pipeline/state.py state
 STAGE_TO_STATE: Dict[str, str] = {
     "00_model_orchestrator": "CREATED",
     "01_source_fetch":       "COLLECTING",
@@ -233,10 +250,10 @@ def stages_for(job_type: str) -> List[Tuple[str, bool, List[str]]]:
 
 
 # --------------------------------------------------------------------------- #
-# File Locking (fcntl-based, cross-platform fallback)
+# File Locking (fcntl-based)
 # --------------------------------------------------------------------------- #
 class JobLock:
-    """Cross-process lock via fcntl. Auto-releases on crash (fd close)."""
+    """Cross-process lock via fcntl. Auto-releases on crash."""
 
     def __init__(self, job_id: str):
         LOCK_DIR.mkdir(parents=True, exist_ok=True)
@@ -328,7 +345,6 @@ VALID_TRANSITIONS: Dict[str, set] = {
 
 
 def transition(job: JobRecord, new_status: str) -> None:
-    """Validate and apply a status transition."""
     if new_status == job.status:
         return
     allowed = VALID_TRANSITIONS.get(job.status, set())
@@ -350,15 +366,32 @@ def resolve_stage_script(candidates: List[str]) -> Optional[Path]:
     return None
 
 
+def build_job_context(job_id: str, job_type: str, job_date: str) -> Dict[str, str]:
+    """
+    Build the env vars that every agent subprocess receives.
+    This is the SINGLE SOURCE OF TRUTH for job context propagation.
+    """
+    ctx = {
+        "ALP_JOB_ID": job_id,
+        "ALP_JOB_TYPE": job_type,
+        "ALP_JOB_DATE": job_date,
+        "ALP_OUTPUT_PREFIX": job_id,
+        "JOB_TYPE": job_type,  # legacy compat (some agents read this)
+        "JOB_ID": job_id,      # legacy compat
+    }
+    return ctx
+
+
 def run_stage(
     stage_id: str,
     critical: bool,
     candidates: List[str],
     timeout: int = STAGE_TIMEOUT_SECONDS,
+    job_context: Optional[Dict[str, str]] = None,
 ) -> str:
     """
-    Run one stage. Returns:
-      'SUCCESS' | 'FAILED' | 'MISSING'
+    Run one stage. Passes job context via env vars.
+    Returns: 'SUCCESS' | 'FAILED' | 'MISSING'
     """
     script = resolve_stage_script(candidates)
 
@@ -370,7 +403,20 @@ def run_stage(
             logger.warning("⚠ OPTIONAL MISSING: %s — tried: %s", stage_id, tried)
         return "MISSING"
 
-    logger.info("▶ Running stage: %s (%s)", stage_id, script.relative_to(REPO_ROOT))
+    # Build env: inherit parent env + inject job context
+    env = os.environ.copy()
+    if job_context:
+        env.update(job_context)
+    env["ALP_STAGE_ID"] = stage_id
+
+    logger.info(
+        "▶ Running stage: %s (%s) [job=%s type=%s date=%s]",
+        stage_id, script.relative_to(REPO_ROOT),
+        env.get("ALP_JOB_ID", "?"),
+        env.get("ALP_JOB_TYPE", "?"),
+        env.get("ALP_JOB_DATE", "?"),
+    )
+
     start = time.time()
     try:
         proc = subprocess.Popen(
@@ -379,6 +425,7 @@ def run_stage(
             stderr=subprocess.STDOUT,
             text=True,
             cwd=str(REPO_ROOT),
+            env=env,  # ← PASS JOB CONTEXT
             preexec_fn=os.setsid if hasattr(os, "setsid") else None,
         )
         try:
@@ -417,11 +464,12 @@ def run_stage_with_retry(
     stage_id: str,
     critical: bool,
     candidates: List[str],
+    job_context: Optional[Dict[str, str]] = None,
 ) -> str:
-    """Retry with exponential backoff. Returns final status."""
+    """Retry with exponential backoff. Passes context through."""
     last = "FAILED"
     for attempt in range(1, MAX_STAGE_RETRIES + 1):
-        result = run_stage(stage_id, critical, candidates)
+        result = run_stage(stage_id, critical, candidates, job_context=job_context)
         if result == "SUCCESS":
             return result
         if result == "MISSING" and not critical:
@@ -451,8 +499,8 @@ def sync_pipeline_state(job_id: str, job_type: str, stage_id: str) -> None:
         return
 
     try:
-        # pipeline.state.load_job(job_id, job_type, job_date)
-        job_date = job_id.split("_", 1)[1] if "_" in job_id else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        job_date = job_id.split("_", 1)[1] if "_" in job_id else \
+                   datetime.now(timezone.utc).strftime("%Y-%m-%d")
         job = load_job(job_id, job_type, job_date)
         save_job(job, state=new_state, stage=stage_id)
     except Exception as exc:
@@ -489,6 +537,13 @@ def resume_index(
     return ids.index(last_success) + 1
 
 
+def extract_job_date(job_id: str) -> str:
+    """Extract YYYY-MM-DD from job_id like 'daily_2026-10-14'."""
+    if "_" in job_id:
+        return job_id.split("_", 1)[1]
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
 # --------------------------------------------------------------------------- #
 # Job Execution
 # --------------------------------------------------------------------------- #
@@ -516,16 +571,23 @@ def execute_job(job_id: str, job_type: str) -> bool:
         job.attempts += 1
         save_state(state)
 
+        # Build job context — this is what agents will receive
+        job_date = extract_job_date(job_id)
+        job_context = build_job_context(job_id, job_type, job_date)
+        logger.info("Job context: %s", job_context)
+
         stages = stages_for(job_type)
         start_idx = resume_index(stages, job.last_success_stage)
         logger.info(
-            "Job %s | type=%s | resuming from index %d (next: %s)",
-            job_id, job_type, start_idx,
+            "Job %s | type=%s | date=%s | resuming from index %d (next: %s)",
+            job_id, job_type, job_date, start_idx,
             stages[start_idx][0] if start_idx < len(stages) else "END",
         )
 
         for stage_id, critical, candidates in stages[start_idx:]:
-            result = run_stage_with_retry(stage_id, critical, candidates)
+            result = run_stage_with_retry(
+                stage_id, critical, candidates, job_context=job_context,
+            )
 
             if result == "SUCCESS":
                 job.last_success_stage = stage_id
