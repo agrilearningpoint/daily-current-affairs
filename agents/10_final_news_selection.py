@@ -5,6 +5,7 @@ import logging
 COMMAND = "Select top 25-30 news items with category diversity."
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
 
+
 class Agent:
     def __init__(self, job_id, job_type, context):
         self.job_id = job_id
@@ -74,3 +75,56 @@ class Agent:
 
     def verify(self):
         return not self.context.get("stage_failed")
+
+
+# =============================================================================
+# STANDALONE ENTRYPOINT (for pipeline integration)
+# =============================================================================
+if __name__ == "__main__":
+    import os
+    import sys
+    from pathlib import Path
+
+    # Ensure repo root importable
+    _REPO = Path(__file__).resolve().parent.parent
+    if str(_REPO) not in sys.path:
+        sys.path.insert(0, str(_REPO))
+
+    # Basic logging
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    )
+
+    # --- Load job context from env (set by main.py) ---
+    _job_id = os.getenv("ALP_JOB_ID") or os.getenv("JOB_ID") or ""
+    _job_type = os.getenv("ALP_JOB_TYPE") or os.getenv("JOB_TYPE") or "daily"
+    _job_date = os.getenv("ALP_JOB_DATE") or ""
+
+    if not _job_date and _job_id and "_" in _job_id:
+        _job_date = _job_id.split("_", 1)[1]
+
+    if not _job_date:
+        from datetime import datetime, timezone
+        _job_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    if not _job_id:
+        _job_id = f"{_job_type}_{_job_date}"
+
+    print(f"[10_final_news_selection] job={_job_id} type={_job_type} date={_job_date}")
+
+    # --- Run agent ---
+    _context = {}
+    _exit_code = 0
+
+    try:
+        _agent = Agent(job_id=_job_id, job_type=_job_type, context=_context)
+        _agent.run()
+        print(f"[10] OK — selected_count={_context.get('selected_count', '?')}")
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"[10] FAILED: {exc}", file=sys.stderr)
+        _exit_code = 1
+
+    sys.exit(_exit_code)

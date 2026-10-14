@@ -1,0 +1,212 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install ruff==0.6.9
+
+      - name: Install project deps
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt || echo "::warning::Some deps failed"
+          fi
+        continue-on-error: true
+
+      - name: Python syntax check
+        run: |
+          set -e
+          echo "Checking syntax for all Python files..."
+          FAILED=0
+          while IFS= read -r -d '' f; do
+            if ! python -m py_compile "$f"; then
+              echo "::error file=$f::Syntax error"
+              FAILED=1
+            fi
+          done < <(find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./.venv/*" \
+            -not -path "*/__pycache__/*" \
+            -print0)
+          if [ $FAILED -ne 0 ]; then
+            exit 1
+          fi
+          echo "All Python files compile."
+
+      - name: Ruff lint
+        run: |
+          ruff check . \
+            --select E,F,W \
+            --ignore E501,E402,E722,F401,F811,F841 \
+            --output-format=github \
+            --exclude .git,__pycache__,.venv,venv,build,dist
+
+      - name: Validate JSON configs
+        run: |
+          set -e
+          FAILED=0
+          while IFS= read -r -d '' f; do
+            if ! python -m json.tool "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::Invalid JSON"
+              FAILED=1
+            fi
+          done < <(find . -name "*.json" \
+            -not -path "./.git/*" \
+            -not -path "*/data/*" \
+            -not -path "*/logs/*" \
+            -not -path "*/node_modules/*" \
+            -print0)
+          if [ $FAILED -ne 0 ]; then
+            exit 1
+          fi
+          echo "All JSON files valid."
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest==8.3.3
+
+      - name: Prepare dirs
+        run: |
+          mkdir -p data/raw data/verified data/edited data/jobs \
+                   logs state/locks state/metrics
+
+      - name: Run tests
+        env:
+          AI_ROUTER_DISABLED: "1"
+          ALP_DISABLE_LLM_VERIFY: "1"
+          DRY_RUN: "1"
+        run: |
+          if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
+            pytest tests/ -v --maxfail=5 --tb=short
+          else
+            echo "::warning::No tests directory or empty"
+          fi
+
+  cli-contract:
+    name: Validate CLI Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Check main.py CLI
+        run: |
+          python main.py --help > /tmp/help.txt 2>&1 || {
+            echo "::error::main.py --help failed"
+            cat /tmp/help.txt
+            exit 1
+          }
+          cat /tmp/help.txt
+          for flag in "--job-type" "--watchdog" "--date" "--reset"; do
+            if ! grep -q -- "$flag" /tmp/help.txt; then
+              echo "::error::main.py missing CLI flag: $flag"
+              exit 1
+            fi
+            echo "OK - main.py supports $flag"
+          done
+
+  state-load:
+    name: State File Load Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Load state/jobs.json
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          state_file = Path("state/jobs.json")
+          if not state_file.exists():
+              print("::notice::No state/jobs.json — skipping")
+              sys.exit(0)
+
+          try:
+              data = json.loads(state_file.read_text(encoding="utf-8"))
+          except Exception as e:
+              print(f"::error::Cannot parse state/jobs.json: {e}")
+              sys.exit(1)
+
+          jobs = data.get("jobs", data) if isinstance(data, dict) else {}
+          if not isinstance(jobs, dict):
+              print(f"::error::jobs.json top-level must be dict")
+              sys.exit(1)
+
+          try:
+              from main import PipelineState
+              if "jobs" in data:
+                  state = PipelineState(**data)
+              else:
+                  state = PipelineState(jobs=jobs, version=1)
+              print(f"OK - loaded {len(state.jobs)} jobs")
+          except Exception as e:
+              print(f"::error::Pydantic validation failed: {e}")
+              sys.exit(1)
+          PY

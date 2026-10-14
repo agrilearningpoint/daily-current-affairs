@@ -34,7 +34,7 @@ jobs:
       - name: Run weekly pipeline
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
           JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}

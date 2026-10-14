@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 CONTENT EDITOR + BILINGUAL + MCQ LIBRARY (Agents 12-14, 16)
 

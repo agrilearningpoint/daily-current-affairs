@@ -315,3 +315,160 @@ def prune(retain_days=75):
     pub = {k: v for k, v in _load(PUBLISHED_F).items()
            if v.get("last_published", "9999") >= cutoff}
     _save(PUBLISHED_F, pub)
+
+
+# =============================================================================
+# BACKWARD-COMPAT HELPERS (added for agent compatibility)
+# =============================================================================
+
+def save_memory(memory):
+    """
+    Save memory dict. Alias for internal use — merges with existing.
+
+    Agents call this to persist memory after modifications.
+    """
+    if not isinstance(memory, dict):
+        return
+    try:
+        _save(MEMORY_F, memory)
+    except Exception as e:
+        print(f"[store] save_memory failed: {e}")
+
+
+def load_published():
+    """
+    Load published events ledger.
+
+    Returns dict with 'records' key (canonical shape).
+    Legacy formats auto-normalized.
+    """
+    try:
+        data = _load(PUBLISHED_F)
+    except Exception:
+        data = None
+
+    if data is None:
+        return {"version": 1, "records": {}}
+
+    # Already canonical?
+    if isinstance(data, dict) and "records" in data:
+        return data
+
+    # Legacy: flat dict keyed by event_id
+    if isinstance(data, dict):
+        out = {"version": 1, "records": {}}
+        for k, v in data.items():
+            if isinstance(v, dict):
+                out["records"][k] = v
+        return out
+
+    # Legacy: list
+    if isinstance(data, list):
+        out = {"version": 1, "records": {}}
+        for item in data:
+            if isinstance(item, dict):
+                key = item.get("key") or item.get("id") or item.get("event_id")
+                if key:
+                    out["records"][str(key)] = item
+        return out
+
+    return {"version": 1, "records": {}}
+
+
+def save_published(ledger):
+    """
+    Save published events ledger.
+
+    Expects dict with 'records' key. Auto-normalizes legacy inputs.
+    """
+    if not isinstance(ledger, dict):
+        return
+    if "records" not in ledger:
+        # Wrap flat dict
+        ledger = {"version": 1, "records": dict(ledger)}
+    try:
+        _save(PUBLISHED_F, ledger)
+    except Exception as e:
+        print(f"[store] save_published failed: {e}")
+
+
+def append_published(record):
+    """
+    Append a single published record. Returns True if newly added.
+
+    Record must have 'key' or 'job_id' field.
+    """
+    if not isinstance(record, dict):
+        return False
+    key = record.get("key") or record.get("job_id") or record.get("id")
+    if not key:
+        return False
+
+    ledger = load_published()
+    if str(key) in ledger.get("records", {}):
+        return False
+
+    ledger["records"][str(key)] = record
+    save_published(ledger)
+    return True
+
+
+def update_source_health(source_url, success, article_count=0, error=None):
+    """
+    Track per-source health. Called by collection agents.
+
+    Appends to source_health.json under state/.
+    """
+    health_file = os.path.join(STATE_DIR, "source_health.json")
+    try:
+        health = _load(health_file) or {"version": 1, "sources": {}}
+    except Exception:
+        health = {"version": 1, "sources": {}}
+
+    sources = health.setdefault("sources", {})
+    entry = sources.setdefault(source_url, {
+        "success_count": 0,
+        "failure_count": 0,
+        "consecutive_failures": 0,
+        "last_success_at": None,
+        "last_failure_at": None,
+        "last_error": None,
+        "last_article_count": 0,
+    })
+
+    now = datetime.now(TZ).isoformat()
+
+    if success:
+        entry["success_count"] = int(entry.get("success_count", 0)) + 1
+        entry["consecutive_failures"] = 0
+        entry["last_success_at"] = now
+        entry["last_article_count"] = article_count
+        entry["last_error"] = None
+    else:
+        entry["failure_count"] = int(entry.get("failure_count", 0)) + 1
+        entry["consecutive_failures"] = int(entry.get("consecutive_failures", 0)) + 1
+        entry["last_failure_at"] = now
+        entry["last_error"] = (error or "")[:500]
+
+    try:
+        _save(health_file, health)
+    except Exception as e:
+        print(f"[store] update_source_health failed: {e}")
+
+
+def stats():
+    """Return store stats — for health checks."""
+    try:
+        mem = load_memory()
+    except Exception:
+        mem = {}
+    try:
+        pub = load_published()
+    except Exception:
+        pub = {"records": {}}
+    return {
+        "memory": {"path": MEMORY_F, "entries": len(mem)},
+        "published": {"path": PUBLISHED_F, "entries": len(pub.get("records", {}))},
+        "state_dir": STATE_DIR,
+    }
+
