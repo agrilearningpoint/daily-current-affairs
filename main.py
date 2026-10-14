@@ -133,15 +133,38 @@ def job_context_env(job_type: str, date_str: str | None) -> dict[str, str]:
 JOBS_STATE_PATH = ROOT / "state" / "jobs.json"
 
 
-def load_jobs_state() -> dict:
-    """Load job states; tolerate corrupt/missing file (start empty, loud warn)."""
+def parse_jobs_state(data: object) -> dict:
+    """Validate and unwrap legacy/current state without rewriting job history.
+
+    Legacy files use {"jobs": {...}, "version": 1}; the current writer saves
+    the job map directly. Both must yield the same map to the orchestrator.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("jobs.json top-level must be a JSON object")
+    jobs = data.get("jobs", data)
+    if not isinstance(jobs, dict):
+        raise ValueError("jobs.json 'jobs' must be a JSON object")
+    for job_id, entry in jobs.items():
+        if not isinstance(entry, dict):
+            raise ValueError(f"job {job_id!r} must be a JSON object")
+        if not isinstance(entry.get("status"), str) or not entry["status"].strip():
+            raise ValueError(f"job {job_id!r} must have a non-empty string status")
+    return jobs
+
+
+def load_jobs_state(*, strict: bool = False) -> dict:
+    """Load both state formats; strict mode surfaces errors for CI validation.
+
+    Normal operation retains the existing warn-and-start-empty behavior for
+    unreadable state. CI must not mistake that fallback for a valid file.
+    """
     if JOBS_STATE_PATH.exists():
         try:
             data = json.loads(JOBS_STATE_PATH.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-            log_err("jobs.json is not a JSON object; starting fresh state")
-        except (json.JSONDecodeError, OSError) as exc:
+            return parse_jobs_state(data)
+        except (ValueError, OSError) as exc:
+            if strict:
+                raise
             log_err(f"jobs.json unreadable ({exc}); starting fresh state")
     return {}
 
