@@ -17,7 +17,7 @@ idna==3.10                     # International domain names
 
 feedparser==6.0.11             # RSS / Atom feed parser
 beautifulsoup4==4.12.3         # HTML parsing (cleaning feed content)
-lxml==5.3.0                    # Fast XML/HTML backend for BS4
+lxml==5.4.0                    # Fast XML/HTML backend for BS4
 soupsieve==2.6                 # CSS selector support for BS4
 
 python-dateutil==2.9.0.post0   # Date parsing (feed timestamps)
