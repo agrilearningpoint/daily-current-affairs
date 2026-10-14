@@ -212,6 +212,42 @@ def save_memory(memory: Dict[str, Any]) -> None:
         _atomic_write_json(_memory_path(), memory)
 
 
+def _merge_dicts(local: Dict[str, Any], remote: Dict[str, Any]) -> Dict[str, Any]:
+    """Union event maps; the entry with the newest known timestamp wins."""
+    from datetime import datetime, timezone
+
+    def stamp(entry):
+        if not isinstance(entry, dict):
+            return datetime.min.replace(tzinfo=timezone.utc)
+        for key in ("last_seen", "updated_at", "updated", "pub_time_ist", "added_at"):
+            try:
+                dt = datetime.fromisoformat(str(entry.get(key, "")).replace("Z", "+00:00"))
+                return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+            except ValueError:
+                continue
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    merged = dict(remote)
+    for key, value in local.items():
+        if key not in merged or stamp(value) >= stamp(merged[key]):
+            merged[key] = value
+    return merged
+
+
+def record_scores(items, job_id):
+    """Persist all scored events for later edition selection without git side effects."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    with _file_lock(_memory_path()):
+        memory = load_memory()
+        for item in items:
+            event = dict(item, last_seen=now, last_job_id=job_id)
+            memory[item["event_id"]] = event
+        newest = sorted(memory.items(), key=lambda kv: kv[1].get("last_seen", "")
+                        if isinstance(kv[1], dict) else "", reverse=True)
+        _atomic_write_json(_memory_path(), dict(newest[:MAX_MEMORY_ENTRIES]))
+
+
 def upsert_memory(event_id: str, event_data: Dict[str, Any]) -> None:
     """Insert or update a single memory entry."""
     if not event_id:

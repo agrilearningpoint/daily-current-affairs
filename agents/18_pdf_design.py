@@ -532,22 +532,20 @@ def _infer_job_meta() -> Tuple[str, str]:
 
 
 def main() -> int:
-    job_id, label = _infer_job_meta()
-    logger.info("Building PDF for job=%s label=%s", job_id, label)
-
-    items = load_content(job_id)
-    if not items:
-        # Fallback to latest
-        items = load_content(None)
-    if not items:
-        logger.error("No content — aborting PDF build")
+    from pipeline.agent_context import get_context
+    from pipeline.state import read_json
+    from src.generate_pdf import generate_pdf
+    ctx = get_context()
+    content_path = ctx.find_input("content")
+    mcq_path = ctx.find_input("mcq")
+    if content_path is None or mcq_path is None:
+        logger.error("Missing content/MCQ artifact for %s", ctx.job_id)
         return 1
-
-    mcqs = load_mcqs(job_id) or load_mcqs(None)
-
-    output_path = OUTPUT_DIR / f"daily_{job_id}.pdf"
-    ok = build_pdf(items, mcqs, output_path, label)
-    return 0 if ok else 1
+    content = read_json(content_path)
+    mcqs = read_json(mcq_path)
+    ctx.pdf_path().parent.mkdir(parents=True, exist_ok=True)
+    generate_pdf(content, mcqs, output_path=str(ctx.pdf_path()))
+    return 0
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ validates every article at this boundary, and writes one edition JSON file.
 Contract:
 - Output path: data/raw/<job_id>.json   (job_id = ALP_JOB_ID or daily_<date>)
 - Date policy : requested ALP_JOB_DATE is authoritative for naming; the
-                collection window is the 24h ending at the end of that day
-                (UTC). Backfill never silently becomes "today".
+                collection uses the shared IST edition window (previous day
+                for historical daily editions). Backfill never becomes "today".
 - Failure    : zero usable articles after a full run -> exit 2 (loud fail).
                A single failed feed does NOT discard other feeds' results.
 - No live network access happens at import time.
@@ -26,12 +26,17 @@ from typing import Any, Dict, List, Tuple
 
 try:
     import feedparser  # declared in requirements.txt
+    import requests
 except ImportError as exc:  # pragma: no cover - environment issue
     raise SystemExit(
         "feedparser is required for source fetching. "
         "Install project dependencies (pip install -r requirements.txt). "
         f"Original error: {exc}"
     ) from exc
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from pipeline.source_registry import SourceSpec, SourceConfigError, load_sources
 
@@ -47,8 +52,8 @@ def job_context() -> Tuple[str, str, datetime]:
     """Return (job_id, job_date_iso, window_end_utc).
 
     ALP_JOB_DATE is authoritative. Never substitutes wall-clock today when an
-    explicit date was requested. Window end = 23:59:59Z on the job date so a
-    backfill run collects exactly that day's 24-hour window.
+    explicit date was requested. Window boundaries come from pipeline.windows
+    so all collection paths share one edition policy.
     """
     now = datetime.now(timezone.utc)
     date_env = os.environ.get("ALP_JOB_DATE", "").strip()
@@ -63,7 +68,9 @@ def job_context() -> Tuple[str, str, datetime]:
         base = now
     job_date = base.strftime("%Y-%m-%d")
     job_id = os.environ.get("ALP_JOB_ID", "").strip() or f"daily_{job_date}"
-    window_end = base.replace(hour=23, minute=59, second=59)
+    from pipeline.windows import collect_window
+    _, window_end = collect_window(os.getenv("ALP_JOB_TYPE", "daily"), job_date)
+    window_end = window_end.astimezone(timezone.utc)
     return job_id, job_date, window_end
 
 
@@ -104,10 +111,10 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
     collected: List[Dict[str, Any]] = []
     malformed = 0
     try:
-        parsed = feedparser.parse(
-            spec.rss_url,
-            agent="alp-collector/1.0 (+https://github.com/agrilearningpoint)",
-        )
+        response = requests.get(spec.rss_url, headers={"User-Agent": "alp-collector/1.0"},
+                                timeout=int(os.getenv("ALP_FEED_TIMEOUT", "20")))
+        response.raise_for_status()
+        parsed = feedparser.parse(response.content)
     except Exception as exc:  # network/disk level failure
         return [], 0, 0, f"{type(exc).__name__}: {exc}"
 
@@ -157,7 +164,9 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
 
 def main() -> int:
     job_id, job_date, window_end = job_context()
-    window_start = window_end - timedelta(hours=24)
+    from pipeline.windows import collect_window
+    window_start, _ = collect_window(os.getenv("ALP_JOB_TYPE", "daily"), job_date)
+    window_start = window_start.astimezone(timezone.utc)
 
     try:
         specs = load_sources()

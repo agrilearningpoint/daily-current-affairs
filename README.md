@@ -118,27 +118,25 @@ state/           ← Persistent state (jobs.json, ledgers, memory)
 
 ## 🔄 Pipeline Stages
 
-### Daily (17 stages)
+### Daily (15 stages)
 
 | # | Stage | Critical | Purpose |
 |---|---|---|---|
 | 00 | `00_model_orchestrator` | ✅ | Set up LLM providers |
 | 01 | `01_source_fetch` | ✅ | Fetch RSS/APIs |
-| 03 | `03_news_collection` | ✅ | Parse + sanitize (Unicode-safe) |
 | 04 | `04_fact_verification` | ✅ | Confidence scoring + cross-source |
 | 05 | `05_deduplication` | ✅ | Event-level dedup |
 | 06 | `06_news_importance` | ✅ | Importance scoring |
 | 07 | `07_student_domain_relevance` | ✅ | Exam relevance |
 | 10 | `10_final_news_selection` | ✅ | Top-N selection |
-| 11 | `11_importance_memory` | ✅ | Persist to memory |
+| 11 | `11_importance_memory` | ❌ | Persist to memory |
 | 12 | `12_content_editor` | ✅ | Bilingual content |
 | 16 | `16_mcq_generator` | ✅ | Generate MCQs |
 | 17 | `17_mcq_validator` | ✅ | Validate (no dupes, source-backed) |
 | 18 | `18_pdf_design` | ✅ | Render PDF |
 | 19 | `19_pdf_qa` | ✅ | QA gate |
 | 22 | `22_telegram_publisher` | ✅ | Publish PDF |
-| 23 | `23_telegram_pin_verifier` | ✅ | Pin + verify |
-| 24 | `24_final_health_audit` | ❌ | Optional audit |
+| 23 | `23_telegram_pin_verifier` | ❌ | Pin + verify |
 
 ### Weekly (2 stages)
 - `20_weekly_editor` → `22_telegram_publisher`
@@ -569,3 +567,32 @@ See [LICENSE](LICENSE) (if present) or contact maintainers.
 ---
 
 **Built with ❤️ for competitive exam students in India**
+
+
+## Pipeline reliability and safe verification
+
+- Install `libfribidi0` on Linux (`sudo apt-get install libfribidi0`) before rendering
+  Hindi PDFs. Pillow's RAQM/HarfBuzz guard stays mandatory; it is not disabled to
+  make tests pass. CI and the daily workflow install this native dependency.
+- `pipeline.agent_context` owns job dates and paths. `pipeline.content` owns the
+  source-grounded bilingual editor and MCQ APIs (restored from repository history).
+- The collector, verifier and deduplicator now write edition-specific canonical
+  JSON. Readers accept legacy lists and `items`/`articles` wrappers without using
+  a different edition's latest file.
+- Live content requires validated Hindi translation. Configure a supported LLM
+  provider; missing/failed translation is a deliberate fail-closed quality gate.
+  Offline `DRY_RUN=1` previews may use flagged dictionary fallback, but cannot
+  create real Telegram publication records.
+- Publishing requires a passing QA report for the same job **and the exact PDF
+  SHA-256**, and rejects content needing translation review.
+- `pytest tests/` now fails CI on errors rather than masking them with `|| true`.
+  `tests/test_daily_integration.py` runs the real daily stage subprocesses using
+  a local synthetic RSS feed through PDF, QA and Telegram dry-run. It makes no
+  external news/AI/Telegram calls and does not modify the committed state.
+
+```bash
+python -m pytest tests/ -v
+```
+
+A green offline CI run verifies code/artifact contracts; it does not prove that
+live feed endpoints, API quotas or Telegram channel permissions are available.

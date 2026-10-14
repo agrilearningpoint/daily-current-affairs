@@ -320,6 +320,7 @@ def verify_article(
     is_verified = final >= MIN_CONFIDENCE_THRESHOLD
 
     return {
+        **article,
         "event_id": content_hash(article),
         "title": clean_text(article.get("title", ""), 500),
         "link": article.get("link", ""),
@@ -340,14 +341,8 @@ def verify_article(
 # I/O
 # --------------------------------------------------------------------------- #
 def load_latest_raw() -> Optional[Path]:
-    if not INPUT_DIR.exists():
-        return None
-    files = sorted(
-        [f for f in INPUT_DIR.glob("news_*.json") if f.is_file()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return files[0] if files else None
+    from pipeline.agent_context import get_context
+    return get_context().find_input("raw")
 
 
 def atomic_write_json(path: Path, data: Any) -> None:
@@ -370,7 +365,8 @@ def main() -> int:
 
     logger.info("Loading raw articles from %s", input_file.name)
     try:
-        articles = json.loads(input_file.read_text(encoding="utf-8"))
+        from pipeline.artifacts import read_news_items
+        articles = read_news_items(input_file)
     except Exception as exc:
         logger.exception("Failed to load %s: %s", input_file, exc)
         return 1
@@ -378,8 +374,9 @@ def main() -> int:
     if not isinstance(articles, list) or not articles:
         logger.error("Raw file is empty or malformed: %s", input_file)
         # Emit empty verified file so downstream doesn't crash
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        atomic_write_json(OUTPUT_DIR / f"verified_{date_str}.json", [])
+        from pipeline.agent_context import get_context
+        date_str = get_context().job_date
+        atomic_write_json(get_context().output_path("verified"), {"items": []})
         return 1
 
     logger.info(
@@ -432,13 +429,13 @@ def main() -> int:
             len(passed), MIN_VERIFIED_COUNT, MIN_CONFIDENCE_THRESHOLD,
         )
         # Emit whatever we have so downstream can inspect, but exit non-zero
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        atomic_write_json(OUTPUT_DIR / f"verified_{date_str}.json", passed)
+        from pipeline.agent_context import get_context
+        atomic_write_json(get_context().output_path("verified"), {"items": passed})
         return 1
 
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    output_file = OUTPUT_DIR / f"verified_{date_str}.json"
-    atomic_write_json(output_file, passed)
+    from pipeline.agent_context import get_context
+    output_file = get_context().output_path("verified")
+    atomic_write_json(output_file, {"items": passed})
     logger.info("✔ Fact verification completed: %d items → %s", len(passed), output_file)
     return 0
 

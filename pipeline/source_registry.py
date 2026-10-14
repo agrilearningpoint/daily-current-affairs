@@ -65,8 +65,11 @@ def _load_verified_rss() -> List[SourceSpec]:
     problems: List[str] = []
     for idx, entry in enumerate(VERIFIED_RSS):
         where = f"VERIFIED_RSS[{idx}]"
+        if isinstance(entry, (tuple, list)) and len(entry) == 4:
+            name, rss, tier, category = entry
+            entry = {"name": name, "rss": rss, "tier": tier, "category": category}
         if not isinstance(entry, dict):
-            problems.append(f"{where}: expected dict, got {type(entry).__name__}")
+            problems.append(f"{where}: expected dict or four-field tuple, got {type(entry).__name__}")
             continue
         name = str(entry.get("name") or "").strip()
         rss = str(entry.get("rss") or "").strip()
@@ -76,14 +79,21 @@ def _load_verified_rss() -> List[SourceSpec]:
         if not _valid_http_url(rss):
             problems.append(f"{where} ({name}): invalid or missing 'rss' URL: {rss!r}")
             continue
+        try:
+            tier = int(str(entry.get("tier", 2)).removeprefix("tier"))
+            if tier not in {1, 2, 3}:
+                raise ValueError("tier outside 1..3")
+        except (ValueError, TypeError):
+            problems.append(f"{where}: invalid tier {entry.get('tier')!r}")
+            continue
         specs.append(
             SourceSpec(
                 source_id=f"feed-{idx:02d}-{re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')}",
                 name=name,
                 rss_url=rss.strip(),
-                tier=int(entry.get("tier", 2)),
+                tier=tier,
                 category=str(entry.get("category", "general")),
-                official=bool(entry.get("official", False)),
+                official=bool(entry.get("official", tier == 1)),
                 language=str(entry.get("language", "en")),
                 enabled=bool(entry.get("enabled", True)),
                 verification_policy=str(entry.get("verification_policy", "corroborate")),

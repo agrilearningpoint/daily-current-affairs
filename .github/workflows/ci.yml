@@ -164,6 +164,9 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest==8.3.3 pytest-cov==5.0.0
 
+      - name: Install Hindi shaping runtime
+        run: sudo apt-get update && sudo apt-get install -y libfribidi0
+
       - name: Prepare dirs
         run: |
           mkdir -p data/raw data/verified data/edited data/jobs logs state/locks state/metrics
@@ -171,11 +174,10 @@ jobs:
       - name: Run tests
         run: |
           if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
-            pytest tests/ -v --maxfail=5 --tb=short || true
+            pytest tests/ -v --maxfail=5 --tb=short
           else
             echo "::warning::No tests directory or empty — skipping"
           fi
-        continue-on-error: true
 
       - name: Upload test logs on failure
         if: failure()

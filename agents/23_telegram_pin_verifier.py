@@ -266,6 +266,8 @@ def get_latest_unpinned_from_ledger() -> Optional[Dict[str, Any]]:
     )
 
     for rec in sorted_recs:
+        if os.getenv("ALP_JOB_ID") and rec.get("job_id") != os.getenv("ALP_JOB_ID"):
+            continue
         if rec.get("status") != "success":
             continue
         msg_id = rec.get("message_id")

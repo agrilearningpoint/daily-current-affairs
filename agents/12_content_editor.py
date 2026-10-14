@@ -311,62 +311,32 @@ def save_edited_articles(articles: List[EditedArticle], output_file: str) -> Non
 # ------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------
-def main() -> None:
-    if not os.path.isdir(INPUT_DIR):
-        logger.error("Input directory not found: %s", INPUT_DIR)
-        sys.exit(1)
-
-    files = sorted(
-        [f for f in os.listdir(INPUT_DIR) if f.startswith("verified_") and f.endswith(".json")],
-        reverse=True,
-    )
-    if not files:
-        logger.error("No verified files found in %s", INPUT_DIR)
-        sys.exit(1)
-
-    input_file = os.path.join(INPUT_DIR, files[0])
-    logger.info("Loading verified articles from %s", input_file)
-
-    try:
-        articles = load_verified_articles(input_file)
-    except Exception as exc:
-        logger.exception("Failed to load input: %s", exc)
-        sys.exit(1)
-
-    if not articles:
-        logger.error("No articles to edit.")
-        sys.exit(1)
-
-    logger.info("Editing %d articles...", len(articles))
-    edited: List[EditedArticle] = []
-    failed = 0
-
-    for idx, article in enumerate(articles, 1):
-        try:
-            result = edit_article(article)
-            edited.append(result)
-            logger.debug("[%d/%d] %s → %s", idx, len(articles), result.article_id, result.editor_method)
-        except ValidationError as ve:
-            failed += 1
-            logger.error("[%d/%d] Validation failed for %s: %s",
-                         idx, len(articles), article.get("article_id"), ve)
-        except Exception as exc:
-            failed += 1
-            logger.exception("[%d/%d] Editing failed for %s: %s",
-                             idx, len(articles), article.get("article_id"), exc)
-
-    if not edited:
-        logger.error("No articles successfully edited. Failed: %d", failed)
-        sys.exit(2)
-
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
-    output_file = os.path.join(OUTPUT_DIR, f"edited_{date_str}.json")
-    save_edited_articles(edited, output_file)
-    logger.info(
-        "Content editing completed: %d succeeded, %d failed.",
-        len(edited), failed,
-    )
+def main() -> int:
+    from pipeline.agent_context import get_context
+    from pipeline.artifacts import read_news_items
+    from pipeline.content import build_content
+    from pipeline.state import write_json_atomic
+    ctx = get_context()
+    path = ctx.find_input("selected")
+    if path is None:
+        logger.error("No selected news for %s", ctx.job_id)
+        return 1
+    items = read_news_items(path)
+    job = {"id": ctx.job_id, "type": ctx.job_type, "date": ctx.job_date,
+           "date_display": datetime.strptime(ctx.job_date, "%Y-%m-%d").strftime("%d %B %Y")}
+    # Dictionary fallback is for offline previews only, never live publication.
+    dry_run = os.getenv("DRY_RUN", "0") == "1"
+    os.environ["ALP_TRANSLATION_STRICT"] = "0" if dry_run else "1"
+    content = build_content(items, job)
+    if not content["items"]:
+        logger.error("Content builder produced no items")
+        return 1
+    write_json_atomic(ctx.output_path("content"), content)
+    if not dry_run and any(item.get("needs_review") for item in content["items"]):
+        logger.error("Translation validation failed; refusing to publish unreviewed content")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

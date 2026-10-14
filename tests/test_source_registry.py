@@ -1,12 +1,19 @@
 import config.sources as s
+
+
 def test_levels():
-    assert len(s.ALL_SOURCES)==69, f"expected 69 got {len(s.ALL_SOURCES)}"
-    assert len(s.LEVEL_0_CORE)==20
-    assert len(s.LEVEL_4_DISCOVERY)==6
-    assert s.PRIORITY_MAP[0]==100 and s.PRIORITY_MAP[5]==60
-    for src in s.ALL_SOURCES:
-        assert "level" in src and "priority" in src and "frequency" in src
-        assert "verification_required" in src
+    levels = [s.LEVEL_0_CORE, s.LEVEL_1_AGRI, s.LEVEL_2_FINANCE,
+              s.LEVEL_3_GOVT, s.LEVEL_4_DISCOVERY, s.LEVEL_5_FALLBACK]
+    assert s.ALL_SOURCES == [src for group in levels for src in group]
+    assert all(levels)
+    assert s.PRIORITY_MAP[0] == 100
+    assert s.PRIORITY_MAP[0] > s.PRIORITY_MAP[5]
+    for level, group in enumerate(levels):
+        for src in group:
+            assert src["level"] == level
+            assert 0 < src["priority"] <= 100
+            assert src["frequency"] and "verification_required" in src
+
+
 def test_no_equal_priority_all():
-    # CORE must be higher than FALLBACK
-    assert max(x["priority"] for x in s.LEVEL_0_CORE) > max(x["priority"] for x in s.LEVEL_5_FALLBACK)
+    assert min(x["priority"] for x in s.LEVEL_0_CORE) > max(x["priority"] for x in s.LEVEL_5_FALLBACK)

@@ -161,7 +161,11 @@ def load_jobs_state(*, strict: bool = False) -> dict:
     if JOBS_STATE_PATH.exists():
         try:
             data = json.loads(JOBS_STATE_PATH.read_text(encoding="utf-8"))
-            return parse_jobs_state(data)
+            jobs = parse_jobs_state(data)
+            if strict:
+                return jobs
+            aliases = {"RUNNING": "running", "SUCCESS": "success", "COMPLETE": "success", "FAILED": "failed", "FAILED_FINAL": "failed"}
+            return {jid: dict(entry, status=aliases.get(entry["status"], entry["status"])) for jid, entry in jobs.items()}
         except (ValueError, OSError) as exc:
             if strict:
                 raise
@@ -222,6 +226,7 @@ def run_stage(name: str, script_rel: str, critical: bool,
 
     env = os.environ.copy()
     env.update(extra_env)  # canonical ALP_JOB_* context reaches every stage
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT), env.get("PYTHONPATH", "")]))
 
     attempts = MAX_RETRIES + 1
     last_err = ""
@@ -237,7 +242,7 @@ def run_stage(name: str, script_rel: str, critical: bool,
             )
             if result.returncode == 0:
                 return True, f"ok (attempt {attempt})"
-            last_err = _truncate(result.stderr or result.stdout) or \
+            last_err = _truncate((result.stdout or "") + "\n" + (result.stderr or "")) or \
                        f"exit code {result.returncode}"
         except subprocess.TimeoutExpired:
             last_err = f"timeout after {STAGE_TIMEOUT_SECONDS}s"
@@ -321,7 +326,7 @@ def execute_job(job_type: str, date_str: str | None) -> int:
 # Watchdog (structured plan; workflow reads fields, not raw dict iteration)
 # ---------------------------------------------------------------------------
 
-def watchdog() -> int:
+def watchdog(stuck_hours: float | None = None) -> int:
     """Detect stuck-running and recently-failed jobs; write recovery plan.
 
     Plan schema (consumed by .github/workflows/watchdog.yml):
@@ -342,7 +347,7 @@ def watchdog() -> int:
             age_h = (now - datetime.fromisoformat(ts)).total_seconds() / 3600.0
         except (ValueError, TypeError):
             age_h = float("inf")
-        if status == "running" and age_h > RUNNING_STUCK_HOURS:
+        if status == "running" and age_h > (RUNNING_STUCK_HOURS if stuck_hours is None else stuck_hours):
             stuck.append(jid)
         elif status == "failed" and age_h <= FAILED_LOOKBACK_HOURS:
             failed.append(jid)
@@ -378,19 +383,26 @@ def build_parser() -> argparse.ArgumentParser:
         prog="main.py",
         description="ALP daily current-affairs pipeline orchestrator",
     )
-    p.add_argument("--type", default="daily",
+    p.add_argument("--job-type", "--type", dest="type", default="daily",
                    choices=sorted(STAGES_BY_TYPE), help="job type (default: daily)")
     p.add_argument("--date", default=None, metavar="YYYY-MM-DD",
                    help="authoritative job date for backfills; defaults to today UTC")
     p.add_argument("--watchdog", action="store_true",
                    help="scan job state for stuck/failed jobs and emit recovery plan")
+    p.add_argument("--reset", action="store_true", help="restart this job from the first stage")
+    p.add_argument("--stuck-hours", type=float, default=None, help="watchdog running-job age threshold")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.watchdog:
-        return watchdog()
+        return watchdog(args.stuck_hours)
+    if args.reset:
+        job_id = job_context_env(args.type, args.date)["ALP_JOB_ID"]
+        state = load_jobs_state()
+        state.pop(job_id, None)
+        save_jobs_state(state)
     return execute_job(args.type, args.date)
 
 

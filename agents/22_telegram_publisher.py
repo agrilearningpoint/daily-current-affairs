@@ -296,6 +296,10 @@ def call_with_retry(fn, *args, max_attempts: int = 5, **kwargs):
 # --------------------------------------------------------------------------- #
 def find_pdfs() -> List[Path]:
     """Find candidate PDFs, newest first."""
+    job_id = os.getenv("ALP_JOB_ID")
+    if job_id:
+        path = REPO_ROOT / "output" / f"{job_id}.pdf"
+        return [path] if path.is_file() else []
     candidates: List[Path] = []
     for d in INPUT_DIRS:
         if not d.exists():
@@ -314,7 +318,8 @@ def find_meta_for_pdf(pdf_path: Path) -> Dict[str, Any]:
     for d in meta_dirs:
         if not d.exists():
             continue
-        for meta_file in sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        candidates = [d / f"{pdf_path.stem}.json"]
+        for meta_file in candidates:
             try:
                 data = json.loads(meta_file.read_text(encoding="utf-8"))
             except Exception:
@@ -357,8 +362,26 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
         logger.error("Cannot hash %s — skipping", pdf_path.name)
         return False
 
-    # Infer job_id from filename
+    # Bind the publish gate to this exact PDF, not a stale QA report.
     job_id = pdf_path.stem
+    qa_path = REPO_ROOT / "logs" / "qa" / f"{job_id}_qa.json"
+    try:
+        qa = json.loads(qa_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.error("No valid QA approval for %s", job_id)
+        return False
+    if (qa.get("passed") is not True or qa.get("job_id") != job_id
+            or qa.get("file_sha256") != hashlib.sha256(pdf_path.read_bytes()).hexdigest()):
+        logger.error("QA gate rejected %s (failed, wrong job, or PDF changed)", job_id)
+        return False
+    if not DRY_RUN:
+        try:
+            content = json.loads((REPO_ROOT / "data/content" / f"{job_id}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if not content.get("items") or any(i.get("needs_review") for i in content["items"]):
+            logger.error("Content still needs translation review; publish blocked")
+            return False
     key = _ledger_key(job_id, TELEGRAM_CHAT_ID, fh)
 
     if is_published(ledger, key):
@@ -438,7 +461,7 @@ def main() -> int:
     pdfs = find_pdfs()
     if not pdfs:
         logger.warning("No PDFs found in %s", [str(d) for d in INPUT_DIRS])
-        return 0
+        return 1
 
     logger.info("Found %d candidate PDF(s) (max %d per run)",
                 len(pdfs), TELEGRAM_MAX_PER_RUN)

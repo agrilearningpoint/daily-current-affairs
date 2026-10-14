@@ -478,8 +478,10 @@ def print_summary(report: QAReport) -> None:
 
 
 def main() -> int:
-    pdf = find_latest_pdf()
-    if pdf is None:
+    from pipeline.agent_context import get_context
+    ctx = get_context()
+    pdf = ctx.pdf_path() if os.getenv("ALP_JOB_ID") else find_latest_pdf()
+    if pdf is None or not pdf.exists():
         logger.error("No PDF found in %s", OUTPUT_DIR)
         return 2
 
@@ -487,9 +489,13 @@ def main() -> int:
     report = run_qa(pdf)
 
     # Save report
-    report_file = QA_REPORT_DIR / f"{pdf.stem}_qa.json"
+    report_file = ctx.qa_report_path()
+    report_file.parent.mkdir(parents=True, exist_ok=True)
+    data = report.to_dict()
+    data["job_id"] = ctx.job_id
+    data["file_sha256"] = hashlib.sha256(pdf.read_bytes()).hexdigest()
     report_file.write_text(
-        json.dumps(report.to_dict(), ensure_ascii=False, indent=2),
+        json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     logger.info("Report: %s", report_file)
