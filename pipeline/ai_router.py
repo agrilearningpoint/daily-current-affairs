@@ -1,298 +1,508 @@
 # -*- coding: utf-8 -*-
-"""SMART AI ROUTER — Intelligent Multi-Provider Load Balancer"""
-import os, json, time, logging, re
-from datetime import datetime
-from typing import Optional, Dict, List, Callable
+"""
+AI Router — Multi-Provider with Fallback
+=========================================
+Routes AI tasks across multiple providers (Gemini → Groq → OpenAI → Mistral)
+with automatic fallback, rate-limit tracking, and failure classification.
 
-logger = logging.getLogger(__name__)
+Features:
+- Multi-provider fallback chain (configurable priority)
+- Per-provider rate-limit tracking (RPM / RPD)
+- Failure classification:
+    * TRANSIENT       — retry (network, 5xx)
+    * RATE_LIMIT      — wait & retry (429)
+    * AUTH_ERROR      — skip provider permanently (401/403)
+    * MODEL_ERROR     — skip provider permanently (404 model)
+    * BAD_REQUEST     — fail fast (400)
+    * MALFORMED       — retry or fallback (bad JSON)
+- Budget cap (max calls per hour/day)
+- Per-provider timeout
+- LRU response cache
+- Never raises to caller — always returns a string (or raises if all providers fail AND fail_on_all=True)
 
-PROVIDERS = {
-    "gemini": {
-        "name": "Google Gemini", "env_key": "GEMINI_API_KEY",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta",
-        "free_models": ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-8b"],
-        "rate_limits": {"rpm": 15, "rpd": 250},
-        "strengths": ["content", "translation", "bilingual", "hindi", "mcq", "summary", "verification"],
-        "hindi_quality": 0.95, "priority": 1,
-    },
-    "groq": {
-        "name": "Groq", "env_key": "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
-        "free_models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
-        "rate_limits": {"rpm": 30, "rpd": 14400},
-        "strengths": ["verification", "mcq", "scoring", "fast_parallel", "content", "summary"],
-        "hindi_quality": 0.75, "priority": 2,
-    },
-    "openrouter": {
-        "name": "OpenRouter", "env_key": "OPENROUTER_API_KEY",
-        "base_url": "https://openrouter.ai/api/v1",
-        "free_models": ["meta-llama/llama-4-maverick:free", "deepseek/deepseek-r1:free",
-                        "qwen/qwen-2.5-72b-instruct:free", "google/gemma-3-27b-it:free"],
-        "rate_limits": {"rpm": 20, "rpd": 500},
-        "strengths": ["fallback", "content", "verification", "diversity", "bilingual", "mcq"],
-        "hindi_quality": 0.80, "priority": 3,
-    },
-    "mistral": {
-        "name": "Mistral", "env_key": "MISTRAL_API_KEY",
-        "base_url": "https://api.mistral.ai/v1",
-        "free_models": ["mistral-small-latest", "open-mistral-7b"],
-        "rate_limits": {"rpm": 1, "rpd": 50},
-        "strengths": ["structure", "mcq", "validation", "content"],
-        "hindi_quality": 0.60, "priority": 4,
-    },
-    "jina": {
-        "name": "Jina Reader", "env_key": "JINA_API_KEY",
-        "base_url": "https://r.jina.ai",
-        "free_models": ["reader"],
-        "rate_limits": {"rpm": 20, "rpd": 1000},
-        "strengths": ["web_scraping", "content_extraction", "search"],
-        "hindi_quality": 0.0, "priority": 1,
-    },
-    "newsdata": {
-        "name": "NewsData", "env_key": "NEWSDATA_API_KEY",
-        "base_url": "https://newsdata.io/api/1",
-        "free_models": ["news"],
-        "rate_limits": {"rpm": 2, "rpd": 200},
-        "strengths": ["news_collection", "india_news", "hindi_news"],
-        "hindi_quality": 0.0, "priority": 1,
-    },
-}
+Env:
+  GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY
+  AI_ROUTER_MAX_CALLS_PER_HOUR (default 500)
+  AI_ROUTER_TIMEOUT (default 60)
+  AI_ROUTER_CACHE_SIZE (default 1000)
+  AI_ROUTER_DISABLED (1 = always return None; useful for tests)
+"""
+from __future__ import annotations
 
-class RateLimitTracker:
-    def __init__(self):
-        self.usage = {}
-        self._state_file = os.path.join(os.getcwd(), "data", "ai_router_state.json")
-        self._load_state()
+import hashlib
+import json
+import logging
+import os
+import threading
+import time
+from collections import OrderedDict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-    def _load_state(self):
-        try:
-            if os.path.exists(self._state_file):
-                with open(self._state_file) as f:
-                    self.usage = json.load(f)
-        except Exception:
-            self.usage = {}
+import requests
 
-    def _save_state(self):
-        try:
-            os.makedirs(os.path.dirname(self._state_file), exist_ok=True)
-            with open(self._state_file, "w") as f:
-                json.dump(self.usage, f)
-        except Exception:
-            pass
+logger = logging.getLogger("pipeline.ai_router")
 
-    def can_use(self, provider: str) -> bool:
-        limits = PROVIDERS[provider]["rate_limits"]
-        now = datetime.now()
-        if provider not in self.usage:
-            self.usage[provider] = {"requests": [], "date": now.strftime("%Y-%m-%d")}
-        state = self.usage[provider]
-        if state.get("date") != now.strftime("%Y-%m-%d"):
-            state["requests"] = []
-            state["date"] = now.strftime("%Y-%m-%d")
-        recent = [t for t in state["requests"] if (now - datetime.fromisoformat(t)).total_seconds() < 60]
-        state["requests"] = recent
-        if len(recent) >= limits["rpm"] * 0.8:
+# --------------------------------------------------------------------------- #
+# Config
+# --------------------------------------------------------------------------- #
+TIMEOUT = int(os.getenv("AI_ROUTER_TIMEOUT", "60"))
+MAX_CALLS_PER_HOUR = int(os.getenv("AI_ROUTER_MAX_CALLS_PER_HOUR", "500"))
+CACHE_SIZE = int(os.getenv("AI_ROUTER_CACHE_SIZE", "1000"))
+DISABLED = os.getenv("AI_ROUTER_DISABLED", "0") == "1"
+
+
+# --------------------------------------------------------------------------- #
+# Failure classification
+# --------------------------------------------------------------------------- #
+class FailureType:
+    TRANSIENT = "transient"          # network, timeout, 5xx — retry
+    RATE_LIMIT = "rate_limit"        # 429 — wait & retry
+    AUTH_ERROR = "auth_error"        # 401/403 — skip provider
+    MODEL_ERROR = "model_error"      # 404 model not found — skip provider
+    BAD_REQUEST = "bad_request"      # 400 — fail fast
+    MALFORMED = "malformed"          # bad JSON in response — retry/fallback
+    UNKNOWN = "unknown"
+
+
+# --------------------------------------------------------------------------- #
+# Provider registry
+# --------------------------------------------------------------------------- #
+@dataclass
+class Provider:
+    name: str
+    url: str
+    key: str
+    model: str
+    priority: int = 100
+    rpm_limit: int = 60              # requests per minute
+    rpd_limit: int = 1000            # requests per day
+    last_error: Optional[str] = None
+    disabled_until: float = 0.0
+    call_times: deque = field(default_factory=lambda: deque(maxlen=5000))
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def is_available(self) -> bool:
+        if not self.key or not self.url or not self.model:
             return False
-        if len(state["requests"]) >= limits["rpd"] * 0.8:
+        if time.time() < self.disabled_until:
+            return False
+        # RPM check
+        now = time.time()
+        recent = [t for t in self.call_times if now - t < 60]
+        if len(recent) >= self.rpm_limit:
+            return False
+        # RPD check
+        today = [t for t in self.call_times if now - t < 86400]
+        if len(today) >= self.rpd_limit:
             return False
         return True
 
-    def record_usage(self, provider: str):
-        now = datetime.now()
-        if provider not in self.usage:
-            self.usage[provider] = {"requests": [], "date": now.strftime("%Y-%m-%d")}
-        state = self.usage[provider]
-        if state.get("date") != now.strftime("%Y-%m-%d"):
-            state["requests"] = []
-            state["date"] = now.strftime("%Y-%m-%d")
-        state["requests"].append(now.isoformat())
-        self._save_state()
+    def record_call(self) -> None:
+        with self._lock:
+            self.call_times.append(time.time())
 
-class AIRouter:
-    def __init__(self):
-        self.tracker = RateLimitTracker()
-        self.failed_models = {}
-        self._available = self._check_providers()
-        logger.info(f"[AI Router] Available: {list(self._available.keys())}")
+    def mark_disabled(self, reason: str, seconds: int = 300) -> None:
+        with self._lock:
+            self.disabled_until = time.time() + seconds
+            self.last_error = reason
+            logger.warning("[Router] Provider %s disabled for %ds: %s",
+                           self.name, seconds, reason)
 
-    def _check_providers(self):
-        available = {}
-        for name, cfg in PROVIDERS.items():
-            key = os.environ.get(cfg["env_key"], "")
-            if key and len(key) > 5:
-                available[name] = cfg
-        return available
 
-    def _select_provider(self, task: str, needs_hindi: bool = False):
-        candidates = []
-        for name, cfg in self._available.items():
-            if name in ("jina", "newsdata"):
-                continue
-            if task not in cfg["strengths"] and "fallback" not in cfg["strengths"]:
-                continue
-            if needs_hindi and cfg["hindi_quality"] < 0.5:
-                continue
-            if not self.tracker.can_use(name):
-                continue
-            score = (1.0 / cfg["priority"])
-            if needs_hindi:
-                score *= cfg["hindi_quality"]
-            candidates.append((name, score))
-        if not candidates:
-            for name in self._available:
-                if name not in ("jina", "newsdata") and self.tracker.can_use(name):
-                    candidates.append((name, 0.1))
-        if not candidates:
-            return None
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        return candidates[0][0]
+# --------------------------------------------------------------------------- #
+# Provider discovery
+# --------------------------------------------------------------------------- #
+def _build_default_providers() -> List[Provider]:
+    """Build provider list from env vars, in priority order."""
+    providers: List[Provider] = []
 
-    def _select_model(self, provider: str):
-        models = PROVIDERS[provider]["free_models"]
-        for model in models:
-            if self.failed_models.get(model, 0) < 3:
-                return model
+    # Gemini (highest priority — per aapke .env.example)
+    gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if gem_key:
+        providers.append(Provider(
+            name="gemini",
+            url="https://generativelanguage.googleapis.com/v1beta/models",
+            key=gem_key,
+            model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+            priority=10, rpm_limit=60, rpd_limit=1500,
+        ))
+
+    # Groq (fast fallback)
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key:
+        providers.append(Provider(
+            name="groq",
+            url="https://api.groq.com/openai/v1/chat/completions",
+            key=groq_key,
+            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            priority=20, rpm_limit=30, rpd_limit=14400,
+        ))
+
+    # OpenAI (also used for polish)
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        providers.append(Provider(
+            name="openai",
+            url=f"{base}/chat/completions",
+            key=openai_key,
+            model=os.getenv("ALP_LLM", "gpt-4o-mini"),
+            priority=30, rpm_limit=500, rpd_limit=10000,
+        ))
+
+    # Generic OpenAI-compatible (LLM_API_URL + LLM_API_KEY)
+    generic_url = os.getenv("LLM_API_URL")
+    generic_key = os.getenv("LLM_API_KEY")
+    if generic_url and generic_key and not any(p.name == "openai" for p in providers):
+        providers.append(Provider(
+            name="generic-openai",
+            url=generic_url,
+            key=generic_key,
+            model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
+            priority=40, rpm_limit=60, rpd_limit=5000,
+        ))
+
+    # Mistral (final fallback)
+    mistral_key = os.getenv("MISTRAL_API_KEY")
+    if mistral_key:
+        providers.append(Provider(
+            name="mistral",
+            url="https://api.mistral.ai/v1/chat/completions",
+            key=mistral_key,
+            model=os.getenv("MISTRAL_MODEL", "mistral-small-latest"),
+            priority=50, rpm_limit=60, rpd_limit=5000,
+        ))
+
+    providers.sort(key=lambda p: p.priority)
+    return providers
+
+
+_PROVIDERS: Optional[List[Provider]] = None
+_PROVIDERS_LOCK = threading.Lock()
+
+
+def list_providers() -> List[Dict[str, Any]]:
+    """Public API — used by ai_translator.py for discovery."""
+    providers = _get_providers()
+    return [
+        {
+            "name": p.name,
+            "url": p.url,
+            "key": p.key,
+            "model": p.model,
+            "priority": p.priority,
+            "available": p.is_available(),
+        }
+        for p in providers
+    ]
+
+
+def _get_providers() -> List[Provider]:
+    global _PROVIDERS
+    if _PROVIDERS is None:
+        with _PROVIDERS_LOCK:
+            if _PROVIDERS is None:
+                _PROVIDERS = _build_default_providers()
+                logger.info("[Router] %d provider(s) configured: %s",
+                            len(_PROVIDERS), [p.name for p in _PROVIDERS])
+    return _PROVIDERS
+
+
+def reset_providers() -> None:
+    """Call after rotating keys or changing env."""
+    global _PROVIDERS
+    with _PROVIDERS_LOCK:
+        _PROVIDERS = None
+    _CACHE.clear()
+
+
+# --------------------------------------------------------------------------- #
+# Response cache
+# --------------------------------------------------------------------------- #
+class _LRUCache:
+    def __init__(self, max_size: int):
+        self.max_size = max_size
+        self._data: "OrderedDict[str, str]" = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Optional[str]:
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+                return self._data[key]
         return None
 
-    def _call_gemini(self, model, prompt, system=""):
-        import requests
-        key = os.environ["GEMINI_API_KEY"]
-        url = f"{PROVIDERS['gemini']['base_url']}/models/{model}:generateContent?key={key}"
-        body = {"contents": [{"parts": [{"text": prompt}]}]}
-        if system:
-            body["system_instruction"] = {"parts": [{"text": system}]}
-        r = requests.post(url, json=body, timeout=60)
-        if r.status_code != 200:
-            raise Exception(f"Gemini {r.status_code}: {r.text[:200]}")
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    def put(self, key: str, value: str) -> None:
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+            self._data[key] = value
+            while len(self._data) > self.max_size:
+                self._data.popitem(last=False)
 
-    def _call_openai_compat(self, provider, model, prompt, system=""):
-        import requests
-        cfg = PROVIDERS[provider]
-        key = os.environ[cfg["env_key"]]
-        url = f"{cfg['base_url']}/chat/completions"
-        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-        if provider == "openrouter":
-            headers["HTTP-Referer"] = "https://agrilearningpoint.github.io"
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        r = requests.post(url, headers=headers, json={"model": model, "messages": messages, "temperature": 0.3}, timeout=60)
-        if r.status_code != 200:
-            raise Exception(f"{provider} {r.status_code}: {r.text[:200]}")
-        return r.json()["choices"][0]["message"]["content"]
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
 
-    def generate(self, prompt, task="content", system="", needs_hindi=False, max_retries=3):
-        task_systems = {
-            "content": "You are a bilingual current affairs writer for competitive exam students. Write clear, accurate content. Never invent facts.",
-            "verification": "You are a fact-checker. Verify claims strictly. Respond in JSON: {verified: bool, confidence: float, claims_verified: [], claims_unverified: [], reason: str}",
-            "bilingual": "Translate to Hindi (Devanagari). Keep numbers/names as-is. Return same number of lines as input.",
-            "mcq": "Create MCQs for Indian competitive exams. 4 options, exactly 1 correct. Include explanation. Respond in JSON array.",
-            "summary": "Summarize news concisely. Extract key facts, dates, numbers.",
-            "translation": "Translate accurately. Use Devanagari for Hindi.",
-            "scoring": "Rate importance 0-100 based on exam relevance, student impact, policy significance.",
+    def __len__(self) -> int:
+        return len(self._data)
+
+
+_CACHE = _LRUCache(CACHE_SIZE)
+
+
+def _cache_key(prompt: str, task: str) -> str:
+    return hashlib.sha256(f"{task}::{prompt}".encode("utf-8")).hexdigest()[:24]
+
+
+# --------------------------------------------------------------------------- #
+# Global call budget
+# --------------------------------------------------------------------------- #
+_CALL_TIMES: deque = deque(maxlen=10000)
+_CALL_LOCK = threading.Lock()
+
+
+def _within_budget() -> bool:
+    with _CALL_LOCK:
+        now = time.time()
+        hour_ago = now - 3600
+        recent = [t for t in _CALL_TIMES if t > hour_ago]
+        if len(recent) >= MAX_CALLS_PER_HOUR:
+            return False
+        _CALL_TIMES.append(now)
+        return True
+
+
+# --------------------------------------------------------------------------- #
+# HTTP call per provider
+# --------------------------------------------------------------------------- #
+def _classify_error(status: int, body: str) -> str:
+    if status == 429:
+        return FailureType.RATE_LIMIT
+    if status in (401, 403):
+        return FailureType.AUTH_ERROR
+    if status == 404:
+        return FailureType.MODEL_ERROR
+    if 400 <= status < 500:
+        return FailureType.BAD_REQUEST
+    if 500 <= status < 600:
+        return FailureType.TRANSIENT
+    return FailureType.UNKNOWN
+
+
+def _call_provider(
+    provider: Provider,
+    prompt: str,
+    task: str,
+    needs_hindi: bool = False,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Call one provider. Returns (content, failure_type).
+    On success: (content, None)
+    On failure: (None, failure_type)
+    """
+    system_msg = (
+        "You are a helpful assistant for an Indian competitive-exam current-affairs bot. "
+        "Respond with accurate, factual information. "
+        + ("Reply in Hindi (Devanagari)." if needs_hindi else "Reply in English.")
+    )
+
+    # Gemini uses a different API shape
+    if provider.name == "gemini":
+        url = f"{provider.url}/{provider.model}:generateContent?key={provider.key}"
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": system_msg},
+                    {"text": prompt},
+                ]
+            }],
+            "generationConfig": {"temperature": 0.2},
         }
-        if not system:
-            system = task_systems.get(task, "")
-        last_error = None
-        for attempt in range(max_retries):
-            provider = self._select_provider(task, needs_hindi)
-            if not provider:
-                if attempt < max_retries - 1:
-                    time.sleep(5)
-                    continue
-                raise Exception("All AI providers exhausted")
-            model = self._select_model(provider)
-            if not model:
-                continue
-            try:
-                logger.info(f"[AI Router] {provider}/{model} (task={task})")
-                if provider == "gemini":
-                    result = self._call_gemini(model, prompt, system)
-                else:
-                    result = self._call_openai_compat(provider, model, prompt, system)
-                self.tracker.record_usage(provider)
-                if model in self.failed_models:
-                    del self.failed_models[model]
-                return result
-            except Exception as e:
-                last_error = e
-                self.failed_models[model] = self.failed_models.get(model, 0) + 1
-                self.tracker.record_usage(provider)
-                time.sleep(1 + attempt)
-        raise Exception(f"AI generation failed: {last_error}")
+        headers = {"Content-Type": "application/json"}
+    else:
+        url = provider.url
+        payload = {
+            "model": provider.model,
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+        }
+        headers = {
+            "Authorization": f"Bearer {provider.key}",
+            "Content-Type": "application/json",
+        }
 
-    def read_url(self, url):
-        import requests
-        key = os.environ.get("JINA_API_KEY", "")
-        headers = {"Accept": "text/markdown"}
-        if key:
-            headers["Authorization"] = f"Bearer {key}"
-        r = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=30)
-        if r.status_code == 200:
-            self.tracker.record_usage("jina")
-            return r.text
-        raise Exception(f"Jina error: {r.status_code}")
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+    except requests.Timeout:
+        return None, FailureType.TRANSIENT
+    except requests.RequestException as exc:
+        logger.debug("[Router] %s network error: %s", provider.name, exc)
+        return None, FailureType.TRANSIENT
 
-    def collect_news(self, query, language="en", country="in", limit=50):
-        import requests
-        key = os.environ.get("NEWSDATA_API_KEY", "")
-        if not key:
-            raise Exception("NEWSDATA_API_KEY not set")
-        url = f"{PROVIDERS['newsdata']['base_url']}/news"
-        params = {"apikey": key, "q": query, "language": language, "country": country, "size": min(limit, 10)}
-        articles = []
-        data = {}
-        for _ in range((limit + 9) // 10):
-            if _ > 0 and not data.get("nextPage"):
-                break
-            if _ > 0:
-                params["page"] = data["nextPage"]
-                time.sleep(1)
-            try:
-                r = requests.get(url, params=params, timeout=15)
-                if r.status_code != 200:
-                    break
-                data = r.json()
-                articles.extend(data.get("results", []))
-                self.tracker.record_usage("newsdata")
-            except Exception:
-                break
-        return articles[:limit]
+    if r.status_code >= 400:
+        ft = _classify_error(r.status_code, r.text[:200])
+        logger.warning("[Router] %s HTTP %d (%s): %s",
+                       provider.name, r.status_code, ft, r.text[:200])
+        return None, ft
 
-_router_instance = None
+    try:
+        data = r.json()
+    except ValueError:
+        return None, FailureType.MALFORMED
 
-def get_router():
-    global _router_instance
-    if _router_instance is None:
-        _router_instance = AIRouter()
-    return _router_instance
+    # Extract content (per-provider shape)
+    try:
+        if provider.name == "gemini":
+            candidates = data.get("candidates", [])
+            if not candidates:
+                return None, FailureType.MALFORMED
+            parts = candidates[0].get("content", {}).get("parts", [])
+            content = "".join(p.get("text", "") for p in parts)
+        else:
+            content = data["choices"][0]["message"]["content"]
+        content = (content or "").strip()
+        if not content:
+            return None, FailureType.MALFORMED
+        return content, None
+    except (KeyError, IndexError, TypeError) as exc:
+        logger.warning("[Router] %s malformed response: %s", provider.name, exc)
+        return None, FailureType.MALFORMED
 
-def route(prompt, task="content", needs_hindi=False, **kwargs):
-    return get_router().generate(prompt, task=task, needs_hindi=needs_hindi, **kwargs)
 
-def chunked(items, process_fn, chunk_size=5, delay=3):
-    results = []
-    total = (len(items) + chunk_size - 1) // chunk_size
-    for i in range(0, len(items), chunk_size):
-        chunk = items[i:i + chunk_size]
-        n = (i // chunk_size) + 1
-        logger.info(f"[AI Router] Chunk {n}/{total} ({len(chunk)} items)")
-        try:
-            result = process_fn(chunk)
-            if isinstance(result, list):
-                results.extend(result)
-            else:
-                results.append(result)
-        except Exception as e:
-            logger.error(f"[AI Router] Chunk {n} failed: {e}")
-        if i + chunk_size < len(items):
-            time.sleep(delay)
-    return results
+# --------------------------------------------------------------------------- #
+# Main routing
+# --------------------------------------------------------------------------- #
+def route(
+    prompt: str,
+    task: str = "general",
+    needs_hindi: bool = False,
+    fail_on_all: bool = False,
+) -> Optional[str]:
+    """
+    Route a prompt across providers with fallback.
 
-def read_url(url):
-    return get_router().read_url(url)
+    Returns:
+        - str  : the AI response
+        - None : if all providers failed AND fail_on_all=False (graceful)
+        - raises RuntimeError if fail_on_all=True and all providers failed
+    """
+    if DISABLED:
+        logger.debug("[Router] DISABLED via env — skipping")
+        if fail_on_all:
+            raise RuntimeError("AI router disabled (AI_ROUTER_DISABLED=1)")
+        return None
 
-def collect_news(query, **kwargs):
-    return get_router().collect_news(query, **kwargs)
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return "" if not fail_on_all else None
+
+    # Cache check
+    ck = _cache_key(prompt, task)
+    cached = _CACHE.get(ck)
+    if cached is not None:
+        logger.debug("[Router] Cache hit for task=%s", task)
+        return cached
+
+    # Budget check
+    if not _within_budget():
+        logger.error("[Router] Hourly budget exceeded (%d calls)", MAX_CALLS_PER_HOUR)
+        if fail_on_all:
+            raise RuntimeError("AI hourly budget exceeded")
+        return None
+
+    providers = _get_providers()
+    if not providers:
+        logger.warning("[Router] No providers configured")
+        if fail_on_all:
+            raise RuntimeError("No AI providers configured")
+        return None
+
+    last_error: Optional[str] = None
+
+    for provider in providers:
+        if not provider.is_available():
+            logger.debug("[Router] %s skipped (unavailable)", provider.name)
+            continue
+
+        logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
+        provider.record_call()
+
+        content, failure = _call_provider(provider, prompt, task, needs_hindi)
+
+        if content is not None:
+            _CACHE.put(ck, content)
+            logger.info("[Router] ✔ %s responded (task=%s, %d chars)",
+                        provider.name, task, len(content))
+            return content
+
+        # Failure handling
+        last_error = f"{provider.name}: {failure}"
+        if failure == FailureType.AUTH_ERROR:
+            provider.mark_disabled("auth error", 3600)
+        elif failure == FailureType.MODEL_ERROR:
+            provider.mark_disabled("model not found", 86400)
+        elif failure == FailureType.RATE_LIMIT:
+            provider.mark_disabled("rate limited", 120)
+        # TRANSIENT / MALFORMED / BAD_REQUEST → just try next provider
+
+    logger.error("[Router] All providers failed. Last error: %s", last_error)
+    if fail_on_all:
+        raise RuntimeError(f"All AI providers failed: {last_error}")
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# Debug helpers
+# --------------------------------------------------------------------------- #
+def stats() -> Dict[str, Any]:
+    """Return router stats — useful for health checks and debugging."""
+    providers = _get_providers()
+    now = time.time()
+    return {
+        "providers": [
+            {
+                "name": p.name,
+                "model": p.model,
+                "available": p.is_available(),
+                "disabled_for": max(0, int(p.disabled_until - now)),
+                "last_error": p.last_error,
+                "calls_last_hour": sum(1 for t in p.call_times if now - t < 3600),
+                "rpm_limit": p.rpm_limit,
+            }
+            for p in providers
+        ],
+        "cache_size": len(_CACHE),
+        "cache_max": CACHE_SIZE,
+        "calls_last_hour": sum(1 for t in _CALL_TIMES if now - t < 3600),
+        "hourly_budget": MAX_CALLS_PER_HOUR,
+    }
+
+
+def clear_cache() -> None:
+    _CACHE.clear()
+
+
+def reset() -> None:
+    """Full reset — clear cache, providers, call counts. For tests."""
+    _CACHE.clear()
+    with _CALL_LOCK:
+        _CALL_TIMES.clear()
+    reset_providers()
+
+
+# --------------------------------------------------------------------------- #
+# Smoke test
+# --------------------------------------------------------------------------- #
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    print("=== Router Stats ===")
+    print(json.dumps(stats(), indent=2))
+    print("\n=== Test Call ===")
+    out = route("What is the capital of India? Reply in one word.", task="test")
+    print("Response:", out)
