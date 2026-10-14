@@ -263,10 +263,55 @@ def save_job(job: Dict[str, Any], state: Optional[str] = None,
     write_json_atomic(job_path(job_id), job)
     return job
 
-
 def data_path(folder: Path, job_id: str, suffix: str = "") -> Path:
-    return folder / f"{job_id}{suffix}.json"
+    """
+    Return path for a job's data file, with legacy-filename fallback.
 
+    Tries (in order):
+      1. {folder}/{job_id}{suffix}.json                  (canonical)
+      2. {folder}/{prefix}_{date}{suffix}.json           (legacy per-folder prefix)
+      3. {folder}/*_{date}{suffix}.json                  (glob, latest by mtime)
+
+    If nothing exists, returns canonical path (so writes go to canonical).
+    """
+    folder = Path(folder)
+    canonical = folder / f"{job_id}{suffix}.json"
+
+    # 1. Canonical exists → return it
+    if canonical.exists():
+        return canonical
+
+    # Extract date from job_id: "daily_2026-10-14" → "2026-10-14"
+    date = job_id.split("_", 1)[1] if "_" in job_id else job_id
+
+    # 2. Legacy prefix per folder name
+    PREFIX_MAP = {
+        "raw": "news",
+        "verified": "verified",
+        "dedup": "dedup",
+        "scored": "scored",
+        "selected": "selected",
+        "content": "content",
+        "mcq": "mcq",
+    }
+    prefix = PREFIX_MAP.get(folder.name)
+    if prefix:
+        candidate = folder / f"{prefix}_{date}{suffix}.json"
+        if candidate.exists():
+            return candidate
+
+    # 3. Glob fallback: any *_YYYY-MM-DD{suffix}.json
+    if folder.exists():
+        matches = sorted(
+            folder.glob(f"*_{date}{suffix}.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if matches:
+            return matches[0]
+
+    # Nothing found — return canonical so writes go to canonical
+    return canonical
 
 # --------------------------------------------------------------------------- #
 # Cross-process Lock (O_CREAT|O_EXCL with stale detection)
