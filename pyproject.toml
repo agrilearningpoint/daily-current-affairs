@@ -1,0 +1,117 @@
+# =============================================================================
+# AGRI LEARNING POINT — Python Project Config
+# =============================================================================
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "daily-current-affairs"
+version = "1.0.0"
+description = "Automated daily current affairs for competitive exam students"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Agri Learning Point", url = "https://github.com/agrilearningpoint" },
+]
+
+# -----------------------------------------------------------------------------
+# Ruff — Lint + Format
+# -----------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [
+    ".git", ".venv", "venv", "__pycache__",
+    "build", "dist", "*.egg-info",
+    "data", "output", "logs", "state",
+    "src/fonts",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "PIE", "RUF"]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "E402",   # import not at top (needed for sys.path hacks)
+    "W503",   # line break before binary operator
+    "W605",   # invalid escape sequence (raw strings used)
+    "E722",   # bare except (deliberate in a few places)
+    "N802",   # function name should be lowercase (dynamic modules)
+    "N806",   # variable in function should be lowercase
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401", "F841", "E402"]
+"maintenance/*" = ["E402"]
+"agents/*" = ["N999"]          # invalid module names (start with digit)
+"pipeline/*" = []
+"scripts/*" = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["pipeline", "agents", "config", "src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# -----------------------------------------------------------------------------
+# Pytest
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--color=yes",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests",
+    "network: marks tests requiring network access",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# -----------------------------------------------------------------------------
+# Coverage
+# -----------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["agents", "pipeline", "config"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "maintenance/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+# -----------------------------------------------------------------------------
+# mypy
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+exclude = [
+    "^maintenance/",
+    "^tests/",
+]

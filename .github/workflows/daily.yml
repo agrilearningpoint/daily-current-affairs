@@ -1,73 +1,173 @@
-name: Daily Current Affairs
-
-permissions:
-  contents: write
+name: Daily News Pipeline
 
 on:
   schedule:
-    - cron: '30 0 * * *'   # EXACTLY 06:00 IST (00:30 UTC) daily
+    # 02:00 UTC = 07:30 IST daily
+    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
       date:
-        description: 'Date YYYY-MM-DD (default today IST)'
+        description: "Override date (YYYY-MM-DD). Default: today UTC."
         required: false
+        type: string
+      reset:
+        description: "Reset job state and re-run from scratch?"
+        required: false
+        type: boolean
+        default: false
+      debug:
+        description: "Enable debug logging?"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
-  group: current-affairs-daily
+  group: daily-pipeline
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  actions: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  STAGE_TIMEOUT_SECONDS: "900"
+  MAX_STAGE_RETRIES: "3"
+  LOG_LEVEL: ${{ github.event.inputs.debug == 'true' && 'DEBUG' || 'INFO' }}
+
 jobs:
-  pipeline:
+  run-daily:
+    name: Run Daily Pipeline
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Configure git identity (for state commits)
         run: |
-          git config user.name "AgriLearningPointBot"
-          git config user.email "bot@agrilearningpoint.local"
+          python -m pip install --upgrade pip setuptools wheel
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Prepare directories
+        run: |
+          mkdir -p logs state/locks state/metrics \
+                   data/raw data/verified data/jobs data/dedup \
+                   data/scored data/selected data/content data/mcq \
+                   data/memory output
 
       - name: Run daily pipeline
+        id: pipeline
         env:
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ADMIN_ID: ${{ secrets.ADMIN_ID }}
-          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          TZ: Asia/Kolkata
+          MIN_CONFIDENCE_THRESHOLD: "0.3"
+          MIN_VERIFIED_COUNT: "1"
         run: |
-          DATE="${{ github.event.inputs.date }}"
-          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
-          echo "DATE=$DATE" >> "$GITHUB_ENV"
-          python main.py --type daily --date "$DATE"
+          ARGS="--job-type daily"
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            ARGS="$ARGS --date ${{ github.event.inputs.date }}"
+          fi
+          if [ "${{ github.event.inputs.reset }}" = "true" ]; then
+            ARGS="$ARGS --reset"
+          fi
+          echo "Running: python main.py $ARGS"
+          python main.py $ARGS
 
-      - name: Sync persistent event DB (memory / published events / job mirror)
-        if: always()
-        # P0 FIX: state push MUST fail workflow on 403/merge failure (was warning → hid 403)
-        # GitHub docs: workflows need explicit contents: write or push gets 403
-        run: |
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: daily ${{ env.DATE }}')" 
-
-      - name: Upload artefacts
+      - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: daily-${{ env.DATE }}
+          name: daily-logs-${{ github.run_id }}
           path: |
+            logs/
+            state/metrics/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-state-${{ github.run_id }}
+          path: |
+            state/jobs.json
+            recovery_plan.json
             output/
             data/
-            logs/
+          retention-days: 30
           if-no-files-found: warn
+
+      # --------------------------------------------------------------------- #
+      # Conflict-safe state commit
+      # --------------------------------------------------------------------- #
+      - name: Commit state changes
+        if: always()
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add state/jobs.json state/metrics/ recovery_plan.json 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(daily): update state [skip ci] $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
+
+          # Retry push with rebase (handles concurrent weekly/monthly commits)
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "✔ Pushed state on attempt $attempt"
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt) — fetching & rebasing..."
+            git fetch origin "${GITHUB_REF_NAME}" || true
+            git rebase "origin/${GITHUB_REF_NAME}" || {
+              git rebase --abort || true
+              git pull --no-rebase -X ours origin "${GITHUB_REF_NAME}" || true
+            }
+            sleep $((attempt * 5))
+          done
+          echo "::warning::Could not push state after 3 attempts"
+        continue-on-error: true
+
+      # --------------------------------------------------------------------- #
+      # Notifications
+      # --------------------------------------------------------------------- #
+      - name: Notify success (Telegram)
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ✅ Daily pipeline succeeded
+            Date: ${{ github.event.inputs.date || 'today' }}
+            Run: #${{ github.run_number }}
+
+      - name: Notify failure (Telegram)
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ Daily pipeline FAILED
+            Run: #${{ github.run_number }}
+            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

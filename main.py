@@ -1,256 +1,771 @@
 # -*- coding: utf-8 -*-
 """
-AGRI LEARNING POINT — MASTER ORCHESTRATOR (production)
-Runs the 24-agent pipeline with: atomic job-lock, full state machine,
-exponential-backoff retries (2s/4s/8s), resume-from-last-stage, watchdog alerts.
-SECURITY: no hardcoded tokens — TELEGRAM_BOT_TOKEN only from env (GitHub Secrets).
+Pipeline Orchestrator — Production Grade
+=========================================
+Daily / Weekly / Monthly news pipeline orchestrator.
 
-Usage: python main.py --type daily --date 2026-10-05
-       python main.py --watchdog          # monitor running/stalled jobs
+Key features:
+- Backward-compatible with legacy state/jobs.json
+- Multi-path stage resolution (agents/ + pipeline/)
+- Job context passed to subprocesses via env vars (ALP_JOB_ID, etc.)
+- Missing CRITICAL stage => job FAILED (never silently skipped)
+- --type alias for --job-type (workflow compatibility)
+- --watchdog mode (stuck job detection + recovery plan)
+- pipeline/state.py sync (best-effort)
+- Atomic state writes + job locks
+
+Env vars passed to subprocesses:
+  ALP_JOB_ID          — e.g. "daily_2026-10-14"
+  ALP_JOB_TYPE        — "daily" | "weekly" | "monthly"
+  ALP_JOB_DATE        — "2026-10-14"
+  ALP_OUTPUT_PREFIX   — same as ALP_JOB_ID (for filenames)
+  ALP_STAGE_ID        — current stage id
+  JOB_TYPE            — legacy alias (same as ALP_JOB_TYPE)
 """
+from __future__ import annotations
 
-import argparse, json, os, sys, time, logging, traceback
-from datetime import datetime
-import pytz
+import argparse
+import fcntl
+import json
+import logging
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from config.workflow import WORKFLOW_ORDER, MASTER_RULE
-from pipeline.state import (ensure_dirs, load_job, save_job, read_json, write_json_atomic,
-                            job_path, JobLock, TZ, now_iso)
-from pipeline.telegram_api import alert_admin
-from pipeline import store
+# --------------------------------------------------------------------------- #
+# Paths & Constants
+# --------------------------------------------------------------------------- #
+REPO_ROOT = Path(__file__).resolve().parent
+STATE_FILE = REPO_ROOT / "state" / "jobs.json"
+LOCK_DIR = REPO_ROOT / "state" / "locks"
+METRICS_DIR = REPO_ROOT / "state" / "metrics"
+LOGS_DIR = REPO_ROOT / "logs"
+RECOVERY_PLAN_FILE = REPO_ROOT / "recovery_plan.json"
+
+STAGE_TIMEOUT_SECONDS = int(os.getenv("STAGE_TIMEOUT_SECONDS", "900"))
+MAX_STAGE_RETRIES = int(os.getenv("MAX_STAGE_RETRIES", "3"))
+BACKOFF_BASE = 2
+WATCHDOG_STUCK_HOURS_DEFAULT = int(os.getenv("WATCHDOG_STUCK_HOURS", "2"))
+
+# Canonical orchestrator statuses
+VALID_ORCH_STATUSES = {"PENDING", "RUNNING", "SUCCESS", "FAILED", "FAILED_FINAL"}
 
 
-def load_agent(agent_id):
-    module = __import__(f'agents.{agent_id}', fromlist=['Agent'])
-    return module.Agent
+# --------------------------------------------------------------------------- #
+# Logging
+# --------------------------------------------------------------------------- #
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(str(LOGS_DIR / "orchestrator.log"), encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger("orchestrator")
 
 
-def setup_logging(job_id):
-    os.makedirs("logs", exist_ok=True)
-    logging.basicConfig(level=logging.INFO, datefmt="%H:%M:%S",
-                        format='[%(asctime)s] %(message)s',
-                        handlers=[logging.FileHandler(f"logs/{job_id}.log"), logging.StreamHandler()])
+# --------------------------------------------------------------------------- #
+# Enums
+# --------------------------------------------------------------------------- #
+class JobStatus(str, Enum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    FAILED_FINAL = "FAILED_FINAL"
 
 
-def run_pipeline(job_type, job_date, force=False):
-    ensure_dirs()
-    # PERSISTENT EVENT DB: pull Git-committed memory/published-log before starting
-    try:
-        store.pull()
-    except Exception as e:
-        logging.warning(f"persistent store pull failed (continuing local-only): {e}")
-    job_id = f"{job_type}_{job_date}"
-    setup_logging(job_id)
-    logging.info(f"=== START PIPELINE {job_id} ===")
-    logging.info(f"MASTER RULE: {MASTER_RULE}")
+# --------------------------------------------------------------------------- #
+# Pydantic Models — Backward Compatible with Legacy jobs.json
+# --------------------------------------------------------------------------- #
+class JobRecord(BaseModel):
+    """
+    Job record with backward-compatible field aliases.
 
-    # ---- ATOMIC LOCK: prevents duplicate/racing runs of the same job ----
-    # P0 FIX: Never return SUCCESS when locked — GitHub would mark workflow green while pipeline never ran
-    lock = JobLock(job_id)
-    if not lock.acquire():
-        logging.error(f"Job {job_id} already RUNNING elsewhere (lock held) — refusing silent success")
-        print(f"::error::Job {job_id} is already locked — another runner is active")
-        raise SystemExit(2)
-    try:
-        job = load_job(job_id, job_type, job_date)
-        if job.get("status") == "COMPLETE" and not force:
-            logging.info(f"Job {job_id} already COMPLETE — skipping duplicate")
-            return "SKIPPED_DONE"
+    Supports BOTH:
+        main.py style:    updated_at, failed_stage, created_at, job_type
+        pipeline style:   updated,    failed_at,    created,    (no job_type)
+    """
+    model_config = {"populate_by_name": True, "extra": "ignore"}
 
-        context = {"job_id": job_id, "job_type": job_type, "job_date": job_date,
-                   "tz": "Asia/Kolkata", "window": f"{job_date} 06:00 IST",
-                   "date_display": datetime.strptime(job_date, "%Y-%m-%d").strftime("%d %B %Y")}
+    job_id: str
+    job_type: str = "daily"
+    status: str = "PENDING"
+    created_at: str = ""
+    updated_at: str = ""
+    last_success_stage: Optional[str] = None
+    failed_stage: Optional[str] = None
+    attempts: int = 0
+    error: Optional[str] = None
+    # Legacy passthrough
+    job_date: Optional[str] = None
+    stage_history: List[Dict[str, Any]] = Field(default_factory=list)
 
-        start_idx = 0
-        last = job.get("last_success_stage")
-        # P0 FIX: FAILED_FINAL must also resume from last_success_stage (not from 0)
-        # Watchdog recovery: 03✅ 04✅ 05❌ → resume at 05, not 03
-        if last and last in WORKFLOW_ORDER:
-            if job.get("status") in ("FAILED_FINAL", "QA_REJECTED", "FAILED", "RETRYING"):
-                # Resume after last successful stage, even for failed jobs
-                if WORKFLOW_ORDER.index(last) + 1 < len(WORKFLOW_ORDER):
-                    start_idx = WORKFLOW_ORDER.index(last) + 1
-                    logging.info(f"RESUME after {job.get('status')}: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
-                else:
-                    logging.info(f"RESUME: {last} was last stage — job already at end")
-            elif job.get("status") != "COMPLETE":
-                start_idx = WORKFLOW_ORDER.index(last) + 1
-                logging.info(f"RESUME: from after {last} -> {WORKFLOW_ORDER[start_idx]}")
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        d = dict(data)
 
-        job = load_job(job_id, job_type, job_date)
-        # If QA already approved the PDF, restore that gate state so a resumed
-        # run doesn't wedge Agent 22 ("publish blocked: state=RECOVERED").
-        if job.get("last_success_stage") == "19_pdf_qa":
-            save_job(job, state="QA_APPROVED")
-        elif start_idx > 0:
-            save_job(job, state="RECOVERED")   # mid-pipeline resume: keep artefacts
-        else:
-            save_job(job, state="COLLECTING")
+        # Field aliases: legacy → canonical
+        if "updated" in d and not d.get("updated_at"):
+            d["updated_at"] = d.pop("updated")
+        if "created" in d and not d.get("created_at"):
+            d["created_at"] = d.pop("created")
+        if "failed_at" in d and not d.get("failed_stage"):
+            d["failed_stage"] = d.pop("failed_at")
 
-        # Per-agent post-success states — STATE OWNERSHIP LIVES HERE ONLY.
-        # Agents write artefacts + context; the orchestrator alone transitions
-        # the job state machine (single writer, no split ownership).
-        # P0 FIX: Agent 19 must NOT call save_job(QA_REJECTED) directly — orchestrator does.
-        STAGE_STATE = {"03_news_collection": "COLLECTED", "04_fact_verification": "VERIFIED",
-                       "05_deduplication": "DEDUPLICATED", "06_news_importance": "SCORED",
-                       "10_final_news_selection": "SELECTED", "12_content_editor": "CONTENT_READY",
-                       "17_mcq_validator": "MCQ_VALIDATED", "18_pdf_design": "PDF_GENERATED",
-                       "19_pdf_qa": "QA_APPROVED",
-                       "22_telegram_publisher": "PUBLISHED", "23_telegram_pin_verifier": "PIN_VERIFIED"}
-
-        for agent_id in WORKFLOW_ORDER[start_idx:]:
-            # P0 FIX: Granular RUNNING tracking so watchdog can see exactly which stage is active
-            # Previously state stayed at COLLECTED while 04 was running and crash left stale state
-            try:
-                job = load_job(job_id, job_type, job_date)
-                # NOTE: no stage= here — last_success_stage must only be written on
-                # SUCCESS (Agent 22's QA gate reads it). Watchdog uses current_stage.
-                save_job(job, state="RUNNING", current_stage=agent_id, heartbeat_at=now_iso(), started_at=now_iso())
-                store.write_job_state(job)
-            except Exception as e:
-                logging.warning(f"RUNNING state update failed for {agent_id}: {e}")
-            TOTAL_ATTEMPTS, backoffs = 3, [2, 4, 8]  # 3 total tries = 1 initial + up to 2 retries
-            last_err = None
-            for attempt in range(TOTAL_ATTEMPTS):
-                try:
-                    logging.info(f"--> Running {agent_id} (attempt {attempt+1}/{TOTAL_ATTEMPTS})")
-                    Agent = load_agent(agent_id)
-                    agent = Agent(job_id, job_type, context)
-                    context = agent.run()
-                    # ---- QUALITY GATE: agent must self-report success ----
-                    if context.get("stage_failed"):
-                        raise RuntimeError(f"{agent_id} reported failure: {context['stage_failed']}")
-                    job = load_job(job_id, job_type, job_date)
-                    summary = {k: v for k, v in context.items()
-                               if isinstance(v, (int, float, str, bool))}
-                    extra = {}
-                    if agent_id == "22_telegram_publisher" and context.get("telegram_message_id"):
-                        extra["telegram_message_id"] = context["telegram_message_id"]
-                    if agent_id == "24_final_health_audit":
-                        extra["watchdog"] = "healthy"
-                    save_job(job, state=STAGE_STATE.get(agent_id), stage=agent_id,
-                             context_summary=summary, **extra)
-                    store.write_job_state(job)   # cross-run visibility for watchdog
-                    break
-                except Exception as e:
-                    last_err = e
-                    logging.error(f"Agent {agent_id} failed (attempt {attempt+1}/{TOTAL_ATTEMPTS}): {e}")
-                    traceback.print_exc()
-                    if attempt < TOTAL_ATTEMPTS - 1:
-                        job = load_job(job_id, job_type, job_date)
-                        save_job(job, state="RETRYING", error=str(e)[:500], retry=attempt + 1)
-                        time.sleep(backoffs[attempt])
+        # Infer job_type from job_id
+        if not d.get("job_type"):
+            jid = str(d.get("job_id", ""))
+            if jid.startswith("daily_"):
+                d["job_type"] = "daily"
+            elif jid.startswith("weekly_"):
+                d["job_type"] = "weekly"
+            elif jid.startswith("monthly_"):
+                d["job_type"] = "monthly"
             else:
-                job = load_job(job_id, job_type, job_date)
-                # P0 FIX: QA failures become QA_REJECTED (blocks publish), others FAILED_FINAL
-                if agent_id == "19_pdf_qa" or "QA_REJECTED" in str(last_err):
-                    save_job(job, state="QA_REJECTED", error=str(last_err)[:500], failed_checks=str(last_err)[:500], failed_at=agent_id)
-                    store.write_job_state(job)
-                    try:
-                        store.push(f"state: {job_id} QA_REJECTED at {agent_id}")
-                    except Exception:
-                        pass
-                    alert_admin(f"🚨 PDF QA REJECTED: {job_id} at {agent_id} — {str(last_err)[:400]}")
-                else:
-                    save_job(job, state="FAILED_FINAL", error=str(last_err)[:500], failed_at=agent_id)
-                    store.write_job_state(job)      # persist failure for cross-run watchdog
-                    try:
-                        store.push(f"state: {job_id} FAILED_FINAL at {agent_id}")
-                    except Exception:
-                        pass
-                    alert_admin(f"🚨 WATCHDOG ALERT: {job_id} FAILED at {agent_id} — {str(last_err)[:400]}")
-                raise SystemExit(f"Pipeline failed at {agent_id}: {last_err}")
+                d["job_type"] = "daily"
 
-        job = load_job(job_id, job_type, job_date)
-        save_job(job, state="COMPLETE")
-        store.remove_job_state(job_id)          # clean cross-run watchdog entry
-        # P0 FIX: state push failure must FAIL workflow (not warning) — otherwise next runner loses state
-        # GitHub requires contents: write — 403 previously hid as warning, now fails loudly
+        # Fill missing timestamps
+        now = datetime.now(timezone.utc).isoformat()
+        d.setdefault("created_at", now)
+        d.setdefault("updated_at", now)
+
+        # Normalize legacy status
+        status = str(d.get("status", "PENDING"))
+        if status not in VALID_ORCH_STATUSES:
+            original = status
+            d["status"] = "FAILED"
+            if not d.get("error"):
+                d["error"] = f"Legacy status '{original}' normalized to FAILED for retry"
+
+        # Sanity: attempts
         try:
-            if job_type == "monthly":
-                store.prune(retain_days=75)     # keep event DB lean each month
-            pushed = store.push(f"state: {job_id} complete ({job.get('last_success_stage','')})")
-            if not pushed:
-                logging.info(f"State already up-to-date for {job_id} — no push needed")
-        except Exception as e:
-            logging.error(f"persistent state push failed for {job_id}: {e} — failing workflow to prevent state loss")
-            print(f"::error::State push failed for {job_id} — check GitHub permissions (contents: write) — {e}")
-            raise SystemExit(1)
-        logging.info(f"=== PIPELINE {job_id} COMPLETE ===")
-        return "COMPLETE"
-    finally:
-        lock.release()
+            d["attempts"] = max(0, int(d.get("attempts", 0)))
+        except (TypeError, ValueError):
+            d["attempts"] = 0
+
+        return d
 
 
-def watchdog_check(max_age_min=90):
-    """Scan LOCAL data/jobs AND PERSISTENT committed state/jobs.json for stalled/failed
-    jobs → alert admin + write recovery_plan.json consumed by the workflow retry step."""
-    ensure_dirs(); setup_logging("watchdog")
-    problems, recoveries = [], []
-    try:
-        store.pull()          # get latest committed job states from other runners
-    except Exception as e:
-        logging.warning(f"watchdog store pull failed: {e}")
-    seen = {}
-    jd = "data/jobs"
-    if os.path.isdir(jd):
-        for fn in sorted(os.listdir(jd)):
-            if fn.endswith(".json"):
-                jj = read_json(os.path.join(jd, fn)) or {}
-                if jj.get("job_id"):
-                    seen[jj["job_id"]] = jj
-    for jid, jj in (store._load(store.JOBS_F) or {}).items():   # persistent mirror if fresher
-        cur = seen.get(jid)
-        if not cur or (jj.get("updated", "") >= cur.get("updated", "")):
-            seen[jid] = jj
-    for jid in sorted(seen):
-        j = seen[jid]
-        st = j.get("status")
-        if st in ("RUNNING", "RETRYING", "COLLECTING", "VERIFYING", "PUBLISHED"):
-            upd = j.get("updated")
-            if upd:
+class PipelineState(BaseModel):
+    model_config = {"extra": "ignore"}
+    jobs: Dict[str, JobRecord] = Field(default_factory=dict)
+    version: int = 1
+    last_migrated_at: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Stage Definitions — (stage_id, critical, candidates)
+# --------------------------------------------------------------------------- #
+DAILY_STAGES: List[Tuple[str, bool, List[str]]] = [
+    ("00_model_orchestrator",       True,  ["agents/00_model_orchestrator.py",
+                                             "pipeline/00_model_orchestrator.py"]),
+    ("01_source_fetch",             True,  ["pipeline/01_source_fetch.py",
+                                             "agents/01_source_fetch.py"]),
+    ("03_news_collection",          True,  ["agents/03_news_collection.py",
+                                             "pipeline/03_news_collection.py"]),
+    ("04_fact_verification",        True,  ["agents/04_fact_verification.py",
+                                             "pipeline/04_fact_verification.py"]),
+    ("05_deduplication",            True,  ["agents/05_deduplication.py"]),
+    ("06_news_importance",          True,  ["agents/06_news_importance.py"]),
+    ("07_student_domain_relevance", True,  ["agents/07_student_domain_relevance.py"]),
+    ("10_final_news_selection",     True,  ["agents/10_final_news_selection.py"]),
+    ("11_importance_memory",        True,  ["agents/11_importance_memory.py"]),
+    ("12_content_editor",           True,  ["agents/12_content_editor.py",
+                                             "pipeline/12_content_editor.py"]),
+    ("16_mcq_generator",            True,  ["agents/16_mcq_generator.py"]),
+    ("17_mcq_validator",            True,  ["agents/17_mcq_validator.py"]),
+    ("18_pdf_design",               True,  ["agents/18_pdf_design.py"]),
+    ("19_pdf_qa",                   True,  ["agents/19_pdf_qa.py"]),
+    ("22_telegram_publisher",       True,  ["agents/22_telegram_publisher.py",
+                                             "agents/14_telegram_publish.py",
+                                             "pipeline/14_telegram_publish.py"]),
+    ("23_telegram_pin_verifier",    True,  ["agents/23_telegram_pin_verifier.py"]),
+    ("24_final_health_audit",       False, ["agents/24_final_health_audit.py"]),
+]
+
+WEEKLY_STAGES: List[Tuple[str, bool, List[str]]] = [
+    ("20_weekly_editor",      True, ["agents/20_weekly_editor.py"]),
+    ("22_telegram_publisher", True, ["agents/22_telegram_publisher.py",
+                                      "agents/14_telegram_publish.py"]),
+]
+
+MONTHLY_STAGES: List[Tuple[str, bool, List[str]]] = [
+    ("21_monthly_editor",     True, ["agents/21_monthly_editor.py"]),
+    ("22_telegram_publisher", True, ["agents/22_telegram_publisher.py",
+                                      "agents/14_telegram_publish.py"]),
+]
+
+STAGE_MAP: Dict[str, List[Tuple[str, bool, List[str]]]] = {
+    "daily": DAILY_STAGES,
+    "weekly": WEEKLY_STAGES,
+    "monthly": MONTHLY_STAGES,
+}
+
+# Stage → pipeline/state.py state
+STAGE_TO_STATE: Dict[str, str] = {
+    "00_model_orchestrator": "CREATED",
+    "01_source_fetch":       "COLLECTING",
+    "03_news_collection":    "COLLECTED",
+    "04_fact_verification":  "VERIFIED",
+    "05_deduplication":      "DEDUPLICATED",
+    "06_news_importance":    "SCORED",
+    "07_student_domain_relevance": "SCORED",
+    "10_final_news_selection": "SELECTED",
+    "11_importance_memory":  "SELECTED",
+    "12_content_editor":     "CONTENT_READY",
+    "16_mcq_generator":      "MCQ_READY",
+    "17_mcq_validator":      "MCQ_VALIDATED",
+    "18_pdf_design":         "PDF_GENERATED",
+    "19_pdf_qa":             "QA_APPROVED",
+    "20_weekly_editor":      "SELECTED",
+    "21_monthly_editor":     "SELECTED",
+    "22_telegram_publisher": "PUBLISHED",
+    "23_telegram_pin_verifier": "PIN_VERIFIED",
+    "24_final_health_audit": "COMPLETE",
+}
+
+
+def stages_for(job_type: str) -> List[Tuple[str, bool, List[str]]]:
+    if job_type not in STAGE_MAP:
+        raise ValueError(f"Unknown job type: {job_type}")
+    return STAGE_MAP[job_type]
+
+
+# --------------------------------------------------------------------------- #
+# File Locking (fcntl-based)
+# --------------------------------------------------------------------------- #
+class JobLock:
+    """Cross-process lock via fcntl. Auto-releases on crash."""
+
+    def __init__(self, job_id: str):
+        LOCK_DIR.mkdir(parents=True, exist_ok=True)
+        self.lock_path = LOCK_DIR / f"{job_id}.lock"
+        self._fh = None
+
+    def __enter__(self):
+        self._fh = open(self.lock_path, "w")
+        try:
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self._fh.close()
+            self._fh = None
+            raise RuntimeError(
+                f"Job {self.lock_path.stem} already running (lock held). "
+                f"If this is stale, delete: {self.lock_path}"
+            )
+        self._fh.write(f"pid={os.getpid()}\nat={datetime.now(timezone.utc).isoformat()}\n")
+        self._fh.flush()
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if self._fh:
                 try:
-                    age = (datetime.now(TZ) - datetime.fromisoformat(upd)).total_seconds() / 60
-                except ValueError:
-                    age = 0
-                if age > max_age_min:
-                    problems.append(f"⏰ STALLED {jid} state={st} age={age:.0f}min stage={j.get('last_success_stage')}")
-                    recoveries.append(jid)
-        elif st == "FAILED_FINAL":
-            problems.append(f"💥 FAILED_FINAL {jid} at {j.get('failed_at')}: {str(j.get('error',''))[:120]}")
-            recoveries.append(jid)
-    if recoveries:
-        with open("recovery_plan.json", "w", encoding="utf-8") as f:
-            json.dump(recoveries, f)
-    if problems:
-        alert_admin("🐕 WATCHDOG:\n" + "\n".join(problems))
-        print("\n".join(problems))
-        return 1
-    logging.info("Watchdog: all jobs healthy")
+                    fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+                finally:
+                    self._fh.close()
+        finally:
+            try:
+                os.remove(self.lock_path)
+            except FileNotFoundError:
+                pass
+
+
+# --------------------------------------------------------------------------- #
+# Atomic State I/O
+# --------------------------------------------------------------------------- #
+def load_state() -> PipelineState:
+    if not STATE_FILE.exists():
+        return PipelineState()
+    try:
+        raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        # Support both {"jobs": {...}} and flat {job_id: {...}}
+        if isinstance(raw, dict) and "jobs" not in raw and "version" not in raw:
+            raw = {"jobs": raw, "version": 1}
+        return PipelineState(**raw)
+    except (json.JSONDecodeError, ValidationError) as exc:
+        backup = STATE_FILE.with_suffix(f".corrupt.{int(time.time())}.json")
+        try:
+            shutil.copy2(STATE_FILE, backup)
+            logger.error("Corrupt state backed up to %s. Error: %s", backup, exc)
+        except Exception:
+            logger.error("Corrupt state (backup failed): %s", exc)
+        return PipelineState()
+
+
+def save_state(state: PipelineState) -> None:
+    """Atomic write: temp + fsync + os.replace."""
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=".jobs_", suffix=".tmp", dir=str(STATE_FILE.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(state.model_dump(mode="json"), f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, STATE_FILE)
+    except Exception:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        raise
+
+
+# --------------------------------------------------------------------------- #
+# State Transitions
+# --------------------------------------------------------------------------- #
+VALID_TRANSITIONS: Dict[str, set] = {
+    "PENDING":      {"RUNNING"},
+    "RUNNING":      {"SUCCESS", "FAILED", "FAILED_FINAL"},
+    "FAILED":       {"RUNNING", "FAILED_FINAL"},
+    "FAILED_FINAL": set(),
+    "SUCCESS":      set(),
+}
+
+
+def transition(job: JobRecord, new_status: str) -> None:
+    if new_status == job.status:
+        return
+    allowed = VALID_TRANSITIONS.get(job.status, set())
+    if new_status not in allowed:
+        raise ValueError(f"Invalid transition: {job.status} → {new_status}")
+    job.status = new_status
+    job.updated_at = datetime.now(timezone.utc).isoformat()
+
+
+# --------------------------------------------------------------------------- #
+# Stage Resolution
+# --------------------------------------------------------------------------- #
+def resolve_stage_script(candidates: List[str]) -> Optional[Path]:
+    """Return first existing candidate path, else None."""
+    for rel in candidates:
+        p = REPO_ROOT / rel
+        if p.exists() and p.is_file():
+            return p
+    return None
+
+
+def build_job_context(job_id: str, job_type: str, job_date: str) -> Dict[str, str]:
+    """
+    Build the env vars that every agent subprocess receives.
+    This is the SINGLE SOURCE OF TRUTH for job context propagation.
+    """
+    ctx = {
+        "ALP_JOB_ID": job_id,
+        "ALP_JOB_TYPE": job_type,
+        "ALP_JOB_DATE": job_date,
+        "ALP_OUTPUT_PREFIX": job_id,
+        "JOB_TYPE": job_type,  # legacy compat (some agents read this)
+        "JOB_ID": job_id,      # legacy compat
+    }
+    return ctx
+
+
+def run_stage(
+    stage_id: str,
+    critical: bool,
+    candidates: List[str],
+    timeout: int = STAGE_TIMEOUT_SECONDS,
+    job_context: Optional[Dict[str, str]] = None,
+) -> str:
+    """
+    Run one stage. Passes job context via env vars.
+    Returns: 'SUCCESS' | 'FAILED' | 'MISSING'
+    """
+    script = resolve_stage_script(candidates)
+
+    if script is None:
+        tried = ", ".join(candidates)
+        if critical:
+            logger.error("✘ CRITICAL MISSING: %s — tried: %s", stage_id, tried)
+        else:
+            logger.warning("⚠ OPTIONAL MISSING: %s — tried: %s", stage_id, tried)
+        return "MISSING"
+
+    # Build env: inherit parent env + inject job context
+    env = os.environ.copy()
+    if job_context:
+        env.update(job_context)
+    env["ALP_STAGE_ID"] = stage_id
+
+    logger.info(
+        "▶ Running stage: %s (%s) [job=%s type=%s date=%s]",
+        stage_id, script.relative_to(REPO_ROOT),
+        env.get("ALP_JOB_ID", "?"),
+        env.get("ALP_JOB_TYPE", "?"),
+        env.get("ALP_JOB_DATE", "?"),
+    )
+
+    start = time.time()
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, str(script)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=str(REPO_ROOT),
+            env=env,  # ← PASS JOB CONTEXT
+            preexec_fn=os.setsid if hasattr(os, "setsid") else None,
+        )
+        try:
+            output, _ = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            logger.error("Stage %s timed out after %ds — killing", stage_id, timeout)
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                pass
+            return "FAILED"
+
+        elapsed = time.time() - start
+        if proc.returncode == 0:
+            logger.info("✔ Stage %s succeeded in %.1fs", stage_id, elapsed)
+            return "SUCCESS"
+
+        logger.error(
+            "✘ Stage %s failed (exit=%d) in %.1fs. Output tail:\n%s",
+            stage_id, proc.returncode, elapsed, (output or "")[-2000:],
+        )
+        return "FAILED"
+    except Exception as exc:
+        logger.exception("Unexpected error running %s: %s", stage_id, exc)
+        return "FAILED"
+
+
+def run_stage_with_retry(
+    stage_id: str,
+    critical: bool,
+    candidates: List[str],
+    job_context: Optional[Dict[str, str]] = None,
+) -> str:
+    """Retry with exponential backoff. Passes context through."""
+    last = "FAILED"
+    for attempt in range(1, MAX_STAGE_RETRIES + 1):
+        result = run_stage(stage_id, critical, candidates, job_context=job_context)
+        if result == "SUCCESS":
+            return result
+        if result == "MISSING" and not critical:
+            return result
+        last = result
+        if attempt < MAX_STAGE_RETRIES:
+            wait = BACKOFF_BASE ** attempt
+            logger.warning(
+                "Stage %s attempt %d/%d failed. Retry in %ds...",
+                stage_id, attempt, MAX_STAGE_RETRIES, wait,
+            )
+            time.sleep(wait)
+    return last
+
+
+# --------------------------------------------------------------------------- #
+# pipeline/state.py Sync (best-effort)
+# --------------------------------------------------------------------------- #
+def sync_pipeline_state(job_id: str, job_type: str, stage_id: str) -> None:
+    """Best-effort sync with pipeline.state. Silently skip if unavailable."""
+    new_state = STAGE_TO_STATE.get(stage_id)
+    if not new_state:
+        return
+    try:
+        from pipeline.state import load_job, save_job  # type: ignore
+    except Exception:
+        return
+
+    try:
+        job_date = job_id.split("_", 1)[1] if "_" in job_id else \
+                   datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        job = load_job(job_id, job_type, job_date)
+        save_job(job, state=new_state, stage=stage_id)
+    except Exception as exc:
+        logger.debug("pipeline.state sync skipped for %s: %s", stage_id, exc)
+
+
+# --------------------------------------------------------------------------- #
+# Job Management
+# --------------------------------------------------------------------------- #
+def get_or_create_job(state: PipelineState, job_id: str, job_type: str) -> JobRecord:
+    if job_id in state.jobs:
+        return state.jobs[job_id]
+    now = datetime.now(timezone.utc).isoformat()
+    job = JobRecord(
+        job_id=job_id,
+        job_type=job_type,
+        status="PENDING",
+        created_at=now,
+        updated_at=now,
+    )
+    state.jobs[job_id] = job
+    return job
+
+
+def resume_index(
+    stages: List[Tuple[str, bool, List[str]]],
+    last_success: Optional[str],
+) -> int:
+    if not last_success:
+        return 0
+    ids = [s[0] for s in stages]
+    if last_success not in ids:
+        return 0
+    return ids.index(last_success) + 1
+
+
+def extract_job_date(job_id: str) -> str:
+    """Extract YYYY-MM-DD from job_id like 'daily_2026-10-14'."""
+    if "_" in job_id:
+        return job_id.split("_", 1)[1]
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+# --------------------------------------------------------------------------- #
+# Job Execution
+# --------------------------------------------------------------------------- #
+def execute_job(job_id: str, job_type: str) -> bool:
+    with JobLock(job_id):
+        state = load_state()
+        job = get_or_create_job(state, job_id, job_type)
+
+        if job.status == "SUCCESS":
+            logger.info("Job %s already SUCCESS — skipping.", job_id)
+            return True
+
+        if job.status == "FAILED_FINAL":
+            logger.warning("Job %s was FAILED_FINAL — resetting for retry.", job_id)
+            job.status = "FAILED"
+            job.failed_stage = None
+            job.error = None
+
+        try:
+            transition(job, "RUNNING")
+        except ValueError as exc:
+            logger.error("Cannot start job %s: %s", job_id, exc)
+            return False
+
+        job.attempts += 1
+        save_state(state)
+
+        # Build job context — this is what agents will receive
+        job_date = extract_job_date(job_id)
+        job_context = build_job_context(job_id, job_type, job_date)
+        logger.info("Job context: %s", job_context)
+
+        stages = stages_for(job_type)
+        start_idx = resume_index(stages, job.last_success_stage)
+        logger.info(
+            "Job %s | type=%s | date=%s | resuming from index %d (next: %s)",
+            job_id, job_type, job_date, start_idx,
+            stages[start_idx][0] if start_idx < len(stages) else "END",
+        )
+
+        for stage_id, critical, candidates in stages[start_idx:]:
+            result = run_stage_with_retry(
+                stage_id, critical, candidates, job_context=job_context,
+            )
+
+            if result == "SUCCESS":
+                job.last_success_stage = stage_id
+                job.failed_stage = None
+                job.error = None
+                save_state(state)
+                sync_pipeline_state(job_id, job_type, stage_id)
+                continue
+
+            if result == "MISSING" and not critical:
+                logger.warning("Optional stage %s missing — continuing.", stage_id)
+                continue
+
+            # FAILED or CRITICAL MISSING → job fails
+            reason = (
+                "script missing (critical)" if result == "MISSING"
+                else "stage execution failed"
+            )
+            job.failed_stage = stage_id
+            job.error = f"{stage_id}: {reason}"
+
+            final = job.attempts >= MAX_STAGE_RETRIES
+            try:
+                transition(job, "FAILED_FINAL" if final else "FAILED")
+            except ValueError as exc:
+                logger.error("Transition error for %s: %s", job_id, exc)
+                job.status = "FAILED_FINAL" if final else "FAILED"
+                job.updated_at = datetime.now(timezone.utc).isoformat()
+
+            logger.error(
+                "Job %s → %s at %s (%s)",
+                job_id, job.status, stage_id, reason,
+            )
+            save_state(state)
+            _write_metrics(job)
+            return False
+
+        transition(job, "SUCCESS")
+        save_state(state)
+        logger.info("✔ Job %s completed successfully.", job_id)
+        _write_metrics(job)
+        return True
+
+
+def _write_metrics(job: JobRecord) -> None:
+    METRICS_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        (METRICS_DIR / f"{job.job_id}.json").write_text(
+            json.dumps(job.model_dump(mode="json"), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        logger.warning("Metrics write failed for %s: %s", job.job_id, exc)
+
+
+# --------------------------------------------------------------------------- #
+# Watchdog
+# --------------------------------------------------------------------------- #
+def run_watchdog(stuck_hours: int = WATCHDOG_STUCK_HOURS_DEFAULT) -> int:
+    """
+    Detect stuck RUNNING jobs & recent FAILED_FINAL jobs.
+    Auto-reset stuck RUNNING → FAILED. Write recovery_plan.json.
+    """
+    logger.info("🐕 Watchdog running (stuck threshold = %dh)", stuck_hours)
+    state = load_state()
+    now = datetime.now(timezone.utc)
+
+    stale_running: List[str] = []
+    recent_failed: List[str] = []
+
+    for job_id, job in state.jobs.items():
+        try:
+            updated = datetime.fromisoformat(job.updated_at.replace("Z", "+00:00"))
+            if updated.tzinfo is None:
+                updated = updated.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+
+        if job.status == "RUNNING":
+            age_h = (now - updated).total_seconds() / 3600
+            if age_h > stuck_hours:
+                stale_running.append(job_id)
+                logger.warning("STUCK: %s (RUNNING %.1fh)", job_id, age_h)
+
+        if job.status == "FAILED_FINAL":
+            if (now - updated).total_seconds() < 7 * 86400:
+                recent_failed.append(job_id)
+
+    actions: List[Dict[str, Any]] = []
+
+    for job_id in stale_running:
+        job = state.jobs[job_id]
+        try:
+            transition(job, "FAILED")
+            job.error = "Watchdog: reset from stuck RUNNING"
+            actions.append({"job_id": job_id, "action": "reset_running_to_failed"})
+        except ValueError as exc:
+            logger.warning("Cannot reset %s: %s", job_id, exc)
+
+    if stale_running:
+        save_state(state)
+
+    plan = {
+        "generated_at": now.isoformat(),
+        "stuck_hours": stuck_hours,
+        "stuck_running": stale_running,
+        "recent_failed_final": recent_failed,
+        "actions": actions,
+    }
+    try:
+        RECOVERY_PLAN_FILE.write_text(
+            json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        logger.info("Recovery plan written: %s", RECOVERY_PLAN_FILE)
+    except Exception as exc:
+        logger.error("Failed to write recovery plan: %s", exc)
+
+    logger.info(
+        "Watchdog complete. Stuck=%d | Recent FAILED_FINAL=%d",
+        len(stale_running), len(recent_failed),
+    )
     return 0
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--type", choices=["daily", "weekly", "monthly"])
-    parser.add_argument("--date", help="YYYY-MM-DD in Asia/Kolkata")
-    parser.add_argument("--force", action="store_true", help="rerun even if COMPLETE")
-    parser.add_argument("--watchdog", action="store_true", help="monitor mode")
-    args = parser.parse_args()
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+def build_job_id(job_type: str, ref: Optional[str] = None) -> str:
+    date = ref or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"{job_type}_{date}"
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="News pipeline orchestrator")
+    # --type alias for --job-type (workflow compatibility)
+    p.add_argument(
+        "--job-type", "--type",
+        dest="job_type",
+        choices=["daily", "weekly", "monthly"],
+        required=False,
+    )
+    p.add_argument("--date", help="YYYY-MM-DD reference (default: today UTC)")
+    p.add_argument("--reset", action="store_true",
+                   help="Reset state for this job before running")
+    p.add_argument("--watchdog", action="store_true",
+                   help="Run watchdog mode (stuck job detection + recovery plan)")
+    p.add_argument("--stuck-hours", type=int, default=WATCHDOG_STUCK_HOURS_DEFAULT,
+                   help=f"Watchdog stuck threshold in hours (default: {WATCHDOG_STUCK_HOURS_DEFAULT})")
+    return p.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+
+    # Watchdog mode
     if args.watchdog:
-        sys.exit(watchdog_check())
-    if not (args.type and args.date):
-        parser.error("--type and --date are required for a pipeline run")
-    # P0 FIX: Propagate pipeline exit code so GitHub Actions correctly marks SUCCESS/FAILURE
-    # Previously SKIPPED_LOCKED returned 0 (SUCCESS) even though pipeline never ran — now raises SystemExit(2)
-    result = run_pipeline(args.type, args.date, force=args.force)
-    if isinstance(result, str):
-        if result == "SKIPPED_DONE":
-            logging.info(f"Pipeline already COMPLETE — idempotent success")
-            sys.exit(0)
-        elif result.startswith("SKIPPED"):
-            print(f"::error::Pipeline skipped: {result}")
-            sys.exit(2)
-    sys.exit(0)
+        return run_watchdog(stuck_hours=args.stuck_hours)
+
+    if not args.job_type:
+        logger.error("Either --job-type/--type is required, or use --watchdog")
+        return 2
+
+    job_id = build_job_id(args.job_type, args.date)
+
+    if args.reset:
+        state = load_state()
+        if job_id in state.jobs:
+            del state.jobs[job_id]
+            save_state(state)
+            logger.info("Reset state for job %s", job_id)
+
+    try:
+        ok = execute_job(job_id, args.job_type)
+    except Exception:
+        logger.exception("Orchestrator crashed")
+        return 1
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,30 +1,152 @@
-# Compiled and build artifacts
-__pycache__/
-*.pyc
+# =============================================================================
+# AGRI LEARNING POINT — Daily Current Affairs
+# .gitignore
+# =============================================================================
+# Rule: Git = source code + config + small persistent state (state/*.json)
+#       Everything else → Actions artifacts / local only
+# =============================================================================
 
-# Logs and temp files
+# -----------------------------------------------------------------------------
+# Python — bytecode / build
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+MANIFEST
+
+# -----------------------------------------------------------------------------
+# Python — test / lint / type caches
+# -----------------------------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# -----------------------------------------------------------------------------
+# Virtual environments
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# -----------------------------------------------------------------------------
+# IDE / Editor
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# Environment files (secrets — NEVER commit)
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# -----------------------------------------------------------------------------
+# Logs & temp files
+# -----------------------------------------------------------------------------
+logs/
 *.log
 *.tmp
-# ── AGRI LEARNING POINT — generated artifacts (never commit to Git history) ──
-# Git repo = source + config + small persistent state (state/)
-# Daily artefacts go to Actions artifacts, not Git
+*.bak
+*.orig
+*.rej
+~*
+
+# -----------------------------------------------------------------------------
+# Generated data / output (regenerated on each run)
+# -----------------------------------------------------------------------------
 data/
 output/
-logs/
 preview/
+reports/
+
+# -----------------------------------------------------------------------------
+# State — MIXED: some tracked, some ephemeral
+# -----------------------------------------------------------------------------
+# Ephemeral state (auto-generated, regeneratable):
+state/backups/
+state/archive/
+state/locks/
+state/metrics/
+state/migration_report.json
+state/jobs.json.corrupt.*
+state/*.tmp
+state/.store_*
+
+# Watchdog generated:
+recovery_plan.json
+
+# -----------------------------------------------------------------------------
+# Assets — generated images (keep curated logos only)
+# -----------------------------------------------------------------------------
 assets/images/
-!state/
-!state/jobs.json
-!state/published_events.json
-!state/importance_memory.json
 *.pdf
 *.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.webp
+
+# Exceptions — curated assets MUST be tracked:
 !assets/logo.png
 !assets/watermark_logo.png
+!src/fonts/*.ttf
+!src/fonts/*.otf
 
-# IDE / OS
-.DS_Store
-.vscode/
-.venv/
-.env
-!.env.example
+# -----------------------------------------------------------------------------
+# Node / other tooling (safety)
+# -----------------------------------------------------------------------------
+node_modules/
+.npm/
+yarn-error.log
+.pnpm-store/
+
+# =============================================================================
+# EXPLICITLY TRACKED (must be committed — do NOT un-ignore)
+# =============================================================================
+# Persistent state (pipeline memory — needs git history):
+!state/jobs.json
+!state/published_events.json
+!state/published_jobs.json
+!state/importance_memory.json
+!state/pin_verification.json
+!state/source_health.json
+
+# Config files:
+!config/*.py
+!config/*.json
+!config/*.css
+
+# Workflows:
+!.github/workflows/*.yml
+
+# =============================================================================
+# Verify with: git check-ignore -v <path>
+# =============================================================================

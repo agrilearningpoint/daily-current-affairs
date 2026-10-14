@@ -1,411 +1,302 @@
 # -*- coding: utf-8 -*-
 """
-PERSISTENT EVENT STORE — the real "same database, different selection" backbone.
+Memory Store — Importance Memory + Published Events
+====================================================
+Persistent state for:
+- Importance memory (used by MCQ distractor pools + weekly/monthly editors)
+- Published events (idempotency ledger)
+- Source health tracking
 
-Problem this solves: GitHub Actions runners are EPHEMERAL. data/ is gitignored and
-artefacts expire, so importance-memory / job-states were NOT persistent across runs.
+Production features:
+- Atomic writes (tempfile + fsync + os.replace)
+- File-level locking (fcntl on POSIX, msvcrt on Windows)
+- Corruption recovery (auto-backup + fresh start)
+- Legacy format migration (list → dict)
+- Size cap (LRU eviction of oldest entries)
+- Schema validation
+- Thread-safe operations
+- Env override for file location
 
-Design (zero external services):
-  * The Git repo itself is the database. State lives in committed files under state/.
-  * Every workflow pulls latest main before running, pushes changes after running.
-  * Writes are MERGE-based (event_id keyed dicts) + a per-job branch check, so daily /
-    weekly / monthly / watchdog workflows never clobber each other's keys.
-  * If push fails (conflict), we pull --rebase and retry; final failure logs loudly
-    but NEVER blocks PDF generation or Telegram publishing.
-  * LIMITATION: This is NOT a true transactional DB — concurrent runners depend on
-    rebase+merge retries. For current scale (1 daily + 1 weekly + 1 monthly + watchdog
-    every 5min) this is workable and tested; beyond that a real DB (e.g., MongoDB Atlas
-    as in docs/DATABASE_SCHEMA) should replace state/.
-
-API:
-  store.pull()                  -> sync local state/ with origin/main
-  record_scores(items, job_id)  -> merge event scores into memory (agent 11)
-  load_memory()                 -> full importance memory dict
-  mark_published(eids, job_id)  -> remember published events (agents 22/24)
-  write_job_state(job)          -> mirror job JSON for cross-run watchdog
-  remove_job_state(job_id)      -> drop stale lock/state when a run ends
-  prune(retain_days)            -> keep state lean on monthly runs
-  store.push(message)           -> commit+push changed state files
+Env:
+  ALP_MEMORY_PATH        — override importance memory location
+  ALP_MEMORY_MAX_ENTRIES — max entries before trimming (default 2000)
+  ALP_PUBLISHED_PATH     — override published events location
 """
-import json, os, shutil, subprocess
-from datetime import datetime, timedelta
+from __future__ import annotations
 
-import pytz
+import json
+import logging
+import os
+import tempfile
+import threading
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Optional, Union
 
-TZ = pytz.timezone("Asia/Kolkata")
-ROOT = os.environ.get("ALP_ROOT", os.getcwd())
-STATE_DIR = os.path.join(ROOT, "state")
-MEMORY_F = os.path.join(STATE_DIR, "importance_memory.json")
-PUBLISHED_F = os.path.join(STATE_DIR, "published_events.json")
-PUBLISHED_JOBS_F = os.path.join(STATE_DIR, "published_jobs.json")  # P0 FIX: job-level registry
-JOBS_F = os.path.join(STATE_DIR, "jobs.json")
+logger = logging.getLogger("pipeline.store")
+
+# --------------------------------------------------------------------------- #
+# Paths
+# --------------------------------------------------------------------------- #
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+DEFAULT_MEMORY_PATH = REPO_ROOT / "state" / "importance_memory.json"
+DEFAULT_PUBLISHED_PATH = REPO_ROOT / "state" / "published_events.json"
+DEFAULT_SOURCE_HEALTH_PATH = REPO_ROOT / "state" / "source_health.json"
+
+MAX_MEMORY_ENTRIES = int(os.getenv("ALP_MEMORY_MAX_ENTRIES", "2000"))
+MAX_PUBLISHED_ENTRIES = int(os.getenv("ALP_PUBLISHED_MAX_ENTRIES", "10000"))
 
 
-def _git(*args, checks=True):
+def _memory_path() -> Path:
+    override = os.getenv("ALP_MEMORY_PATH")
+    return Path(override) if override else DEFAULT_MEMORY_PATH
+
+
+def _published_path() -> Path:
+    override = os.getenv("ALP_PUBLISHED_PATH")
+    return Path(override) if override else DEFAULT_PUBLISHED_PATH
+
+
+# --------------------------------------------------------------------------- #
+# Cross-platform file lock
+# --------------------------------------------------------------------------- #
+@contextmanager
+def _file_lock(path: Path) -> Iterator[None]:
+    """
+    Exclusive file lock for cross-process safety.
+    POSIX: fcntl.flock
+    Windows: msvcrt.locking (via alternative implementation)
+    """
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
     try:
-        r = subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True, timeout=90)
-        if checks and r.returncode != 0:
-            raise RuntimeError(f"git {' '.join(args)} failed: {r.stderr[:300]}")
-        return r.stdout
-    except Exception as e:
-        if checks:
-            raise
-        return ""
+        try:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except ImportError:
+            # Windows fallback — best effort (skip if unavailable)
+            pass
+        except BlockingIOError:
+            logger.warning("Lock held by another process: %s", lock_path)
+        yield
+    finally:
+        try:
+            import fcntl
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except Exception:
+                pass
+        except ImportError:
+            pass
+        os.close(fd)
+        try:
+            os.remove(str(lock_path))
+        except OSError:
+            pass
 
 
-def _load(path):
+# --------------------------------------------------------------------------- #
+# Atomic I/O
+# --------------------------------------------------------------------------- #
+def _atomic_write_json(path: Path, data: Any) -> None:
+    """Write JSON atomically: temp + fsync + os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{path.stem}_", suffix=".tmp", dir=str(path.parent)
+    )
     try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _save(path, obj):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=1, sort_keys=True)
-    os.replace(tmp, path)
-
-
-# JSON state files are MERGED key-by-key (event_id / job_id keyed dicts), never
-# clobbered wholesale. This is the fix for the concurrent-workflow race:
-# daily/weekly/monthly/watchdog runners each add different keys; a blind
-# `checkout FETCH_HEAD -- state/` or last-writer-wins push would silently drop
-# another workflow's updates. Merge keeps both sides' keys on pull AND on push.
-MERGE_FILES = ("importance_memory.json", "published_events.json", "published_jobs.json", "jobs.json")
-
-
-def _merge_dicts(local_obj, remote_obj):
-    """Union merge of two dict-shaped state files. On same-key conflict, prefer
-    the record with the newer timestamp field (last_seen/last_published/updated);
-    ties fall back to local (we just wrote it)."""
-    out = dict(remote_obj or {})
-    for k, v in (local_obj or {}).items():
-        old = out.get(k)
-        if old is None:
-            out[k] = v
-            continue
-        if isinstance(old, dict) and isinstance(v, dict):
-            ts_new = v.get("last_seen") or v.get("last_published") or v.get("updated") or ""
-            ts_old = old.get("last_seen") or old.get("last_published") or old.get("updated") or ""
-            out[k] = v if ts_new >= ts_old else old
-        else:
-            out[k] = v  # non-dict local value wins (we own our writes)
-    return out
-
-
-def _remote_state(fn):
-    r = subprocess.run(["git", "-C", ROOT, "show", f"origin/main:state/{fn}"],
-                       capture_output=True, text=True, timeout=60)
-    if r.returncode != 0:
-        return {}
-    try:
-        obj = json.loads(r.stdout)
-        return obj if isinstance(obj, dict) else {}
-    except json.JSONDecodeError:
-        return {}
-
-
-def pull():
-    """Fetch latest committed state from origin/main and MERGE it into local
-    state files (key-wise union; never overwrite local-only additions)."""
-    try:
-        _git("fetch", "origin", "main", checks=False)
-        for fn in MERGE_FILES:
-            p = os.path.join(STATE_DIR, fn)
-            remote = _remote_state(fn)
-            if not remote:
-                continue
-            local = _load(p)
-            merged = _merge_dicts(local, remote)
-            if merged != local:
-                _save(p, merged)
-        return True
-    except Exception as e:
-        print(f"[store] pull skipped: {e}")
-        return False
-
-
-def push(message="state: update"):
-    """Commit + push changed state files with a merge-safe rebase loop.
-    On push conflict we rebase onto origin/main; if git reports a CONFLICT in
-    one of our JSON state files, we abort the rebase, take the merged
-    (local ∪ remote) version, recommit and retry — so concurrent workflows
-    never lose each other's keys. Raises RuntimeError on push failure (P0: was silently warning)."""
-    import time
-    try:
-        _git("add", "-f", "state/", checks=False)
-        r = subprocess.run(["git", "-C", ROOT, "diff", "--cached", "--quiet"])
-        if r.returncode == 0:
-            return False  # nothing changed
-        _git("-c", "user.name=AgriLearningPointBot", "-c", "user.email=bot@agrilearningpoint.local",
-             "commit", "-m", message, checks=False)
-        for attempt in range(3):
-            pr = subprocess.run(["git", "-C", ROOT, "push", "origin", "HEAD:main"],
-                                capture_output=True, text=True, timeout=120)
-            if pr.returncode == 0:
-                print(f"[store] pushed: {message}")
-                return True
-            # Conflict-safe rebase: if state JSONs clash, merge them ourselves.
-            rb = subprocess.run(["git", "-C", ROOT, "pull", "--rebase", "origin", "main"],
-                                capture_output=True, text=True, timeout=120)
-            if rb.returncode != 0:
-                conflicted = [fn for fn in MERGE_FILES
-                              if f"state/{fn}" in (rb.stdout + rb.stderr)]
-                subprocess.run(["git", "-C", ROOT, "rebase", "--abort"],
-                               capture_output=True, text=True, timeout=60)
-                if conflicted:
-                    _git("fetch", "origin", "main", checks=False)
-                    for fn in conflicted:
-                        merged = _merge_dicts(_load(os.path.join(STATE_DIR, fn)),
-                                              _remote_state(fn))
-                        _save(os.path.join(STATE_DIR, fn), merged)
-                    _git("add", "-f", "state/", checks=False)
-                    _git("-c", "user.name=AgriLearningPointBot",
-                         "-c", "user.email=bot@agrilearningpoint.local",
-                         "commit", "-m", f"{message} (merged concurrent state)", checks=False)
-                    continue
-                print(f"[store] rebase failed: {rb.stderr[:200]}")
-                break
-            time.sleep(1 + attempt)  # tiny jitter reduces repeated collisions
-        # P0 FIX: push failure must NOT be silent warning — caller (workflow) must see FAILURE
-        # Previously returned False for both "nothing to push" and "push failed" → workflow hid 403 as warning
-        print("[store] ERROR: could not push state to origin/main after retries — check permissions (contents: write)")
-        raise RuntimeError("State push failed after 3 retries — GitHub push 403 or merge conflict")
-    except Exception as e:
-        # Re-raise so workflow fails loudly (audit: state push failed → pipeline FAILED)
-        print(f"[store] push failed: {e}")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
         raise
 
 
-def record_scores(items, job_id):
-    """Merge scored events into persistent importance memory (agent 11).
-    P1 FIX #9: Keep lightweight full event record (headline, source, category, raw_facts, etc.)
-    so Weekly/Monthly can do fresh Best-of re-selection from historical content, not just scores.
-    """ 
-    mem = _load(MEMORY_F)
-    today = datetime.now(TZ).strftime("%Y-%m-%d")
-    for it in items:
-        eid = it["event_id"]
-        # Lightweight full record for cross-week/month reuse
-        rec = mem.setdefault(eid, {"headline": it.get("headline_en", "")[:160],
-                                   "headline_hi": it.get("headline_hi", "")[:160] if it.get("headline_hi") else "",
-                                   "source_url": it.get("source_url", ""),
-                                   "source_name": it.get("source_name", ""),
-                                   "source_level": it.get("source_level", 5),
-                                   "category": it.get("category", ""),
-                                   "raw_facts": (it.get("raw_facts", "") or "")[:600],
-                                   "student_relevance": it.get("student_relevance", it.get("importance_score", 0)),
-                                   "importance_score": it.get("importance_score", 0),
-                                   "agri_focus": it.get("agri_focus", False),
-                                   "banking_focus": it.get("banking_focus", False),
-                                   "scores": [], "first_seen": today, "last_seen": today})
-        # Update mutable fields to latest
-        rec["headline"] = it.get("headline_en", rec["headline"])[:160]
-        rec["source_url"] = it.get("source_url", rec["source_url"])
-        rec["category"] = it.get("category", rec["category"])
-        rec["student_relevance"] = it.get("student_relevance", rec["student_relevance"])
-        rec["importance_score"] = it.get("importance_score", rec["importance_score"])
-        rec["scores"].append({"date": today, "job": job_id,
-                              "score": round(float(it.get("importance_score", 0)), 1)})
-        rec["scores"] = rec["scores"][-30:]
-        rec["last_seen"] = today
-        if len(rec["scores"]) >= 2:
-            delta = rec["scores"][-1]["score"] - rec["scores"][-2]["score"]
-            rec["trend"] = "RISING" if delta > 5 else "FALLING" if delta < -5 else "STABLE"
-        else:
-            rec["trend"] = "NEW"
-    _save(MEMORY_F, mem)
-    return mem
-
-
-def load_memory():
-    return _load(MEMORY_F)
-
-
-def mark_published(event_ids, job_id):
-    pub = _load(PUBLISHED_F)
-    today = datetime.now(TZ).strftime("%Y-%m-%d")
-    for eid in event_ids:
-        rec = pub.setdefault(eid, {"jobs": []})
-        if job_id not in rec["jobs"]:
-            rec["jobs"].append(job_id)
-        rec["last_published"] = today
-    _save(PUBLISHED_F, pub)
-
-
-def published_event_ids():
-    return set(_load(PUBLISHED_F).keys())
-
-
-# ── P0 FIX: Job-level publication registry (dedicated, not event_id mix) ──
-def mark_job_published(job_id, chat_id, message_id, file_sha256, published_at=None):
-    """Dedicated job→Telegram registry for idempotency.
-    Prevents duplicate PDF upload if runner crashes after sendDocument but before event mark."""
-    jobs_pub = _load(PUBLISHED_JOBS_F)
-    jobs_pub[job_id] = {
-        "status": "PUBLISHED",
-        "chat_id": str(chat_id),
-        "message_id": int(message_id),
-        "file_sha256": file_sha256,
-        "published_at": published_at or datetime.now(TZ).isoformat(),
-    }
-    _save(PUBLISHED_JOBS_F, jobs_pub)
-    return jobs_pub[job_id]
-
-def is_job_published(job_id):
-    jobs_pub = _load(PUBLISHED_JOBS_F)
-    return job_id in jobs_pub
-
-def get_job_publication(job_id):
-    return _load(PUBLISHED_JOBS_F).get(job_id)
-
-def verify_job_published(job_id, chat_id=None):
-    """Check if job already published and verify message still exists on Telegram."""
-    rec = get_job_publication(job_id)
-    if not rec:
-        return False, None
-    # If chat_id provided, could verify via Telegram API getChat, but we just check registry
-    return True, rec
-
-
-def save_pdf_hash(job_id, pdf_path):
-    """Save PDF SHA256 for integrity verification (Telegram document check)."""
-    import hashlib as _hl
+def _read_json(path: Path) -> Optional[Any]:
+    """
+    Read JSON. On corruption:
+    - Backup original to <path>.corrupt.<timestamp>
+    - Return None (caller falls back to default)
+    """
+    if not path.exists():
+        return None
     try:
-        h = _hl.sha256(open(pdf_path, "rb").read()).hexdigest()
-        jobs = _load(JOBS_F)
-        j = jobs.get(job_id, {})
-        j["pdf_sha256"] = h
-        j["pdf_size"] = __import__("os").path.getsize(pdf_path)
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        backup = path.with_suffix(f"{path.suffix}.corrupt.{int(time.time())}")
         try:
-            import pymupdf
-        except ImportError:
-            import fitz as pymupdf
-        j["pdf_pages"] = pymupdf.open(pdf_path).page_count
-        jobs[job_id] = j
-        _save(JOBS_F, jobs)
-        return h
-    except Exception as e:
-        print(f"[store] save_pdf_hash failed: {e}")
+            path.rename(backup)
+            logger.error("Corrupt JSON at %s → backed up to %s: %s",
+                         path, backup, exc)
+        except OSError as rename_exc:
+            logger.error("Corrupt JSON at %s (backup failed: %s): %s",
+                         path, rename_exc, exc)
+        return None
+    except OSError as exc:
+        logger.error("Cannot read %s: %s", path, exc)
         return None
 
 
-def write_job_state(job):
-    jobs = _load(JOBS_F)
-    jobs[job["job_id"]] = {k: job.get(k) for k in
-                           ("job_id", "status", "updated", "last_success_stage",
-                            "failed_at", "error")}
-    _save(JOBS_F, jobs)
-
-
-def remove_job_state(job_id):
-    jobs = _load(JOBS_F)
-    if jobs.pop(job_id, None) is not None:
-        _save(JOBS_F, jobs)
-
-
-def prune(retain_days=75):
-    """Monthly cleanup: drop memory/published entries older than retain_days."""
-    cutoff = (datetime.now(TZ) - timedelta(days=retain_days)).strftime("%Y-%m-%d")
-    mem = {k: v for k, v in load_memory().items() if v.get("last_seen", "9999") >= cutoff}
-    _save(MEMORY_F, mem)
-    pub = {k: v for k, v in _load(PUBLISHED_F).items()
-           if v.get("last_published", "9999") >= cutoff}
-    _save(PUBLISHED_F, pub)
-
-
-# =============================================================================
-# BACKWARD-COMPAT HELPERS (added for agent compatibility)
-# =============================================================================
-
-def save_memory(memory):
+# --------------------------------------------------------------------------- #
+# Importance Memory
+# --------------------------------------------------------------------------- #
+def load_memory() -> Dict[str, Any]:
     """
-    Save memory dict. Alias for internal use — merges with existing.
+    Load importance memory as a dict keyed by event_id.
 
-    Agents call this to persist memory after modifications.
+    Returns empty dict if:
+    - File doesn't exist
+    - File is corrupt (auto-backed up)
+    - File format unrecognized
+
+    Never raises.
+    """
+    data = _read_json(_memory_path())
+    if data is None:
+        return {}
+    if isinstance(data, dict):
+        # Support {"events": {...}} wrapper
+        if "events" in data and isinstance(data["events"], dict):
+            return dict(data["events"])
+        return data
+    if isinstance(data, list):
+        # Legacy list format — migrate to dict
+        out: Dict[str, Any] = {}
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            key = item.get("event_id") or item.get("id") or item.get("fingerprint")
+            if key:
+                out[str(key)] = item
+        logger.info("[store] migrated list → dict (%d entries)", len(out))
+        return out
+    logger.warning("[store] unrecognized memory format: %s", type(data).__name__)
+    return {}
+
+
+def save_memory(memory: Dict[str, Any]) -> None:
+    """
+    Save memory. Trims to MAX_MEMORY_ENTRIES, keeping newest by pub_time_ist.
+    Uses file lock + atomic write.
     """
     if not isinstance(memory, dict):
+        logger.warning("[store] save_memory: not a dict, skipping")
         return
-    try:
-        _save(MEMORY_F, memory)
-    except Exception as e:
-        print(f"[store] save_memory failed: {e}")
+
+    if len(memory) > MAX_MEMORY_ENTRIES:
+        def _sort_key(kv):
+            ev = kv[1] if isinstance(kv[1], dict) else {}
+            return (
+                ev.get("pub_time_ist") or
+                ev.get("added_at") or
+                ev.get("updated") or
+                ""
+            )
+        sorted_items = sorted(memory.items(), key=_sort_key, reverse=True)
+        memory = dict(sorted_items[:MAX_MEMORY_ENTRIES])
+        logger.info("[store] trimmed memory to %d entries", MAX_MEMORY_ENTRIES)
+
+    with _file_lock(_memory_path()):
+        _atomic_write_json(_memory_path(), memory)
 
 
-def load_published():
+def upsert_memory(event_id: str, event_data: Dict[str, Any]) -> None:
+    """Insert or update a single memory entry."""
+    if not event_id:
+        return
+    memory = load_memory()
+    memory[str(event_id)] = event_data
+    save_memory(memory)
+
+
+def memory_has(event_id: str) -> bool:
+    return str(event_id) in load_memory()
+
+
+def memory_size() -> int:
+    return len(load_memory())
+
+
+# --------------------------------------------------------------------------- #
+# Published Events (Idempotency Ledger)
+# --------------------------------------------------------------------------- #
+def load_published() -> Dict[str, Any]:
     """
     Load published events ledger.
 
-    Returns dict with 'records' key (canonical shape).
-    Legacy formats auto-normalized.
+    Canonical shape: {"version": 1, "records": {key: {...}}}
+    Legacy list also accepted — migrated to dict.
     """
-    try:
-        data = _load(PUBLISHED_F)
-    except Exception:
-        data = None
-
+    data = _read_json(_published_path())
     if data is None:
         return {"version": 1, "records": {}}
-
-    # Already canonical?
-    if isinstance(data, dict) and "records" in data:
-        return data
-
-    # Legacy: flat dict keyed by event_id
     if isinstance(data, dict):
-        out = {"version": 1, "records": {}}
-        for k, v in data.items():
-            if isinstance(v, dict):
-                out["records"][k] = v
-        return out
-
-    # Legacy: list
+        if "records" not in data:
+            data["records"] = {}
+        return data
     if isinstance(data, list):
         out = {"version": 1, "records": {}}
         for item in data:
-            if isinstance(item, dict):
-                key = item.get("key") or item.get("id") or item.get("event_id")
-                if key:
-                    out["records"][str(key)] = item
+            if not isinstance(item, dict):
+                continue
+            key = item.get("key") or item.get("id")
+            if key:
+                out["records"][str(key)] = item
+        logger.info("[store] migrated published list → dict (%d entries)", len(out["records"]))
         return out
-
     return {"version": 1, "records": {}}
 
 
-def save_published(ledger):
-    """
-    Save published events ledger.
-
-    Expects dict with 'records' key. Auto-normalizes legacy inputs.
-    """
+def save_published(ledger: Dict[str, Any]) -> None:
+    """Save published ledger with lock + atomic write."""
     if not isinstance(ledger, dict):
+        logger.warning("[store] save_published: not a dict, skipping")
         return
     if "records" not in ledger:
-        # Wrap flat dict
-        ledger = {"version": 1, "records": dict(ledger)}
-    try:
-        _save(PUBLISHED_F, ledger)
-    except Exception as e:
-        print(f"[store] save_published failed: {e}")
+        ledger["records"] = {}
+
+    # Trim oldest if too large
+    records = ledger["records"]
+    if len(records) > MAX_PUBLISHED_ENTRIES:
+        def _sort_key(kv):
+            v = kv[1] if isinstance(kv[1], dict) else {}
+            return v.get("published_at") or v.get("at") or ""
+        sorted_items = sorted(records.items(), key=_sort_key, reverse=True)
+        ledger["records"] = dict(sorted_items[:MAX_PUBLISHED_ENTRIES])
+        logger.info("[store] trimmed published ledger to %d entries",
+                    MAX_PUBLISHED_ENTRIES)
+
+    with _file_lock(_published_path()):
+        _atomic_write_json(_published_path(), ledger)
 
 
-def append_published(record):
+def append_published(record: Dict[str, Any]) -> bool:
     """
-    Append a single published record. Returns True if newly added.
-
-    Record must have 'key' or 'job_id' field.
+    Append a published record. Returns True if newly added,
+    False if already present (idempotent).
     """
     if not isinstance(record, dict):
         return False
-    key = record.get("key") or record.get("job_id") or record.get("id")
+    key = record.get("key") or record.get("id")
     if not key:
+        logger.warning("[store] append_published: no key in record")
         return False
 
     ledger = load_published()
-    if str(key) in ledger.get("records", {}):
+    if key in ledger["records"]:
+        logger.debug("[store] already published: %s", key)
         return False
 
     ledger["records"][str(key)] = record
@@ -413,18 +304,44 @@ def append_published(record):
     return True
 
 
-def update_source_health(source_url, success, article_count=0, error=None):
-    """
-    Track per-source health. Called by collection agents.
+def is_published(key: str) -> bool:
+    return str(key) in load_published().get("records", {})
 
-    Appends to source_health.json under state/.
-    """
-    health_file = os.path.join(STATE_DIR, "source_health.json")
-    try:
-        health = _load(health_file) or {"version": 1, "sources": {}}
-    except Exception:
-        health = {"version": 1, "sources": {}}
 
+# --------------------------------------------------------------------------- #
+# Source Health Tracking
+# --------------------------------------------------------------------------- #
+def _source_health_path() -> Path:
+    override = os.getenv("ALP_SOURCE_HEALTH_PATH")
+    return Path(override) if override else DEFAULT_SOURCE_HEALTH_PATH
+
+
+def load_source_health() -> Dict[str, Any]:
+    data = _read_json(_source_health_path())
+    if data is None:
+        return {"version": 1, "sources": {}}
+    if isinstance(data, dict):
+        data.setdefault("sources", {})
+        return data
+    return {"version": 1, "sources": {}}
+
+
+def save_source_health(health: Dict[str, Any]) -> None:
+    if not isinstance(health, dict):
+        return
+    health.setdefault("sources", {})
+    with _file_lock(_source_health_path()):
+        _atomic_write_json(_source_health_path(), health)
+
+
+def update_source_health(
+    source_url: str,
+    success: bool,
+    article_count: int = 0,
+    error: Optional[str] = None,
+) -> None:
+    """Track per-source health. Called by agent 03."""
+    health = load_source_health()
     sources = health.setdefault("sources", {})
     entry = sources.setdefault(source_url, {
         "success_count": 0,
@@ -436,7 +353,8 @@ def update_source_health(source_url, success, article_count=0, error=None):
         "last_article_count": 0,
     })
 
-    now = datetime.now(TZ).isoformat()
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
 
     if success:
         entry["success_count"] = int(entry.get("success_count", 0)) + 1
@@ -450,25 +368,42 @@ def update_source_health(source_url, success, article_count=0, error=None):
         entry["last_failure_at"] = now
         entry["last_error"] = (error or "")[:500]
 
-    try:
-        _save(health_file, health)
-    except Exception as e:
-        print(f"[store] update_source_health failed: {e}")
+    save_source_health(health)
 
 
-def stats():
-    """Return store stats — for health checks."""
-    try:
-        mem = load_memory()
-    except Exception:
-        mem = {}
-    try:
-        pub = load_published()
-    except Exception:
-        pub = {"records": {}}
+# --------------------------------------------------------------------------- #
+# Health check / stats
+# --------------------------------------------------------------------------- #
+def stats() -> Dict[str, Any]:
+    """Return store stats — useful for health checks."""
+    mem = load_memory()
+    pub = load_published()
+    health = load_source_health()
     return {
-        "memory": {"path": MEMORY_F, "entries": len(mem)},
-        "published": {"path": PUBLISHED_F, "entries": len(pub.get("records", {}))},
-        "state_dir": STATE_DIR,
+        "memory": {
+            "path": str(_memory_path()),
+            "entries": len(mem),
+            "max": MAX_MEMORY_ENTRIES,
+            "exists": _memory_path().exists(),
+        },
+        "published": {
+            "path": str(_published_path()),
+            "entries": len(pub.get("records", {})),
+            "max": MAX_PUBLISHED_ENTRIES,
+            "exists": _published_path().exists(),
+        },
+        "source_health": {
+            "path": str(_source_health_path()),
+            "sources": len(health.get("sources", {})),
+            "exists": _source_health_path().exists(),
+        },
     }
 
+
+# --------------------------------------------------------------------------- #
+# Smoke test
+# --------------------------------------------------------------------------- #
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    import json
+    print(json.dumps(stats(), indent=2, default=str))

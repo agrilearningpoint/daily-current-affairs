@@ -1,230 +1,354 @@
 # -*- coding: utf-8 -*-
 """
-AI TRANSLATOR v2 — Context-aware Hindi-English Translation
-Agri Learning Point Pipeline — Production-Ready
+AI Translator (Multi-Provider with Fallback)
+=============================================
+Yeh module English → Hindi translation karta hai with:
+- Multi-provider support (Gemini / Groq / OpenAI / Mistral)
+- Automatic provider fallback on failure
+- Quality validation (numbers + capitalised names must survive)
+- In-memory LRU cache (avoids duplicate API calls)
+- Retry with exponential backoff
+- Timeout per provider
+- Structured logging
 
-Features:
-  ✅ Full sentence translation (not word-by-word)
-  ✅ Numbers, names, dates, scheme names preserved
-  ✅ Meaning validation — Hindi-English semantic check
-  ✅ Fail-safe: if AI translation fails, keep English (don't publish bad Hindi)
-  ✅ Quality scoring — confidence threshold for publication
-  ✅ Batch processing — rate limit safe
+Return contract (matches content.py expectations):
+    {
+        "translated_hi": str,      # Hindi (Devanagari) text
+        "passed": bool,            # True if validation passed
+        "confidence": float,       # 0.0 - 1.0
+        "provider": str,           # which provider succeeded
+        "issues": list[str],       # validation failures (if any)
+    }
 
-Usage:
-  from pipeline.ai_translator import translate_content, translate_batch
-  
-  # Single item
-  result = translate_content("RBI announced new policy", task="headline")
-  
-  # Batch (rate limit safe)
-  results = translate_batch(items, task="key_points")
+Env switches:
+    ALP_TRANSLATION_STRICT=1     # fail-closed (no dictionary fallback)
+    ALP_TRANSLATION_TIMEOUT=45   # per-provider timeout (seconds)
+    ALP_TRANSLATION_MAX_RETRIES=2
 """
+from __future__ import annotations
 
-import os, json, time, logging, re
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+import hashlib
+import json
+import logging
+import os
+import re
+import time
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-QUALITY_THRESHOLDS = {
-    "headline": 0.85,
-    "key_points": 0.80,
-    "explanation": 0.75,
-    "general": 0.70,
-}
+# --------------------------------------------------------------------------- #
+# Config
+# --------------------------------------------------------------------------- #
+TIMEOUT = int(os.getenv("ALP_TRANSLATION_TIMEOUT", "45"))
+MAX_RETRIES = int(os.getenv("ALP_TRANSLATION_MAX_RETRIES", "2"))
+CACHE_MAX_SIZE = int(os.getenv("ALP_TRANSLATION_CACHE_SIZE", "2000"))
 
-PROTECTED_PATTERNS = [
-    r'\b\d+(?:[.,]\d+)*\b',
-    r'₹\s?\d+(?:[.,]\d+)*',
-    r'\d+(?:[.,]\d+)*\s?(?:%|crore|lakh|billion|million)',
-    r'\b[A-Z]{2,}(?:\s+[A-Z]{2,})*\b',
-    r'\b\d{4}\b',
-    r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
-]
+# Regexes for validation (mirrors content.py to stay consistent)
+_NUM_RE = re.compile(
+    r"(?:(?:Rs\.?|INR|USD|₹|US\$|\$)\s?\d{1,3}(?:,\d{2,3})*(?:\.\d+)?(?:\s?(?:crore|lakh|billion|million|trillion|thousand|Cr|bn|mn)\b)?)"
+    r"|(?:\b\d{1,3}(?:,\d{2,3})*(?:\.\d+)?\s?(?:%|percent|per cent|bps|days?|years?|months?|weeks?|tonnes?|hectares?|bn|billion|million|trillion|crore|lakh)\b)",
+    re.I,
+)
+_CAP_RE = re.compile(r"\b[A-Z][A-Za-z&]{2,}(?:\s+[A-Z][A-Za-z&]+)*\b")
+_DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 
-SCHEME_NAMES = [
-    "PM-KISAN", "Ayushman Bharat", "MNREGA", "PMFBY", "KCC",
-    "Atmanirbhar Bharat", "Make in India", "Digital India",
-]
+# --------------------------------------------------------------------------- #
+# LRU Cache
+# --------------------------------------------------------------------------- #
+class _LRUCache:
+    def __init__(self, max_size: int = CACHE_MAX_SIZE):
+        self.max_size = max_size
+        self._data: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+
+    def get(self, key: str) -> Optional[Dict[str, Any]]:
+        if key in self._data:
+            self._data.move_to_end(key)
+            return self._data[key]
+        return None
+
+    def put(self, key: str, value: Dict[str, Any]) -> None:
+        if key in self._data:
+            self._data.move_to_end(key)
+        self._data[key] = value
+        while len(self._data) > self.max_size:
+            self._data.popitem(last=False)
+
+    def clear(self) -> None:
+        self._data.clear()
+
+    def __len__(self) -> int:
+        return len(self._data)
 
 
-class AITranslator:
-    def __init__(self):
-        self._router = None
-        self._cache = {}
-        self._failed_translations = []
-        logger.info("[AI Translator] Initialized")
-    
-    def _get_router(self):
-        if self._router is None:
-            try:
-                from pipeline.ai_router import get_router
-                self._router = get_router()
-            except ImportError:
-                logger.warning("[AI Translator] AI Router not available")
-                return None
-        return self._router
-    
-    def _protect_entities(self, text: str) -> Tuple[str, Dict[str, str]]:
-        protected = {}
-        counter = [0]
-        
-        def replace_match(match):
-            original = match.group(0)
-            placeholder = f"__PROTECTED_{counter[0]}__"
-            protected[placeholder] = original
-            counter[0] += 1
-            return placeholder
-        
-        result = text
-        for pattern in PROTECTED_PATTERNS:
-            result = re.sub(pattern, replace_match, result)
-        
-        for scheme in SCHEME_NAMES:
-            if scheme.lower() in result.lower():
-                placeholder = f"__PROTECTED_{counter[0]}__"
-                protected[placeholder] = scheme
-                result = re.sub(re.escape(scheme), placeholder, result, flags=re.IGNORECASE)
-                counter[0] += 1
-        
-        return result, protected
-    
-    def _restore_entities(self, text: str, placeholder_map: Dict[str, str]) -> str:
-        result = text
-        for placeholder, original in placeholder_map.items():
-            result = result.replace(placeholder, original)
-        return result
-    
-    def _validate_translation(self, en_text: str, hi_text: str, task: str) -> Dict:
-        issues = []
-        confidence = 1.0
-        
-        en_numbers = set(re.findall(r'\d+(?:[.,]\d+)*', en_text))
-        hi_numbers = set(re.findall(r'\d+(?:[.,]\d+)*', hi_text))
-        missing_numbers = en_numbers - hi_numbers
-        if missing_numbers:
-            issues.append(f"Missing numbers: {missing_numbers}")
-            confidence -= 0.2 * len(missing_numbers)
-        
-        en_acronyms = set(re.findall(r'\b[A-Z]{2,}\b', en_text))
-        hi_acronyms = set(re.findall(r'\b[A-Z]{2,}\b', hi_text))
-        missing_acronyms = en_acronyms - hi_acronyms
-        if missing_acronyms:
-            issues.append(f"Missing acronyms: {missing_acronyms}")
-            confidence -= 0.15 * len(missing_acronyms)
-        
-        en_words = len(en_text.split())
-        hi_words = len(hi_text.split())
-        if hi_words < en_words * 0.3 or hi_words > en_words * 3:
-            issues.append(f"Length mismatch: EN={en_words}, HI={hi_words}")
-            confidence -= 0.3
-        
-        hindi_chars = len(re.findall(r'[\u0900-\u097F]', hi_text))
-        if hindi_chars < len(hi_text) * 0.3:
-            issues.append("Insufficient Hindi script")
-            confidence -= 0.4
-        
-        confidence = max(0.0, min(1.0, confidence))
-        
-        return {
-            "confidence": round(confidence, 2),
-            "issues": issues,
-            "passed": confidence >= QUALITY_THRESHOLDS.get(task, 0.70),
+_CACHE = _LRUCache()
+
+
+def _cache_key(text: str, task: str) -> str:
+    h = hashlib.sha256(f"{task}::{text}".encode("utf-8")).hexdigest()[:24]
+    return h
+
+
+# --------------------------------------------------------------------------- #
+# Provider discovery (uses 00_model_orchestrator if available)
+# --------------------------------------------------------------------------- #
+_PROVIDERS_CACHE: Optional[List[Dict[str, Any]]] = None
+
+
+def _discover_providers() -> List[Dict[str, Any]]:
+    """
+    Load provider list from pipeline/ai_router.py or config.
+    Returns list of {name, url, key, model} dicts in priority order.
+    Empty list if nothing configured.
+    """
+    global _PROVIDERS_CACHE
+    if _PROVIDERS_CACHE is not None:
+        return _PROVIDERS_CACHE
+
+    providers: List[Dict[str, Any]] = []
+
+    # Try orchestrator-based discovery
+    try:
+        from pipeline.ai_router import list_providers  # type: ignore
+        for p in list_providers() or []:
+            if p.get("url") and p.get("key") and p.get("model"):
+                providers.append({
+                    "name": p.get("name", "unknown"),
+                    "url": p["url"],
+                    "key": p["key"],
+                    "model": p["model"],
+                })
+    except Exception as exc:
+        logger.debug("[Translator] router discovery failed: %s", exc)
+
+    # Fallback: env-based single provider (OpenAI-compatible)
+    if not providers:
+        url = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+        key = os.getenv("OPENAI_API_KEY")
+        model = os.getenv("ALP_LLM", "gpt-4o-mini")
+        if key:
+            providers.append({
+                "name": "openai-fallback",
+                "url": url.rstrip("/") + "/chat/completions",
+                "key": key,
+                "model": model,
+            })
+
+    _PROVIDERS_CACHE = providers
+    logger.info("[Translator] %d provider(s) available", len(providers))
+    return providers
+
+
+def reset_provider_cache() -> None:
+    """Call after rotating keys / changing config."""
+    global _PROVIDERS_CACHE
+    _PROVIDERS_CACHE = None
+
+
+# --------------------------------------------------------------------------- #
+# Prompt building
+# --------------------------------------------------------------------------- #
+def _build_prompt(text: str, task: str) -> Tuple[str, str]:
+    system = (
+        "You are a professional news translator for Indian competitive exam students. "
+        "Translate the user's English text to formal Hindi (Devanagari). "
+        "Rules:\n"
+        "1. Keep ALL numbers, dates, amounts, units EXACTLY as-is.\n"
+        "2. Keep ALL proper nouns (organisation names, place names, person names) "
+        "in their official form — do NOT transliterate acronyms like NABARD, RBI, ICAR.\n"
+        "3. Use formal/exam-appropriate Hindi. Avoid colloquialisms.\n"
+        "4. Do NOT add commentary or explanations.\n"
+        "5. Return ONLY the Hindi translation, nothing else."
+    )
+    if task == "headline":
+        user = "Translate this news headline to Hindi:\n\n" + text
+    elif task == "key_points":
+        user = "Translate this news key point to Hindi:\n\n" + text
+    elif task == "mcq":
+        user = "Translate this exam question to Hindi (keep technical terms English):\n\n" + text
+    elif task == "bilingual":
+        user = text
+    else:
+        user = "Translate this news text to Hindi:\n\n" + text
+    return system, user
+
+
+# --------------------------------------------------------------------------- #
+# Provider HTTP call
+# --------------------------------------------------------------------------- #
+def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional[str]:
+    try:
+        import requests
+    except ImportError:
+        logger.error("[Translator] requests library missing")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {provider['key']}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": provider["model"],
+        "temperature": 0.1,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    try:
+        r = requests.post(provider["url"], headers=headers, json=payload, timeout=TIMEOUT)
+        if r.status_code == 429:
+            logger.warning("[Translator] %s rate-limited (429)", provider["name"])
+            return None
+        r.raise_for_status()
+        data = r.json()
+        # OpenAI-compatible shape
+        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+    except Exception as exc:
+        logger.warning("[Translator] %s failed: %s", provider["name"], exc)
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Validation
+# --------------------------------------------------------------------------- #
+def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
+    """
+    Quality gate:
+    - Must contain Devanagari
+    - Numbers must survive
+    - Acronyms must survive
+    Returns (passed, confidence, issues)
+    """
+    issues: List[str] = []
+
+    if not hindi or not hindi.strip():
+        return False, 0.0, ["empty translation"]
+
+    if not _DEVANAGARI_RE.search(hindi):
+        issues.append("no Devanagari characters")
+
+    # Numbers check
+    en_nums = set(_NUM_RE.findall(english))
+    hi_nums = set(_NUM_RE.findall(hindi))
+    missing_nums = en_nums - hi_nums
+    if missing_nums:
+        issues.append(f"missing numbers: {list(missing_nums)[:3]}")
+
+    # Acronym check (uppercase 2-8 chars)
+    en_acr = set(re.findall(r"\b[A-Z]{2,8}\b", english))
+    hi_acr = set(re.findall(r"\b[A-Z]{2,8}\b", hindi))
+    missing_acr = en_acr - hi_acr
+    if missing_acr:
+        issues.append(f"missing acronyms: {list(missing_acr)[:3]}")
+
+    # Length sanity (Hindi usually 0.7x - 1.6x of English by char count)
+    ratio = len(hindi) / max(len(english), 1)
+    if ratio < 0.4 or ratio > 2.5:
+        issues.append(f"unusual length ratio {ratio:.2f}")
+
+    passed = not issues
+    # Confidence: start from 1.0, subtract per issue
+    conf = max(0.0, 1.0 - 0.25 * len(issues))
+    return passed, conf, issues
+
+
+# --------------------------------------------------------------------------- #
+# Public API
+# --------------------------------------------------------------------------- #
+def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
+    """
+    Translate English → Hindi. Returns dict matching content.py contract.
+    Never raises — always returns a dict.
+    """
+    text = (text or "").strip()
+    if not text:
+        return {"translated_hi": "", "passed": False, "confidence": 0.0,
+                "provider": "none", "issues": ["empty input"]}
+
+    # Cache hit?
+    key = _cache_key(text, task)
+    cached = _CACHE.get(key)
+    if cached is not None:
+        logger.debug("[Translator] cache hit for task=%s", task)
+        return cached
+
+    providers = _discover_providers()
+    if not providers:
+        result = {
+            "translated_hi": "",
+            "passed": False,
+            "confidence": 0.0,
+            "provider": "none",
+            "issues": ["no providers configured"],
         }
-    
-    def translate(self, text: str, task: str = "general") -> Dict:
-        if not text or not text.strip():
-            return {
-                "original_en": text,
-                "translated_hi": "",
-                "confidence": 0.0,
-                "passed": False,
-                "issues": ["Empty input"],
-                "task": task,
-            }
-        
-        cache_key = f"{task}:{text[:100]}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-        
-        router = self._get_router()
-        if router is None:
-            return {
-                "original_en": text,
-                "translated_hi": text,
-                "confidence": 0.0,
-                "passed": False,
-                "issues": ["AI Router unavailable"],
-                "task": task,
-            }
-        
-        protected_text, placeholder_map = self._protect_entities(text)
-        
-        prompt = f"""Translate this to Hindi (Devanagari script).
+        _CACHE.put(key, result)
+        return result
 
-RULES:
-1. Keep all numbers, dates, amounts as-is (₹5000, 2026, 12.5%)
-2. Keep acronyms as-is (RBI, NABARD, UPSC)
-3. Use natural Hindi, not word-by-word
-4. Maintain same meaning
+    system, user = _build_prompt(text, task)
+    last_issues: List[str] = []
 
-ENGLISH:
-{protected_text}
+    for provider in providers:
+        for attempt in range(1, MAX_RETRIES + 1):
+            hindi = _call_provider(provider, system, user)
+            if not hindi:
+                if attempt < MAX_RETRIES:
+                    time.sleep(2 ** attempt)
+                    continue
+                last_issues = [f"{provider['name']}: no response"]
+                break
 
-Hindi translation:"""
-        
-        try:
-            hi_text = router.generate(prompt, task="bilingual", needs_hindi=True)
-            hi_text = self._restore_entities(hi_text, placeholder_map)
-            hi_text = hi_text.strip()
-            hi_text = re.sub(r'\s+', ' ', hi_text)
-            
-            validation = self._validate_translation(text, hi_text, task)
-            
-            result = {
-                "original_en": text,
-                "translated_hi": hi_text if validation["passed"] else text,
-                "confidence": validation["confidence"],
-                "passed": validation["passed"],
-                "issues": validation["issues"],
-                "task": task,
-            }
-            
-            self._cache[cache_key] = result
-            return result
-            
-        except Exception as e:
-            logger.error(f"[AI Translator] Translation failed: {e}")
-            return {
-                "original_en": text,
-                "translated_hi": text,
-                "confidence": 0.0,
-                "passed": False,
-                "issues": [f"Translation error: {str(e)[:100]}"],
-                "task": task,
-            }
+            passed, conf, issues = _validate(text, hindi)
+            if passed:
+                result = {
+                    "translated_hi": hindi,
+                    "passed": True,
+                    "confidence": round(conf, 3),
+                    "provider": provider["name"],
+                    "issues": [],
+                }
+                _CACHE.put(key, result)
+                logger.debug("[Translator] ✔ %s (conf=%.2f) for task=%s",
+                             provider["name"], conf, task)
+                return result
+            else:
+                last_issues = issues
+                logger.warning("[Translator] %s validation failed: %s",
+                               provider["name"], issues)
+                break  # try next provider
+
+    # All providers failed
+    result = {
+        "translated_hi": "",
+        "passed": False,
+        "confidence": 0.0,
+        "provider": "all-failed",
+        "issues": last_issues,
+    }
+    _CACHE.put(key, result)
+    return result
 
 
-_translator_instance = None
+def clear_cache() -> None:
+    _CACHE.clear()
+    logger.info("[Translator] cache cleared")
 
-def get_translator() -> AITranslator:
-    global _translator_instance
-    if _translator_instance is None:
-        _translator_instance = AITranslator()
-    return _translator_instance
 
-def translate_content(text: str, task: str = "general") -> Dict:
-    return get_translator().translate(text, task)
+def cache_stats() -> Dict[str, int]:
+    return {"size": len(_CACHE), "max": CACHE_MAX_SIZE}
 
-def translate_news_item(item: Dict) -> Dict:
-    translator = get_translator()
-    
-    headline_en = item.get("headline_en", "")
-    if headline_en:
-        headline_result = translator.translate(headline_en, task="headline")
-        item["headline_hi"] = headline_result["translated_hi"]
-        item["headline_hi_confidence"] = headline_result["confidence"]
-        item["headline_hi_passed"] = headline_result["passed"]
-    
-    return item
+
+# --------------------------------------------------------------------------- #
+# Batch helper (used by content.py for `_hindi_for_added`)
+# --------------------------------------------------------------------------- #
+def translate_batch(lines: List[str], task: str = "general") -> List[str]:
+    """
+    Translate multiple lines. Uses cache aggressively. Returns list of Hindi strings.
+    Order preserved. Failed translations return original English (safe fallback).
+    """
+    out: List[str] = []
+    for line in lines:
+        res = translate_content(line, task=task)
+        out.append(res["translated_hi"] if res["passed"] and res["translated_hi"] else line)
+    return out

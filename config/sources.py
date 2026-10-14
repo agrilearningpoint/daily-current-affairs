@@ -1,217 +1,133 @@
 # -*- coding: utf-8 -*-
-"""
-AGRI LEARNING POINT — PRODUCTION SOURCE HIERARCHY (6 Levels)
-Architecture: Agriculture-exam focus (AGTA/AFO/NABARD/ICAR/AGTA)
-Levels: 0=CORE daily compulsory, 1=Agri SPECIALISTS, 2=Finance/Economy, 3=Other Govt, 4=News Discovery, 5=Fallback Aggregators
-Each source defines: access_method chain, fallback, frequency, verification, priority_score
-Fallback chain (production): RSS → Native website → Official search/listing → Google News site-search (Playwright = future optional, not required for CI)
+"""Source registry for Agri Learning Point current-affairs pipeline.
 
-NOTE: All URLs verified 2026-10-05 with Chrome UA — 47 working + fallbacks kept.
+Authority levels (lower number = stronger authority):
+  0: core primary authorities; 1: agriculture specialists; 2: finance/economy;
+  3: other official bodies; 4: editorial discovery; 5: aggregators (disabled by default).
+
+Important: an RSS URL or a Google News result is a collection route, NOT proof
+that the article's claims are verified. Agent 04 must verify important facts
+against primary documents before publication.
 """
+from __future__ import annotations
+
 from urllib.parse import quote
 
-def _gnews(domain, when="2d"):
-    return f"https://news.google.com/rss/search?q={quote(f'site:{domain} when:{when}')}&hl=en-IN&gl=IN&ceid=IN:en"
 
-# ─────────────────────────────────────────────────────────────────
-# LEVEL 0 — PRIMARY AUTHORITY (CORE — daily automation compulsory)
-# priority 100, frequency daily, verification_required True
-# ─────────────────────────────────────────────────────────────────
+def _gnews(domain: str, when: str = "2d") -> str:
+    """Build Google News site-search RSS URL safely."""
+    query = quote(f"site:{domain} when:{when}")
+    return f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+
+
+def _source(name, url, level, category, *, priority=None, rss=None,
+            fallback_rss=None, frequency="daily", verification_required=True,
+            fallback=None, use="", notes=""):
+    item = {
+        "name": name,
+        "url": url.rstrip("/"),
+        "level": int(level),
+        "priority": int(priority if priority is not None else {0: 100, 1: 95, 2: 90, 3: 85, 4: 70, 5: 50}[level]),
+        "category": category,
+        "access_method": "rss" if rss else "website",
+        "frequency": frequency,
+        "verification_required": bool(verification_required),
+        "fallback": list(fallback if fallback is not None else (["rss", "website_html", "gnews_site_search"] if level <= 3 else ["rss"])),
+        "use": use or category.replace("_", " ").title(),
+    }
+    if rss:
+        item["rss"] = rss
+    if fallback_rss:
+        item["fallback_rss"] = fallback_rss
+    if notes:
+        item["notes"] = notes
+    return item
+
+
+# LEVEL 0: core primary authorities. Kept focused on high-value daily exam topics.
 LEVEL_0_CORE = [
-    {"name": "PIB — Press Information Bureau", "url": "https://www.pib.gov.in/", "rss": "https://www.pib.gov.in/ViewRss.aspx?lang=1&reg=1", "fallback_rss": _gnews("pib.gov.in","1d"),
-     "level": 0, "priority": 100, "category": "govt_national", "access_method": "rss", "fallback": ["rss","website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Government schemes, Cabinet decisions, ministries — #1 automated source"},
-    {"name": "Ministry of Agriculture & Farmers Welfare", "url": "https://agriwelfare.gov.in/", "rss": _gnews("agriwelfare.gov.in","2d"),
-     "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
-     "use": "Agriculture schemes/policies"},
-    {"name": "ICAR", "url": "https://icar.org.in/", "rss": "https://icar.org.in/rss.xml",
-     "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "rss", "fallback": ["rss","gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
-     "use": "Agri research, technology — covers horticulture, fisheries, animal sciences", "notes": "Monitor ecosystem via https://icar.org.in/en/institutes (IARI, IVRI, NDRI)"},
-    {"name": "IARI", "url": "https://www.iari.res.in/", "rss": _gnews("iari.res.in","7d"),
-     "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "website", "fallback": ["website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Agricultural research", "notes": "TLS strict — use www mirror + gnews fallback"},
-    {"name": "RBI", "url": "https://www.rbi.org.in/", "rss": _gnews("rbi.org.in","2d"), "fallback_rss": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx",
-     "level": 0, "priority": 100, "category": "banking_finance", "access_method": "search", "fallback": ["website_html","gnews_site_search","playwright"], "frequency": "daily", "verification_required": True,
-     "use": "Banking, monetary policy, notifications — also monitor Bulletin at https://bulletin.rbi.org.in/"},
-    {"name": "NABARD", "url": "https://www.nabard.org/", "rss": _gnews("nabard.org","2d"),
-     "level": 0, "priority": 100, "category": "banking_finance", "access_method": "search", "fallback": ["website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Agriculture finance + rural development"},
-    {"name": "SEBI", "url": "https://www.sebi.gov.in/", "rss": "https://www.sebi.gov.in/rss.html",
-     "level": 0, "priority": 100, "category": "banking_finance", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Capital market/regulations — press releases, circulars, orders"},
-    {"name": "MoSPI", "url": "https://www.mospi.gov.in/", "rss": _gnews("mospi.gov.in","5d"),
-     "level": 0, "priority": 100, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
-     "use": "GDP, CPI, statistics", "notes": "Site JS-rendered — PIB MoSPI tag + gnews is reliable"},
-    {"name": "NITI Aayog", "url": "https://www.niti.gov.in/", "rss": "https://www.niti.gov.in/rss.xml",
-     "level": 0, "priority": 100, "category": "economy_data", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Reports, indices, policy"},
-    {"name": "MEA", "url": "https://www.mea.gov.in/", "rss": "https://www.mea.gov.in/rss-feeds.htm",
-     "level": 0, "priority": 100, "category": "international", "access_method": "rss", "fallback": ["rss","gnews_site_search","website_html"], "frequency": "daily", "verification_required": True,
-     "use": "International relations, agreements, visits"},
-    {"name": "IMD", "url": "https://mausam.imd.gov.in/", "rss": _gnews("mausam.imd.gov.in","3d"),
-     "level": 0, "priority": 100, "category": "agriculture_core", "access_method": "search", "fallback": ["website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Monsoon, weather, climate"},
-    {"name": "FAO", "url": "https://www.fao.org/", "rss": _gnews("fao.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Global agriculture/food"},
-    {"name": "World Bank", "url": "https://www.worldbank.org/", "rss": _gnews("worldbank.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Development/economy"},
-    {"name": "IMF", "url": "https://www.imf.org/", "rss": _gnews("imf.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Global economy"},
-    {"name": "WTO", "url": "https://www.wto.org/", "rss": _gnews("wto.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Trade/agri trade"},
-    {"name": "WHO", "url": "https://www.who.int/", "rss": "https://www.who.int/rss-feeds/news-english.xml",
-     "level": 0, "priority": 100, "category": "health", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Health"},
-    {"name": "United Nations", "url": "https://www.un.org/en/", "rss": _gnews("un.org","2d"),
-     "level": 0, "priority": 100, "category": "international", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "International affairs"},
-    {"name": "UNFCCC", "url": "https://unfccc.int/", "rss": _gnews("unfccc.int","7d"),
-     "level": 0, "priority": 100, "category": "environment", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Climate"},
-    {"name": "IEA", "url": "https://www.iea.org/", "rss": _gnews("iea.org","7d"),
-     "level": 0, "priority": 100, "category": "energy", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Energy"},
-    {"name": "ISRO", "url": "https://www.isro.gov.in/", "rss": _gnews("isro.gov.in","7d"),
-     "level": 0, "priority": 100, "category": "science", "access_method": "search", "fallback": ["website_html","gnews_site_search"], "frequency": "daily", "verification_required": True,
-     "use": "Space/science"},
+    _source("PIB — Press Information Bureau", "https://www.pib.gov.in", 0, "govt_national",
+            rss="https://www.pib.gov.in/ViewRss.aspx?lang=1&reg=1", fallback=["rss", "website_html", "gnews_site_search"], use="Official releases, schemes, Cabinet and ministry announcements", notes="If RSS is HTML/unparseable, collector should fall back to PIB listing/search; do not treat Google News as primary evidence."),
+    _source("Ministry of Agriculture & Farmers Welfare", "https://agriwelfare.gov.in", 0, "agriculture_core", rss=_gnews("agriwelfare.gov.in", "2d"), fallback=["gnews_site_search", "website_html"], use="Agriculture policy, schemes and farmer welfare"),
+    _source("ICAR", "https://icar.org.in", 0, "agriculture_core", rss="https://icar.org.in/rss.xml", fallback=["rss", "website_html", "gnews_site_search"], use="Agricultural research, technology and institutions"),
+    _source("RBI", "https://www.rbi.org.in", 0, "banking_finance", rss=_gnews("rbi.org.in", "2d"), fallback=["gnews_site_search", "website_html"], use="Monetary policy, banking notifications and financial stability"),
+    _source("NABARD", "https://www.nabard.org", 0, "banking_finance", rss=_gnews("nabard.org", "2d"), fallback=["gnews_site_search", "website_html"], use="Agriculture credit and rural development"),
+    _source("SEBI", "https://www.sebi.gov.in", 0, "banking_finance", rss="https://www.sebi.gov.in/rss.html", fallback=["rss", "website_html", "gnews_site_search"], use="Capital markets, regulations and circulars"),
+    _source("NITI Aayog", "https://www.niti.gov.in", 0, "economy_data", rss="https://www.niti.gov.in/rss.xml", fallback=["rss", "website_html", "gnews_site_search"], use="Policy reports, indices and development"),
+    _source("Ministry of Statistics and Programme Implementation", "https://www.mospi.gov.in", 0, "economy_data", rss=_gnews("mospi.gov.in", "5d"), fallback=["gnews_site_search", "website_html"], use="GDP, CPI and official statistics"),
+    _source("Ministry of External Affairs", "https://www.mea.gov.in", 0, "international", rss="https://www.mea.gov.in/rss-feeds.htm", fallback=["rss", "website_html", "gnews_site_search"], use="International agreements, visits and foreign policy"),
+    _source("India Meteorological Department", "https://mausam.imd.gov.in", 0, "agriculture_core", rss=_gnews("mausam.imd.gov.in", "3d"), fallback=["gnews_site_search", "website_html"], use="Monsoon, climate and weather"),
+    _source("Department of Animal Husbandry and Dairying", "https://dahd.gov.in", 0, "agriculture_core", rss=_gnews("dahd.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Livestock, dairy and animal husbandry"),
+    _source("Department of Fisheries", "https://dof.gov.in", 0, "agriculture_core", rss=_gnews("dof.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Fisheries schemes and blue economy"),
+    _source("APEDA", "https://apeda.gov.in", 0, "agriculture_core", rss=_gnews("apeda.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Agricultural exports and market access"),
+    _source("Department of Agriculture Research and Education", "https://dare.gov.in", 0, "agriculture_core", rss=_gnews("dare.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Agricultural research and education"),
 ]
 
-# LEVEL 1 — AGRICULTURE SPECIALISTS (IMPORTANT — automated monitoring lower freq)
+# LEVEL 1: specialist agriculture, food, climate and allied sectors.
 LEVEL_1_AGRI = [
-    {"name": "APEDA", "url": "https://apeda.gov.in/", "rss": _gnews("apeda.gov.in","7d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True, "use": "Agricultural exports"},
-    {"name": "National Horticulture Board", "url": "https://nhb.gov.in/", "rss": _gnews("nhb.gov.in","14d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True, "use": "Horticulture"},
-    {"name": "FSSAI", "url": "https://www.fssai.gov.in/", "rss": _gnews("fssai.gov.in","5d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True, "use": "Food safety"},
-    {"name": "Dept of Animal Husbandry & Dairying", "url": "https://dahd.gov.in/", "rss": _gnews("dahd.gov.in","14d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True, "use": "Dairy, livestock"},
-    {"name": "Dept of Fisheries", "url": "https://dof.gov.in/", "rss": _gnews("dof.gov.in","14d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "daily", "verification_required": True, "use": "Fisheries"},
-    {"name": "ICFRE", "url": "https://icfre.gov.in/", "rss": _gnews("icfre.gov.in","30d"),
-     "level": 1, "priority": 95, "category": "environment", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Forestry"},
-    {"name": "CACP", "url": "https://cacp.dacnet.nic.in/", "rss": _gnews("cacp.dacnet.nic.in","7d"), "fallback_rss": _gnews("pib.gov.in CACP","7d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "MSP/agricultural prices", "notes": "Host unreachable — verified via PIB site:pib.gov.in CACP"},
-    {"name": "DARE", "url": "https://dare.gov.in/", "rss": _gnews("dare.gov.in","7d"),
-     "level": 1, "priority": 95, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Agricultural research & education"},
+    _source("Indian Agricultural Research Institute", "https://www.iari.res.in", 1, "agriculture", rss=_gnews("iari.res.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Agronomy, horticulture and agricultural research"),
+    _source("National Horticulture Board", "https://nhb.gov.in", 1, "horticulture", rss=_gnews("nhb.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Horticulture schemes, production and statistics"),
+    _source("FSSAI", "https://www.fssai.gov.in", 1, "food_safety", rss=_gnews("fssai.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Food safety, standards and regulation"),
+    _source("ICFRE", "https://icfre.gov.in", 1, "forestry_environment", rss=_gnews("icfre.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Forestry and forest research"),
+    _source("Commission for Agricultural Costs and Prices", "https://cacp.dacnet.nic.in", 1, "agriculture_economy", rss=_gnews("pib.gov.in CACP", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="MSP recommendations and agricultural prices", notes="Use official CACP/PIB documents for verification."),
+    _source("Ministry of Food Processing Industries", "https://mofpi.gov.in", 1, "food_processing", rss=_gnews("mofpi.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Food processing schemes and investments"),
+    _source("Ministry of Environment, Forest and Climate Change", "https://moef.gov.in", 1, "environment", rss=_gnews("moef.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Climate, biodiversity and environment policy"),
 ]
 
-# LEVEL 2 — FINANCE / ECONOMY (IMPORTANT)
+# LEVEL 2: banking, financial regulation and economy.
 LEVEL_2_FINANCE = [
-    {"name": "NPCI", "url": "https://www.npci.org.in/", "rss": _gnews("npci.org.in","5d"),
-     "level": 2, "priority": 90, "category": "banking_finance", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True, "use": "UPI/digital payments"},
-    {"name": "PFRDA", "url": "https://www.pfrda.org.in/", "rss": _gnews("pfrda.org.in","14d"),
-     "level": 2, "priority": 90, "category": "banking_finance", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Pension"},
-    {"name": "IRDAI", "url": "https://irdai.gov.in/", "rss": _gnews("irdai.gov.in","7d"),
-     "level": 2, "priority": 90, "category": "banking_finance", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Insurance"},
-    {"name": "IFSCA", "url": "https://ifsca.gov.in/", "rss": _gnews("ifsca.gov.in","30d"),
-     "level": 2, "priority": 90, "category": "banking_finance", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "GIFT City/financial services"},
-    {"name": "Dept of Financial Services", "url": "https://financialservices.gov.in/", "rss": _gnews("financialservices.gov.in","7d"),
-     "level": 2, "priority": 90, "category": "banking_finance", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "weekly", "verification_required": True, "use": "Banking/financial services"},
-    {"name": "Economic Survey", "url": "https://www.indiabudget.gov.in/economicsurvey/", "rss": _gnews("indiabudget.gov.in economicsurvey","30d"),
-     "level": 2, "priority": 90, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "weekly", "verification_required": True, "use": "Economy"},
-    {"name": "Union Budget", "url": "https://www.indiabudget.gov.in/", "rss": _gnews("indiabudget.gov.in budget","14d"),
-     "level": 2, "priority": 90, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Budget"},
-    {"name": "GST Council", "url": "https://gstcouncil.gov.in/", "rss": _gnews("gstcouncil.gov.in","30d"),
-     "level": 2, "priority": 90, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "GST"},
-    {"name": "CCI", "url": "https://www.cci.gov.in/", "rss": _gnews("cci.gov.in","14d"),
-     "level": 2, "priority": 90, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Competition/economy"},
-    {"name": "RBI Bulletin", "url": "https://bulletin.rbi.org.in/", "rss": _gnews("bulletin.rbi.org.in","14d"),
-     "level": 2, "priority": 90, "category": "banking_finance", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "RBI Bulletin — monetary policy, payment systems"},
+    _source("NPCI", "https://www.npci.org.in", 2, "banking_finance", rss=_gnews("npci.org.in", "7d"), fallback=["gnews_site_search", "website_html"], use="UPI and digital payments"),
+    _source("PFRDA", "https://www.pfrda.org.in", 2, "banking_finance", rss=_gnews("pfrda.org.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Pension regulation"),
+    _source("IRDAI", "https://irdai.gov.in", 2, "banking_finance", rss=_gnews("irdai.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Insurance regulation"),
+    _source("IFSCA", "https://ifsca.gov.in", 2, "banking_finance", rss=_gnews("ifsca.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="International financial services"),
+    _source("Department of Financial Services", "https://financialservices.gov.in", 2, "banking_finance", rss=_gnews("financialservices.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Banking and financial services"),
+    _source("Union Budget of India", "https://www.indiabudget.gov.in", 2, "economy_data", rss=_gnews("indiabudget.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Budget documents and fiscal policy"),
+    _source("GST Council", "https://gstcouncil.gov.in", 2, "economy_data", rss=_gnews("gstcouncil.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="GST decisions and notifications"),
+    _source("Competition Commission of India", "https://www.cci.gov.in", 2, "economy_data", rss=_gnews("cci.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Competition and market regulation"),
+    _source("RBI Bulletin", "https://bulletin.rbi.org.in", 2, "banking_finance", rss=_gnews("bulletin.rbi.org.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="RBI research and economic analysis"),
 ]
 
-# LEVEL 3 — OTHER GOVERNMENT (IMPORTANT — schemes/appointments/exam-oriented)
+# LEVEL 3: other official sources. Weekly-frequency sources are selected for weekly/monthly jobs.
 LEVEL_3_GOVT = [
-    {"name": "India.gov.in", "url": "https://www.india.gov.in/", "rss": _gnews("india.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Government information portal"},
-    {"name": "PM India", "url": "https://www.pmindia.gov.in/", "rss": _gnews("pmindia.gov.in","3d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "daily", "verification_required": True, "use": "PM announcements, speeches, visits"},
-    {"name": "Cabinet Secretariat", "url": "https://cabsec.gov.in/", "rss": _gnews("cabsec.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "website", "fallback": ["website_html","gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Cabinet decisions"},
-    {"name": "MyGov India", "url": "https://www.mygov.in/", "rss": _gnews("mygov.in","7d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Government campaigns"},
-    {"name": "Ministry of Rural Development", "url": "https://rural.gov.in/", "rss": _gnews("rural.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "rural", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Rural schemes", "notes": "SSL/timeout — gnews fallback"},
-    {"name": "Ministry of Cooperation", "url": "https://cooperation.gov.in/", "rss": _gnews("cooperation.gov.in","14d"),
-     "level": 3, "priority": 85, "category": "cooperation", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Cooperation"},
-    {"name": "MoFPI", "url": "https://mofpi.gov.in/", "rss": _gnews("mofpi.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "agriculture", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Food processing"},
-    {"name": "Consumer Affairs", "url": "https://consumeraffairs.nic.in/", "rss": _gnews("consumeraffairs.nic.in","14d"),
-     "level": 3, "priority": 85, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Consumer protection"},
-    {"name": "DST", "url": "https://dst.gov.in/", "rss": _gnews("dst.gov.in","14d"),
-     "level": 3, "priority": 85, "category": "science", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Science & Technology"},
-    {"name": "DBT", "url": "https://dbtindia.gov.in/", "rss": _gnews("dbtindia.gov.in","14d"),
-     "level": 3, "priority": 85, "category": "science", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Biotechnology"},
-    {"name": "DRDO", "url": "https://www.drdo.gov.in/", "rss": _gnews("drdo.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "defence", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "weekly", "verification_required": True, "use": "Defence research"},
-    {"name": "MoEFCC", "url": "https://moef.gov.in/", "rss": _gnews("moef.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "environment", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Environment & climate"},
-    {"name": "CPCB", "url": "https://cpcb.nic.in/", "rss": _gnews("cpcb.nic.in","14d"),
-     "level": 3, "priority": 85, "category": "environment", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Pollution control"},
-    {"name": "Ministry of Education", "url": "https://www.education.gov.in/", "rss": _gnews("education.gov.in","14d"),
-     "level": 3, "priority": 85, "category": "education", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Education policy"},
-    {"name": "UGC", "url": "https://www.ugc.gov.in/", "rss": _gnews("ugc.gov.in","14d"),
-     "level": 3, "priority": 85, "category": "education", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Higher education"},
-    {"name": "NTA", "url": "https://nta.ac.in/", "rss": _gnews("nta.ac.in","7d"),
-     "level": 3, "priority": 85, "category": "education", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "weekly", "verification_required": True, "use": "Testing agency — exams"},
-    {"name": "Ministry of Defence", "url": "https://mod.gov.in/", "rss": _gnews("mod.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "defence", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Defence"},
-    {"name": "Rashtrapati Bhavan", "url": "https://www.presidentofindia.gov.in/", "rss": _gnews("presidentofindia.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "President announcements"},
-    {"name": "Election Commission", "url": "https://eci.gov.in/", "rss": _gnews("eci.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Elections"},
-    {"name": "UPSC", "url": "https://upsc.gov.in/", "rss": _gnews("upsc.gov.in","7d"),
-     "level": 3, "priority": 85, "category": "govt_national", "access_method": "search", "fallback": ["gnews_site_search","website_html"], "frequency": "weekly", "verification_required": True, "use": "UPSC exams/appointments"},
-    {"name": "DEA / Public Debt", "url": "https://debtindia.gov.in/", "rss": _gnews("debtindia.gov.in","14d"),
-     "level": 3, "priority": 85, "category": "economy_data", "access_method": "search", "fallback": ["gnews_site_search"], "frequency": "weekly", "verification_required": True, "use": "Public debt, DEA mirror"},
+    _source("India.gov.in", "https://www.india.gov.in", 3, "govt_national", rss=_gnews("india.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="National government portal"),
+    _source("Prime Minister of India", "https://www.pmindia.gov.in", 3, "govt_national", rss=_gnews("pmindia.gov.in", "3d"), fallback=["gnews_site_search", "website_html"], use="Prime Minister announcements"),
+    _source("Cabinet Secretariat", "https://cabsec.gov.in", 3, "govt_national", rss=_gnews("cabsec.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Cabinet decisions"),
+    _source("MyGov India", "https://www.mygov.in", 3, "govt_national", rss=_gnews("mygov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Public campaigns and citizen engagement"),
+    _source("Ministry of Rural Development", "https://rural.gov.in", 3, "rural_development", rss=_gnews("rural.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Rural development schemes"),
+    _source("Ministry of Cooperation", "https://cooperation.gov.in", 3, "cooperation", rss=_gnews("cooperation.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Cooperative sector"),
+    _source("Department of Science and Technology", "https://dst.gov.in", 3, "science", rss=_gnews("dst.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Science and technology"),
+    _source("Department of Biotechnology", "https://dbtindia.gov.in", 3, "science", rss=_gnews("dbtindia.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Biotechnology"),
+    _source("DRDO", "https://www.drdo.gov.in", 3, "defence_science", rss=_gnews("drdo.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Defence research"),
+    _source("Central Pollution Control Board", "https://cpcb.nic.in", 3, "environment", rss=_gnews("cpcb.nic.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Pollution control"),
+    _source("Ministry of Education", "https://www.education.gov.in", 3, "education", rss=_gnews("education.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Education policy"),
+    _source("UGC", "https://www.ugc.gov.in", 3, "education", rss=_gnews("ugc.gov.in", "14d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Higher education"),
+    _source("National Testing Agency", "https://nta.ac.in", 3, "education", rss=_gnews("nta.ac.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="National examination notifications"),
+    _source("Ministry of Defence", "https://mod.gov.in", 3, "defence", rss=_gnews("mod.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Defence policy and appointments"),
+    _source("President of India", "https://www.presidentofindia.gov.in", 3, "govt_national", rss=_gnews("presidentofindia.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Presidential announcements"),
+    _source("Election Commission of India", "https://eci.gov.in", 3, "govt_national", rss=_gnews("eci.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Election-related official announcements"),
+    _source("UPSC", "https://upsc.gov.in", 3, "education", rss=_gnews("upsc.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Recruitment, examinations and appointments"),
 ]
 
-# LEVEL 4 — NEWS DISCOVERY (TRUSTED — final factual authority NOT, discovery only)
+# LEVEL 4: editorial sources are useful for discovery, never final factual authority.
 LEVEL_4_DISCOVERY = [
-    {"name": "Reuters", "url": "https://www.reuters.com/", "rss": "https://www.reutersagency.com/feed/?best-topics=tech&post_type=best",
-     "level": 4, "priority": 80, "category": "discovery", "access_method": "rss", "fallback": ["rss","gnews_site_search"], "frequency": "daily", "verification_required": False, "use": "Global news discovery"},
-    {"name": "The Hindu", "url": "https://www.thehindu.com/", "rss": "https://www.thehindu.com/feeder/default.rss",
-     "level": 4, "priority": 80, "category": "discovery", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "National news discovery"},
-    {"name": "Indian Express", "url": "https://indianexpress.com/", "rss": "https://indianexpress.com/feed/",
-     "level": 4, "priority": 80, "category": "discovery", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "National news discovery"},
-    {"name": "Business Standard", "url": "https://www.business-standard.com/", "rss": "https://www.business-standard.com/rss/latest.rss",
-     "level": 4, "priority": 80, "category": "discovery", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "Economy discovery"},
-    {"name": "Mint", "url": "https://www.livemint.com/", "rss": "https://www.livemint.com/rss/news",
-     "level": 4, "priority": 80, "category": "discovery", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "Economy discovery"},
-    {"name": "Economic Times", "url": "https://economictimes.indiatimes.com/", "rss": "https://economictimes.indiatimes.com/rssfeedsdefault.cms",
-     "level": 4, "priority": 80, "category": "discovery", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "Economy discovery"},
+    _source("Reuters", "https://www.reuters.com", 4, "discovery", rss="https://www.reutersagency.com/feed/?best-topics=tech&post_type=best", priority=75, verification_required=False, fallback=["rss"], use="International and national news discovery"),
+    _source("The Hindu", "https://www.thehindu.com", 4, "discovery", rss="https://www.thehindu.com/feeder/default.rss", priority=75, verification_required=False, fallback=["rss"], use="National news discovery"),
+    _source("Indian Express", "https://indianexpress.com", 4, "discovery", rss="https://indianexpress.com/feed/", priority=75, verification_required=False, fallback=["rss"], use="National news discovery"),
+    _source("Business Standard", "https://www.business-standard.com", 4, "discovery", rss="https://www.business-standard.com/rss/latest.rss", priority=75, verification_required=False, fallback=["rss"], use="Economy and business discovery"),
+    _source("Mint", "https://www.livemint.com", 4, "discovery", rss="https://www.livemint.com/rss/news", priority=75, verification_required=False, fallback=["rss"], use="Finance and economy discovery"),
+    _source("Economic Times", "https://economictimes.indiatimes.com", 4, "discovery", rss="https://economictimes.indiatimes.com/rssfeedsdefault.cms", priority=75, verification_required=False, fallback=["rss"], use="Business and economy discovery"),
 ]
 
-# LEVEL 5 — FALLBACK / AGGREGATORS (DISCOVERY ONLY — never factual source)
+# LEVEL 5: aggregator feeds are opt-in in collector.py; use only for discovery.
 LEVEL_5_FALLBACK = [
-    {"name": "Google News", "url": "https://news.google.com/", "rss": "https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en",
-     "level": 5, "priority": 60, "category": "aggregator", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "Discovery/fallback only"},
-    {"name": "Google News RSS Search", "url": "https://news.google.com/rss/search", "rss": "https://news.google.com/rss/search?q=when:1d&hl=en-IN&gl=IN&ceid=IN:en",
-     "level": 5, "priority": 60, "category": "aggregator", "access_method": "rss", "fallback": ["rss"], "frequency": "daily", "verification_required": False, "use": "Site-search discovery"},
-    {"name": "GDELT", "url": "https://www.gdeltproject.org/", "rss": None,
-     "level": 5, "priority": 60, "category": "aggregator", "access_method": "api", "fallback": ["api"], "frequency": "on_demand", "verification_required": False, "use": "Global event discovery fallback"},
-    {"name": "NewsAPI", "url": "https://newsapi.org/", "rss": None,
-     "level": 5, "priority": 60, "category": "aggregator", "access_method": "api", "fallback": ["api"], "frequency": "on_demand", "verification_required": False, "use": "Discovery fallback"},
+    _source("Google News India", "https://news.google.com", 5, "aggregator", rss="https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en", priority=50, verification_required=False, fallback=["rss"], use="Fallback discovery only"),
+    _source("Google News Search", "https://news.google.com/rss/search", 5, "aggregator", rss=_gnews("pib.gov.in", "1d"), priority=50, verification_required=False, fallback=["rss"], use="Site-specific discovery fallback"),
 ]
 
-# ─────────────────────────────────────────────────────────────────
-# COMBINED & BACKWARD COMPAT
-# ─────────────────────────────────────────────────────────────────
-ALL_LEVELS = {
-    0: LEVEL_0_CORE,
-    1: LEVEL_1_AGRI,
-    2: LEVEL_2_FINANCE,
-    3: LEVEL_3_GOVT,
-    4: LEVEL_4_DISCOVERY,
-    5: LEVEL_5_FALLBACK,
-}
+ALL_LEVELS = {0: LEVEL_0_CORE, 1: LEVEL_1_AGRI, 2: LEVEL_2_FINANCE, 3: LEVEL_3_GOVT, 4: LEVEL_4_DISCOVERY, 5: LEVEL_5_FALLBACK}
 ALL_SOURCES = LEVEL_0_CORE + LEVEL_1_AGRI + LEVEL_2_FINANCE + LEVEL_3_GOVT + LEVEL_4_DISCOVERY + LEVEL_5_FALLBACK
 
-# Legacy compat for collector.py / tests — grouped view expected by old code
+# Compatibility expected by existing collector/scoring code.
 TIER_1_SOURCES = {
     "core_primary": LEVEL_0_CORE,
     "agriculture_specialists": LEVEL_1_AGRI,
@@ -221,25 +137,33 @@ TIER_1_SOURCES = {
 TIER_2_DISCOVERY = LEVEL_4_DISCOVERY
 TIER_3_AGGREGATORS = LEVEL_5_FALLBACK
 
-# Helpers for production pipeline
+PRIORITY_MAP = {0: 100, 1: 95, 2: 90, 3: 85, 4: 75, 5: 50}
+LEVEL_NAMES = {0: "CORE PRIMARY", 1: "AGRICULTURE SPECIALISTS", 2: "FINANCE/ECONOMY", 3: "OTHER GOVERNMENT", 4: "DISCOVERY", 5: "AGGREGATOR FALLBACK"}
+
+
 def get_daily_core():
-    """Level 0 CORE — compulsory daily fetch (20 sources)"""
-    return [s for s in ALL_SOURCES if s["level"] == 0]
+    """Return all Level-0 core sources exactly once."""
+    return list(LEVEL_0_CORE)
+
 
 def get_daily_sources(job_type="daily"):
-    """Level 0+1+2 daily + Level 3 weekly filter logic"""
+    """Return the intended source set without duplicate concatenation.
+
+    Daily: all Level 0 plus daily-frequency levels 1-3 and Level 4 discovery.
+    Weekly/monthly: all non-aggregator sources. Level 5 is opt-in in collector.
+    """
+    job_type = str(job_type).lower()
     if job_type == "daily":
-        # Daily: L0 compulsory + L1/L2 daily-frequency only + L4 discovery + L5 fallback
-        return [s for s in ALL_SOURCES if s["frequency"] == "daily" or s["level"] in (4,5)] + [s for s in LEVEL_1_AGRI + LEVEL_2_FINANCE if s["frequency"] == "daily"]
-    return ALL_SOURCES
+        return [s for s in ALL_SOURCES if int(s.get("level", 5)) == 0 or int(s.get("level", 5)) == 4 or str(s.get("frequency", "daily")).lower() in {"daily", "on_demand"}]
+    if job_type in {"weekly", "monthly"}:
+        return [s for s in ALL_SOURCES if int(s.get("level", 5)) <= 4]
+    raise ValueError(f"Unsupported job_type: {job_type!r}")
+
 
 def get_sources_by_level(level: int):
-    return ALL_LEVELS.get(level, [])
+    return list(ALL_LEVELS.get(int(level), []))
+
 
 def get_sources_by_category(cat: str):
-    return [s for s in ALL_SOURCES if s.get("category") == cat]
-
-# Priority map for scoring.py — higher level = higher reliability multiplier
-PRIORITY_MAP = {0: 100, 1: 95, 2: 90, 3: 85, 4: 80, 5: 60}
-LEVEL_NAMES = {0: "CORE", 1: "AGRI SPECIALISTS", 2: "FINANCE/ECONOMY", 3: "OTHER GOVT", 4: "DISCOVERY", 5: "FALLBACK"}
-
+    cat = str(cat).strip().lower()
+    return [s for s in ALL_SOURCES if str(s.get("category", "")).lower() == cat]

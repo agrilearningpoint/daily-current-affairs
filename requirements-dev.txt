@@ -1,0 +1,51 @@
+# =============================================================================
+# Development & CI Requirements
+# =============================================================================
+# Install: pip install -r requirements.txt -r requirements-dev.txt
+# =============================================================================
+
+# Include production deps
+-r requirements.txt
+
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
+pytest==8.3.3                  # Test framework
+pytest-cov==5.0.0              # Coverage reporting
+pytest-mock==3.14.0            # Mocking utilities
+pytest-asyncio==0.24.0         # Async test support
+pytest-timeout==2.3.1          # Test timeout guard
+
+# -----------------------------------------------------------------------------
+# Linting & Formatting
+# -----------------------------------------------------------------------------
+ruff==0.6.9                    # Fast Python linter + formatter
+black==24.10.0                 # Opinionated code formatter
+isort==5.13.2                  # Import sorting
+mypy==1.11.2                   # Static type checking
+types-requests==2.32.0.20240914   # Type stubs for requests
+types-python-dateutil==2.9.0.20241003
+
+# -----------------------------------------------------------------------------
+# Security Scanning
+# -----------------------------------------------------------------------------
+bandit==1.7.10                 # SAST (static analysis)
+pip-audit==2.7.3               # Dependency vulnerability scan
+safety==3.2.7                  # Alternative CVE check
+
+# -----------------------------------------------------------------------------
+# Pre-commit Hooks
+# -----------------------------------------------------------------------------
+pre-commit==3.8.0              # Git hook manager
+
+# -----------------------------------------------------------------------------
+# Dependency Management
+# -----------------------------------------------------------------------------
+pip-tools==7.4.1               # pip-compile / pip-sync
+
+# -----------------------------------------------------------------------------
+# Debugging / Profiling
+# -----------------------------------------------------------------------------
+ipython==8.28.0                # Interactive shell
+ipdb==0.13.13                  # Better debugger
+py-spy==0.3.14                 # Sampling profiler

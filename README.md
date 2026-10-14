@@ -1,184 +1,571 @@
-# AGRI LEARNING POINT — DAILY CURRENT AFFAIRS AUTOMATION
-**Bilingual • Mobile-First • Exam-Oriented • 24-Agent Pipeline**
+# 🌾 Agri Learning Point — Daily Current Affairs Automation
 
-> **Master Rule:** Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content.
+Production-grade pipeline that collects, verifies, and publishes daily/weekly/monthly current-affairs content for competitive exam students (AGTA, AFO, ICAR, IBPS, NABARD).
 
----
-
-## 🚀 FINAL AGENT SETUP — 17 LOGICAL STAGES (audit refactor 2026-10)
-
-> **Refactor summary:** 24 agents → 17 stages. Removed: `01 Master Supervisor` (main.py already
-> orchestrates lock/retry/resume/alert AND is the single owner of job-state transitions
-> (agents only write artefacts/context — no split state ownership). Merged: `02 Scheduler` → `03 News Collection`;
-> `08 Agriculture Expert` + `09 Banking Expert` → `07 Student & Domain Relevance` (they were pure
-> tagging wrappers); `13 Bilingual Editor` + `14 English Editor` → `12 Content Editor` (inline passes).
-> Renamed: `24 Watchdog Recovery` → `24 Final Health Audit` (standalone watchdog = `main.py --watchdog`).
-> Original IDs kept with intentional gaps as history markers.
-
-### 1. 🎯 MASTER ORCHESTRATION (`main.py`)
-> Manage the complete Current Affairs pipeline. Execute each stage in correct order, track job status, prevent duplicate, retry failed, resume from last success, never publish incomplete. *(formerly Agent 01 — now lives entirely in main.py)*
-
-`COLLECT(+window) → VERIFY → RANK → SELECT → WRITE → MCQ → PDF → QA → TELEGRAM → PIN → AUDIT → COMPLETE`
-
-### 2. 🌐 NEWS COLLECTION (+ scheduler window)
-> Collect from reliable/primary sources; compute the Asia/Kolkata collection window for this job type inline. Prioritize Agriculture, Banking, Govt, Economy, National, International, Science, Environment, Awards... Capture headline, time, source, URL, category, raw facts. Collect broadly; do not decide importance. Quality gate: <4 in-window items = failure.
-
-### 3. 🔎 FACT VERIFICATION
-> Verify every item via primary/authoritative sources (incl. Google News AES-URL decoding via `pipeline/gnews.py`). Verify dates, numbers, names, orgs, schemes, rankings, appointments, locations. Reject unsupported. Never guess. Quality gate: <4 verified items = failure.
-
-### 4. 🧹 DEDUPLICATION
-> Identify and merge same event across sources. Preserve strongest source. Separate only when genuinely different.
-
-### 5. 🧠 NEWS IMPORTANCE (0-100)
-> Score 0-100 for overall importance: national significance, govt importance, economic impact, agri/banking relevance, exam potential, future relevance, static value, uniqueness, source reliability. Not just trending.
-
-### 6. 🎓 STUDENT & DOMAIN RELEVANCE ⭐ (merged old 07+08+09)
-> Act as expert editor for AGTA/AFO/NABARD/FCI/ICAR/IBPS. Judge worth of limited study time; boost Agriculture/Banking/Schemes, demote crime/politics/ad noise; tag `agri_focus` / `banking_focus` for coverage guarantees. Q: "If student has limited time, should they read this?"
-
-### 7. ⭐ FINAL NEWS SELECTION
-> Select only highest-value by merit: daily 10-12 / weekly 15-18 / monthly 20-25 MAX caps, quality floors 25/60/62 on the relevance scale. Never pad with weak news. Ensure ≥2 agri & ≥2 banking visible when available.
-
-### 8. 📈 IMPORTANCE MEMORY
-> Track importance over time across ALL scored events (not just selected). Detect RISING/FALLING/NEW trends, remember previously-published ids so Weekly/Monthly reuse the same persistent DB.
-
-### 9. ✍️ CONTENT EDITOR (EN + HI in one stage; merged old 13+14)
-> Convert selected verified news to concise exam-oriented bilingual content: Headline → Key Points → Static Facts → Exam Fact. Hindi=Mukta, English=Poppins; word-substitution translation (never invent meaning). Inline English cleanup + verbatim source-link validation.
-
-### 10. 🖼️ IMAGE AGENT
-> Only when improves understanding. Prefer official/reliable (source OG image → Wikimedia fallback). Verify represents event/person/place. Never random stock.
-
-### 11. ❓ MCQ GENERATOR
-> High-quality MCQs only from verified selected. Prioritize direct, conceptual, statement-based, static-linked for AGTA/AFO/NABARD/FCI/ICAR.
-
-### 12. 🧪 MCQ VALIDATOR
-> Validate clarity, option uniqueness, correct answer, explanation, accuracy, source support, ambiguity, duplicate, relevance. Reject/regenerate if multiple answers.
-
-### 13. 🎨 PDF DESIGN (Agent 18)
-> Clean, colorful, highly readable, mobile-friendly. Controlled colors, clear hierarchy, attractive headings, proper spacing. Every page branding/logo/footer/page number + clickable Telegram channel links (@agrilearningpoint, @agriquizworld). Hindi rendered via Mukta with RAQM shaping + hidden selectable text layer. Never overcrowd or alter facts.
-
-### 14. 🔍 PDF QA (Agent 19) — HARD GATE
-> Check missing text, broken Hindi (Mukta), font rendering, **Hindi coverage ratio (extracted vs source Devanagari chars — not just "any char exists")**, dates, duplicates, images, overflow, blank pages, headers/footers, page numbers, MCQ mismatch, bilingual inconsistency. Reject if critical error; REJECTED blocks publish.
-
-### 15. 📅 WEEKLY EDITOR ⭐ (Agent 20)
-> Review week, fresh Best-of-Week. Re-rank via cumulative importance, exam/agri/banking relevance, uniqueness, developments. Deduplicate. Not combine daily PDFs.
-
-### 16. 📆 MONTHLY EDITOR ⭐ (Agent 21)
-> Review month, fresh Best-of-Month. Re-rank via month-long significance, policy impact, repeated developments, static value, future potential. Not merge.
-
-### 17. 📤 TELEGRAM PUBLISHER + 📌 PIN VERIFIER + 🩺 FINAL HEALTH AUDIT (Agents 22/23/24)
-> Publish only QA-approved PDF to Telegram group `-1004485392227`; verify pin (retry until succeed); final health audit checks every artefact (raw→qa report), PDF size, QA approval and state machine before marking COMPLETE. Standalone watchdog (`main.py --watchdog`, every 5 min via workflow) detects stalled/FAILED_FINAL jobs, alerts admin, and re-triggers the FAILED job's own date (recovery_plan.json) — never silently stops.
-
-**Common Master Rule:** Student Value First...
-
-**Flow:**
-```
-COLLECT(+window) → VERIFY → DEDUP → IMPORTANCE → STUDENT+DOMAIN RELEVANCE → FINAL SELECTOR
-   → MEMORY → CONTENT(EN+HI) → IMAGE → MCQ GEN → MCQ VALIDATOR → PDF DESIGN → PDF QA(GATE)
-   → PUBLISH → PIN VERIFY → FINAL HEALTH AUDIT → COMPLETE
-WATCHDOG (main.py --watchdog): MONITOR → RETRY → RESUME(failed job's own date) → ALERT
-```
-
-**Architecture:** Same database, different selection: Daily="Aaj kya zaroor?", Weekly="Is saptah sabse mahatvapurna?", Monthly="Is mahine sabse mahatvapurna?" — Fresh AI editorial, not PDF merging. Like Horizon/SmartReader.
+**What it does:**
+1. Fetches news from RSS feeds + APIs (previous 24h window)
+2. Fact-checks claims via cross-source corroboration + heuristic + optional LLM
+3. Deduplicates + ranks by importance
+4. Builds bilingual (English + Hindi) content
+5. Generates exam-oriented MCQs (4-5 options, validated)
+6. Renders a professional PDF (Hindi + English)
+7. Publishes to Telegram + pins to channel
+8. Runs daily/weekly/monthly on GitHub Actions
 
 ---
 
-## 🌟 SOURCE TIERS
+## 📋 Table of Contents
 
-**Tier-1 PRIMARY (100):** PIB (nodal + backgrounders/factsheets), India.gov.in, MyGov, PM India, Cabinet, Agri Ministry, ICAR (full ecosystem), IARI, DARE, APEDA, NHB, FSSAI, DAHD, Fisheries, ICFRE, IMD, CACP, RBI, NABARD, SEBI, FinMin, DEA, Financial Services, NPCI, PFRDA, IRDAI, IFSCA, MoSPI, Economic Survey, Budget, NITI Aayog, UN/UN News/FAO/World Bank/IMF/WTO/WHO/UNESCO/UNEP/UNDP/ILO/UNFCCC/IEA, Ministries (Rural/Cooperation/Food Processing/Consumer Affairs/DST/ISRO/DBT/DRDO/MoEFCC/CPCB/Education/UGC/NTA/Defence/MEA), Rashtrapati/PMO/ECI/UPSC
-
-**Tier-2 DISCOVERY (80-90):** Reuters, The Hindu, Indian Express, Business Standard, Mint, Economic Times
-
-**Tier-3 AGGREGATORS (60):** Google News, GDELT, NewsAPI
-
-**Score:** Official 100 | International 100 | Regulator 95 | Reuters 90 | Major Newspaper 80 | Aggregator 60
-
-**Top 10 Core:** PIB, Agri Ministry, ICAR, IARI, RBI, NABARD, SEBI, MoSPI, NITI Aayog, MEA
-
----
-
-## 🎨 PDF DESIGN SPEC
-
-**Fonts:** Hindi → Mukta (Regular/Bold/SemiBold), English → Poppins/Inter (Regular/Bold/SemiBold), **Max 2 families**
-
-**Hierarchy:**
-- Main title 18-20pt Bold, Hindi headline 17-19pt Bold (Mukta), Section 15-17pt (16pt), Sub-heading 13-14pt Semi, Body 11.5-12.5pt (Poppins 12pt / Mukta 12.5pt), Static 11.5-12pt, Exam Fact 12-13pt Bold, MCQ Q 12-13pt (12.5pt), Options 11.5-12pt, Explanation 11-12pt, Footer 8.5-9.5pt (9pt), Watermark 8-10pt very subtle (0.09 alpha, PAID BATCHES logo 90mm centered)
-
-**Line spacing 1.25-1.35, Single-column mobile-first, Margins 12-15mm (actual 13mm), Max useful info + readability, No orphan heading, Smart page fill, Tables compact mobile-readable, Colors controlled (Agri Green, Banking Blue, National Orange, etc.), Header compact, Footer compact, Watermark every page, Double border Red+Green, No blank/or orphan/tiny text.**
-
-**Previous best colors kept as final.**
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Pipeline Stages](#pipeline-stages)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [CLI Reference](#cli-reference)
+- [GitHub Actions](#github-actions)
+- [State Management](#state-management)
+- [Troubleshooting](#troubleshooting)
+- [Maintenance](#maintenance)
+- [Testing](#testing)
 
 ---
 
-## ⚙️ DEPLOYMENT
+## 🚀 Quick Start
 
-- **GitHub:** `agrilearningpoint/daily-current-affairs`
-- **Workflows:** `daily.yml` (00:30 UTC = 06:00 IST daily), `weekly.yml` (Sunday), `monthly.yml` (last date)
-- **Secrets:** `TELEGRAM_BOT_TOKEN`, `ADMIN_ID=1138783169`, `CLOUDFLARE_TOKEN`
-- **Telegram:** Private group `-1004485392227` (CURRENT AFFAIRS WORLD) — Daily + Weekly (Sun) + Monthly (last date) + auto-pin, storage delete after monthly (GitHub/R2 only, group keeps all)
-- **Fonts:** `src/fonts/Mukta-*.ttf` + `Poppins-*.ttf`
-- **Watermark:** `assets/watermark_logo.png` (PAID BATCHES logo)
-
-## 📱 MOBILE PDF
-21 pages, 3.7MB, 18pt headline / 12.5pt Hindi / 13mm margin, 20 one-liners spaced, single-column, premium book-like, not AI.
-
----
-
-## 🔧 Run Locally
 ```bash
-pip install -r requirements.txt
-python main.py --type daily --date 2026-10-04
-python main.py --type weekly --date 2026-10-05
-python main.py --type monthly --date 2026-10-31
-```
+# 1. Clone
+git clone https://github.com/agrilearningpoint/daily-current-affairs.git
+cd daily-current-affairs
 
+# 2. Setup Python 3.11
+python3.11 -m venv .venv
+source .venv/bin/activate        # Linux/macOS
+# .venv\Scripts\activate          # Windows
+
+# 3. Install deps
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
+# 4. Configure
+cp .env.example .env
+# Edit .env — fill TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, and (optionally) LLM keys
+
+# 5. Run a daily job (dry-run style — skips real Telegram publishing if DRY_RUN=1)
+DRY_RUN=1 python main.py --job-type daily --date 2026-10-14
+```
 
 ---
 
-## ✅ v2 PRODUCTION UPDATE (04 Oct 2026) — Code Audit Fixes
+## 🏗️ Architecture
 
-All P0/P1 issues from the code review are now FIXED in this branch:
-
-| # | Issue | Fix |
-|---|-------|-----|
-| 1 | **Hardcoded Telegram Bot Token** | ❌ Removed everywhere. Token is read ONLY from `TELEGRAM_BOT_TOKEN` env (GitHub Secrets); missing token = hard error. ⚠️ **You must still revoke the old token via @BotFather → Revoke** and add the new one to Secrets (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID`, `ADMIN_ID`). Old tokens may persist in Git history even after deletion. |
-| 2 | **24 dummy agents (time.sleep pass-through)** | All 24 agents now have REAL implementations backed by the new `pipeline/` library. Empty/failing stage output raises an error — an empty pipeline can no longer report success. |
-| 3 | **No real news collection** | `pipeline/collector.py`: RSS-first + HTML-fallback adapters for all Tier-1 sources (PIB/ICAR/RBI/NABARD/SEBI/FAO/WB/IMF…), Tier-2 discovery, IST time-window per job type, quality gate (<5 items = failure). |
-| 4 | **No verification/dedup/scoring** | Agent 04 verifies source URLs live + confidence records; Agent 05 merges events at similarity ≥0.85 keeping authoritative source; Agent 06 implements the exact README factor weights (20/15/15/15/10/10/5/5/5 × source reliability). |
-| 5 | **MCQ generator/validator were dummies** | `pipeline/content.py`: deterministic fact-grounded MCQs (answer verbatim from that news's own text, distractors from other news, never auto "None of these") + full validator chain (option uniqueness, exactly-one-correct, answer supported by source, explanation check, duplicate-question check). Invalid MCQs are rejected before PDF. |
-| 6 | **PDF QA was pass-through** | Agent 19 is now a **HARD GATE**: PyMuPDF checks — pages>0, Mukta/Poppins embedded, Devanagari extractable, date present, headlines present, MCQ count matches JSON, answers valid, no blank pages. Any failure ⇒ `QA_REJECTED`; Agent 22 refuses to publish unless state == `QA_APPROVED`. |
-| 7 | **generate_pdf.py was a hardcoded 04-Oct sample** | Now a fully **dynamic data-driven generator**: `generate_pdf(content_json, mcq_json)` reads `data/content/<job>.json` + `data/mcq/<job>_validated.json`. Refuses empty editions. Same premium design system (Mukta+Poppins, 13mm margins, banners, Static Facts, Exam Fact boxes). |
-| 8 | **Font path bug (`BASE_DIR/fonts`)** | Fixed to `src/fonts/` — and font registration failure now RAISES instead of silently falling back to Helvetica. |
-| 9 | **External image paths (/home/user/…)** | Agent 15 downloads og-image/Wikimedia images into workspace `assets/images/<job_id>/` with Pillow validation (≥500px, JPEG/PNG). No external absolute paths. |
-| 10 | **Weekly workflow ran a duplicate daily** | `weekly.yml` now runs ONLY the weekly job (daily.yml already publishes Sunday's daily). Monthly likewise. All workflows have `concurrency:` groups. |
-| 11 | **No job locking / race conditions** | `pipeline/state.py`: atomic `JobLock` (O_CREAT|O_EXCL lockfile + stale-lock recovery) + COMPLETE-status skip. Two processes can never run the same job. |
-| 12 | **No retry backoff** | `main.py` gives each agent **3 total attempts** (1 initial + up to 2 retries) with exponential backoff **2s → 4s**, then FAILED_FINAL + admin alert. |
-| 13 | **Watchdog didn't exist** | New `.github/workflows/watchdog.yml` runs `python main.py --watchdog` **every 5 minutes**: detects stalled/FAILED_FINAL jobs, alerts admin DM, triggers resume-from-last-stage recovery. Agent 24 does the end-of-run artefact audit. |
-| 14 | **Full state machine** | CREATED→COLLECTING→COLLECTED→VERIFYING→VERIFIED→DEDUPLICATED→SCORED→SELECTED→CONTENT_READY→MCQ_READY→MCQ_VALIDATED→PDF_GENERATED→QA_APPROVED→PUBLISHED→PIN_VERIFIED→COMPLETE (+ FAILED/RETRYING/RECOVERED/FAILED_FINAL/QA_REJECTED), persisted atomically in `data/jobs/<job>.json`, supports resume. |
-| 15 | **Telegram publish/pin were dummies** | Agents 22–23 use the real Bot API: sendDocument → store message_id → pinChatMessage → getChat read-back verification (pinned id must match). Pin mismatch ⇒ job NOT complete. Duplicate-publish guard included. |
-| 16 | **Weekly/Monthly ran after PDF** | Workflow order corrected: editors 20/21 now run BEFORE content→PDF, so Best-of-Week/Month re-selection actually flows into the edition (same-database principle via importance memory). |
-| 17 | **Importance memory missing** | `data/memory/importance_memory.json`: event_id → score history → RISING/FALLING/NEW trend, reused by weekly/monthly selection. |
-| 18 | **DATE not persisted between workflow steps** | Workflows export `DATE` via `$GITHUB_ENV`. Push-failures surface as failures (no `|| echo` masking). |
-
-### 🆕 Repo layout additions
 ```
-pipeline/            # shared real implementation library
-  state.py           #   state machine + atomic JSON + JobLock
-  collector.py       #   RSS/HTML source adapters, windows, categories
-  scoring.py         #   dedup (0.85 Jaccard/bigram) + 0-100 factor scoring
-  content.py         #   key points/static facts/exam fact + bilingual + MCQ gen/validate
-  telegram_api.py    #   sendDocument / pinChatMessage / verify_pin / alerts
-agents/*.py          # ALL 24 rewritten — real logic, quality gates, no pass-through
-tests/test_pipeline_offline.py   # offline E2E test suite (all passing)
-.github/workflows/watchdog.yml   # every-5-min monitor + recovery
+┌─────────────────────────────────────────────────────────────────┐
+│  GitHub Actions (scheduled)                                     │
+│  daily.yml · weekly.yml · monthly.yml · watchdog.yml            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  main.py  (orchestrator)                                        │
+│  - Job locking (fcntl)                                          │
+│  - Atomic state writes                                          │
+│  - Stage resolution (agents/ + pipeline/)                       │
+│  - Retry + timeout per stage                                    │
+│  - Resume-from-last-success                                     │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Agents (agents/*.py)                                           │
+│  ┌──────────────┬──────────────┬──────────────┬──────────────┐  │
+│  │ 03 News      │ 04 Fact      │ 12 Content   │ 16 MCQ       │  │
+│  │   Collection │   Verification│  Editor     │   Generator  │  │
+│  ├──────────────┼──────────────┼──────────────┼──────────────┤  │
+│  │ 17 MCQ       │ 18 PDF       │ 19 PDF       │ 22 Telegram  │  │
+│  │   Validator  │   Design     │   QA         │   Publisher  │  │
+│  ├──────────────┼──────────────┼──────────────┼──────────────┤  │
+│  │ 23 Pin       │ 24 Final     │ 20 Weekly    │ 21 Monthly   │  │
+│  │   Verifier   │   Audit      │   Editor     │   Editor     │  │
+│  └──────────────┴──────────────┴──────────────┴──────────────┘  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  pipeline/  (shared library)                                    │
+│  - ai_router.py      Multi-provider LLM fallback                │
+│  - ai_translator.py  EN→HI with validation                      │
+│  - state.py          Job state machine + atomic I/O             │
+│  - store.py          Importance memory persistence              │
+│  - content.py        Content formatting helpers                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 🔐 Required GitHub Secrets (set before first run)
-`TELEGRAM_BOT_TOKEN` (new revoked-and-regenerated token), `TELEGRAM_CHANNEL_ID`, optionally `ADMIN_ID` for watchdog alerts. No fallback values exist in code — missing secrets fail loudly, which is correct behaviour.
+### Data Flow
 
-### Run locally
+```
+data/raw/        ← Agent 03 (News Collection)
+data/verified/   ← Agent 04 (Fact Verification)
+data/dedup/      ← Agent 05 (Deduplication)
+data/scored/     ← Agent 06 + 07 (Importance + Domain relevance)
+data/selected/   ← Agent 10 (Final selection)
+data/content/    ← Agent 12 (Content editor, bilingual)
+data/mcq/        ← Agent 16 + 17 (MCQ gen + validate)
+output/          ← Agent 18 (Final PDF)
+state/           ← Persistent state (jobs.json, ledgers, memory)
+```
+
+---
+
+## 🔄 Pipeline Stages
+
+### Daily (17 stages)
+
+| # | Stage | Critical | Purpose |
+|---|---|---|---|
+| 00 | `00_model_orchestrator` | ✅ | Set up LLM providers |
+| 01 | `01_source_fetch` | ✅ | Fetch RSS/APIs |
+| 03 | `03_news_collection` | ✅ | Parse + sanitize (Unicode-safe) |
+| 04 | `04_fact_verification` | ✅ | Confidence scoring + cross-source |
+| 05 | `05_deduplication` | ✅ | Event-level dedup |
+| 06 | `06_news_importance` | ✅ | Importance scoring |
+| 07 | `07_student_domain_relevance` | ✅ | Exam relevance |
+| 10 | `10_final_news_selection` | ✅ | Top-N selection |
+| 11 | `11_importance_memory` | ✅ | Persist to memory |
+| 12 | `12_content_editor` | ✅ | Bilingual content |
+| 16 | `16_mcq_generator` | ✅ | Generate MCQs |
+| 17 | `17_mcq_validator` | ✅ | Validate (no dupes, source-backed) |
+| 18 | `18_pdf_design` | ✅ | Render PDF |
+| 19 | `19_pdf_qa` | ✅ | QA gate |
+| 22 | `22_telegram_publisher` | ✅ | Publish PDF |
+| 23 | `23_telegram_pin_verifier` | ✅ | Pin + verify |
+| 24 | `24_final_health_audit` | ❌ | Optional audit |
+
+### Weekly (2 stages)
+- `20_weekly_editor` → `22_telegram_publisher`
+
+### Monthly (2 stages)
+- `21_monthly_editor` → `22_telegram_publisher`
+
+**Critical** stages: Missing script → **job FAILED** (never silently skipped).
+
+---
+
+## 🛠️ Installation
+
+### Prerequisites
+
+- Python **3.11+**
+- pip **23+**
+- Git
+- Telegram Bot (created via [@BotFather](https://t.me/BotFather))
+- (Optional) LLM API keys — Gemini / Groq / OpenAI / Mistral
+
+### Steps
+
 ```bash
+# 1. Clone
+git clone https://github.com/agrilearningpoint/daily-current-affairs.git
+cd daily-current-affairs
+
+# 2. Virtual env
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# 3. Upgrade pip
+pip install --upgrade pip setuptools wheel
+
+# 4. Install prod deps
 pip install -r requirements.txt
-python tests/test_pipeline_offline.py        # offline verification
-python main.py --type daily --date 2026-10-05
+
+# (Optional) Dev deps — for testing/linting
+pip install -r requirements-dev.txt
+
+# 5. Configure
+cp .env.example .env
+nano .env      # Fill in real values
+
+# 6. Verify
+python -c "from main import load_state; print('✅ Imports OK')"
+```
+
+---
+
+## ⚙️ Configuration
+
+### Required Environment Variables
+
+| Variable | Purpose | Example |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Bot token | `123456:ABC...` |
+| `TELEGRAM_CHAT_ID` | Target channel | `@your_channel` or `-1001234...` |
+
+### Key Optional Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LLM_API_URL` | — | OpenAI-compatible endpoint |
+| `LLM_API_KEY` | — | API key |
+| `LLM_MODEL` | `gpt-4o-mini` | Model name |
+| `GEMINI_API_KEY` | — | Gemini (primary in fallback) |
+| `GROQ_API_KEY` | — | Groq (fast fallback) |
+| `MIN_CONFIDENCE_THRESHOLD` | `0.3` | Verification threshold (0–1) |
+| `MIN_VERIFIED_COUNT` | `1` | Min items to proceed |
+| `TELEGRAM_PARSE_MODE` | `HTML` | Message format |
+| `TELEGRAM_MAX_PER_RUN` | `5` | Max PDFs per run |
+| `STAGE_TIMEOUT_SECONDS` | `900` | Kill hung stages |
+| `MAX_STAGE_RETRIES` | `3` | Retries per stage |
+| `WATCHDOG_STUCK_HOURS` | `2` | Stuck threshold |
+| `DRY_RUN` | `0` | Skip real publishing |
+| `LOG_LEVEL` | `INFO` | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
+
+Full list: see [`.env.example`](.env.example).
+
+---
+
+## 💻 CLI Reference
+
+### `main.py`
+
+```bash
+# Help
+python main.py --help
+
+# Run daily pipeline (today UTC)
+python main.py --job-type daily
+
+# Run daily for specific date
+python main.py --job-type daily --date 2026-10-14
+
+# Force re-run (ignore existing state)
+python main.py --job-type daily --reset
+
+# Weekly (Sunday)
+python main.py --job-type weekly
+
+# Monthly
+python main.py --job-type monthly --date 2026-10-01
+
+# Watchdog mode (detect stuck jobs + write recovery plan)
 python main.py --watchdog
+
+# Watchdog with custom threshold
+python main.py --watchdog --stuck-hours 4
+
+# --type is accepted as alias for --job-type (backward compat)
+python main.py --type daily
 ```
+
+### State cleanup
+
+```bash
+# Preview migration (no writes)
+python maintenance/migrate_state.py --dry-run
+
+# Apply cleanup (reset FAILED_FINAL for retry)
+python maintenance/migrate_state.py --reset-failed-final
+
+# Force reset a single job
+python maintenance/migrate_state.py --reset-job daily_2026-10-13
+```
+
+### Individual agents (for debugging)
+
+```bash
+# Each agent can run standalone
+python agents/03_news_collection.py
+python agents/04_fact_verification.py
+python agents/22_telegram_publisher.py
+
+# Dry-run publishing
+DRY_RUN=1 python agents/22_telegram_publisher.py
+```
+
+---
+
+## 🔁 GitHub Actions
+
+### Workflows
+
+| Workflow | Schedule | Purpose |
+|---|---|---|
+| `daily.yml` | `0 2 * * *` (07:30 IST) | Daily pipeline |
+| `weekly.yml` | `0 3 * * 0` (Sun 08:30 IST) | Weekly digest |
+| `monthly.yml` | `0 4 1 * *` (1st 09:30 IST) | Monthly compilation |
+| `watchdog.yml` | `0 */6 * * *` (every 6h) | Stuck job recovery |
+| `ci.yml` | On PR/push | Lint + tests + security |
+
+### Manual Trigger
+
+**Actions** tab → select workflow → **Run workflow** → optionally override:
+- `date` (YYYY-MM-DD)
+- `reset` (boolean)
+- `debug` (boolean)
+
+### Required Repository Secrets
+
+**Settings → Secrets and variables → Actions → New repository secret:**
+
+| Secret | Required |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | ✅ |
+| `TELEGRAM_CHAT_ID` | ✅ |
+| `LLM_API_URL` | optional |
+| `LLM_API_KEY` | optional |
+| `LLM_MODEL` | optional |
+
+**Non-sensitive vars can be added as Variables** (same page → Variables tab):
+- `MIN_CONFIDENCE_THRESHOLD`
+- `MIN_VERIFIED_COUNT`
+- `STAGE_TIMEOUT_SECONDS`
+- `WATCHDOG_STUCK_HOURS`
+
+---
+
+## 💾 State Management
+
+### Files
+
+| Path | Purpose | Git-tracked |
+|---|---|---|
+| `state/jobs.json` | Job status per pipeline | ✅ Yes |
+| `state/published_events.json` | Telegram publish ledger | ✅ Yes |
+| `state/importance_memory.json` | Long-term importance DB | ✅ Yes |
+| `state/pin_verification.json` | Pin verify ledger | ✅ Yes |
+| `state/backups/` | Migration backups | ❌ No |
+| `state/archive/` | Append-only history | ❌ No |
+| `state/locks/` | Job locks (ephemeral) | ❌ No |
+| `state/metrics/` | Per-job metrics | ❌ No |
+
+### Job Status Values
+
+**Orchestrator statuses** (main.py):
+- `PENDING` → `RUNNING` → `SUCCESS` / `FAILED` / `FAILED_FINAL`
+
+**Pipeline states** (pipeline/state.py):
+- `CREATED` → `COLLECTING` → `COLLECTED` → ... → `COMPLETE`
+- Failure paths: `FAILED` → `RETRYING` → `FAILED_FINAL`
+
+`main.py` normalizes legacy statuses (`COLLECTED`, `QA_REJECTED`, etc.) → `FAILED` for retry.
+
+---
+
+## 🔧 Troubleshooting
+
+### Job shows `FAILED_FINAL`
+
+```bash
+# Reset and retry
+python main.py --job-type daily --reset
+
+# Or use migration script
+python maintenance/migrate_state.py --reset-job daily_2026-10-13
+```
+
+### `only 0 verified items` error
+
+1. **Lower threshold**:
+   ```bash
+   export MIN_CONFIDENCE_THRESHOLD=0.25
+   export MIN_VERIFIED_COUNT=1
+   ```
+
+2. **Check collection**:
+   ```bash
+   python -c "
+   from agents.03_news_collection import clean_text
+   print(clean_text('कैबिनेट ने MSP बढ़ाया'))  # Should print Hindi
+   "
+   ```
+   Agar Hindi chars missing hain → Unicode bug (see `test_unicode_safety.py`).
+
+3. **Check LLM config** (if you want AI verification):
+   ```bash
+   echo $LLM_API_KEY | head -c 8   # Should show something
+   ```
+
+### Telegram publishing fails
+
+```bash
+# Verify credentials
+curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" | python -m json.tool
+
+# Verify chat access
+curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat?chat_id=${TELEGRAM_CHAT_ID}" | python -m json.tool
+
+# Dry-run
+DRY_RUN=1 python agents/22_telegram_publisher.py
+```
+
+Common issues:
+- **401 Unauthorized** → Wrong `TELEGRAM_BOT_TOKEN`
+- **400 chat not found** → Wrong `TELEGRAM_CHAT_ID` or bot not member
+- **403 not enough rights** → Bot needs admin in channel
+- **429 Too Many Requests** → Rate limit; publisher auto-waits
+
+### Watchdog not recovering stuck jobs
+
+```bash
+# Manual run
+python main.py --watchdog --stuck-hours 2
+
+# Check recovery plan
+cat recovery_plan.json
+```
+
+### State file corruption
+
+`main.py` auto-backs-up corrupt state to `state/jobs.json.corrupt.<timestamp>` and starts fresh. To recover:
+
+```bash
+# List backups
+ls -la state/*.corrupt.*
+
+# Restore manually
+cp state/jobs.json.corrupt.1234567890 state/jobs.json
+
+# Or run migration
+python maintenance/migrate_state.py --dry-run
+```
+
+---
+
+## 🧰 Maintenance
+
+### Weekly
+
+```bash
+# Cleanup old backups (keep last 10)
+ls -t state/backups/*.json | tail -n +11 | xargs rm -f
+
+# Check disk usage
+du -sh data/ output/ logs/ state/
+```
+
+### Monthly
+
+```bash
+# Rotate logs
+mv logs/orchestrator.log logs/orchestrator.$(date +%Y%m).log
+
+# Archive old data (optional)
+tar -czf archive_$(date +%Y%m).tar.gz data/raw/ data/verified/
+```
+
+### Dependency updates
+
+```bash
+# Preview updates
+pip list --outdated
+
+# Update one package
+pip install --upgrade requests
+
+# Or edit requirements.txt and reinstall
+pip install -r requirements.txt --upgrade
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Install dev deps
+pip install -r requirements-dev.txt
+
+# Run all tests
+pytest tests/ -v
+
+# With coverage
+pytest tests/ --cov=agents --cov=pipeline --cov=main --cov-report=term-missing
+
+# Specific file
+pytest tests/test_unicode_safety.py -v
+
+# Only fast tests (skip slow)
+pytest tests/ -v -m "not slow"
+```
+
+### Key test files
+
+| File | Purpose |
+|---|---|
+| `test_unicode_safety.py` | Hindi/Devanagari preservation |
+| `test_orchestrator.py` | `main.py` CLI + legacy state compat |
+| `test_migration.py` | `migrate_state.py` safety |
+| `test_ai_router.py` | Multi-provider fallback |
+| `test_state_machine.py` | State transitions |
+| `test_pipeline_offline.py` | End-to-end offline |
+
+---
+
+## 📊 Monitoring
+
+### Logs
+
+| Log | Location |
+|---|---|
+| Orchestrator | `logs/orchestrator.log` |
+| Each agent | `logs/<agent_name>.log` |
+| State migration | `logs/state_migration.log` |
+
+### Metrics
+
+Per-job metrics in `state/metrics/<job_id>.json`:
+```json
+{
+  "job_id": "daily_2026-10-14",
+  "status": "SUCCESS",
+  "last_success_stage": "24_final_health_audit",
+  "attempts": 1,
+  "error": null
+}
+```
+
+### Health check
+
+```bash
+# Quick health
+python -c "
+from main import load_state
+from datetime import datetime, timedelta, timezone
+s = load_state()
+now = datetime.now(timezone.utc)
+for jid, j in sorted(s.jobs.items(), reverse=True)[:7]:
+    print(f'{jid:25s} {j.status:12s} {j.updated_at[:19]}')
+"
+```
+
+---
+
+## 🚨 Known Limitations
+
+1. **Agent file names start with digits** (`03_news_collection.py`) — Python modules can't be imported directly. `main.py` uses subprocess + `importlib.util` for dynamic loading.
+
+2. **Hindi rendering in PDF** requires specific fonts (`src/fonts/Mukta-*.ttf`). Missing fonts → empty PDF.
+
+3. **AI provider rate limits** — Gemini free tier: 60 RPM. Pipeline auto-falls back to Groq/OpenAI/Mistral. Configure via `.env`.
+
+4. **Telegram message limit** — 4096 chars. Publisher auto-chunks long summaries.
+
+5. **Fact verification is heuristic-first** — without LLM, some false positives may pass. Set `MIN_CONFIDENCE_THRESHOLD=0.5` for stricter filtering.
+
+---
+
+## 📜 License
+
+See [LICENSE](LICENSE) (if present) or contact maintainers.
+
+## 🤝 Contributing
+
+1. Fork → branch → commit → PR
+2. CI must pass (`lint`, `test`, `cli-contract`, `security`, `state-load`)
+3. Follow existing code style (`ruff check .`)
+
+## 📧 Contact
+
+- Maintainer: [@agrilearningpoint](https://github.com/agrilearningpoint)
+- Issues: [GitHub Issues](https://github.com/agrilearningpoint/daily-current-affairs/issues)
+
+---
+
+**Built with ❤️ for competitive exam students in India**
