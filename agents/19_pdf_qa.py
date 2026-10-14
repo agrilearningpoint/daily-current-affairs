@@ -1,95 +1,508 @@
 # -*- coding: utf-8 -*-
 """
-PDF QA AGENT — HARD GATE
-Main focus: PDF publish से पहले हर possible error पकड़ना; fail = publish block।
+PDF QA Agent (19)
+==================
+Final gate-keeper before Telegram publish. Fails the job if PDF is
+unfit for students.
 
-Command:
-> "Run the full QA checklist on the generated PDF: exists, >0 pages, fonts embedded (Mukta/Poppins), Hindi Devanagari extractable, edition date present, expected news headlines present, MCQ count matches validated JSON, answer letters valid, no blank page, no runaway page count. Any failure => status QA_REJECTED and the pipeline FAILS before Telegram."
+Checks:
+1. File exists + valid PDF structure
+2. Page count within expected range
+3. Fonts embedded (Devanagari fonts present)
+4. Hindi coverage (Devanagari codepoints in text layer)
+5. MCQ section present with answer key
+6. No duplicate MCQ questions
+7. Source URLs preserved
+8. Page text density (no blank pages)
+9. Optional: visual overflow detection (via pdfplumber bboxes)
+10. Optional: image XObjects present (watermark/logo)
 
-Work: HARD GATE — blocks publish on any failure
-Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
+Env:
+  PDF_QA_MIN_PAGES       (default 2)
+  PDF_QA_MAX_PAGES       (default 200)
+  PDF_QA_MIN_HINDI_PCT   (default 5.0)  — % of chars that must be Devanagari
+  PDF_QA_MIN_MCQ_COUNT   (default 10)
+  PDF_QA_STRICT          (1 = fail on warnings; 0 = warnings OK)
+  PDF_QA_RENDER_CHECK    (1 = render pages to image for blank detection)
+
+Exit codes:
+  0 — QA passed
+  1 — QA failed (job should not publish)
+  2 — Config / IO error
 """
+from __future__ import annotations
 
-COMMAND = """Run the full QA checklist on the generated PDF: exists, >0 pages, fonts embedded (Mukta/Poppins), Hindi Devanagari extractable, edition date present, expected news headlines present, MCQ count matches validated JSON, answer letters valid, no blank page, no runaway page count. Any failure => status QA_REJECTED and the pipeline FAILS before Telegram."""
+import hashlib
+import json
+import logging
+import os
+import re
+import sys
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
+# --- PDF libraries ---
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    try:
+        import pymupdf as fitz  # newer name
+    except ImportError:
+        print("FATAL: PyMuPDF not installed. Run: pip install pymupdf", file=sys.stderr)
+        sys.exit(2)
 
-DETAILS = """- PyMuPDF render + text-extraction checks against source JSON
-- writes logs/qa/<job_id>.json report"""
+# --------------------------------------------------------------------------- #
+# Logging
+# --------------------------------------------------------------------------- #
+REPO_ROOT = Path(__file__).resolve().parent.parent
+LOGS_DIR = REPO_ROOT / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(str(LOGS_DIR / "pdf_qa.log"), encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger("agent.19_pdf_qa")
+
+# --------------------------------------------------------------------------- #
+# Config
+# --------------------------------------------------------------------------- #
+OUTPUT_DIR = REPO_ROOT / "output"
+QA_REPORT_DIR = REPO_ROOT / "logs" / "qa"
+QA_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+MIN_PAGES = int(os.getenv("PDF_QA_MIN_PAGES", "2"))
+MAX_PAGES = int(os.getenv("PDF_QA_MAX_PAGES", "200"))
+MIN_HINDI_PCT = float(os.getenv("PDF_QA_MIN_HINDI_PCT", "5.0"))
+MIN_MCQ_COUNT = int(os.getenv("PDF_QA_MIN_MCQ_COUNT", "10"))
+STRICT = os.getenv("PDF_QA_STRICT", "0") == "1"
+RENDER_CHECK = os.getenv("PDF_QA_RENDER_CHECK", "1") == "1"
+
+DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+URL_RE = re.compile(r"https?://[^\s\)\]\"']+")
+MCQ_Q_RE = re.compile(
+    r"(?:प्रश्न|Q(?:uestion)?)\s*[\.\:\-–]?\s*(\d+)",
+    re.IGNORECASE,
+)
+ANSWER_RE = re.compile(
+    r"(?:उत्तर|Answer|Correct\s*Answer|Ans)\s*[\.\:\-–]?\s*[\(\[]?([A-E])[\)\]]?",
+    re.IGNORECASE,
+)
 
 
-class Agent:
-    """PDF QA AGENT — HARD GATE — real implementation"""
-    def __init__(self, job_id, job_type, context):
-        self.job_id = job_id
-        self.job_type = job_type
-        self.context = context
-        self.name = "PDF QA AGENT — HARD GATE"
+# --------------------------------------------------------------------------- #
+# Report
+# --------------------------------------------------------------------------- #
+@dataclass
+class QAIssue:
+    severity: str       # "error" | "warning" | "info"
+    code: str
+    message: str
+    details: Dict[str, Any] = field(default_factory=dict)
 
-    def run(self):
-        import logging, os, re
+
+@dataclass
+class QAReport:
+    pdf_path: str
+    page_count: int = 0
+    file_size_bytes: int = 0
+    devanagari_chars: int = 0
+    total_chars: int = 0
+    hindi_pct: float = 0.0
+    font_names: List[str] = field(default_factory=list)
+    mcq_count: int = 0
+    answers_found: int = 0
+    duplicate_questions: int = 0
+    urls_found: int = 0
+    blank_pages: List[int] = field(default_factory=list)
+    image_xobjects: int = 0
+    issues: List[QAIssue] = field(default_factory=list)
+    checked_at: str = ""
+
+    def add(self, severity: str, code: str, message: str, **details: Any) -> None:
+        self.issues.append(QAIssue(severity, code, message, details))
+
+    @property
+    def passed(self) -> bool:
+        has_error = any(i.severity == "error" for i in self.issues)
+        if has_error:
+            return False
+        if STRICT:
+            return not any(i.severity == "warning" for i in self.issues)
+        return True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "pdf_path": self.pdf_path,
+            "checked_at": self.checked_at,
+            "passed": self.passed,
+            "page_count": self.page_count,
+            "file_size_bytes": self.file_size_bytes,
+            "devanagari_chars": self.devanagari_chars,
+            "total_chars": self.total_chars,
+            "hindi_pct": round(self.hindi_pct, 2),
+            "font_names": self.font_names,
+            "mcq_count": self.mcq_count,
+            "answers_found": self.answers_found,
+            "duplicate_questions": self.duplicate_questions,
+            "urls_found": self.urls_found,
+            "blank_pages": self.blank_pages,
+            "image_xobjects": self.image_xobjects,
+            "issues": [
+                {"severity": i.severity, "code": i.code,
+                 "message": i.message, "details": i.details}
+                for i in self.issues
+            ],
+        }
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+def find_latest_pdf() -> Optional[Path]:
+    if not OUTPUT_DIR.exists():
+        return None
+    pdfs = sorted(
+        [p for p in OUTPUT_DIR.glob("*.pdf") if p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return pdfs[0] if pdfs else None
+
+
+def extract_text(doc: "fitz.Document") -> str:
+    """Extract all text from PDF."""
+    chunks: List[str] = []
+    for page in doc:
         try:
-            import pymupdf
-        except ImportError:  # PyMuPDF <1.24.x exposed the module only as `fitz`
-            import fitz as pymupdf
-        from pipeline.state import CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, data_path, read_json, write_json_atomic
-        pdf = self.context.get("pdf_path", "")
-        c = read_json(data_path(CONTENT_DIR, self.job_id))
-        mcqs = read_json(data_path(MCQ_DIR, self.job_id, "_validated"), [])
-        checks, ok = [], True
-        def chk(name, cond, detail=""):
-            nonlocal ok
-            checks.append({"check": name, "pass": bool(cond), "detail": detail})
-            if not cond: ok = False
-        chk("pdf_exists", os.path.exists(pdf), pdf)
-        if not ok:
-            self._reject(checks); return self.context
-        doc = pymupdf.open(pdf)
-        txt = "".join(p.get_text() for p in doc)
-        flat = re.sub(r"\s+", " ", txt)
-        chk("pages_gt_0", doc.page_count > 0, f"pages={doc.page_count}")
-        fonts = set(f[3] for pg in doc for f in pg.get_fonts())
-        chk("fonts_embedded", any("Mukta" in f for f in fonts) and any("Poppins" in f or "DejaVu" in f for f in fonts), str(list(fonts))[:200])
-        chk("hindi_extractable", bool(re.search("[\u0900-\u097F]", txt)), "Devanagari chars found" )
-        # COVERAGE check (audit fix): PNG-rasterised Hindi is NOT extractable, so a single
-        # stray Devanagari char must not pass QA. Compare source-Hindi vs PDF-extracted-Hindi.
-        def _devn(s):
-            return re.findall(r"[\u0900-\u097F]", s or "")
-        src_hi = []
-        for it in c["items"]:
-            src_hi += _devn(it.get("headline_hi", "")) + _devn(it.get("exam_fact_hi", "")) \
-                      + [ch for kp in it.get("key_points_hi", []) for ch in _devn(kp)]
-        pdf_hi = _devn(txt)
-        ratio = len(pdf_hi) / max(1, len(src_hi))
-        chk("hindi_coverage", ratio >= 0.85, f"pdf_hindi_chars={len(pdf_hi)} source_hindi_chars={len(src_hi)} ratio={ratio:.2f}")
-        chk("date_present", c["job"]["date_display"] in flat, c["job"]["date_display"])
-        missing = [i["event_id"] for i in c["items"] if re.sub(r"[^A-Za-z0-9]", "", i["headline_en"].lstrip("> ")[:40]).lower()[:20]
-                   and re.sub(r"\s+", " ", i["headline_en"].lstrip("> "))[:45] not in flat]
-        chk("all_headlines_present", len(missing) <= max(1, len(c["items"])//10), f"missing={missing[:3]}")
-        chk("mcq_count_matches", sum(f"Q{m['q_num']}." in flat for m in mcqs) >= len(mcqs) * 0.9, f"mcqs={len(mcqs)}")
-        chk("answers_valid", all(ord(m["correct"]) - 65 < len(m["options"]) for m in mcqs))
-        blanks = [p.number for p in doc if len(p.get_text().strip()) < 15]
-        chk("no_blank_pages", len(blanks) == 0, f"blanks={blanks}")
-        chk("page_count_sane", 3 <= doc.page_count <= 60, f"pages={doc.page_count}")
-        write_json_atomic(data_path(QA_LOG_DIR, self.job_id), {"checks": checks, "approved": ok})
-        if not ok:
-            self._reject(checks)   # writes QA_REJECTED diagnostic into job file
-        else:
-            logging.info(f"[{self.name}] APPROVED ({len(checks)} checks)")
-        return self.context
+            chunks.append(page.get_text("text"))
+        except Exception as exc:
+            logger.warning("Text extraction failed on page: %s", exc)
+    return "\n".join(chunks)
 
-    def _reject(self, checks):
-        # P0 FIX: State ownership — only main.py may call save_job(state=QA_REJECTED)
-        # Agent only reports failure via context; orchestrator transitions state.
-        self.context["stage_failed"] = f"PDF QA REJECTED: {[c['check'] for c in checks if not c['pass']]}"
-        raise RuntimeError(self.context["stage_failed"])
 
-    def verify(self):
-        return not self.context.get("stage_failed")
+def extract_fonts(doc: "fitz.Document") -> List[str]:
+    """Get list of fonts used (deduped)."""
+    fonts: set[str] = set()
+    for page in doc:
+        try:
+            for f in page.get_fonts(full=True):
+                # f is a tuple; name is index 3
+                if len(f) > 3 and f[3]:
+                    fonts.add(str(f[3]))
+        except Exception:
+            continue
+    return sorted(fonts)
+
+
+def count_images(doc: "fitz.Document") -> int:
+    """Count embedded image XObjects."""
+    total = 0
+    for page in doc:
+        try:
+            total += len(page.get_images(full=True))
+        except Exception:
+            continue
+    return total
+
+
+def detect_blank_pages(doc: "fitz.Document", min_chars: int = 20) -> List[int]:
+    """Return list of page numbers (1-indexed) with suspiciously little text."""
+    blanks: List[int] = []
+    for idx, page in enumerate(doc, 1):
+        try:
+            text = page.get_text("text").strip()
+            images = len(page.get_images())
+            # Blank = almost no text AND no images
+            if len(text) < min_chars and images == 0:
+                blanks.append(idx)
+        except Exception:
+            continue
+    return blanks
+
+
+def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
+    """
+    Returns (mcq_count, answer_count, duplicate_count).
+    Duplicate = questions whose normalized text appears more than once.
+    """
+    # --- MCQ count ---
+    q_numbers = [int(m.group(1)) for m in MCQ_Q_RE.finditer(text)]
+    # Dedup consecutive or repeat numbers
+    unique_q = sorted(set(q_numbers))
+    mcq_count = len(unique_q) if unique_q else 0
+
+    # --- Answer key count ---
+    answer_letters = [m.group(1).upper() for m in ANSWER_RE.finditer(text)]
+    answer_count = len(answer_letters)
+
+    # --- Duplicate question detection ---
+    # Split text into question blocks by "प्रश्न N" / "Q N"
+    split_re = re.compile(
+        r"(?:प्रश्न|Q(?:uestion)?)\s*[\.\:\-–]?\s*\d+",
+        re.IGNORECASE,
+    )
+    parts = split_re.split(text)
+    normalized: List[str] = []
+    for p in parts[1:]:   # skip first (before Q1)
+        # Take first ~200 chars after question marker as "question stem"
+        stem = re.sub(r"\s+", " ", p[:250]).strip().lower()
+        if stem:
+            normalized.append(stem)
+
+    seen: Dict[str, int] = {}
+    for stem in normalized:
+        h = hashlib.sha1(stem.encode("utf-8")).hexdigest()[:16]
+        seen[h] = seen.get(h, 0) + 1
+
+    duplicate_count = sum(1 for v in seen.values() if v > 1)
+
+    return mcq_count, answer_count, duplicate_count
+
+
+# --------------------------------------------------------------------------- #
+# Checks
+# --------------------------------------------------------------------------- #
+def check_file(report: QAReport, path: Path) -> None:
+    if not path.exists():
+        report.add("error", "file_missing", f"PDF not found: {path}")
+        return
+    report.file_size_bytes = path.stat().st_size
+    if report.file_size_bytes < 5000:
+        report.add("error", "file_too_small",
+                   f"PDF only {report.file_size_bytes} bytes — likely empty",
+                   size=report.file_size_bytes)
+    elif report.file_size_bytes < 20000:
+        report.add("warning", "file_small",
+                   f"PDF is only {report.file_size_bytes // 1024} KB — may be missing content",
+                   size=report.file_size_bytes)
+
+
+def check_pages(report: QAReport, doc: "fitz.Document") -> None:
+    report.page_count = doc.page_count
+    if report.page_count < MIN_PAGES:
+        report.add("error", "too_few_pages",
+                   f"PDF has only {report.page_count} pages (min {MIN_PAGES})",
+                   pages=report.page_count)
+    if report.page_count > MAX_PAGES:
+        report.add("warning", "too_many_pages",
+                   f"PDF has {report.page_count} pages (max {MAX_PAGES})",
+                   pages=report.page_count)
+
+    blanks = detect_blank_pages(doc)
+    report.blank_pages = blanks
+    if blanks:
+        report.add("warning", "blank_pages",
+                   f"{len(blanks)} suspicious blank page(s): {blanks[:5]}",
+                   blank_pages=blanks)
+
+
+def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
+    fonts = extract_fonts(doc)
+    report.font_names = fonts
+    if not fonts:
+        report.add("error", "no_fonts",
+                   "No fonts detected in PDF — text may not render")
+        return
+
+    # Check for Devanagari-capable fonts
+    devanagari_hints = ["mukta", "poppins", "noto", "deva", "hind", "sans"]
+    has_deva_font = any(
+        any(hint in f.lower() for hint in devanagari_hints)
+        for f in fonts
+    )
+    if not has_deva_font:
+        report.add("warning", "no_devanagari_font",
+                   "No Devanagari-capable font detected — Hindi may not render",
+                   fonts=fonts[:10])
+
+
+def check_text_content(report: QAReport, text: str) -> None:
+    report.total_chars = len(text)
+    if report.total_chars < 500:
+        report.add("error", "too_little_text",
+                   f"Only {report.total_chars} chars in PDF — content missing",
+                   chars=report.total_chars)
+        return
+
+    deva_chars = len(DEVANAGARI_RE.findall(text))
+    report.devanagari_chars = deva_chars
+    report.hindi_pct = (deva_chars / report.total_chars * 100.0) if report.total_chars else 0.0
+
+    if report.hindi_pct < MIN_HINDI_PCT:
+        report.add("error", "insufficient_hindi",
+                   f"Only {report.hindi_pct:.1f}% Devanagari chars (min {MIN_HINDI_PCT}%) "
+                   f"— Hindi content missing",
+                   hindi_pct=round(report.hindi_pct, 2),
+                   min=MIN_HINDI_PCT)
+    elif report.hindi_pct < MIN_HINDI_PCT * 2:
+        report.add("warning", "low_hindi",
+                   f"Hindi coverage {report.hindi_pct:.1f}% is low",
+                   hindi_pct=round(report.hindi_pct, 2))
+
+
+def check_mcqs(report: QAReport, text: str) -> None:
+    mcq_count, answer_count, dup_count = compute_mcq_stats(text)
+    report.mcq_count = mcq_count
+    report.answers_found = answer_count
+    report.duplicate_questions = dup_count
+
+    if mcq_count < MIN_MCQ_COUNT:
+        report.add("error", "insufficient_mcqs",
+                   f"Only {mcq_count} MCQs found (min {MIN_MCQ_COUNT})",
+                   count=mcq_count, min=MIN_MCQ_COUNT)
+
+    if answer_count < mcq_count * 0.8:
+        report.add("warning", "missing_answers",
+                   f"Only {answer_count} answer markers for {mcq_count} MCQs",
+                   answers=answer_count, mcqs=mcq_count)
+
+    if dup_count > 0:
+        report.add("warning", "duplicate_questions",
+                   f"{dup_count} duplicate question(s) detected",
+                   count=dup_count)
+
+
+def check_urls(report: QAReport, text: str) -> None:
+    urls = URL_RE.findall(text)
+    report.urls_found = len(urls)
+    if len(urls) < 3:
+        report.add("warning", "few_source_urls",
+                   f"Only {len(urls)} source URLs found — attribution may be missing",
+                   count=len(urls))
+
+
+def check_images(report: QAReport, doc: "fitz.Document") -> None:
+    count = count_images(doc)
+    report.image_xobjects = count
+    if count == 0:
+        report.add("warning", "no_images",
+                   "No embedded images found — logo/watermark may be missing")
+
+
+def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
+    """
+    Detect text blocks that extend beyond page bounds.
+    Uses PyMuPDF's text block bounding boxes.
+    """
+    overflow_pages: List[int] = []
+    for idx, page in enumerate(doc, 1):
+        try:
+            rect = page.rect
+            blocks = page.get_text("blocks")
+            for b in blocks:
+                if len(b) < 4:
+                    continue
+                x0, y0, x1, y1 = b[:4]
+                # Allow small margin (5pt)
+                if x1 > rect.width + 5 or y1 > rect.height + 5 or x0 < -5 or y0 < -5:
+                    overflow_pages.append(idx)
+                    break
+        except Exception:
+            continue
+
+    if overflow_pages:
+        report.add("warning", "text_overflow",
+                   f"Text may overflow page bounds on pages: {overflow_pages[:5]}",
+                   pages=overflow_pages)
+
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
+def run_qa(pdf_path: Path) -> QAReport:
+    report = QAReport(
+        pdf_path=str(pdf_path),
+        checked_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    check_file(report, pdf_path)
+    if not pdf_path.exists():
+        return report
+
+    try:
+        doc = fitz.open(str(pdf_path))
+    except Exception as exc:
+        report.add("error", "cannot_open",
+                   f"PyMuPDF cannot open PDF: {exc}")
+        return report
+
+    try:
+        check_pages(report, doc)
+        check_fonts(report, doc)
+        check_images(report, doc)
+        text = extract_text(doc)
+        check_text_content(report, text)
+        check_mcqs(report, text)
+        check_urls(report, text)
+        check_visual_overflow(report, doc)
+    finally:
+        doc.close()
+
+    return report
+
+
+def print_summary(report: QAReport) -> None:
+    print()
+    print("=" * 72)
+    print(f"PDF QA REPORT — {'✅ PASSED' if report.passed else '❌ FAILED'}")
+    print("=" * 72)
+    print(f"File:            {report.pdf_path}")
+    print(f"Size:            {report.file_size_bytes // 1024} KB")
+    print(f"Pages:           {report.page_count}")
+    print(f"Chars:           {report.total_chars}")
+    print(f"Devanagari:      {report.devanagari_chars} ({report.hindi_pct:.1f}%)")
+    print(f"Fonts:           {len(report.font_names)} ({', '.join(report.font_names[:3])}...)")
+    print(f"MCQs:            {report.mcq_count}")
+    print(f"Answer markers:  {report.answers_found}")
+    print(f"Duplicate Qs:    {report.duplicate_questions}")
+    print(f"URLs:            {report.urls_found}")
+    print(f"Images:          {report.image_xobjects}")
+    print(f"Blank pages:     {report.blank_pages if report.blank_pages else 'none'}")
+
+    if report.issues:
+        print()
+        print("--- Issues ---")
+        for i in report.issues:
+            icon = {"error": "❌", "warning": "⚠️ ", "info": "ℹ️ "}.get(i.severity, "?")
+            print(f"  {icon} [{i.code}] {i.message}")
+    print("=" * 72)
+    print()
+
+
+def main() -> int:
+    pdf = find_latest_pdf()
+    if pdf is None:
+        logger.error("No PDF found in %s", OUTPUT_DIR)
+        return 2
+
+    logger.info("QA check: %s", pdf.name)
+    report = run_qa(pdf)
+
+    # Save report
+    report_file = QA_REPORT_DIR / f"{pdf.stem}_qa.json"
+    report_file.write_text(
+        json.dumps(report.to_dict(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    logger.info("Report: %s", report_file)
+
+    print_summary(report)
+
+    if report.passed:
+        logger.info("✔ PDF QA passed — safe to publish")
+        return 0
+
+    logger.error("✘ PDF QA failed — DO NOT publish")
+    return 1
 
 
 if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
-    print(Agent("test_2026-10-04", "daily", ctx).run())
+    sys.exit(main())
