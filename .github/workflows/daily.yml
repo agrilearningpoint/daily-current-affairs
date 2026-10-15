@@ -115,6 +115,10 @@ jobs:
       - name: Persist start marker for hard-interruption recovery
         env:
           STATE_BRANCH: ${{ github.ref_name }}
+          # Must match the pipeline step: this marker rewrites the job entry
+          # (including dry_run), and a mode mismatch here silently disables
+          # checkpoint resume for the very run it is preparing.
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
