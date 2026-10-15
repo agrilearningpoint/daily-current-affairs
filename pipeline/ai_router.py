@@ -125,7 +125,7 @@ def _build_default_providers() -> List[Provider]:
             name="gemini",
             url="https://generativelanguage.googleapis.com/v1beta/models",
             key=gem_key,
-            model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+            model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
             priority=10, rpm_limit=60, rpd_limit=1500,
         ))
 
@@ -163,6 +163,12 @@ def _build_default_providers() -> List[Provider]:
             model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
             priority=40, rpm_limit=60, rpd_limit=5000,
         ))
+
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        providers.append(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
+                                  key=openrouter_key, model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+                                  priority=45, rpm_limit=60, rpd_limit=5000))
 
     # Mistral (final fallback)
     mistral_key = os.getenv("MISTRAL_API_KEY")

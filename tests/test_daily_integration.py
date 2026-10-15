@@ -178,7 +178,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
             assert result.returncode == 1, result.stdout + result.stderr
             failed = json.loads((root / "state/jobs.json").read_text())["daily_2026-10-05"]
             assert failed["status"] == "failed" and failed["failed_stage"] == "01_source_fetch"
-            assert not (root / "state/published_jobs.json").exists()
+            assert not (root / "state/published_events.json").exists()
             result = subprocess.run(
                 [sys.executable, str(root / "main.py"), "--type", "daily", "--date", "2026-10-05"],
                 cwd=root, env=env, capture_output=True, text=True, timeout=90)
@@ -198,7 +198,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
     pdf = root / f"output/{job_id}.pdf"
     qa = json.loads((root / f"logs/qa/{job_id}_qa.json").read_text())
     assert qa["passed"] and qa["file_sha256"] == hashlib.sha256(pdf.read_bytes()).hexdigest()
-    assert not (root / "state/published_jobs.json").exists(), "dry-run must not write a real publication ledger"
+    assert not (root / "state/published_events.json").exists(), "dry-run must not write a real publication ledger"
 
     # With the RSS server now OFFLINE, completed daily jobs must be a real no-op.
     health = json.loads((root / f"logs/qa/{job_id}_health.json").read_text())
@@ -225,7 +225,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
                                        "--job-type", kind, "--date", edition],
                                       env=env, capture_output=True, text=True, timeout=30)
         assert verification.returncode == 0, verification.stdout + verification.stderr
-    assert not (root / "state/published_jobs.json").exists()
+    assert not (root / "state/published_events.json").exists()
 
     # Simulate an interrupted process immediately after PDF QA. No RSS is available.
     state = json.loads((root / "state/jobs.json").read_text())
@@ -238,7 +238,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
     assert recovery.returncode == 0, recovery.stdout + recovery.stderr
     assert "resuming after completed stage '19_pdf_qa'" in recovery.stdout
     assert (root / f"data/raw/{job_id}.json").read_bytes() == raw_before
-    assert not (root / "state/published_jobs.json").exists()
+    assert not (root / "state/published_events.json").exists()
 
 
 @pytest.mark.parametrize("message_id", [None, 0, -1, True, "5"])

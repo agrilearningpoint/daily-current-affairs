@@ -1,0 +1,27 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.2, pytest-8.3.3, pluggy-1.6.0
+rootdir: /home/user/daily-current-affairs
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-5.0.0
+collected 144 items
+
+tests/test_collection_window.py ...                                      [  2%]
+tests/test_daily_integration.py ......................                   [ 17%]
+tests/test_event_dedup.py ...                                            [ 19%]
+tests/test_gnews_decoder.py .                                            [ 20%]
+tests/test_jobs_state_load.py ...................                        [ 33%]
+tests/test_migration.py .............                                    [ 42%]
+tests/test_pdf_hindi.py ..                                               [ 43%]
+tests/test_pipeline_offline.py .....                                     [ 47%]
+tests/test_provider_contracts.py ..........                              [ 54%]
+tests/test_publication_safety.py ......................                  [ 69%]
+tests/test_scoring.py ..                                                 [ 70%]
+tests/test_selection.py .                                                [ 71%]
+tests/test_source_registry.py ..                                         [ 72%]
+tests/test_state_machine.py ..                                           [ 74%]
+tests/test_store_merge.py .                                              [ 75%]
+tests/test_unattended_safety.py ......................                   [ 90%]
+tests/test_unicode_safety.py ..............                              [100%]
+
+============================= 144 passed in 47.90s =============================

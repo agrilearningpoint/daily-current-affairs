@@ -596,3 +596,28 @@ python -m pytest tests/ -v
 
 A green offline CI run verifies code/artifact contracts; it does not prove that
 live feed endpoints, API quotas or Telegram channel permissions are available.
+
+
+## Latest unattended verification and safe recovery
+
+See [the 15 October 2026 detailed verification report](docs/verification-2026-10-15.md)
+and its committed stage evidence/test logs. The opt-in offline verification guard
+can exercise tests and inherited Python stage subprocesses without external DNS
+or socket connections:
+
+```bash
+PYTHONPATH="$PWD/scripts/offline_network_guard:$PWD" \
+  ALP_DISABLE_POLISH=1 ALP_DISABLE_LLM_VERIFY=1 python -m pytest -q
+```
+
+Synthetic dry-run PDFs are diagnostics, not real news or publication-ready Hindi.
+Live publication requires exact PDF QA, verified provenance, completed translation
+review, and matching document/pin receipts in `state/published_events.json` and
+`state/pin_verification.json`.
+
+A lost send acknowledgement is **not** automatically resent: reconcile the
+pending/uncertain receipt against the actual channel first. Corrected PDFs for an
+already-published edition require the manual workflow input `allow_revision`
+(or `ALP_ALLOW_EDITION_REVISION=1` locally); this never overrides an uncertain send.
+Model IDs can be set through the workflow repository variables shown in
+`.env.example`. Live provider/Telegram health must be verified in deployment.

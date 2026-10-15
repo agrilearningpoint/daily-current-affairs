@@ -32,6 +32,7 @@ def test_mutable_outputs_rewind_to_first_producer(tmp_path):
     names = ["00_model_orchestrator", "05_deduplication", "06_news_importance", "07_student_domain_relevance"]
     # The preceding dedup artifact is needed too.
     write_json_atomic(tmp_path / f"data/dedup/{job}.json", [1])
+    evidence = capture(tmp_path, job, "05_deduplication", evidence)
     entry = {"last_success_stage": names[-1], "artifacts": evidence}
     assert resume_after(tmp_path, job, entry, names) == names[-1]
     path.write_text("tampered")
@@ -174,3 +175,76 @@ def test_source_health_union_keeps_both_sources():
     sync = module(Path("scripts/sync_state.py"))
     merged = sync.merge_document("state/source_health.json", {"sources": {"local": {}}}, {"sources": {"remote": {}}})
     assert set(merged["sources"]) == {"local", "remote"}
+
+
+def test_hashless_legacy_files_do_not_authorize_resume(tmp_path):
+    job = "daily_2026-10-05"
+    write_json_atomic(tmp_path / f"data/raw/{job}.json", ["legacy unproven data"])
+    names = ["00_model_orchestrator", "01_source_fetch"]
+    assert resume_after(tmp_path, job, {"last_success_stage": "01_source_fetch", "artifacts": {}}, names) is None
+
+
+def test_period_scored_output_is_required_for_resume(tmp_path):
+    job = "weekly_2026-10-04"
+    write_json_atomic(tmp_path / f"data/selected/{job}.json", {"items": [1]})
+    write_json_atomic(tmp_path / f"data/scored/{job}.json", {"items": [1]})
+    evidence = capture(tmp_path, job, "20_weekly_editor", {})
+    (tmp_path / f"data/scored/{job}.json").unlink()
+    names = ["00_model_orchestrator", "20_weekly_editor"]
+    assert resume_after(tmp_path, job, {"last_success_stage": names[-1], "artifacts": evidence}, names) is None
+
+
+@pytest.mark.parametrize("kind", ["missing", "legacy", "stale", "future", "naive"])
+def test_dispatch_rejects_stale_or_unstamped_plans(tmp_path, monkeypatch, kind):
+    from datetime import timedelta
+    import sys
+    recovery = module(Path("scripts/recover_jobs.py"))
+    now = datetime.now(timezone.utc)
+    plan = {"actions": [{"job_id": "daily_2026-10-05", "action": "retry"}]}
+    if kind == "legacy":
+        plan = ["daily_2026-10-05"]
+    elif kind != "missing":
+        stamp = now - timedelta(hours=1) if kind == "stale" else now + timedelta(hours=1)
+        if kind == "naive":
+            stamp = now.replace(tzinfo=None)
+        plan["generated_at"] = stamp.isoformat()
+    path = tmp_path / "plan.json"
+    write_json_atomic(path, plan)
+    monkeypatch.setattr(sys, "argv", ["recover", "--plan", str(path), "--ref", BRANCH])
+    monkeypatch.setattr(recovery.subprocess, "run", lambda *a, **k: pytest.fail("stale dispatch attempted"))
+    with pytest.raises(ValueError):
+        recovery.main()
+
+
+def test_fresh_plan_dispatches_exact_date_once(tmp_path, monkeypatch):
+    import sys
+    recovery = module(Path("scripts/recover_jobs.py"))
+    path = tmp_path / "plan.json"
+    action = {"job_id": "daily_2026-10-05", "action": "retry"}
+    write_json_atomic(path, {"generated_at": datetime.now(timezone.utc).isoformat(), "actions": [action, action]})
+    calls = []
+    monkeypatch.setattr(sys, "argv", ["recover", "--plan", str(path), "--ref", BRANCH])
+    monkeypatch.setattr(recovery.subprocess, "run", lambda command, **kwargs: calls.append(command))
+    assert recovery.main() == 0
+    assert calls == [["gh", "workflow", "run", "daily.yml", "--ref", BRANCH, "-f", "date=2026-10-05"]]
+
+
+def test_log_handler_redacts_exception_traceback(monkeypatch):
+    import io
+    import logging
+    from pipeline.persistence import install_secret_log_filter
+    value = "diagnostic-secret-for-log-filter"
+    monkeypatch.setenv("EXAMPLE_API_KEY", value)
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+    try:
+        install_secret_log_filter()
+        try:
+            raise RuntimeError(f"diagnostic exception: {value}")
+        except RuntimeError:
+            logger.error("diagnostic message %s", value, exc_info=True)
+        assert value not in stream.getvalue() and "[REDACTED]" in stream.getvalue()
+    finally:
+        logger.removeHandler(handler)

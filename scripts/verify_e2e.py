@@ -63,10 +63,11 @@ def main():
     check("all checkpoint evidence intact", bool(entry.get("artifacts"))
           and resume_after(root, job_id, entry, names) == names[-1])
     if not entry.get("dry_run"):
-        for filename, status in [("published_jobs.json", "success"), ("pin_verification.json", "verified")]:
-            ledger = read(f"state/{filename}") or {}
-            check(filename, any(isinstance(record, dict) and record.get("job_id") == job_id
-                               and record.get("status") == status for record in ledger.get("records", {}).values()))
+        from pipeline.publication import publication_issues
+        issues = publication_issues(root, job_id, hashlib.sha256(pdf_bytes).hexdigest())
+        check("matching live publication and pin receipts", not issues)
+        for issue in issues:
+            print(f"  {issue}")
     print(f"Verification {'FAILED' if failures else 'PASSED'}: {job_id}; dry_run={entry.get('dry_run')}")
     return int(bool(failures))
 

@@ -320,8 +320,24 @@ def execute_job(job_type: str, date_str: str | None) -> int:
     same_mode = previous.get("dry_run") == (os.getenv("DRY_RUN", "0") == "1")
     names = [name for name, _, _ in stages]
     if previous.get("status") == "success" and same_mode and resume_after(ROOT, job_id, previous, names) == names[-1]:
+        if not previous.get("dry_run"):
+            import hashlib
+            from pipeline.publication import publication_issues
+            digest = hashlib.sha256((ROOT / f"output/{job_id}.pdf").read_bytes()).hexdigest()
+            issues = publication_issues(ROOT, job_id, digest, os.getenv("TELEGRAM_CHAT_ID"))
+            if issues:
+                update_job(job_id, status="failed", error="publication evidence missing; manual reconciliation required")
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state[job_id]["recovery_blocked"] = "publication evidence missing; manual reconciliation required"
+                    save_jobs_state(state)
+                log_err("Completed edition has missing/mismatched publication evidence; refusing automatic replay")
+                return 1
         log(f"job '{job_id}' already complete with intact checkpoints; use --reset for a fresh edition")
         return 0
+    if previous.get("recovery_blocked"):
+        log_err(f"job '{job_id}' requires manual reconciliation; refusing automatic replay")
+        return 1
     resume_from = resolve_resume_stage(job_id, stages)
     skipping = resume_from is not None
 
@@ -412,22 +428,34 @@ def watchdog(stuck_hours: float | None = None) -> int:
         elif status == "failed" and age_h <= FAILED_LOOKBACK_HOURS:
             failed.append(jid)
 
+    candidates = sorted(set(stuck) | set(failed))
+    manual = []
     try:
+        from pipeline.publication import records_at
+        published = records_at(ROOT / "state" / "published_events.json")
+        uncertain = {record.get("job_id") for record in published.values()
+                     if record.get("status") in {"sending", "uncertain", "blocked_revision"}}
         max_recovery = int(os.getenv("ALP_RECOVERY_MAX_ATTEMPTS", "6"))
         if max_recovery < 1:
             raise ValueError("recovery budget must be positive")
-        actions = [{"job_id": j, "action": "retry"} for j in sorted(set(stuck) | set(failed))
-                   if int(state[j].get("run_attempts", 0)) < max_recovery]
-    except (TypeError, ValueError):
+        actions = []
+        for job in candidates:
+            attempts = int(state[job].get("run_attempts", 0))
+            if job in uncertain or attempts >= max_recovery or state[job].get("recovery_blocked"):
+                manual.append({"job_id": job, "reason": state[job].get("recovery_blocked") or ("publication outcome uncertain" if job in uncertain else "recovery budget exhausted")})
+            else:
+                actions.append({"job_id": job, "action": "retry"})
+    except (TypeError, ValueError, OSError):
         write_json_atomic(ROOT / "recovery_plan.json", {"generated_at": now.isoformat(), "actions": [],
-                                                      "error": "invalid recovery budget or run-attempt counter"})
-        log_err("watchdog: invalid recovery budget or run-attempt counter; manual attention required")
+                                                      "error": "invalid recovery state, ledger, budget or run-attempt counter"})
+        log_err("watchdog: unreadable recovery state; manual attention required")
         return 2
     plan = {
         "generated_at": now.isoformat(),
         "stuck_running": stuck,
         "recent_failed_final": failed,
         "actions": actions,
+        "manual_attention": manual,
     }
 
     out = ROOT / "recovery_plan.json"

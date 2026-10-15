@@ -10,13 +10,16 @@ from datetime import datetime, timezone
 def main():
     from pipeline.agent_context import get_context
     from pipeline.persistence import write_json_atomic
-    from main import load_jobs_state
+    from main import load_jobs_state, STAGES_BY_TYPE
+    from pipeline.checkpoints import resume_after
 
     ctx = get_context()
     root = ctx.repo_root
     issues = []
     entry = load_jobs_state(strict=True).get(ctx.job_id, {})
-    if not entry.get("artifacts") or entry.get("last_success_stage") != "23_telegram_pin_verifier":
+    names = [stage[0] for stage in STAGES_BY_TYPE[ctx.job_type]]
+    if (not entry.get("artifacts") or entry.get("last_success_stage") != "23_telegram_pin_verifier"
+            or resume_after(root, ctx.job_id, entry, names) != "23_telegram_pin_verifier"):
         issues.append("pipeline has not completed all pre-audit checkpoints")
     for relative, record in entry.get("artifacts", {}).items():
         path = (root / relative).resolve()
@@ -33,14 +36,9 @@ def main():
         issues.append("PDF/QA evidence unreadable")
     dry_run = os.getenv("DRY_RUN", "0") == "1"
     if not dry_run:
-        for filename, required in [("published_jobs.json", "success"), ("pin_verification.json", "verified")]:
-            try:
-                ledger = json.loads((root / "state" / filename).read_text(encoding="utf-8"))
-                if not any(record.get("job_id") == ctx.job_id and record.get("status") == required
-                           for record in ledger.get("records", {}).values()):
-                    issues.append(f"no {required} record for this edition in {filename}")
-            except (OSError, ValueError):
-                issues.append(f"unreadable {filename}")
+        from pipeline.publication import publication_issues
+        pdf_hash = hashlib.sha256(ctx.pdf_path().read_bytes()).hexdigest() if ctx.pdf_path().is_file() else ""
+        issues.extend(publication_issues(root, ctx.job_id, pdf_hash, os.getenv("TELEGRAM_CHAT_ID")))
     report = {"job_id": ctx.job_id, "passed": not issues, "dry_run": dry_run,
               "issues": issues, "checked_at": datetime.now(timezone.utc).isoformat()}
     write_json_atomic(root / "logs" / "qa" / f"{ctx.job_id}_health.json", report)

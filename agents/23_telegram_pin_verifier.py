@@ -54,6 +54,9 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("agent.23_telegram_pin_verifier")
+from pipeline.persistence import install_secret_log_filter, redact
+install_secret_log_filter()
+
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -96,12 +99,8 @@ def load_json(path: Path, default: Any) -> Any:
 
 
 def atomic_write(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(path, data)
 
 
 # --------------------------------------------------------------------------- #
@@ -167,7 +166,11 @@ def get_pinned_message_id() -> Optional[int]:
         chat = get_chat_state()
         pinned = chat.get("pinned_message")
         if isinstance(pinned, dict):
-            return pinned.get("message_id")
+            from pipeline.publication import positive_message_id
+            message_id = pinned.get("message_id")
+            if not positive_message_id(message_id):
+                raise PinVerifyError("getChat returned an invalid pinned message id")
+            return message_id
         return None
     except PinVerifyPermanent:
         raise
@@ -247,42 +250,25 @@ def notify_channel(text: str) -> None:
 # Pipeline
 # --------------------------------------------------------------------------- #
 def get_latest_unpinned_from_ledger() -> Optional[Dict[str, Any]]:
-    """
-    Read published_events.json, find most recent successful record
-    that isn't already pin-verified.
-    """
-    pub = load_json(PUBLISHED_LEDGER, {"records": {}})
-    records = pub.get("records", {})
-    if not records:
-        return None
-
-    pin_ledger = load_json(PIN_LEDGER, {"records": {}})
-
-    # Sort records by published_at desc
-    sorted_recs = sorted(
-        records.values(),
-        key=lambda r: r.get("published_at", ""),
-        reverse=True,
-    )
-
-    for rec in sorted_recs:
-        if os.getenv("ALP_JOB_ID") and rec.get("job_id") != os.getenv("ALP_JOB_ID"):
+    """Select this edition's exact live receipt, never an unrelated/old PDF."""
+    from pipeline.publication import records_at, positive_message_id
+    records = records_at(PUBLISHED_LEDGER)
+    job_id = os.getenv("ALP_JOB_ID")
+    current_hash = None
+    if job_id:
+        pdf = REPO_ROOT / "output" / f"{job_id}.pdf"
+        if not pdf.is_file():
+            return None
+        current_hash = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    for rec in sorted(records.values(), key=lambda r: str(r.get("published_at", "")), reverse=True):
+        if job_id and (rec.get("job_id") != job_id or rec.get("file_sha256") != current_hash):
             continue
-        if rec.get("status") != "success":
+        if (rec.get("status") != "success" or rec.get("dry_run")
+                or not positive_message_id(rec.get("message_id"))
+                or str(rec.get("chat_id")) != str(TELEGRAM_CHAT_ID)):
             continue
-        msg_id = rec.get("message_id")
-        if not msg_id:
-            continue
-
-        # Unique key: chat_id + message_id
-        pin_key = hashlib.sha256(
-            f"{rec.get('chat_id')}|{msg_id}".encode("utf-8")
-        ).hexdigest()[:24]
-        if pin_ledger.get("records", {}).get(pin_key, {}).get("status") == "verified":
-            continue
-
         rec = dict(rec)
-        rec["_pin_key"] = pin_key
+        rec["_pin_key"] = hashlib.sha256(f"{rec['chat_id']}|{rec['message_id']}".encode()).hexdigest()[:24]
         return rec
     return None
 
@@ -296,19 +282,13 @@ def process_verification(record: Dict[str, Any]) -> bool:
         f"{chat_id}|{msg_id}".encode("utf-8")
     ).hexdigest()[:24]
 
-    if not msg_id or not chat_id:
-        logger.warning("Record missing message_id/chat_id — skipping")
+    from pipeline.publication import positive_message_id, records_at
+    if not positive_message_id(msg_id) or str(chat_id) != str(TELEGRAM_CHAT_ID):
+        logger.warning("Record has invalid message_id or targets another chat — refusing pin")
         return False
 
-    pin_ledger = load_json(PIN_LEDGER, {"version": 1, "records": {}})
-    pin_ledger.setdefault("records", {})
-
-    # Already verified?
-    existing = pin_ledger["records"].get(pin_key, {})
-    if existing.get("status") == "verified":
-        logger.info("Already verified: job=%s msg_id=%s", job_id, msg_id)
-        return True
-
+    pin_ledger = {"version": 1, "records": records_at(PIN_LEDGER)}
+    # A cached receipt is not current Telegram state. Re-check on every live run.
     if DRY_RUN:
         logger.info("[DRY-RUN] Would verify + pin msg_id=%s (job=%s)", msg_id, job_id)
         return True
@@ -371,6 +351,7 @@ def _record_success(ledger: Dict[str, Any], key: str,
         "chat_id": record.get("chat_id"),
         "message_id": record.get("message_id"),
         "pinned_message_id": pinned_id,
+        "file_sha256": record.get("file_sha256"),
         "status": "verified",
         "verified_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -384,7 +365,7 @@ def _record_failure(ledger: Dict[str, Any], key: str,
         "chat_id": record.get("chat_id"),
         "message_id": record.get("message_id"),
         "status": "failed",
-        "error": error[:500],
+        "error": redact(error, dict(os.environ))[:500],
         "failed_at": datetime.now(timezone.utc).isoformat(),
     }
     atomic_write(PIN_LEDGER, ledger)
@@ -402,10 +383,17 @@ def main() -> int:
             logger.error("TELEGRAM_CHAT_ID not set")
             return 1
 
-    record = get_latest_unpinned_from_ledger()
+    try:
+        record = get_latest_unpinned_from_ledger()
+    except (ValueError, OSError) as exc:
+        logger.error("Publication ledger unreadable: %s", exc)
+        return 1
     if record is None:
-        logger.info("No pending pin verification — nothing to do.")
-        return 0
+        if DRY_RUN:
+            logger.info("[DRY-RUN] No live publication receipt to pin.")
+            return 0
+        logger.error("No matching live publication receipt for this edition/chat; refusing pin")
+        return 1
 
     logger.info(
         "Verifying pin | job=%s msg_id=%s chat=%s",

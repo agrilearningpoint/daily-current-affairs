@@ -41,3 +41,22 @@ def redact(text: str, environment: dict) -> str:
         if (name.endswith(("_KEY", "_TOKEN")) or name == "GH_TOKEN") and len(value) >= 6:
             text = text.replace(value, "[REDACTED]").replace(quote(value, safe=""), "[REDACTED]")
     return text
+
+
+def install_secret_log_filter():
+    """Redact handler output as well as orchestrator-captured stdout/stderr."""
+    import logging
+
+    class SecretFilter(logging.Filter):
+        def filter(self, record):
+            record.msg = redact(record.getMessage(), dict(os.environ))
+            record.args = ()
+            if record.exc_info:
+                record.exc_text = redact(logging.Formatter().formatException(record.exc_info), dict(os.environ))
+            return True
+
+    for handler in logging.getLogger().handlers:
+        if not any(getattr(item, "alp_secret_filter", False) for item in handler.filters):
+            filter_ = SecretFilter()
+            filter_.alp_secret_filter = True
+            handler.addFilter(filter_)

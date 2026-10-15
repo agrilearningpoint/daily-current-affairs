@@ -31,7 +31,15 @@ def main():
     parser.add_argument("--ref", required=True)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    for job in recovery_jobs(json.loads(args.plan.read_text(encoding="utf-8"))):
+    plan = json.loads(args.plan.read_text(encoding="utf-8"))
+    if not args.dry_run:
+        from datetime import datetime, timezone
+        if not isinstance(plan, dict) or not isinstance(plan.get("generated_at"), str):
+            raise ValueError("fresh timestamped watchdog plan required for dispatch")
+        generated = datetime.fromisoformat(plan["generated_at"].replace("Z", "+00:00"))
+        if generated.tzinfo is None or not -60 <= (datetime.now(timezone.utc) - generated).total_seconds() <= 900:
+            raise ValueError("watchdog plan is stale or has an invalid future timestamp")
+    for job in recovery_jobs(plan):
         kind, date = job.split("_", 1)
         command = ["gh", "workflow", "run", WORKFLOWS[kind], "--ref", args.ref, "-f", f"date={date}"]
         print("recovery:", " ".join(command), flush=True)

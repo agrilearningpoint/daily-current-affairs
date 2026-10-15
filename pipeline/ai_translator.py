@@ -184,29 +184,33 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
         logger.error("[Translator] requests library missing")
         return None
 
-    headers = {
-        "Authorization": f"Bearer {provider['key']}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": provider["model"],
-        "temperature": 0.1,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    }
+    if provider["name"] == "gemini":
+        url = f"{provider['url']}/{provider['model']}:generateContent"
+        headers = {"x-goog-api-key": provider["key"], "Content-Type": "application/json"}
+        payload = {"systemInstruction": {"parts": [{"text": system}]},
+                   "contents": [{"role": "user", "parts": [{"text": user}]}],
+                   "generationConfig": {"temperature": 0.1}}
+    else:
+        url = provider["url"]
+        headers = {"Authorization": f"Bearer {provider['key']}", "Content-Type": "application/json"}
+        payload = {"model": provider["model"], "temperature": 0.1,
+                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
-        r = requests.post(provider["url"], headers=headers, json=payload, timeout=TIMEOUT)
+        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
         if r.status_code == 429:
             logger.warning("[Translator] %s rate-limited (429)", provider["name"])
             return None
         r.raise_for_status()
         data = r.json()
+        if provider["name"] == "gemini":
+            candidates = data.get("candidates") or []
+            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+            return "".join(part.get("text", "") for part in parts).strip() or None
         # OpenAI-compatible shape
         return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
     except Exception as exc:
-        logger.warning("[Translator] %s failed: %s", provider["name"], exc)
+        from pipeline.persistence import redact
+        logger.warning("[Translator] %s failed: %s", provider["name"], redact(str(exc), dict(os.environ)))
         return None
 
 

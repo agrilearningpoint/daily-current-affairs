@@ -22,14 +22,17 @@ STAGE_FILES = {
 }
 
 
-def capture(root: Path, job_id: str, stage: str, previous: dict) -> dict:
-    """Mutable shared outputs retain their earliest producing stage for rewind."""
-    artifacts = dict(previous)
+def stage_outputs(stage: str, job_id: str):
     templates = [STAGE_FILES[stage]] if stage in STAGE_FILES else []
     if stage in {"20_weekly_editor", "21_monthly_editor"}:
         templates.append("data/scored/{job}.json")
-    for template in templates:
-        relative = template.format(job=job_id)
+    return [template.format(job=job_id) for template in templates]
+
+
+def capture(root: Path, job_id: str, stage: str, previous: dict) -> dict:
+    """Mutable shared outputs retain their earliest producing stage for rewind."""
+    artifacts = dict(previous)
+    for relative in stage_outputs(stage, job_id):
         path = root / relative
         if not path.is_file() or path.stat().st_size == 0:
             raise ValueError(f"stage {stage} did not produce {relative}")
@@ -48,12 +51,10 @@ def resume_after(root: Path, job_id: str, entry: dict, stage_names: list[str]):
     artifacts = entry.get("artifacts", {})
     if not isinstance(artifacts, dict):
         return None
-    # Legacy checkpoints have no digests: inspect all required stage outputs.
+    # Legacy/hashless outputs cannot authorize a skip; regenerate their producer.
     checks = dict(artifacts)
     for stage in stage_names[:last_index + 1]:
-        template = STAGE_FILES.get(stage)
-        if template:
-            relative = template.format(job=job_id)
+        for relative in stage_outputs(stage, job_id):
             checks.setdefault(relative, {"stage": stage})
     first_invalid = last_index + 1
     for relative, record in checks.items():
@@ -66,9 +67,10 @@ def resume_after(root: Path, job_id: str, entry: dict, stage_names: list[str]):
         producer = stage_names.index(record["stage"])
         if producer > last_index:
             continue
-        valid = path.is_file() and path.stat().st_size > 0
-        if valid and record.get("sha256"):
-            valid = hashlib.sha256(path.read_bytes()).hexdigest() == record["sha256"]
+        digest = record.get("sha256")
+        valid = path.is_file() and path.stat().st_size > 0 and isinstance(digest, str) and len(digest) == 64
+        if valid:
+            valid = hashlib.sha256(path.read_bytes()).hexdigest() == digest
         if not valid:
             first_invalid = min(first_invalid, producer)
     if first_invalid <= 1:

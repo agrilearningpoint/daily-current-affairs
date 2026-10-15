@@ -13,6 +13,11 @@ on:
         description: 'Target date YYYY-MM-DD (default today IST)'
         required: false
         type: string
+      allow_revision:
+        description: 'Explicitly approve publishing a corrected PDF for an already-published edition (does not override uncertain sends)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: current-affairs-weekly
@@ -100,6 +105,15 @@ jobs:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           TZ: Asia/Kolkata
           EDITION_DATE: ${{ env.EDITION_DATE }}
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-flash-latest' }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-4o-mini' }}
+          ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
         run: |
           DATE="$EDITION_DATE"
           echo "DATE=$DATE" >> "$GITHUB_ENV"
