@@ -44,6 +44,13 @@ logger = logging.getLogger(__name__)
 TIMEOUT = int(os.getenv("ALP_TRANSLATION_TIMEOUT", "45"))
 MAX_RETRIES = int(os.getenv("ALP_TRANSLATION_MAX_RETRIES", "2"))
 CACHE_MAX_SIZE = int(os.getenv("ALP_TRANSLATION_CACHE_SIZE", "2000"))
+# Circuit breaker: a provider that answers 429 keeps the whole translation stage
+# blocked for minutes on every single text, and one that answers 401/402/403/404
+# never recovers inside the run at all. Park it instead of re-dialling it.
+PROVIDER_COOLDOWN = int(os.getenv("ALP_TRANSLATION_PROVIDER_COOLDOWN", "600"))
+PROVIDER_DEAD_COOLDOWN = int(os.getenv("ALP_TRANSLATION_PROVIDER_DEAD_COOLDOWN", "3600"))
+# Status codes that mean "this credential/quota is not usable right now".
+_DEAD_STATUS = {401, 402, 403, 404}
 
 # Regexes for validation (mirrors content.py to stay consistent)
 _NUM_RE = re.compile(
@@ -83,6 +90,35 @@ class _LRUCache:
 
 
 _CACHE = _LRUCache()
+
+
+# --------------------------------------------------------------------------- #
+# Provider circuit breaker
+# --------------------------------------------------------------------------- #
+_PROVIDER_DOWN_UNTIL: Dict[str, float] = {}
+
+
+def _provider_available(name: str) -> bool:
+    """False while the provider is parked after a failure."""
+    return _PROVIDER_DOWN_UNTIL.get(name, 0.0) <= time.monotonic()
+
+
+def _park_provider(name: str, seconds: int, reason: str) -> None:
+    until = time.monotonic() + max(0, seconds)
+    if until > _PROVIDER_DOWN_UNTIL.get(name, 0.0):
+        if not _PROVIDER_DOWN_UNTIL.get(name):
+            logger.warning("[Translator] %s parked for %ds (%s)", name, seconds, reason)
+        _PROVIDER_DOWN_UNTIL[name] = until
+
+
+def reset_provider_circuits() -> None:
+    """Clear park timers (used by tests and by a fresh translator process)."""
+    _PROVIDER_DOWN_UNTIL.clear()
+
+
+def available_providers() -> List[Dict[str, Any]]:
+    """Configured providers that are not currently parked."""
+    return [p for p in _discover_providers() if _provider_available(p.get("name", ""))]
 
 
 def _cache_key(text: str, task: str) -> str:
@@ -195,10 +231,16 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
         headers = {"Authorization": f"Bearer {provider['key']}", "Content-Type": "application/json"}
         payload = {"model": provider["model"], "temperature": 0.1,
                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+    name = provider["name"]
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        if r.status_code in _DEAD_STATUS:
+            logger.warning("[Translator] %s rejected credentials/request (%d)", name, r.status_code)
+            _park_provider(name, PROVIDER_DEAD_COOLDOWN, f"HTTP {r.status_code}")
+            return None
         if r.status_code == 429:
-            logger.warning("[Translator] %s rate-limited (429)", provider["name"])
+            logger.warning("[Translator] %s rate-limited (429)", name)
+            _park_provider(name, PROVIDER_COOLDOWN, "HTTP 429 rate limit")
             return None
         r.raise_for_status()
         data = r.json()
@@ -210,7 +252,9 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
         return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
     except Exception as exc:
         from pipeline.persistence import redact
-        logger.warning("[Translator] %s failed: %s", provider["name"], redact(str(exc), dict(os.environ)))
+        logger.warning("[Translator] %s failed: %s", name, redact(str(exc), dict(os.environ)))
+        if not str(exc).startswith("4"):
+            _park_provider(name, PROVIDER_COOLDOWN, type(exc).__name__)
         return None
 
 
@@ -278,14 +322,16 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
         logger.debug("[Translator] cache hit for task=%s", task)
         return cached
 
-    providers = _discover_providers()
+    providers = available_providers()
     if not providers:
+        configured = bool(_discover_providers())
         result = {
             "translated_hi": "",
             "passed": False,
             "confidence": 0.0,
-            "provider": "none",
-            "issues": ["no providers configured"],
+            "provider": "parked" if configured else "none",
+            "issues": ["all providers parked after failures" if configured
+                       else "no providers configured"],
         }
         _CACHE.put(key, result)
         return result
@@ -295,6 +341,8 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
 
     for provider in providers:
         for attempt in range(1, MAX_RETRIES + 1):
+            if not _provider_available(provider["name"]):
+                break  # parked by a previous attempt/text; do not sleep and retry
             hindi = _call_provider(provider, system, user)
             if not hindi:
                 if attempt < MAX_RETRIES:
@@ -322,13 +370,15 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                                provider["name"], issues)
                 break  # try next provider
 
-    # All providers failed
+    # All providers failed. If none of them can be dialled any more, say so —
+    # the caller and the logs must not look like a per-text content problem.
+    parked = not available_providers()
     result = {
         "translated_hi": "",
         "passed": False,
         "confidence": 0.0,
-        "provider": "all-failed",
-        "issues": last_issues,
+        "provider": "parked" if parked else "all-failed",
+        "issues": last_issues or (["all providers parked after failures"] if parked else []),
     }
     _CACHE.put(key, result)
     return result

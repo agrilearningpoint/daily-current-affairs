@@ -37,7 +37,7 @@ jobs:
       REF: ${{ github.ref_name }}
       EDITION_DATE: "2026-10-15"
       # empty = dispatch a new dry run; otherwise collect evidence for this run id
-      COLLECT_RUN_ID: "38693854648"
+      COLLECT_RUN_ID: ""
       RESET_INPUT: "false"
     steps:
       - name: Checkout branch
