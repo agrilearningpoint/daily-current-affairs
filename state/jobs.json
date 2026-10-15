@@ -151,9 +151,29 @@
       "data/selected/daily_2026-10-15.json": {
         "stage": "10_final_news_selection",
         "sha256": "61551d85c6b4d7dffe46ea6ef59aef414c6ec1afa5068e1038219de753618fbe"
+      },
+      "data/content/daily_2026-10-15.json": {
+        "stage": "12_content_editor",
+        "sha256": "7c6d828adba529912c259c8e5fc2237b297af55b60abd39967411aa4497a7054"
+      },
+      "data/mcq/daily_2026-10-15.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "4adf8f1610d2ed9dc7dbccf61ce1fe6123e8c9072a1e755f66112f921f658eb8"
+      },
+      "output/daily_2026-10-15.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "78b89245baae03126a72071ef724ecaea3da885f526f9828536ab2c493a0caf8"
+      },
+      "logs/qa/daily_2026-10-15_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "cfe17505c8d0c27b0be930c2b71eb6aede7823c06e60f091cb03c1767c62ab95"
+      },
+      "logs/qa/daily_2026-10-15_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "b0b53a6a2c92c16aae8492d8369187dfe7cb1dd87727646da0a6a5639e3c9cab"
       }
     },
-    "run_attempts": 3,
+    "run_attempts": 4,
     "job_id": "daily_2026-10-15",
     "job_type": "daily",
     "job_date": "2026-10-15",
@@ -163,11 +183,9 @@
       "end": "2026-10-15T11:25:01.482065+05:30"
     },
     "github_run_id": "38699332232",
-    "status": "running",
-    "updated_at": "2026-10-15T07:31:53.608395+00:00",
-    "checkpoint_run_id": "38693854648",
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): timeout after 900s",
-    "failed_stage": "12_content_editor"
+    "status": "success",
+    "updated_at": "2026-10-15T07:32:19.305263+00:00",
+    "checkpoint_run_id": "38699332232",
+    "last_success_stage": "24_final_health_audit"
   }
 }
