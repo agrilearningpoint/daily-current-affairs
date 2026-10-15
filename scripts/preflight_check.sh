@@ -37,7 +37,7 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find . -name "*.py" \
   -not -path "./.git/*" -not -path "./.venv/*" -not -path "*/__pycache__/*" \
-  -not -path "./build/*" -not -path "./dist/*" -print0)
+  -not -path "./reports/*" -not -path "./build/*" -not -path "./dist/*" -print0)
 [ $SYNTAX_FAIL -eq 0 ] && ok "All Python files compile"
 
 # -----------------------------------------------------------------------------
@@ -67,7 +67,7 @@ done
 # 3. Python imports
 # -----------------------------------------------------------------------------
 step "3/12 Critical imports"
-python - <<'PY' 2>&1 | grep -v "^\s*$" || true
+python - <<'PY' 2>&1 | grep -v "^\s*$"
 import importlib, sys
 mods = ["main", "pipeline.state", "pipeline.store", "pipeline.ai_router",
         "pipeline.ai_translator"]
@@ -101,13 +101,14 @@ done
 # -----------------------------------------------------------------------------
 step "5/12 State load (backward compat)"
 if [ -f state/jobs.json ]; then
-  python -c "
-from main import load_state
-s = load_state()
-print(f'  ✅ Loaded {len(s.jobs)} jobs')
-for jid, j in list(s.jobs.items())[:3]:
-    print(f'     {jid:25s} {j.status:12s} {j.job_type}')
-" || err "State load failed"
+  python - <<'PY' || err "State load failed"
+from main import load_jobs_state
+state = load_jobs_state(strict=True)
+print(f"  Loaded {len(state)} jobs")
+for job_id, job in list(state.items())[:3]:
+    print(job_id, job.get("status"), job.get("job_type", "daily"))
+PY
+
 else
   warn "state/jobs.json not found — first run?"
 fi
@@ -124,6 +125,7 @@ if not path.exists():
     print('  ⚠  03_news_collection.py missing — skip'); sys.exit(0)
 spec = importlib.util.spec_from_file_location('nc', str(path))
 mod = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = mod
 spec.loader.exec_module(mod)
 hindi = 'कैबिनेट ने 5% MSP बढ़ाया'
 out = mod.clean_text(hindi)
@@ -145,7 +147,7 @@ while IFS= read -r -d '' f; do
   fi
 done < <(find . -name "*.json" \
   -not -path "./.git/*" -not -path "./.venv/*" \
-  -not -path "./data/*" -not -path "./state/backups/*" \
+  -not -path "./reports/*" -not -path "./data/*" -not -path "./state/backups/*" \
   -not -path "./state/archive/*" -not -path "*/node_modules/*" -print0)
 [ $JSON_FAIL -eq 0 ] && ok "All JSON configs valid"
 
@@ -182,7 +184,9 @@ step "9/12 Tests"
 if command -v pytest >/dev/null 2>&1; then
   if [ -d tests ]; then
     RESULT=$(pytest tests/ -q --tb=line 2>&1 | tail -3)
-    echo "$RESULT" | grep -q "passed" && ok "Tests pass" || warn "Test summary: $RESULT"
+    RESULT_RC=$?
+    echo "$RESULT"
+    [ "$RESULT_RC" -eq 0 ] && ok "Tests pass" || err "Tests failed (exit $RESULT_RC)"
   else
     warn "No tests/ directory"
   fi

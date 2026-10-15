@@ -510,52 +510,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    args = parse_args()
-    ref = None
-    if args.date:
-        try:
-            ref = datetime.fromisoformat(args.date).replace(tzinfo=timezone.utc)
-        except ValueError:
-            logger.error("Invalid --date: %s", args.date)
-            return 1
-
-    start, end, month_str = resolve_month_range(ref)
-    logger.info("Monthly window: %s → %s (month=%s)", start.isoformat(), end.isoformat(), month_str)
-
-    try:
-        weekly_digests = load_weekly_digests(start, end)
-    except Exception as exc:
-        logger.exception("Failed to load weekly digests: %s", exc)
-        weekly_digests = []
-
-    articles: List[Dict[str, Any]] = []
-    if not weekly_digests:
-        logger.warning("No weekly digests found; falling back to edited articles.")
-        try:
-            articles = load_edited_articles(start, end)
-        except Exception as exc:
-            logger.exception("Failed to load edited articles: %s", exc)
-            articles = []
-
-    articles = deduplicate_articles(articles)
-    articles = rank_articles(articles)
-
-    if not articles and not weekly_digests:
-        logger.warning("No data for month %s. Emitting empty digest.", month_str)
-        empty = rule_based_digest([], [], start, end, month_str)
-        save_digest(empty, os.path.join(OUTPUT_DIR, f"monthly_{month_str}.json"))
-        return 0
-
-    try:
-        digest = build_monthly_digest(articles, weekly_digests, start, end, month_str)
-    except Exception as exc:
-        logger.exception("Digest build failed: %s", exc)
-        digest = rule_based_digest(articles, weekly_digests, start, end, month_str)
-
-    output_file = os.path.join(OUTPUT_DIR, f"monthly_{month_str}.json")
-    save_digest(digest, output_file)
-    logger.info("Monthly editor stage completed successfully.")
-    return 0
+    from pipeline.agent_context import get_context
+    from pipeline.period_editor import prepare
+    return prepare(get_context())
 
 
 if __name__ == "__main__":

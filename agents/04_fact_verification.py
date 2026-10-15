@@ -40,6 +40,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+from difflib import SequenceMatcher
 
 import requests
 
@@ -134,6 +136,16 @@ def content_hash(article: Dict[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 # Strategy 1: Cross-Source Corroboration
 # --------------------------------------------------------------------------- #
+def independent_domain(url):
+    """Group sibling subdomains; recognize common multi-label public suffixes."""
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    labels = host.split(".")
+    suffixes = {"co.in", "gov.in", "nic.in", "org.in", "net.in", "ac.in", "edu.in",
+                "co.uk", "org.uk", "com.au", "co.jp", "co.nz", "com.br"}
+    count = 3 if ".".join(labels[-2:]) in suffixes else 2
+    return ".".join(labels[-count:])
+
+
 def cross_source_score(
     article: Dict[str, Any],
     all_articles: List[Dict[str, Any]],
@@ -149,20 +161,29 @@ def cross_source_score(
         return 0.3, []  # no terms → weak but non-zero
 
     article_link = article.get("link", "")
+    own_host = independent_domain(article_link)
     corroborating: List[str] = []
-
+    title = clean_text(article.get("title", "")).lower()
+    numbers = {float(value) for value in re.findall(r"\b\d+(?:\.\d+)?\b", title)}
     for other in all_articles:
-        if other.get("link") == article_link:
+        other_link = other.get("link", "")
+        host = independent_domain(other_link)
+        # Syndicated pages or another article in the same feed are not independent proof.
+        if not host or host == own_host or other_link == article_link:
             continue
-        other_text = f"{other.get('title', '')} {other.get('summary', '')}"
+        other_title = clean_text(other.get("title", "")).lower()
+        other_numbers = {float(value) for value in re.findall(r"\b\d+(?:\.\d+)?\b", other_title)}
+        if numbers and other_numbers and numbers != other_numbers:
+            continue
+        other_text = f"{other_title} {other.get('summary', '')}"
         other_terms = set(extract_key_terms(other_text))
         if not other_terms:
             continue
-        overlap = len(art_terms & other_terms) / max(len(art_terms), 1)
-        if overlap >= similarity_threshold:
-            src = other.get("source_feed", "unknown")
-            if src not in corroborating:
-                corroborating.append(src)
+        overlap = len(art_terms & other_terms) / max(len(art_terms | other_terms), 1)
+        similarity = SequenceMatcher(None, title, other_title).ratio()
+        if overlap >= max(similarity_threshold, 0.55) and similarity >= 0.65:
+            if host not in corroborating:
+                corroborating.append(host)
 
     n = len(corroborating)
     if n >= 3:
@@ -317,9 +338,18 @@ def verify_article(
         method = "heuristic+cross_source"
 
     all_flags = heur_flags + llm_flags
-    is_verified = final >= MIN_CONFIDENCE_THRESHOLD
+    dry_run = os.getenv("DRY_RUN", "0") == "1"
+    host = (urlparse(article.get("link", "")).hostname or "").removeprefix("www.")
+    publisher = (urlparse(article.get("publisher_url") or article.get("source_feed", "")).hostname or "").removeprefix("www.")
+    primary = (article.get("official") is True and bool(publisher)
+               and (host == publisher or host.endswith("." + publisher)))
+    provenance = primary or len(corroborating) >= 2
+    is_verified = final >= MIN_CONFIDENCE_THRESHOLD and (dry_run or provenance)
+    if not provenance:
+        all_flags.append("independent_source_verification_missing")
 
     return {
+        **article,
         "event_id": content_hash(article),
         "title": clean_text(article.get("title", ""), 500),
         "link": article.get("link", ""),
@@ -333,6 +363,8 @@ def verify_article(
         "corroborating_sources": corroborating,
         "flags": all_flags,
         "is_verified": is_verified,
+        "verification_mode": "dry_run" if dry_run else "live",
+        "provenance_verified": provenance,
     }
 
 
@@ -340,14 +372,8 @@ def verify_article(
 # I/O
 # --------------------------------------------------------------------------- #
 def load_latest_raw() -> Optional[Path]:
-    if not INPUT_DIR.exists():
-        return None
-    files = sorted(
-        [f for f in INPUT_DIR.glob("news_*.json") if f.is_file()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return files[0] if files else None
+    from pipeline.agent_context import get_context
+    return get_context().find_input("raw")
 
 
 def atomic_write_json(path: Path, data: Any) -> None:
@@ -370,7 +396,8 @@ def main() -> int:
 
     logger.info("Loading raw articles from %s", input_file.name)
     try:
-        articles = json.loads(input_file.read_text(encoding="utf-8"))
+        from pipeline.artifacts import read_news_items
+        articles = read_news_items(input_file)
     except Exception as exc:
         logger.exception("Failed to load %s: %s", input_file, exc)
         return 1
@@ -378,8 +405,9 @@ def main() -> int:
     if not isinstance(articles, list) or not articles:
         logger.error("Raw file is empty or malformed: %s", input_file)
         # Emit empty verified file so downstream doesn't crash
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        atomic_write_json(OUTPUT_DIR / f"verified_{date_str}.json", [])
+        from pipeline.agent_context import get_context
+        date_str = get_context().job_date
+        atomic_write_json(get_context().output_path("verified"), {"items": []})
         return 1
 
     logger.info(
@@ -432,13 +460,13 @@ def main() -> int:
             len(passed), MIN_VERIFIED_COUNT, MIN_CONFIDENCE_THRESHOLD,
         )
         # Emit whatever we have so downstream can inspect, but exit non-zero
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        atomic_write_json(OUTPUT_DIR / f"verified_{date_str}.json", passed)
+        from pipeline.agent_context import get_context
+        atomic_write_json(get_context().output_path("verified"), {"items": passed})
         return 1
 
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    output_file = OUTPUT_DIR / f"verified_{date_str}.json"
-    atomic_write_json(output_file, passed)
+    from pipeline.agent_context import get_context
+    output_file = get_context().output_path("verified")
+    atomic_write_json(output_file, {"items": passed})
     logger.info("✔ Fact verification completed: %d items → %s", len(passed), output_file)
     return 0
 

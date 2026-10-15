@@ -40,6 +40,9 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("agent.00_model_orchestrator")
+from pipeline.persistence import install_secret_log_filter
+install_secret_log_filter()
+
 
 STATE_DIR = REPO_ROOT / "state"
 STATE_DIR.mkdir(exist_ok=True)
@@ -51,7 +54,7 @@ SKIP_HEALTHCHECK = os.getenv("ORCHESTRATOR_SKIP_HEALTHCHECK", "0") == "1"
 PROVIDERS = [
     {"name": "gemini", "env_keys": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
      "url": "https://generativelanguage.googleapis.com/v1beta/models",
-     "model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash"), "priority": 10},
+     "model": os.getenv("GEMINI_MODEL", "gemini-flash-latest"), "priority": 10},
     {"name": "groq", "env_keys": ["GROQ_API_KEY"],
      "url": "https://api.groq.com/openai/v1/chat/completions",
      "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "priority": 20},
@@ -66,14 +69,13 @@ PROVIDERS = [
 
 # --------------------------------------------------------------------------- #
 def load_keys() -> List[Dict[str, Any]]:
-    out = []
-    for p in PROVIDERS:
-        for env in p["env_keys"]:
-            key = os.getenv(env)
-            if key:
-                out.append({**p, "key": key, "env_used": env})
-                break
-    return out
+    from pipeline.ai_router import _build_default_providers
+    env_names = {"gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
+                 "groq": "GROQ_API_KEY", "openai": "OPENAI_API_KEY", "mistral": "MISTRAL_API_KEY",
+                 "generic-openai": "LLM_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+    return [{"name": provider.name, "url": provider.url, "key": provider.key,
+             "model": provider.model, "priority": provider.priority,
+             "env_used": env_names[provider.name]} for provider in _build_default_providers()]
 
 
 def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
@@ -108,6 +110,14 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
             )
 
         if r.status_code == 200:
+            body = r.json()
+            if name == "gemini":
+                parts = (body.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+                text = "".join(part.get("text", "") for part in parts)
+            else:
+                text = (body.get("choices") or [{}])[0].get("message", {}).get("content")
+            if not isinstance(text, str) or not text.strip():
+                return {"status": "malformed", "detail": "provider returned no text"}
             return {"status": "ok", "detail": "live"}
         if r.status_code == 401:
             return {"status": "auth_error", "detail": "invalid key"}
@@ -119,7 +129,8 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
     except requests.Timeout:
         return {"status": "timeout", "detail": "15s timeout"}
     except Exception as exc:
-        return {"status": "error", "detail": str(exc)[:200]}
+        from pipeline.persistence import redact
+        return {"status": "error", "detail": redact(str(exc), os.environ)[:200]}
 
 
 def atomic_write(path: Path, data: Any) -> None:

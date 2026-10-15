@@ -1,0 +1,240 @@
+{
+  "synthetic_full_pipeline_runs": [
+    {
+      "scenario": "test_daily_pipeline_end_to_end0",
+      "job_id": "daily_2026-10-05",
+      "synthetic": true,
+      "dry_run": true,
+      "status": "success",
+      "stages": [
+        "00_model_orchestrator",
+        "01_source_fetch",
+        "04_fact_verification",
+        "05_deduplication",
+        "06_news_importance",
+        "07_student_domain_relevance",
+        "10_final_news_selection",
+        "11_importance_memory",
+        "12_content_editor",
+        "16_mcq_generator",
+        "17_mcq_validator",
+        "18_pdf_design",
+        "19_pdf_qa",
+        "22_telegram_publisher",
+        "23_telegram_pin_verifier",
+        "24_final_health_audit"
+      ],
+      "stage_count": 16,
+      "run_attempts": 2,
+      "artifacts_verified": 10,
+      "all_checkpoint_hashes_match": true,
+      "pdf_sha256": "c7f88e64f296c833887e9640f1115b2d6ed66d7c99689456be694446457ec98e",
+      "pdf_pages": 15,
+      "qa_passed": true,
+      "health_passed": true,
+      "mcq_count": 15,
+      "live_ledger_written": false,
+      "window": {
+        "start": "2026-10-04T00:00:00+05:30",
+        "end": "2026-10-04T23:59:59.999999+05:30"
+      }
+    },
+    {
+      "scenario": "test_daily_pipeline_end_to_end0",
+      "job_id": "weekly_2026-10-04",
+      "synthetic": true,
+      "dry_run": true,
+      "status": "success",
+      "stages": [
+        "00_model_orchestrator",
+        "20_weekly_editor",
+        "12_content_editor",
+        "16_mcq_generator",
+        "17_mcq_validator",
+        "18_pdf_design",
+        "19_pdf_qa",
+        "22_telegram_publisher",
+        "23_telegram_pin_verifier",
+        "24_final_health_audit"
+      ],
+      "stage_count": 10,
+      "run_attempts": 1,
+      "artifacts_verified": 7,
+      "all_checkpoint_hashes_match": true,
+      "pdf_sha256": "530a94e27f3cf7633bb1c398d3ff31698a14f4eb181d497d9056bce95e1681c0",
+      "pdf_pages": 15,
+      "qa_passed": true,
+      "health_passed": true,
+      "mcq_count": 15,
+      "live_ledger_written": false,
+      "window": {
+        "start": "2026-09-28T00:00:00+05:30",
+        "end": "2026-10-04T23:59:59.999999+05:30"
+      }
+    },
+    {
+      "scenario": "test_daily_pipeline_end_to_end0",
+      "job_id": "monthly_2026-10-14",
+      "synthetic": true,
+      "dry_run": true,
+      "status": "success",
+      "stages": [
+        "00_model_orchestrator",
+        "21_monthly_editor",
+        "12_content_editor",
+        "16_mcq_generator",
+        "17_mcq_validator",
+        "18_pdf_design",
+        "19_pdf_qa",
+        "22_telegram_publisher",
+        "23_telegram_pin_verifier",
+        "24_final_health_audit"
+      ],
+      "stage_count": 10,
+      "run_attempts": 1,
+      "artifacts_verified": 7,
+      "all_checkpoint_hashes_match": true,
+      "pdf_sha256": "259f99d90df6c9478920634659aba6da72237d9d4aa454ec8dfa791fd83030fc",
+      "pdf_pages": 15,
+      "qa_passed": true,
+      "health_passed": true,
+      "mcq_count": 15,
+      "live_ledger_written": false,
+      "window": {
+        "start": "2026-10-01T00:00:00+05:30",
+        "end": "2026-10-14T23:59:59.999999+05:30"
+      }
+    },
+    {
+      "scenario": "test_daily_pipeline_end_to_end1",
+      "job_id": "daily_2026-10-05",
+      "synthetic": true,
+      "dry_run": true,
+      "status": "success",
+      "stages": [
+        "00_model_orchestrator",
+        "01_source_fetch",
+        "04_fact_verification",
+        "05_deduplication",
+        "06_news_importance",
+        "07_student_domain_relevance",
+        "10_final_news_selection",
+        "11_importance_memory",
+        "12_content_editor",
+        "16_mcq_generator",
+        "17_mcq_validator",
+        "18_pdf_design",
+        "19_pdf_qa",
+        "22_telegram_publisher",
+        "23_telegram_pin_verifier",
+        "24_final_health_audit"
+      ],
+      "stage_count": 16,
+      "run_attempts": 3,
+      "artifacts_verified": 10,
+      "all_checkpoint_hashes_match": true,
+      "pdf_sha256": "d8ab3139b4013a9583f00d6f48834f21d56b3cf96507629a5b4fdfadff769a3f",
+      "pdf_pages": 15,
+      "qa_passed": true,
+      "health_passed": true,
+      "mcq_count": 15,
+      "live_ledger_written": false,
+      "window": {
+        "start": "2026-10-04T00:00:00+05:30",
+        "end": "2026-10-04T23:59:59.999999+05:30"
+      }
+    },
+    {
+      "scenario": "test_daily_pipeline_end_to_end1",
+      "job_id": "weekly_2026-10-04",
+      "synthetic": true,
+      "dry_run": true,
+      "status": "success",
+      "stages": [
+        "00_model_orchestrator",
+        "20_weekly_editor",
+        "12_content_editor",
+        "16_mcq_generator",
+        "17_mcq_validator",
+        "18_pdf_design",
+        "19_pdf_qa",
+        "22_telegram_publisher",
+        "23_telegram_pin_verifier",
+        "24_final_health_audit"
+      ],
+      "stage_count": 10,
+      "run_attempts": 1,
+      "artifacts_verified": 7,
+      "all_checkpoint_hashes_match": true,
+      "pdf_sha256": "11ab0581436a9bb98f8c89ef72093b980e6f14613692000a6b28dadf984c3d13",
+      "pdf_pages": 15,
+      "qa_passed": true,
+      "health_passed": true,
+      "mcq_count": 15,
+      "live_ledger_written": false,
+      "window": {
+        "start": "2026-09-28T00:00:00+05:30",
+        "end": "2026-10-04T23:59:59.999999+05:30"
+      }
+    },
+    {
+      "scenario": "test_daily_pipeline_end_to_end1",
+      "job_id": "monthly_2026-10-14",
+      "synthetic": true,
+      "dry_run": true,
+      "status": "success",
+      "stages": [
+        "00_model_orchestrator",
+        "21_monthly_editor",
+        "12_content_editor",
+        "16_mcq_generator",
+        "17_mcq_validator",
+        "18_pdf_design",
+        "19_pdf_qa",
+        "22_telegram_publisher",
+        "23_telegram_pin_verifier",
+        "24_final_health_audit"
+      ],
+      "stage_count": 10,
+      "run_attempts": 1,
+      "artifacts_verified": 7,
+      "all_checkpoint_hashes_match": true,
+      "pdf_sha256": "241f8248c0b7ace1533ea5ae3caf2ee9aef56f71943ecabcade8d983719d1e4f",
+      "pdf_pages": 15,
+      "qa_passed": true,
+      "health_passed": true,
+      "mcq_count": 15,
+      "live_ledger_written": false,
+      "window": {
+        "start": "2026-10-01T00:00:00+05:30",
+        "end": "2026-10-14T23:59:59.999999+05:30"
+      }
+    }
+  ],
+  "mocked_publication_tail_runs": [
+    {
+      "scenario": "test_non_dry_publish_pin_audit0",
+      "job_id": "daily_2026-10-05",
+      "mocked_telegram": true,
+      "seeded_pre_qa_artifacts": true,
+      "status": "success",
+      "publication_and_pin_binding_passed": true
+    },
+    {
+      "scenario": "test_non_dry_publish_pin_audit1",
+      "job_id": "daily_2026-10-05",
+      "mocked_telegram": true,
+      "seeded_pre_qa_artifacts": true,
+      "status": "success",
+      "publication_and_pin_binding_passed": true
+    },
+    {
+      "scenario": "test_non_dry_publish_pin_audit2",
+      "job_id": "daily_2026-10-05",
+      "mocked_telegram": true,
+      "seeded_pre_qa_artifacts": true,
+      "status": "success",
+      "publication_and_pin_binding_passed": true
+    }
+  ]
+}

@@ -41,7 +41,8 @@ class Agent:
         import logging
         from pipeline.scoring import score_all
         from pipeline.state import DEDUP_DIR, SCORED_DIR, data_path, read_json, write_json_atomic
-        items = read_json(data_path(DEDUP_DIR, self.job_id), {"items": []})["items"]
+        from pipeline.artifacts import read_news_items
+        items = read_news_items(data_path(DEDUP_DIR, self.job_id))
         scored = score_all(items)
         logging.info(f"[{self.name}] scored {len(scored)} events, top={scored[0]['importance_score'] if scored else 0}")
         if len(scored) < 1:

@@ -2,6 +2,7 @@ name: Weekly Current Affairs
 
 permissions:
   contents: write
+  actions: read
 
 on:
   schedule:
@@ -12,6 +13,11 @@ on:
         description: 'Target date YYYY-MM-DD (default today IST)'
         required: false
         type: string
+      allow_revision:
+        description: 'Explicitly approve publishing a corrected PDF for an already-published edition (does not override uncertain sends)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: current-affairs-weekly
@@ -26,11 +32,66 @@ jobs:
         with: { persist-credentials: true }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
+      - name: Install Hindi shaping runtime
+        run: sudo apt-get update && sudo apt-get install -y libfribidi0
       - run: pip install -r requirements.txt
       - name: Configure git identity
         run: |
           git config user.name "AgriLearningPointBot"
           git config user.email "bot@agrilearningpoint.local"
+      - name: Resolve edition and previous checkpoint run
+        id: edition
+        env:
+          REQUESTED_DATE: ${{ github.event.inputs.date }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone, date
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          value = os.environ.get("REQUESTED_DATE", "").strip() or datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
+          date.fromisoformat(value)
+          job_id = f"weekly_{value}"
+          data = json.loads(Path("state/jobs.json").read_text()) if Path("state/jobs.json").exists() else {}
+          job = data.get("jobs", data).get(job_id, {})
+          run_id = str(job.get("checkpoint_run_id") or job.get("github_run_id", ""))
+          with open(os.environ["GITHUB_ENV"], "a") as handle:
+              handle.write(f"EDITION_DATE={value}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"previous_run={run_id if run_id.isdigit() else ''}\n")
+          PY
+
+      - name: Restore prior edition checkpoints
+        if: steps.edition.outputs.previous_run != ''
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: pipeline-checkpoints
+          run-id: ${{ steps.edition.outputs.previous_run }}
+          github-token: ${{ github.token }}
+          path: .
+
+      - name: Persist start marker for hard-interruption recovery
+        env:
+          STATE_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python - <<'PY'
+          import os
+          from main import job_context_env, load_jobs_state, update_job, STAGES_BY_TYPE, ROOT
+          from pipeline.checkpoints import resume_after
+          ctx = job_context_env("weekly", os.environ["EDITION_DATE"])
+          job = load_jobs_state(strict=True).get(ctx["ALP_JOB_ID"], {})
+          names = [stage[0] for stage in STAGES_BY_TYPE["weekly"]]
+          if job.get("status") != "success" or resume_after(ROOT, ctx["ALP_JOB_ID"], job, names) != names[-1]:
+              if job.get("window", {}).get("start") and job.get("window", {}).get("end"):
+                  ctx["ALP_WINDOW_START"] = job["window"]["start"]
+                  ctx["ALP_WINDOW_END"] = job["window"]["end"]
+              update_job(ctx["ALP_JOB_ID"], status="running", context=ctx, record_attempt=False)
+          PY
+          python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: weekly started"
+
       - name: Run weekly pipeline
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -43,24 +104,54 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           TZ: Asia/Kolkata
+          EDITION_DATE: ${{ env.EDITION_DATE }}
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-flash-latest' }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-4o-mini' }}
+          ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
         run: |
-          DATE="${{ github.event.inputs.date }}"
-          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
+          DATE="$EDITION_DATE"
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type weekly --date "$DATE"
-      - name: Sync persistent event DB
-        if: always()
-        # FIX (audit 2026-10): single merge-safe path via store.pull()/push();
-        # raw `pull --rebase` on concurrently-updated JSON state used to race.
-        run: |
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.pull(); store.push('state: weekly ${{ env.DATE }}')"
       - name: Upload artefacts
+        id: checkpoint_upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-${{ env.DATE }}
+          name: pipeline-checkpoints
           path: |
             output/
             data/
-            logs/
+            logs/qa/
+          retention-days: 30
+          overwrite: true
           if-no-files-found: warn
+
+      - name: Record uploaded checkpoint reference
+        if: always() && steps.checkpoint_upload.outputs.artifact-id != ''
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, timezone
+          from main import load_jobs_state, save_jobs_state, JOBS_STATE_PATH
+          from pipeline.persistence import file_lock
+          job_id = "weekly_" + os.environ["EDITION_DATE"]
+          with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+              jobs = load_jobs_state(strict=True)
+              if job_id in jobs:
+                  jobs[job_id]["checkpoint_run_id"] = os.environ["GITHUB_RUN_ID"]
+                  jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+                  save_jobs_state(jobs)
+          PY
+
+      - name: Persist edition state and ledgers
+        if: always()
+        env:
+          STATE_BRANCH: ${{ github.ref_name }}
+        run: |
+          python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: weekly checkpoint"

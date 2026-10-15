@@ -46,32 +46,22 @@ jobs:
           echo "rc=$RC" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Commit recovery plan (if problems detected)
-        if: steps.wd.outputs.rc == '1'
+      - name: Save recovery plan
+        if: steps.wd.outputs.rc != '0'
+        env:
+          STATE_BRANCH: ${{ github.ref_name }}
         run: |
-          # FIX (audit 2026-10): merge-safe commit/push via store.push() instead of
-          # raw `pull --rebase` (which raced against daily/weekly state commits).
-          git add -f recovery_plan.json 2>/dev/null || true
-          python -c "import sys; sys.path.insert(0,'.'); from pipeline import store; store.push('watchdog: recovery plan queued')"
+          python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: watchdog recovery plan"
 
-      - name: Trigger recovery for the FAILED job's own date
+      - name: Trigger exact-date recovery
         if: steps.wd.outputs.rc == '1'
         env:
           GH_TOKEN: ${{ github.token }}
+          RECOVERY_REF: ${{ github.ref_name }}
+        run: python scripts/recover_jobs.py --ref "$RECOVERY_REF"
+
+      - name: Report state errors or exhausted recovery budget
+        if: steps.wd.outputs.rc == '2'
         run: |
-          # FIX (audit 2026-10): previously this kicked "Daily Current Affairs" with no
-          # input → it rebuilt TODAY's edition instead of resuming the failed one.
-          # Now we read recovery_plan.json and trigger each failed job with its exact date.
-          python - <<'PY'
-          import json, os, re, subprocess
-          plan = json.load(open("recovery_plan.json")) if os.path.exists("recovery_plan.json") else []
-          WF = {"daily": "Daily Current Affairs", "weekly": "Weekly Current Affairs", "monthly": "Monthly Current Affairs"}
-          for jid in plan:
-              m = re.match(r"(daily|weekly|monthly)_(\d{4}-\d{2}-\d{2})", jid)
-              if not m:
-                  continue
-              wtype, date = m.group(1), m.group(2)
-              cmd = ["gh", "workflow", "run", WF[wtype], "--ref", "main", "-f", f"date={date}"]
-              print("recovery trigger:", " ".join(cmd))
-              subprocess.run(cmd, check=False)
-          PY
+          echo "::error::State unreadable or recovery budget exhausted; manual attention required"
+          exit 1

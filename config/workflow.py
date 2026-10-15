@@ -16,32 +16,13 @@ REFACTOR (2026-10 audit):
 Numbering keeps original IDs (gaps are intentional history markers).
 """
 
-WORKFLOW_ORDER = [
-    "00_model_orchestrator",       # NEW: sets 6 keys models + load distribution + batching
-    "03_news_collection",          # incl. scheduler window (was 02)
-    "04_fact_verification",
-    "05_deduplication",
-    "06_news_importance",
-    "07_student_domain_relevance", # merged 07+08+09
-    "10_final_news_selection",
-    "11_importance_memory",
-    "20_weekly_editor",
-    "21_monthly_editor",
-    "12_content_editor",           # merged 12+13+14 (bilingual + english pass inline)
-    "15_image_agent",
-    "16_mcq_generator",
-    "17_mcq_validator",
-    "18_pdf_design",
-    "19_pdf_qa",
-    "22_telegram_publisher",
-    "23_telegram_pin_verifier",
-    "24_final_health_audit"        # renamed from watchdog_recovery
-]
+# main.py is the executable registry; documentation/config must not diverge.
+from main import DAILY_STAGES, WEEKLY_STAGES, MONTHLY_STAGES
 
-# Which agents are active per job type (editors 20/21 skip non-matching types internally too)
-DAILY_AGENTS = [a for a in WORKFLOW_ORDER if a not in ("20_weekly_editor", "21_monthly_editor")]
-WEEKLY_AGENTS = [a for a in WORKFLOW_ORDER if a != "21_monthly_editor"]
-MONTHLY_AGENTS = [a for a in WORKFLOW_ORDER if a != "20_weekly_editor"]
+DAILY_AGENTS = [name for name, _, _ in DAILY_STAGES]
+WEEKLY_AGENTS = [name for name, _, _ in WEEKLY_STAGES]
+MONTHLY_AGENTS = [name for name, _, _ in MONTHLY_STAGES]
+WORKFLOW_ORDER = list(dict.fromkeys(DAILY_AGENTS + WEEKLY_AGENTS + MONTHLY_AGENTS))
 WORKFLOWS_BY_TYPE = {"daily": DAILY_AGENTS, "weekly": WEEKLY_AGENTS, "monthly": MONTHLY_AGENTS}
 
 PIPELINE_FLOW = """NEWS COLLECTOR (+window)

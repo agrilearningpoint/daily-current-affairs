@@ -50,7 +50,9 @@ class Agent:
         try:
             store.record_scores(scored, self.job_id)
         except Exception as ex:
-            logging.warning(f"[{self.name}] persistent store merge failed (non-blocking): {ex}")
+            logging.error(f"[{self.name}] persistent store merge failed: {ex}")
+            self.context["stage_failed"] = True
+            return self.context
         logging.info(f"[{self.name}] memory updated for {len(sel)} events (local + persistent)")
         return self.context
 
@@ -60,6 +62,6 @@ class Agent:
 
 if __name__ == "__main__":
     import logging
+    from pipeline.artifacts import run_agent
     logging.basicConfig(level=logging.INFO)
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
-    print(Agent("test_2026-10-04", "daily", ctx).run())
+    run_agent(Agent)

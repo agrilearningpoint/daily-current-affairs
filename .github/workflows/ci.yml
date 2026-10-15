@@ -164,6 +164,9 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest==8.3.3 pytest-cov==5.0.0
 
+      - name: Install Hindi shaping runtime
+        run: sudo apt-get update && sudo apt-get install -y libfribidi0
+
       - name: Prepare dirs
         run: |
           mkdir -p data/raw data/verified data/edited data/jobs logs state/locks state/metrics
@@ -171,11 +174,10 @@ jobs:
       - name: Run tests
         run: |
           if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
-            pytest tests/ -v --maxfail=5 --tb=short || true
+            python -m pytest tests/ -v --maxfail=5 --tb=short
           else
             echo "::warning::No tests directory or empty — skipping"
           fi
-        continue-on-error: true
 
       - name: Upload test logs on failure
         if: failure()
@@ -320,35 +322,20 @@ jobs:
       - name: Load state/jobs.json
         run: |
           python - <<'PY'
-          import json, sys
-          from pathlib import Path
+          import sys
+          from main import JOBS_STATE_PATH, load_jobs_state
 
-          state_file = Path("state/jobs.json")
-          if not state_file.exists():
+          if not JOBS_STATE_PATH.exists():
               print("::notice::No state/jobs.json — skipping")
               sys.exit(0)
 
           try:
-              data = json.loads(state_file.read_text(encoding="utf-8"))
+              jobs = load_jobs_state(strict=True)
+              print(f"Loaded {len(jobs)} jobs successfully")
+              for jid, job in list(jobs.items())[:5]:
+                  job_type = job.get("job_type") or jid.split("_", 1)[0]
+                  print(f"  {jid:25s} status={job['status']:15s} type={job_type}")
           except Exception as e:
-              print(f"::error::Cannot parse state/jobs.json: {e}")
-              sys.exit(1)
-
-          jobs = data.get("jobs", data) if isinstance(data, dict) else {}
-          if not isinstance(jobs, dict):
-              print(f"::error::jobs.json top-level must be dict, got {type(jobs).__name__}")
-              sys.exit(1)
-
-          try:
-              from main import PipelineState
-              if "jobs" in data:
-                  state = PipelineState(**data)
-              else:
-                  state = PipelineState(jobs=jobs, version=1)
-              print(f"Loaded {len(state.jobs)} jobs successfully")
-              for jid, job in list(state.jobs.items())[:5]:
-                  print(f"  {jid:25s} status={job.status:15s} type={job.job_type}")
-          except Exception as e:
-              print(f"::error::Pydantic validation failed: {e}")
+              print(f"::error::State validation failed: {e}")
               sys.exit(1)
           PY

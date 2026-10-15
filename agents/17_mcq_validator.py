@@ -41,10 +41,10 @@ class Agent:
         validated_mcqs = []
         
         try:
-            from pipeline.mcq_validator import validate_mcqs
+            from pipeline.content import validate_mcqs
             
             logging.info(f"[{self.name}] Running mcq_validator (FAIL-CLOSED)...")
-            validated_mcqs = validate_mcqs(mcqs, items)
+            validated_mcqs, rejected_mcqs = validate_mcqs(mcqs, items)
             validation_method = "mcq_validator_v2"
             
             rejected = len(mcqs) - len(validated_mcqs)
@@ -96,6 +96,6 @@ class Agent:
 
 if __name__ == "__main__":
     import logging
+    from pipeline.artifacts import run_agent
     logging.basicConfig(level=logging.INFO)
-    ctx = {"job_id": "test_2026-10-12", "job_type": "daily", "job_date": "2026-10-12"}
-    print(Agent("test_2026-10-12", "daily", ctx).run())
+    run_agent(Agent)

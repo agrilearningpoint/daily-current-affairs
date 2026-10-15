@@ -55,6 +55,9 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("agent.22_telegram_publisher")
+from pipeline.persistence import install_secret_log_filter, redact
+install_secret_log_filter()
+
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -100,38 +103,39 @@ def _ledger_key(job_id: str, chat_id: str, file_hash: str) -> str:
 
 
 def load_ledger() -> Dict[str, Any]:
+    """Never replace unreadable publication history with an empty retry ledger."""
     if not LEDGER_FILE.exists():
         return {"version": 1, "records": {}}
-    try:
-        data = json.loads(LEDGER_FILE.read_text(encoding="utf-8"))
-        if isinstance(data, list):  # legacy
-            return {"version": 1, "records": {r.get("key", ""): r for r in data if isinstance(r, dict)}}
-        if not isinstance(data, dict):
-            return {"version": 1, "records": {}}
-        data.setdefault("records", {})
-        return data
-    except Exception as exc:
-        backup = LEDGER_FILE.with_suffix(f".corrupt.{int(time.time())}.json")
-        try:
-            LEDGER_FILE.rename(backup)
-            logger.error("Corrupt ledger backed up to %s: %s", backup, exc)
-        except Exception:
-            pass
-        return {"version": 1, "records": {}}
+    data = json.loads(LEDGER_FILE.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        records = {}
+        for record in data:
+            if not isinstance(record, dict):
+                raise ValueError("invalid legacy publication record")
+            key = record.get("key")
+            if not key and all(record.get(field) for field in ("job_id", "chat_id", "file_hash")):
+                key = _ledger_key(record["job_id"], record["chat_id"], record["file_hash"])
+            if not key:
+                raise ValueError("legacy publication record has no stable identity")
+            records[key] = record
+        data = {"version": 1, "records": records}
+    if not isinstance(data, dict) or not isinstance(data.get("records"), dict):
+        raise ValueError("invalid publication ledger; manual reconciliation required")
+    if any(not isinstance(record, dict) for record in data["records"].values()):
+        raise ValueError("invalid publication record; manual reconciliation required")
+    return data
 
 
 def save_ledger(ledger: Dict[str, Any]) -> None:
-    LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = LEDGER_FILE.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
-    os.replace(tmp, LEDGER_FILE)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(LEDGER_FILE, ledger)
 
 
 def is_published(ledger: Dict[str, Any], key: str) -> bool:
+    from pipeline.publication import positive_message_id
     rec = ledger.get("records", {}).get(key)
-    return bool(rec and rec.get("status") == "success")
+    return bool(isinstance(rec, dict) and rec.get("status") == "success"
+                and not rec.get("dry_run") and positive_message_id(rec.get("message_id")))
 
 
 # --------------------------------------------------------------------------- #
@@ -213,22 +217,24 @@ def _handle_response(r: requests.Response, ctx: str) -> Dict[str, Any]:
         try:
             data = r.json()
             retry_after = int(data.get("parameters", {}).get("retry_after", retry_after))
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
             pass
-        raise TelegramRateLimit(retry_after)
-
+        raise TelegramRateLimit(min(max(retry_after, 1), 60))
     try:
         data = r.json()
-    except ValueError:
-        raise TelegramAPIError(f"{ctx}: non-JSON response ({r.status_code})")
-
-    if not data.get("ok"):
+    except ValueError as exc:
+        raise requests.RequestException(f"{ctx}: ambiguous non-JSON response ({r.status_code})") from exc
+    if not isinstance(data, dict):
+        raise requests.RequestException(f"{ctx}: ambiguous response shape")
+    if data.get("ok") is not True:
         desc = data.get("description", "unknown error")
         if 400 <= r.status_code < 500:
             raise TelegramAPIError(f"{ctx}: {desc} (HTTP {r.status_code})")
-        raise requests.RequestException(f"{ctx}: {desc}")
-
-    return data["result"]
+        raise requests.RequestException(f"{ctx}: ambiguous API failure (HTTP {r.status_code})")
+    result = data.get("result")
+    if not isinstance(result, dict):
+        raise requests.RequestException(f"{ctx}: ambiguous result shape")
+    return result
 
 
 def send_message(chat_id: str, text: str, parse_mode: str = "") -> Dict[str, Any]:
@@ -266,7 +272,7 @@ def send_document(
 # --------------------------------------------------------------------------- #
 # Retry Wrapper
 # --------------------------------------------------------------------------- #
-def call_with_retry(fn, *args, max_attempts: int = 5, **kwargs):
+def call_with_retry(fn, *args, max_attempts: int = 5, retry_network: bool = True, **kwargs):
     """Retry on network/rate-limit. Non-retryable errors propagate immediately."""
     last_exc: Optional[Exception] = None
     for attempt in range(1, max_attempts + 1):
@@ -280,6 +286,8 @@ def call_with_retry(fn, *args, max_attempts: int = 5, **kwargs):
         except TelegramAPIError:
             raise  # never retry API 400-level errors
         except requests.RequestException as exc:
+            if not retry_network:
+                raise
             wait = 2 ** attempt
             logger.warning("Network error: %s (retry in %ds, attempt %d/%d)",
                            exc, wait, attempt, max_attempts)
@@ -296,6 +304,10 @@ def call_with_retry(fn, *args, max_attempts: int = 5, **kwargs):
 # --------------------------------------------------------------------------- #
 def find_pdfs() -> List[Path]:
     """Find candidate PDFs, newest first."""
+    job_id = os.getenv("ALP_JOB_ID")
+    if job_id:
+        path = REPO_ROOT / "output" / f"{job_id}.pdf"
+        return [path] if path.is_file() else []
     candidates: List[Path] = []
     for d in INPUT_DIRS:
         if not d.exists():
@@ -314,7 +326,8 @@ def find_meta_for_pdf(pdf_path: Path) -> Dict[str, Any]:
     for d in meta_dirs:
         if not d.exists():
             continue
-        for meta_file in sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        candidates = [d / f"{pdf_path.stem}.json"]
+        for meta_file in candidates:
             try:
                 data = json.loads(meta_file.read_text(encoding="utf-8"))
             except Exception:
@@ -357,13 +370,55 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
         logger.error("Cannot hash %s — skipping", pdf_path.name)
         return False
 
-    # Infer job_id from filename
+    # Bind the publish gate to this exact PDF, not a stale QA report.
     job_id = pdf_path.stem
+    qa_path = REPO_ROOT / "logs" / "qa" / f"{job_id}_qa.json"
+    try:
+        qa = json.loads(qa_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.error("No valid QA approval for %s", job_id)
+        return False
+    if (qa.get("passed") is not True or qa.get("job_id") != job_id
+            or qa.get("file_sha256") != hashlib.sha256(pdf_path.read_bytes()).hexdigest()):
+        logger.error("QA gate rejected %s (failed, wrong job, or PDF changed)", job_id)
+        return False
+    if not DRY_RUN:
+        try:
+            content = json.loads((REPO_ROOT / "data/content" / f"{job_id}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if not content.get("items") or any(not isinstance(i, dict) or i.get("needs_review") is not False or i.get("verification_passed") is not True for i in content["items"]):
+            logger.error("Content lacks verified provenance or completed translation review; publish blocked")
+            return False
     key = _ledger_key(job_id, TELEGRAM_CHAT_ID, fh)
 
+    allow_revision = os.getenv("ALP_ALLOW_EDITION_REVISION", "0") == "1"
+    if any(isinstance(record, dict) and record.get("job_id") == job_id
+           and str(record.get("chat_id")) == str(TELEGRAM_CHAT_ID)
+           and (record.get("status") in {"sending", "uncertain"}
+                or record.get("status") == "blocked_revision" and not allow_revision)
+           for record in ledger.get("records", {}).values()):
+        logger.error("Publication outcome uncertain for %s; manual reconciliation required, refusing resend", job_id)
+        return False
+
     if is_published(ledger, key):
+        record = ledger["records"][key]
+        if not record.get("file_sha256"):
+            record["file_sha256"] = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+            save_ledger(ledger)
         logger.info("Already published: %s — skipping", pdf_path.name)
         return True
+
+    if not DRY_RUN and not allow_revision and any(isinstance(record, dict) and record.get("job_id") == job_id
+                           and str(record.get("chat_id")) == str(TELEGRAM_CHAT_ID)
+                           and record.get("status") == "success" and not record.get("dry_run")
+                           for record in ledger.get("records", {}).values()):
+        ledger["records"][key] = {"job_id": job_id, "chat_id": TELEGRAM_CHAT_ID, "file_hash": fh,
+                                  "file_sha256": hashlib.sha256(pdf_path.read_bytes()).hexdigest(),
+                                  "status": "blocked_revision", "published_at": datetime.now(timezone.utc).isoformat()}
+        save_ledger(ledger)
+        logger.error("A different PDF for this edition was already published; manual reconciliation required")
+        return False
 
     meta = find_meta_for_pdf(pdf_path)
     caption = build_caption(
@@ -384,18 +439,40 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
         }
         return True
 
+    if os.getenv("ALP_JOB_ID"):
+        from main import load_jobs_state, STAGES_BY_TYPE
+        from pipeline.checkpoints import resume_after
+        entry = load_jobs_state(strict=True).get(job_id, {})
+        names = [stage[0] for stage in STAGES_BY_TYPE.get(os.getenv("ALP_JOB_TYPE", "daily"), [])]
+        if (os.getenv("ALP_JOB_ID") != job_id or entry.get("dry_run") is not False
+                or not entry.get("artifacts") or resume_after(REPO_ROOT, job_id, entry, names) != "19_pdf_qa"):
+            logger.error("Pre-publication checkpoint evidence changed or incomplete; refusing send")
+            return False
+
+    # Write ahead before a side-effecting request: interrupted/ambiguous sends
+    # must be reconciled, never blindly retried as if Telegram rejected them.
+    ledger["records"][key] = {
+        "job_id": job_id, "chat_id": TELEGRAM_CHAT_ID, "file_hash": fh,
+        "file_sha256": hashlib.sha256(pdf_path.read_bytes()).hexdigest(),
+        "file": pdf_path.name, "status": "sending",
+        "published_at": datetime.now(timezone.utc).isoformat(),
+    }
+    save_ledger(ledger)
     try:
         result = call_with_retry(
             send_document,
             TELEGRAM_CHAT_ID, pdf_path,
-            caption=caption, parse_mode=TELEGRAM_PARSE_MODE,
+            caption=caption, parse_mode=TELEGRAM_PARSE_MODE, retry_network=False,
         )
         msg_id = result.get("message_id")
+        if type(msg_id) is not int or msg_id <= 0:
+            raise requests.RequestException("sendDocument returned no valid message_id")
         ledger["records"][key] = {
             "job_id": job_id,
             "chat_id": TELEGRAM_CHAT_ID,
             "message_id": msg_id,
             "file_hash": fh,
+            "file_sha256": hashlib.sha256(pdf_path.read_bytes()).hexdigest(),
             "file": pdf_path.name,
             "published_at": datetime.now(timezone.utc).isoformat(),
             "status": "success",
@@ -404,6 +481,12 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
         logger.info("✔ Published %s → message_id=%s", pdf_path.name, msg_id)
         return True
 
+    except TelegramRateLimit as exc:
+        ledger["records"][key].update(status="failed", error=str(exc),
+                                      published_at=datetime.now(timezone.utc).isoformat())
+        save_ledger(ledger)
+        return False
+
     except TelegramAPIError as exc:
         # Permanent — do NOT record as success so it won't be silently skipped
         logger.error("✘ Permanent failure for %s: %s", pdf_path.name, exc)
@@ -411,15 +494,16 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
             "job_id": job_id, "chat_id": TELEGRAM_CHAT_ID, "file_hash": fh,
             "file": pdf_path.name,
             "published_at": datetime.now(timezone.utc).isoformat(),
-            "status": "failed", "error": str(exc)[:300],
+            "status": "failed", "error": redact(str(exc), dict(os.environ))[:300],
         }
         save_ledger(ledger)
         return False
 
     except requests.RequestException as exc:
-        # Transient — do NOT record in ledger, next run retries
-        logger.error("✘ Transient failure for %s (will retry next run): %s",
-                     pdf_path.name, exc)
+        ledger["records"][key].update(status="uncertain", error=redact(str(exc), dict(os.environ))[:300],
+                                      published_at=datetime.now(timezone.utc).isoformat())
+        save_ledger(ledger)
+        logger.error("Publication outcome uncertain for %s; manual reconciliation required, refusing resend", job_id)
         return False
 
 
@@ -438,12 +522,16 @@ def main() -> int:
     pdfs = find_pdfs()
     if not pdfs:
         logger.warning("No PDFs found in %s", [str(d) for d in INPUT_DIRS])
-        return 0
+        return 1
 
     logger.info("Found %d candidate PDF(s) (max %d per run)",
                 len(pdfs), TELEGRAM_MAX_PER_RUN)
 
-    ledger = load_ledger()
+    try:
+        ledger = load_ledger()
+    except (ValueError, OSError):
+        logger.error("Publication ledger unreadable; manual reconciliation required, refusing send")
+        return 1
     success = failed = skipped = 0
 
     for idx, pdf in enumerate(pdfs[: TELEGRAM_MAX_PER_RUN], 1):
@@ -467,7 +555,7 @@ def main() -> int:
     )
 
     # Exit 0 if at least one succeeded (or nothing to do)
-    return 0 if (success > 0 or len(pdfs) == 0) else 1
+    return 0 if success > 0 and failed == 0 else 1
 
 
 if __name__ == "__main__":

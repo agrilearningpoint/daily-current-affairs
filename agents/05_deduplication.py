@@ -89,27 +89,12 @@ def similarity(a: str, b: str) -> float:
 
 # --------------------------------------------------------------------------- #
 def load_latest() -> Tuple[List[Dict[str, Any]], Path]:
-    if not INPUT_DIR.exists():
+    from pipeline.agent_context import get_context
+    from pipeline.artifacts import read_news_items
+    path = get_context().find_input("verified")
+    if path is None:
         return [], None
-    files = sorted(
-        [f for f in INPUT_DIR.glob("verified_*.json") if f.is_file()],
-        key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    if not files:
-        files = sorted(
-            [f for f in INPUT_DIR.glob("*.json") if f.is_file()],
-            key=lambda p: p.stat().st_mtime, reverse=True,
-        )
-    if not files:
-        return [], None
-    try:
-        data = json.loads(files[0].read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            data = data.get("items") or data.get("articles") or []
-        return (data if isinstance(data, list) else []), files[0]
-    except Exception as exc:
-        logger.exception("Load failed: %s", exc)
-        return [], None
+    return read_news_items(path), path
 
 
 def atomic_write(path: Path, data: Any) -> None:
@@ -198,9 +183,9 @@ def main() -> int:
                                    a.get("confidence_score", 0)),
                    reverse=True)
 
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    out = OUTPUT_DIR / f"dedup_{date_str}.json"
-    atomic_write(out, after_sim)
+    from pipeline.agent_context import get_context
+    out = get_context().output_path("dedup")
+    atomic_write(out, {"items": after_sim})
 
     logger.info("✔ Dedup complete: %d → %d (%.1f%% reduction)",
                 len(articles), len(after_sim),

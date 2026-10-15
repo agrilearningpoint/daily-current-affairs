@@ -1,72 +1,50 @@
-# -*- coding: utf-8 -*-
-"""
-FINAL HEALTH AUDIT AGENT
-Main focus: पूरी pipeline की monitoring, timeout detection और recovery।
+"""Final fail-closed audit of this edition's evidence and publication state."""
 
-Command:
-> "Final health audit of the job: state must be PIN_VERIFIED→COMPLETE path, all artefacts exist (raw/verified/dedup/scored/selected/content/mcq/pdf/qa report), PDF size sane, QA approved. On anomalies: mark job, alert admin via Telegram DM (ADMIN_ID). Also runs standalone every 5 min via .github/workflows/watchdog.yml (python main.py --watchdog)."
-
-Work: Real end-to-end audit + alerting
-Real implementation — see pipeline/ library. Quality gates enforced; empty output = failure.
-"""
-
-COMMAND = """Final health audit of the job: state must be PIN_VERIFIED→COMPLETE path, all artefacts exist (raw/verified/dedup/scored/selected/content/mcq/pdf/qa report), PDF size sane, QA approved. On anomalies: mark job, alert admin via Telegram DM (ADMIN_ID). Also runs standalone every 5 min via .github/workflows/watchdog.yml (python main.py --watchdog)."""
-
-MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity. Never invent facts. Never fill PDF just to meet target count. Never publish unverified or failed content. Daily, Weekly, Monthly must independently select most valuable news."
-
-DETAILS = """- validates every artefact + job state machine
-- sends watchdog alerts through pipeline.telegram_api.alert_admin"""
+import hashlib
+import json
+import os
+import sys
+from datetime import datetime, timezone
 
 
-class Agent:
-    """FINAL HEALTH AUDIT AGENT — real implementation"""
-    def __init__(self, job_id, job_type, context):
-        self.job_id = job_id
-        self.job_type = job_type
-        self.context = context
-        self.name = "FINAL HEALTH AUDIT AGENT"
+def main():
+    from pipeline.agent_context import get_context
+    from pipeline.persistence import write_json_atomic
+    from main import load_jobs_state, STAGES_BY_TYPE
+    from pipeline.checkpoints import resume_after
 
-    def run(self):
-        import logging, os
-        from pipeline.state import (load_job, RAW_DIR, VERIFIED_DIR, DEDUP_DIR, SCORED_DIR,
-                                    SELECTED_DIR, CONTENT_DIR, MCQ_DIR, QA_LOG_DIR, OUTPUT_DIR,
-                                    data_path, read_json)
-        from pipeline.telegram_api import alert_admin
-        job = load_job(self.job_id, self.job_type, self.context["job_date"])
-        problems = []
-        need = [("raw", data_path(RAW_DIR, self.job_id)), ("verified", data_path(VERIFIED_DIR, self.job_id)),
-                ("dedup", data_path(DEDUP_DIR, self.job_id)), ("scored", data_path(SCORED_DIR, self.job_id)),
-                ("selected", data_path(SELECTED_DIR, self.job_id)), ("content", data_path(CONTENT_DIR, self.job_id)),
-                ("mcq_validated", data_path(MCQ_DIR, self.job_id, "_validated")),
-                ("qa_report", data_path(QA_LOG_DIR, self.job_id))]
-        for nm, p in need:
-            if not os.path.exists(p):
-                problems.append(f"missing artefact: {nm}")
-        qa = read_json(data_path(QA_LOG_DIR, self.job_id), {})
-        if not qa.get("approved"):
-            problems.append("QA report not APPROVED")
-        pdf = self.context.get("pdf_path", "")
-        if not (os.path.exists(pdf) and os.path.getsize(pdf) > 20000):
-            problems.append("PDF missing/too small")
-        # Orchestrator sets RUNNING before every stage; real gate = pin verifier succeeded
-        pin_ok = job.get("status") == "PIN_VERIFIED" or (
-            job.get("status") in ("RUNNING", "RETRYING")
-            and job.get("last_success_stage") == "23_telegram_pin_verifier")
-        if not pin_ok:
-            problems.append(f"unexpected state at watchdog: {job.get('status')} last_stage={job.get('last_success_stage')}")
-        if problems:
-            alert_admin(f"⚠️ {self.job_id} watchdog found: " + "; ".join(problems))
-            self.context["stage_failed"] = "watchdog audit failed: " + "; ".join(problems)
-            raise RuntimeError(self.context["stage_failed"])
-        logging.info(f"[{self.name}] audit PASSED for {self.job_id}")
-        return self.context
-
-    def verify(self):
-        return not self.context.get("stage_failed")
+    ctx = get_context()
+    root = ctx.repo_root
+    issues = []
+    entry = load_jobs_state(strict=True).get(ctx.job_id, {})
+    names = [stage[0] for stage in STAGES_BY_TYPE[ctx.job_type]]
+    if (not entry.get("artifacts") or entry.get("last_success_stage") != "23_telegram_pin_verifier"
+            or resume_after(root, ctx.job_id, entry, names) != "23_telegram_pin_verifier"):
+        issues.append("pipeline has not completed all pre-audit checkpoints")
+    for relative, record in entry.get("artifacts", {}).items():
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            issues.append(f"missing checkpoint artifact: {relative}")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != record.get("sha256"):
+            issues.append(f"checkpoint artifact changed: {relative}")
+    try:
+        qa = json.loads(ctx.qa_report_path().read_text(encoding="utf-8"))
+        if (qa.get("passed") is not True or qa.get("job_id") != ctx.job_id
+                or qa.get("file_sha256") != hashlib.sha256(ctx.pdf_path().read_bytes()).hexdigest()):
+            issues.append("PDF QA approval is absent, failed, or does not match the PDF")
+    except (OSError, ValueError):
+        issues.append("PDF/QA evidence unreadable")
+    dry_run = os.getenv("DRY_RUN", "0") == "1"
+    if not dry_run:
+        from pipeline.publication import publication_issues
+        pdf_hash = hashlib.sha256(ctx.pdf_path().read_bytes()).hexdigest() if ctx.pdf_path().is_file() else ""
+        issues.extend(publication_issues(root, ctx.job_id, pdf_hash, os.getenv("TELEGRAM_CHAT_ID")))
+    report = {"job_id": ctx.job_id, "passed": not issues, "dry_run": dry_run,
+              "issues": issues, "checked_at": datetime.now(timezone.utc).isoformat()}
+    write_json_atomic(root / "logs" / "qa" / f"{ctx.job_id}_health.json", report)
+    print(json.dumps(report, ensure_ascii=False))
+    return 1 if issues else 0
 
 
 if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    ctx = {"job_id": "test_2026-10-04", "job_type": "daily", "job_date": "2026-10-04"}
-    print(Agent("test_2026-10-04", "daily", ctx).run())
+    sys.exit(main())

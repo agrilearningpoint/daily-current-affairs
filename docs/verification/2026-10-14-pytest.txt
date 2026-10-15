@@ -1,0 +1,31 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.2, pytest-8.3.3, pluggy-1.6.0
+rootdir: /home/user/daily-current-affairs
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-5.0.0
+collected 103 items
+
+tests/test_collection_window.py ...                                      [  2%]
+tests/test_daily_integration.py ......................                   [ 24%]
+tests/test_event_dedup.py ...                                            [ 27%]
+tests/test_gnews_decoder.py .                                            [ 28%]
+tests/test_jobs_state_load.py ...................                        [ 46%]
+tests/test_migration.py .............                                    [ 59%]
+tests/test_pdf_hindi.py ..                                               [ 61%]
+tests/test_pipeline_offline.py .....                                     [ 66%]
+tests/test_scoring.py ..                                                 [ 67%]
+tests/test_selection.py .                                                [ 68%]
+tests/test_source_registry.py ..                                         [ 70%]
+tests/test_state_machine.py ..                                           [ 72%]
+tests/test_store_merge.py .                                              [ 73%]
+tests/test_unattended_safety.py .............                            [ 86%]
+tests/test_unicode_safety.py ..............                              [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.11/site-packages/requests/__init__.py:113
+  /home/user/daily-current-affairs/.venv/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 103 passed, 1 warning in 50.37s ========================
