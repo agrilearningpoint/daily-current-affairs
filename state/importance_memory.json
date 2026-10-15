@@ -1,4 +1,1252 @@
 {
+  "019a93844e92aa23": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Economy",
+    "first_seen": "2026-10-13",
+    "headline": "SIP inflows hit all-time high of Rs 32,490 crore in September: AMFI data",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Mumbai, Oct 12 (IANS) Monthly mutual fund inflows through systematic investment plans (SIPs) hit a new all-time high in September, rising to Rs 32,490 crore from Rs 32,297 crore in August, according to data released by the Association of Mutual Funds in India (AMFI) on Monday. While total mutual fund industry assets under management stood at Rs 82.64 lakh crore and equity net inflow surged by 30.6 per cent to Rs 38,306.55 crore. AMFI data showed open-ended equity schemes mobilised Rs 74,831.96 crore during the month against redemption of Rs 36,525.41 crore. Net AUM for equity schemes stood at ",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 20.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Thehawk",
+    "source_url": "https://www.thehawk.in/news/economy-and-business/sip-inflows-hit-all-time-high-of-rs-32490-crore-in-september-amfi-data",
+    "student_relevance": 35,
+    "trend": "NEW"
+  },
+  "0907dd4d50b4e04b": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-11",
+    "headline": "Three out of 19 SIR tribunals vacant; ECI awaits names from Calcutta HC",
+    "headline_hi": "",
+    "importance_score": 14,
+    "last_seen": "2026-10-11",
+    "raw_facts": "While these tribunals report to Calcutta High Court, ECI provides them with secretarial assistance, including staff and digital platform for online hearings.",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 14.0
+      },
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 14.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/west-bengal/three-out-of-19-sir-tribunals-vacant-eci-awaits-names-from-calcutta-hc/article71571244.ece",
+    "student_relevance": 39,
+    "trend": "STABLE"
+  },
+  "0b8ebbf1a2cac380": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "RBI tightens rules on rupee non-deliverable contracts, widens 20% cash reserve requirement",
+    "headline_hi": "",
+    "importance_score": 19,
+    "last_seen": "2026-10-13",
+    "raw_facts": "The Reserve Bank of India on Monday tightened rules on rupee non-deliverable derivative contracts, limiting overseas clients to using them only for hedging, and widened a 20% cash reserve requirement to banks' own rupee currency hedges.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "weekly_2026-10-11",
+        "score": 19.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Economic Times",
+    "source_url": "https://economictimes.indiatimes.com/markets/forex/forex-news/rbi-tightens-rules-on-rupee-non-deliverable-contracts-widens-20-cash-reserve-requirement/articleshow/134905710.cms",
+    "student_relevance": 44,
+    "trend": "NEW"
+  },
+  "207c2950bba38ffc": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute",
+    "headline_hi": "",
+    "importance_score": 21,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Old Monk has announced a loss exceeding Rs 500 crore after the Food Safety and Standards Authority of India (FSSAI) imposed conditions on the sale of the popular rum in Maharashtra. The regulator has insisted that the product must be labelled as “rum-like” instead of the traditional “rum” description. This dispute was brought before the […] The post Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute appeared first on The CSR Journal.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "weekly_2026-10-11",
+        "score": 21.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Csr Journal",
+    "source_url": "https://thecsrjournal.in/old-monk-reports-rs-500-crore-loss-amid-labelling-dispute",
+    "student_relevance": 46,
+    "trend": "NEW"
+  },
+  "2642f7e39dd46015": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "International",
+    "first_seen": "2026-10-13",
+    "headline": "Pakistani woman offering namaz in the middle of an Adelaide road gets killed by car: Australian court suspends driver’s prison sentence",
+    "headline_hi": "",
+    "importance_score": 10,
+    "last_seen": "2026-10-13",
+    "raw_facts": "An Australian court suspended the prison sentence of driver Ashton Friend, who struck and killed 20-year-old Pakistani student Samia Malik",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 10.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Op India",
+    "source_url": "https://www.opindia.com/news-updates/pakistani-woman-offering-namaz-in-the-middle-of-an-adelaide-road-gets-killed-by-car-australian-court-suspends/",
+    "student_relevance": 22,
+    "trend": "NEW"
+  },
+  "292f79fd3eea624b": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "Job Description - GIAHS Monitoring and Evaluation Specialist (2601946) - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Job Description - GIAHS Monitoring and Evaluation Specialist (2601946) Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxOazhJdDE5MmhMV3F0eTFTT2diTUFFZkVHaFFzVGI1UldydjR6ZG9Pa2ExTUs5ckJmTzJIU05XTm9uRGZ5dnhGWVZQanVqdWoxVXdPSzZZcGNvWFBKckJ6d1U1blNpb0ltQjlGeUoyREJadmhjcUFzYzd3c2Qxa1VqNE9BMmFrNTJh?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "32400129e9c5fcec": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "Job Description - National on Animal Health Expert (2602118) - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 25,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Job Description - National on Animal Health Expert (2602118) Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 25.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxNYk1wVFRtUTM1cnR6U0Q2LVBOR28yRUlHZ0ZDcGVqQzJRU3ByYTJXbXF1SlF4SG9jVTJmdXhxZkpGZncxZXhiUlpKaGNXbVJhV0xuZElSWGxHSmhCbWh2R2FDTlVkcXJZY1NXSjN6VXZZZWpmNWszeUpxckE4VmdrVFpmNmpRMmdYd3htSFdSRXBFZ1BLOGpIUWQ2M0lBem5zRlZxRDJieWtmTVAwT2lWWXRNT2NtUC0z?oc=5",
+    "student_relevance": 50,
+    "trend": "NEW"
+  },
+  "366279499a0ff005": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "International",
+    "first_seen": "2026-10-13",
+    "headline": "Jio IPO may be valued at Rs 11 lakh crore: What it means for RIL, Bharti Airtel and telecom stocks",
+    "headline_hi": "",
+    "importance_score": 18,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Jio Platforms’ proposed Rs 30,000 crore IPO could become India’s biggest-ever share sale, valuing Mukesh Ambani’s digital business at up to Rs 11 lakh crore. With global and domestic investors showing interest, the listing will test Jio’s valuation against Bharti Airtel, potentially reshape telecom sector dynamics and offer investors a direct route to participate in Reliance’s digital growth story.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 18.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Economic Times",
+    "source_url": "https://economictimes.indiatimes.com/markets/ipos/fpos/jio-ipo-may-be-valued-at-rs-11-lakh-crore-what-it-means-for-ril-bharti-airtel-and-telecom-stocks/articleshow/134885702.cms",
+    "student_relevance": 30,
+    "trend": "NEW"
+  },
+  "3a68c14bf31d9398": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Government Schemes",
+    "first_seen": "2026-10-13",
+    "headline": "दिल्ली में EV खरीदने वालों की Good News: 100% रोड टैक्स माफ, 2700 लोगों को फायदा, बांटे गए 7.91 करोड़ इंसेंटिव",
+    "headline_hi": "",
+    "importance_score": 11,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Delhi EV Policy 2026 Incentives दिल्ली EV पॉलिसी 2026 के तहत 8 अक्टूबर तक 7.91 करोड़ रुपये के इंसेंटिव बांटे गए। जानें इलेक्ट्रिक गाड़ी खरीदने और पुरानी गाड़ी स्क्रैप कराने पर किसे कितना फायदा मिला।",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 11.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "One India",
+    "source_url": "https://hindi.oneindia.com/news/delhi/delhi-ev-policy-2026-incentives-offered-motorists-touch-rs-791-crore-road-tax-waiver-1666431.html",
+    "student_relevance": 31,
+    "trend": "NEW"
+  },
+  "3b46348ead73c82a": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-13",
+    "headline": "Spectrum Digital Appoints Narin Shetty as Group President – Marketing & Growth Mumbai, India #Ad",
+    "headline_hi": "",
+    "importance_score": 24,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Narin Shetty will lead marketing, growth and strategic business initiatives at Spectrum Digital as the company prepares for its next phase of expansion. The post Spectrum Digital Appoints Narin Shetty as Group President – Marketing & Growth Mumbai, India #Ad appeared first on MEDIANAMA.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 24.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Medianama",
+    "source_url": "https://www.medianama.com/2026/10/223-spectrum-digital-appoints-narin-shetty-as-group-president-marketing-growth-mumbai-india-ad/",
+    "student_relevance": 32,
+    "trend": "NEW"
+  },
+  "4015b4041ccb2d96": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "International",
+    "first_seen": "2026-10-11",
+    "headline": "E-autos remain out of service as Rs. 30,000 subsidy per auto delayed in Keralam",
+    "headline_hi": "",
+    "importance_score": 10,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Thirty of the 105 e-autos run by the Ernakulam Jilla Autorickshaw Drivers Cooperative Society have been idle for a year, with the society moving the High Court over the stalled subsidy",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 10.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/kerala/e-autos-remain-out-of-service-as-rs-30000-subsidy-per-auto-delayed-in-kerala/article71570877.ece",
+    "student_relevance": 22,
+    "trend": "NEW"
+  },
+  "41799c6016fdcc3a": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "Events - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Events Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiSEFVX3lxTE1VdThaS2RPOF9pVmdoeWhqcFBsaFFLUE1LS05jMG95aXdEa2JKb2Y5Vk1IWWJvTGJvMmZXbkp4MW50NzJjWmJmRQ?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "47a6fc762a6bf79f": {
+    "first_seen": "2026-10-05",
+    "headline": "Website of Jal Jeevan Mission, Uttar Pradesh | Governance | Governance & Planning | Category - National Portal of India",
+    "last_seen": "2026-10-05",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-04",
+        "score": 24.0
+      }
+    ],
+    "trend": "NEW"
+  },
+  "536060602c9984a7": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "SKUAST-K, IMI to host 13th Sustainable Mountain Development Summit from October 12",
+    "headline_hi": "",
+    "importance_score": 30,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Srinagar, Oct 10: The Sher-e-Kashmir University of Agricultural Sciences and Technology of Kashmir (SKUAST-K) and the Integrated Mountain Initiative (IMI) will jointly host the 13th Sustainable Mountain Development Summit (SMDS) alongside the Jammu and Kashmir Agriculture Science Congress-2026 at the university’s Shalimar campus from October 12 to 14. The three-day national-level event, themed “Contouring Sustainable Himalayan Landscapes for Inclusive Viksit Bharat”, will bring together policymakers, scientists, administrators, farmers and development professionals to deliberate on climate-res",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 30.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Greater Kashmir",
+    "source_url": "https://www.greaterkashmir.com/business/skuast-k-imi-to-host-13th-sustainable-mountain-development-summit-from-october-12-12664464",
+    "student_relevance": 55,
+    "trend": "NEW"
+  },
+  "5a3f9493d78827c7": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "Noticias | Cambio climático | Organización de las Naciones Unidas para la Alimentación y la Agricultura - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Noticias | Cambio climático | Organización de las Naciones Unidas para la Alimentación y la Agricultura Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiXkFVX3lxTE5ZSzFCSzY3SndPYUhRRG1uMngzb3dBVlEtRkFRSzBmNFZPMFZpdmRQdzV2d19TNjZkSnFLU1llWmNRWjByR3AzUDZkUEdMcDFNUUNFMTBlZ3A0RHlkQ2c?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "6a0cae7d99419f6b": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-05",
+    "headline": "Shivaraj Patil demands 12-hour power supply",
+    "headline_hi": "",
+    "importance_score": 8,
+    "last_seen": "2026-10-05",
+    "raw_facts": "Shivaraj Patil demands 12-hour power supply",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-05",
+        "score": 8.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/karnataka/shivaraj-patil-demands-12-hour-power-supply/article71547520.ece",
+    "student_relevance": 16,
+    "trend": "NEW"
+  },
+  "6c861b5ed1fc1ae6": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Government Schemes",
+    "first_seen": "2026-10-13",
+    "headline": "Highlights - Ministry of Statistics and Program Implementation",
+    "headline_hi": "",
+    "importance_score": 21,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Highlights Ministry of Statistics and Program Implementation | Also reported: - Ministry of Statistics and Program Implementation; - Ministry of Statistics and Program Implementation; - Ministry of Statistics and Program Implementation",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 21.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "MoSPI",
+    "source_url": "https://news.google.com/rss/articles/CBMitAFBVV95cUxORTZHakhZS0xBXzcwWnJCb0E2SlBnV3lrNXVGZmk5dVRjdDBWVVQzdEZ1WjVBa1BIVzdHektuVGRRaHpBdzZqOFgxRS05MXpfd3lNWXJrN0h1Z0pkQnB5djhrZWRBTzMzVVgyUmQwYndrTUsyY0dJOFNWT096T2NMRjNSamdaVEZMMUprUFdGVTJYb0JKV2dzeklmVk05bUVsaTZCbWZ1SEQyOG1QRm9oQUpqTWo?oc=5",
+    "student_relevance": 41,
+    "trend": "NEW"
+  },
+  "711210498f946834": {
+    "first_seen": "2026-10-05",
+    "headline": "DARE/ICAR Launches Special Campaign 6.0 with Nationwide Cleanliness Drives and Felicitation of Safai Mitras - Indian Council Of Agricultural Research",
+    "last_seen": "2026-10-05",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-04",
+        "score": 30.0
+      }
+    ],
+    "trend": "NEW"
+  },
+  "716948c9aa830e33": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-05",
+    "headline": "KSTDC to invest ₹100 crore to upgrade Mayura properties, enhance visitor experience",
+    "headline_hi": "",
+    "importance_score": 9,
+    "last_seen": "2026-10-05",
+    "raw_facts": "KSTDC to invest ₹100 crore to upgrade Mayura properties, enhance visitor experience",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-05",
+        "score": 9.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/karnataka/kstdc-to-invest-100-crore-to-upgrade-mayura-properties-enhance-visitor-experience/article71547423.ece",
+    "student_relevance": 17,
+    "trend": "NEW"
+  },
+  "7530c1aae9ee4f0f": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "India Mobile Congress 2026 ends with focus on AI, 5G & rural tech",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-11",
+    "raw_facts": "The 10th India Mobile Congress 2026 concluded, focusing on deploying AI in agriculture, developing AI agents for 5G networks, and expanding digital connectivity to rural areas to strengthen India's global telecommunications standing.",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 20.0
+      },
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-10",
+        "score": 20.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Asianet Newsable",
+    "source_url": "https://newsable.asianetnews.com/business/india-mobile-congress-2026-ends-with-focus-on-ai-5g-rural-tech-articleshow-gazycru",
+    "student_relevance": 45,
+    "trend": "STABLE"
+  },
+  "79200e600cfff23d": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "Bank Of India Declares ₹575.40 Crore Future Enterprises Loan Account As Fraud, Full Provision Made",
+    "headline_hi": "",
+    "importance_score": 19,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Bank of India declares Future Enterprises' Rs 575.40 crore NPA account as fraud, makes full provision for the exposure and reports the matter to RBI in its latest regulatory filing.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 19.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Free Press Journal",
+    "source_url": "https://www.freepressjournal.in/business/bank-of-india-declares-57540-crore-future-enterprises-loan-account-as-fraud-full-provision-made",
+    "student_relevance": 44,
+    "trend": "NEW"
+  },
+  "7a72db102b6120ee": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "20, Tue - Side Events - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "20, Tue - Side Events Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiYkFVX3lxTE1PcDk2OUF0bExGQnVFcjg1SHY3VFNvXzQ2SEMyU0I4Q1BFZ3ZCWng5aUtvZ2NVQU1CdnU2dmpZZ09uR0JURzBBUkNETTJxM0hPMTdTRjl0YmMySmZOY3gzdlFn?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "7bab7995eaa95bf4": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "Login - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Login Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMingFBVV95cUxNaWxISGc4U3RDeDk1ZFRybDB6bmJ1Rmdjb3pqVnkyNDg1WHJEajkzekEwdW5yMHIxNC1OajB2NjE2eEdIekFkOG0ySUFNSGIxak05Y0xiRmZPeFlUbkdqVnU1b1hMekI4X3FwSzVPZG54TXotVHQ1Y3JkRWw3SHVNYmFpWm9jSV9VbER1Mi12alJtS04wYzI0NnFQYVAzQQ?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "7f97ed624063c7e7": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "World Food Forum 2026: Flagship event opens under theme “Innovate Today. Nourish Tomorrow.” - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 22,
+    "last_seen": "2026-10-13",
+    "raw_facts": "World Food Forum 2026: Flagship event opens under theme “Innovate Today. Nourish Tomorrow.” Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 22.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMixwFBVV95cUxQTmM3RWlRcXotSU81b19ZNnBVSmxadXV0Z0FUODVGMm9jX3JTd3BEMmhKTTRXOGU3bVFTUXRFN0R4eTBjdmlST05JS1BCLS01ZlcxUzJqMWtyWUFnVjR4S25tTGZRN0sxeTNNNkRHQU9PcnNTZkFyZmszeWRwYnRvdFpFcXFnYTZpWnBvSzlfRE00bDNnU1FMRmFnTWlwcFBzb0ZDUExqZXJYSDBNRGNMMDVTdEdNel8wWlRwbTd2aTExbUdDWk1J?oc=5",
+    "student_relevance": 47,
+    "trend": "NEW"
+  },
+  "80254c449a8bc0cf": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "First Session: Let's Talk About Good Practices for Sustainable Agriculture - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 22,
+    "last_seen": "2026-10-11",
+    "raw_facts": "First Session: Let's Talk About Good Practices for Sustainable Agriculture Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-10",
+        "score": 22.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxQZWw1a1ZjVzFxdk9SZTZqSDhRVXF5VlF1VHNJemtWX1VPUkRzZHZWdDhVVmg0UDA4WWNVUDRMTTJ0R0labUxrRWotUDRFeDEwOTM4cTB1UEtIbEozOGFqbVN4dXRKNHM2S24xNlF2c1ZVZXNtbnpvN09Fd2p0WnloSGE2bE14VjhybEU2U2FuTEVSMjBkQWc?oc=5",
+    "student_relevance": 47,
+    "trend": "NEW"
+  },
+  "811c5539ee681150": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "FAO GLOBEFISH at the European Maritime Day in Naples to support youth involvement in fisheries and aquaculture markets and trade - Food and Agriculture Organiza",
+    "headline_hi": "",
+    "importance_score": 29,
+    "last_seen": "2026-10-11",
+    "raw_facts": "FAO GLOBEFISH at the European Maritime Day in Naples to support youth involvement in fisheries and aquaculture markets and trade Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 29.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMirAJBVV95cUxQbThwTk02ZEE1aEROMm02QWt0anBySVV2RGphYUtQbnBwbEhfZUQwNlAwLVEza2VYV0RKX1liN0ZvM2JpQ3lRRFlxS2ZWUkV0T0YwS2NUZ3pMN2Fjc1FiS1NlTV9iMUlzUXhVZmFFR1ZrYXJiZjZBTjVmYmhXaUxOTWhwdFZGLXBUUGZfYmptR1hicWtWNUNIaHpNak9UWUNjd2hjdHNpOWxSN0RrdnRiWHdpaklJMFBvU0NReWQydG84dnhZbGVTa1hqWVRxcGtyNTNKQ3p0c2t3LWxTSUUtaEt3SzBKY29BcFNJSEsyclhhZFVpVVd5SFdTckhXeXFzcXBub1ZlYWhGRWFuOEFfeGlFRVljQUZiNW5uZTY4Y1d6WlFvOXQ2ZnFydHg?oc=5",
+    "student_relevance": 54,
+    "trend": "NEW"
+  },
+  "827439bad2867d66": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "Job Description - Disaster Risk Management and Climate Change Adaptation Specialist (2602114) - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Job Description - Disaster Risk Management and Climate Change Adaptation Specialist (2602114) Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxOQjBsUGtrdjczM09uRzREZXktZW4yR3MzREpHcG5LT255MXRKVlROeUdUOUxLVG10X3Q5RjNKVUlvWU1fdjliallka0JPbW9ZUXdKSkE4ZnItVGhVaTl6WkdDdWdQSnZkVEZuaGtiQ3JFbHpEVXZxMzhkSjRseUg5TU9tSFFxZlc4UVh6MzBuemQ1VnJoUklxNnM0VWhiNUN3cVo0UHNrN2JTX2YyWkZWRWFMVHFLQ1c3?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "8bafb2356c1b0716": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "Supporting regional fishery bodies to implement international agreements - Pêches et aquaculture de la FAO - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 37,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Supporting regional fishery bodies to implement international agreements - Pêches et aquaculture de la FAO Food and Agriculture Organization | Also reported: Integrating climate change into the work of regional fishery bodies - Pêches et aquaculture de la FAO - Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-10",
+        "score": 37.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiakFVX3lxTFBBN01DWVZ2Q2wwdHNMUExmR21NWE5vMWlMa0dxSEo5ajNfNkdGQ09iT2FUVG5FVDZDY2tkRnVSNFM1bnFjN0tYNjVyOGhxaUNEU0JubERfc3VhbXZ0bnFUZ214WVlGVWVkWUE?oc=5",
+    "student_relevance": 62,
+    "trend": "NEW"
+  },
+  "90006ae76c4448ea": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Science & Technology",
+    "first_seen": "2026-10-05",
+    "headline": "Ranga Reddy DMHO, Health Inspector held in ₹1 lakh bribery case",
+    "headline_hi": "",
+    "importance_score": 4,
+    "last_seen": "2026-10-05",
+    "raw_facts": "Ranga Reddy DMHO, Health Inspector held in ₹1 lakh bribery case",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-05",
+        "score": 4.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/telangana/ranga-reddy-dmho-in-acb-net-for-taking-1-lakh-bribe/article71547261.ece",
+    "student_relevance": 16,
+    "trend": "NEW"
+  },
+  "95946c04d7036026": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-11",
+    "headline": "BJP-led folk artistes embark on beating ‘Dappu’ for 75 hours, with an eye on Guinness",
+    "headline_hi": "",
+    "importance_score": 10,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Around 2,000 artistes began a 75-hour non-stop drum-beating event in Tirupati to mark PM Modi’s 75th birthday, as part of the BJP’s month-long ‘Seva Sankalp Abhiyan’",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 10.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/andhra-pradesh/bjp-led-folk-artistes-embark-on-beating-dappu-for-75-hours-with-an-eye-on-guinness/article71570979.ece",
+    "student_relevance": 18,
+    "trend": "NEW"
+  },
+  "95ce8d369decf1ed": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-13",
+    "headline": "Amazon Great Indian Festival 2026: Asus Vivobook 15 is available with over Rs 32,000 discount, check details",
+    "headline_hi": "",
+    "importance_score": 13,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Amazon Great Indian Festival 2026: Asus Vivobook 15 is available with over Rs 32,000 discount, check details",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 13.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Digit",
+    "source_url": "https://www.digit.in/news/laptops/amazon-great-indian-festival-2026-asus-vivobook-15-is-available-with-over-rs-32000-discount-check-details.html",
+    "student_relevance": 21,
+    "trend": "NEW"
+  },
+  "9aac17c186673a5a": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-05",
+    "headline": "Congress slams BJP for ‘wrecking’ economy, claims foreign investors withdrew ₹4.03 lakh crore in 2026",
+    "headline_hi": "",
+    "importance_score": 12,
+    "last_seen": "2026-10-05",
+    "raw_facts": "Foreign portfolio ownership in NSE-listed companies declined to about 15.8%, says Congress leader Shaktisinh Gohil.",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-05",
+        "score": 12.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/congress-slams-bjp-for-wrecking-economy-claims-foreign-investors-withdrew-403-lakh-crore-in-2026/article71548150.ece",
+    "student_relevance": 20,
+    "trend": "NEW"
+  },
+  "9f2f418903a77e7f": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-11",
+    "headline": "Government of India Ministry of Earth Sciences India Meteorological Department Press Release Date: 10th October 2026 Time of Iss - IMD",
+    "headline_hi": "",
+    "importance_score": 15,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Government of India Ministry of Earth Sciences India Meteorological Department Press Release Date: 10th October 2026 Time of Iss IMD",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-10",
+        "score": 15.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "IMD",
+    "source_url": "https://news.google.com/rss/articles/CBMihwFBVV95cUxObGhzeHhYNW5wOUJkYVJKNFV6U1d3VThJN1o0VVlmZnRaLWlkeVVTOTZSQzFPLTVMSHZxZ0MzdTUtUktmaUhJZHFzNlRNNlRzbWZyTEZhMm1EZGtiQlpRcEJnMm1HWWlpZm5RVFVyQk43LTNIQmx4V0pZYWoxcHhlaGVmeGVDaVk?oc=5",
+    "student_relevance": 23,
+    "trend": "NEW"
+  },
+  "a0d68d6dfe202a58": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "MDR on UPI: Keralam hotels association says will stop accepting UPI payments above ₹2,000 from October 15",
+    "headline_hi": "",
+    "importance_score": 13,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Announcement following introduction of 0.4% UPI merchant discount rate, which the association says will impose additional financial burden on small establishments",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 13.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/kerala/mdr-on-upi-keralam-hotels-association-says-will-stop-accepting-upi-payments-above-2000-from-october-15/article71578221.ece",
+    "student_relevance": 38,
+    "trend": "NEW"
+  },
+  "a324b8df420ac60e": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "Press Releases - Reserve Bank of India",
+    "headline_hi": "",
+    "importance_score": 25,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Press Releases Reserve Bank of India",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 25.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "RBI",
+    "source_url": "https://news.google.com/rss/articles/CBMieEFVX3lxTE9DT2x5N0NTbVJWU1pFa3hwUFQ0STlNSDlFaUZoTUVoYTk1dGllZFk1TWo0RVhIcTcyc0RRVm5iRnJhd0pnWXhDTHQ4YlJGb0dreDZRekg3WWhISWFWbWpaM2R4c29LV1dRTl9ic1lfMzJvcHBvbklmbg?oc=5",
+    "student_relevance": 50,
+    "trend": "NEW"
+  },
+  "a4e08b419914de66": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Economy",
+    "first_seen": "2026-10-13",
+    "headline": "Bombay Chamber Hosts Interactive Meeting on “Doing Business with Romania” to Strengthen India–Romania Trade and Investment Ties",
+    "headline_hi": "",
+    "importance_score": 19,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Bombay Chamber Hosts Interactive Meeting on “Doing Business with Romania” to Strengthen India–Romania Trade and Investment Ties The international Trade & Commerce Commitee of Bombay Chamber on October 7th, 2026 hosted an Interactive Meeting on “Doing Business with Romania” in partnership with the Embassy of Romania, and the Hon. Consul of Romaina, Mumbai, at The Ruby,",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 19.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Bombay Chamber -",
+    "source_url": "https://bombaychamber.com/industry-news/bombay-chamber-hosts-interactive-meeting-on-doing-business-with-romania-to-strengthen-india-romania-trade-and-investment-ties/",
+    "student_relevance": 34,
+    "trend": "NEW"
+  },
+  "aad4015b2380a25d": {
+    "first_seen": "2026-10-05",
+    "headline": "National Advisory Board on Management of Genetic Resources Charts Roadmap for Strengthening India's Agrobiodiversity Conservation and Sustainable Utilization | ",
+    "last_seen": "2026-10-05",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-04",
+        "score": 32.0
+      }
+    ],
+    "trend": "NEW"
+  },
+  "aaee37bc74c9926b": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "YM11 - Young Scientists Group: Young women navigating agrifood systems in conflict settings - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "YM11 - Young Scientists Group: Young women navigating agrifood systems in conflict settings Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPTG9FTzlZWVVrcVlneG5wT3VkX21vU0JOR3ZyRzdTXzNiWVFEem1OT1lZazJDUW5XVm5sMDItVXhHZEpqc2JvdU1yTXotVUNGM0RJR2xzakY3SzZsWmJ3cEZWYjVaUXVxS0dGWVZoOURGbERSUGoxdldMeUVnTldjTG1kdE01czRRVHZPbzV0MmhFVUFqY1h0RVJoZnROSm5vWlZxQWtLazJ2TzI0QmlYT3pPNHJEMWYyUXpVY0FMdUQtV1JNMm5LbA?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "ad01069d0e6a1489": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Economy",
+    "first_seen": "2026-10-13",
+    "headline": "Tata Motors, Stellantis Broaden Partnership for Technology and Export Growth",
+    "headline_hi": "",
+    "importance_score": 22,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Tata Motors and Stellantis are expanding their collaboration in vehicle technology and global exports, highlighting the growing importance of strategic partnerships in the automotive industry. The broader cooperation is expected to support technology development, improve product capabilities and create opportunities to strengthen the companies’ presence in international markets. Collaboration between automotive manufacturers can also help […] The post Tata Motors, Stellantis Broaden Partnership for Technology and Export Growth appeared first on India Seatrade News.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 22.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "India Seatrade News",
+    "source_url": "https://indiaseatradenews.com/tata-motors-stellantis-broaden-partnership-for-technology-and-export-growth/",
+    "student_relevance": 37,
+    "trend": "NEW"
+  },
+  "ad4bf924af9a4c34": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "Event | Small AI: More and Better Jobs | Annual Meetings 2026 - World Bank Live",
+    "headline_hi": "",
+    "importance_score": 17,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Event | Small AI: More and Better Jobs | Annual Meetings 2026 World Bank Live",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 17.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "World Bank",
+    "source_url": "https://news.google.com/rss/articles/CBMif0FVX3lxTFA2SUdxaUs4UUhiY2lHV0ZDMGpHNW9tWkFPTmowdDhIVG9RbkxFTUNKMWM1ZTNwX21SamlhS1dTeUVrVGF5RHRPajB6T1NibFA5ZXlPSUI1a0VPZ2RMUF96MmxVRVJhUnVtNjVCMGZ3WjF0bUNuRE45OHZJNXh4MDg?oc=5",
+    "student_relevance": 42,
+    "trend": "NEW"
+  },
+  "b56b3a676df3fcc8": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Economy",
+    "first_seen": "2026-10-13",
+    "headline": "Gold ETF inflows jump to Rs 4,451 crore in September: Why are investors turning to the yellow metal?",
+    "headline_hi": "",
+    "importance_score": 10,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Gold ETFs attracted Rs 4,451 crore in September, the highest monthly inflow in seven months, despite a broader mutual fund outflow trend. Investors turned to gold amid geopolitical tensions, economic uncertainty, and a correction in prices.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 10.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Et Now",
+    "source_url": "https://www.etnownews.com/markets/gold-etf-inflows-jump-september-investors-turn-to-gold-safe-haven-asset-article-156324247",
+    "student_relevance": 25,
+    "trend": "NEW"
+  },
+  "bc42e73b88639603": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "Ranveer Singh Car Collection: Dhurandhar Star Buys Rs 2 Crore BMW i7 Electric Sedan, Drives It Home",
+    "headline_hi": "",
+    "importance_score": 15,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Ranveer Singh has reportedly bought a BMW i7 luxury electric sedan worth over Rs 2 crore. The actor was spotted driving the car on Mumbai roads.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 15.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "News 18",
+    "source_url": "https://www.news18.com/movies/bollywood/ranveer-singh-car-collection-dhurandhar-star-buys-rs-2-crore-bmw-i7-electric-sedan-drives-it-home-10377841.html",
+    "student_relevance": 40,
+    "trend": "NEW"
+  },
+  "bf8566dd0e07534a": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "What is the electoral roll cyber scam in which a 79-year-old Pune man lost ₹11.92 lakh?",
+    "headline_hi": "",
+    "importance_score": 13,
+    "last_seen": "2026-10-13",
+    "raw_facts": "The case raises questions about how banking credentials were compromised and whether personal information associated with electoral applications was obtained through phishing or other means",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 13.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/maharashtra/what-is-the-electoral-roll-cyber-scam-in-which-a-79-year-old-pune-man-lost-1192-lakh/article71578039.ece",
+    "student_relevance": 38,
+    "trend": "NEW"
+  },
+  "bfb1f59f16e168e4": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "The value of private investment in AI in India in 2025 that tripled from $1.2 billion in 2024. However, only 23.4% of Indian firms reported using AI, compared w",
+    "headline_hi": "",
+    "importance_score": 28,
+    "last_seen": "2026-10-13",
+    "raw_facts": "The value of private investment in AI in India in 2025 that tripled from $1.2 billion in 2024. However, only 23.4% of Indian firms reported using AI, compared with 42.7% of firms in the United States, according to a recent World Bank survey.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "weekly_2026-10-11",
+        "score": 28.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Global Indian",
+    "source_url": "https://www.globalindian.com/worldinnumbers/the-value-of-private-investment-in-ai-in-india-in-2025-that-tripled-from-1-2-billion-in-2024-however-only-23-4-per-cent-of-indian-firms-reported-using-ai-compared-with-42-7-per-cent-of-firms-in-th/",
+    "student_relevance": 53,
+    "trend": "NEW"
+  },
+  "c30216e0c3baeae9": {
+    "first_seen": "2026-10-05",
+    "headline": "Financial Inclusion in India: Banking Every Citizen, Empowering Every Household - PIB",
+    "last_seen": "2026-10-05",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-04",
+        "score": 20.0
+      }
+    ],
+    "trend": "NEW"
+  },
+  "c6f104c61430957e": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Economy",
+    "first_seen": "2026-10-13",
+    "headline": "Fitch unit raises India FY27 growth forecast to 7.5%",
+    "headline_hi": "",
+    "importance_score": 19,
+    "last_seen": "2026-10-13",
+    "raw_facts": "BMI has raised India's economic growth forecast for 2026-27 to 7.5% from the previous estimate of 6.8%. The agency cites strong growth momentum and ongoing investment in artificial intelligence as key factors. However, risks from rising oil prices and potential El Nino disruptions could negatively impact growth. Additionally, the forecast for 2027-28 has been adjusted down to 6.3%, reflecting concerns for household consumption.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "weekly_2026-10-11",
+        "score": 19.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Economic Times",
+    "source_url": "https://economictimes.indiatimes.com/news/economy/fitch-unit-ups-indias-fy27-growth-forecast-to-75-amid-ai-investment-boom-but-cautions-on-oil-prices-and-el-nino-risks/articleshow/134901962.cms",
+    "student_relevance": 34,
+    "trend": "NEW"
+  },
+  "d412d9c90c106288": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-13",
+    "headline": "Job Description - Programme Assistant (2602116) - Food and Agriculture Organization",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Job Description - Programme Assistant (2602116) Food and Agriculture Organization",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 20.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "FAO",
+    "source_url": "https://news.google.com/rss/articles/CBMifkFVX3lxTE4xTURHNXM0bXZISUN1dzVmcmpVTUdNVFRvOXRrR05oWmx5Qk51cFpOVWJIRHRlX0EyNUFyZTBXRXBPdXpYVUxVMFZaRHotb01hVU9Jdl8wT1pvZWdtbHEwUndqY3lkNUM1TXlONmVrMTUxRUtrY3hfejZXbW5RZw?oc=5",
+    "student_relevance": 45,
+    "trend": "NEW"
+  },
+  "dd3fe03aebacac7f": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "Vetrix 2026 opens new avenues for agri-entrepreneurs",
+    "headline_hi": "",
+    "importance_score": 21,
+    "last_seen": "2026-10-11",
+    "raw_facts": "The national-level ideathon organised by K-AgTech LaunchPad of KAU and KVASU provided a platform for students, researchers and aspiring entrepreneurs to showcase innovative ideas in veterinary science, animal husbandry and allied sectors",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 21.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/national/kerala/vetrix-2026-opens-new-avenues-for-agri-entrepreneurs/article71571581.ece",
+    "student_relevance": 46,
+    "trend": "NEW"
+  },
+  "e43a0effec3eedbb": {
+    "agri_focus": true,
+    "banking_focus": false,
+    "category": "Agriculture",
+    "first_seen": "2026-10-11",
+    "headline": "Farmer's Son Starts Barosi With Rs 15 Lakh, Builds a Shark Tank-Featured Ghee Brand at Rs 56 Cr",
+    "headline_hi": "",
+    "importance_score": 23,
+    "last_seen": "2026-10-11",
+    "raw_facts": "India has always had a love-hate relationship with ghee. People once thought ghee was harmful because it contained bad fat and raised cholesterol. But that image has changed in recent years. The Indian ghee market was valued at Rs 3,774.5 billion in 2025 and is expected to grow at a CAGR of 7.70% and reach Rs 7,532.7 billion in 2034, according to IMARC Group. Brands that sell ghee have experienced this shift very closely. \"In the last 6-7 years, there has been a new awareness of ghee. Consumers see and buy it from a health and wellness perspective. It is good for you; it has good fats, and it ",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-10",
+        "score": 23.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Startuppedia",
+    "source_url": "https://startuppedia.in/startup-stories/farmers-son-starts-barosi-with-rs-15-lakh-builds-a-shark-tank-featured-ghee-brand-at-rs-56-cr-12659457",
+    "student_relevance": 48,
+    "trend": "NEW"
+  },
+  "ee24ef37ff7a9266": {
+    "first_seen": "2026-10-05",
+    "headline": "UPI: Transforming India's Payment Landscape - PIB",
+    "last_seen": "2026-10-05",
+    "scores": [
+      {
+        "date": "2026-10-05",
+        "job": "daily_2026-10-04",
+        "score": 20.0
+      }
+    ],
+    "trend": "NEW"
+  },
+  "f13605a8eccd3219": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-13",
+    "headline": "Sona Mohapatra defends 'Dhurandhar: The Revenge' Grammy submissions: 'There’s a good reason why these musicians have no choice'",
+    "headline_hi": "",
+    "importance_score": 18,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Sona Mohapatra champions the cause of Indian musicians striving for Grammy acknowledgment, shedding light on the lack of appreciation and support for local talent in India. She points out that these artists often seek validation from international platforms. Mohapatra advocates for fostering an environment where all music receives due respect in India. Notably, 'Dhurandhar 2' is vying for nine categories at the forthcoming Grammy Awards.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-05",
+        "score": 18.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Times Of India",
+    "source_url": "https://timesofindia.indiatimes.com/entertainment/hindi/bollywood/news/sona-mohapatra-defends-dhurandhar-the-revenge-grammy-submissions-theres-a-good-reason-why-these-musicians-have-no-choice/articleshow/134894464.cms",
+    "student_relevance": 26,
+    "trend": "NEW"
+  },
+  "f65f93b228b21496": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-11",
+    "headline": "PM Modi in Chennai LIVE | Prime Minister inaugurates Metro Rail's Phase 2 stretch, ₹13000-crore worth development projects",
+    "headline_hi": "",
+    "importance_score": 16,
+    "last_seen": "2026-10-11",
+    "raw_facts": "Six years after the work began, Chennai Metro Rail Limited (CMRL)’s first train ran from Porur Bypass at noon on October 11, 2026, with Mr. Modi and Chief Minister C. Joseph Vijay being the first few commuters.",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-11",
+        "score": 16.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "The Hindu National",
+    "source_url": "https://www.thehindu.com/news/cities/chennai/chennai-metro-phase-two-inauguration-poonamallee-vadapalani-narendra-modi-visit-schedule-cm-vijay-meeting-live-updates/article71570613.ece",
+    "student_relevance": 24,
+    "trend": "NEW"
+  },
+  "faa956eaa8fd014b": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "World Bank Group Launches Philanthropy Hub to Unlock Capital, Knowledge and Networks for Development - World Bank Group",
+    "headline_hi": "",
+    "importance_score": 17,
+    "last_seen": "2026-10-13",
+    "raw_facts": "World Bank Group Launches Philanthropy Hub to Unlock Capital, Knowledge and Networks for Development World Bank Group",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 17.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "World Bank",
+    "source_url": "https://news.google.com/rss/articles/CBMi2AFBVV95cUxPZHZTN0JleHFyX2JpR2JDLVdrMUxrN3lPZUgyRnpKOXRiRkhwekRaZGpOdFlXNXZGZWU2X1paOU9wZFNXZ1dIenpkY05DX0ptbU1XeTgyWEx0Y3ZWSkRoZ3lzWjBMUjI5ZDlTRC1nMThpa2l6S1hIcS12d0FrcWlSTTdYQUxqbkhQb1ZzVzM0TEFRa2s3UW56ODU1TG1tZ243aDZEMk5CT0tPWGZBbUt0OGlJa2h1U0Ruby1KakgxMG9HejFtMzMycnFuazJCUlZpSGczQmpTNjA?oc=5",
+    "student_relevance": 42,
+    "trend": "NEW"
+  },
+  "ff848185f11b241f": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "National",
+    "first_seen": "2026-10-13",
+    "headline": "Vygr PR Network Launches Eight Festive Season PR Packages for Brands Competing in India's Rs 60,000 Crore Ad Season",
+    "headline_hi": "",
+    "importance_score": 22,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Mumbai (Maharashtra) [India], October 12: Vygr Media has launched the Vygr Festive Special Packages, a set of eight festive season PR packages for founders, consumer brands, financial services firms and growth-stage companies. The packages are built for brands that want earned media coverage and stronger brand visibility while festive attention is at its peak.",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "daily_2026-10-13",
+        "score": 22.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Business Standard",
+    "source_url": "https://www.business-standard.com/content/press-releases-ani/vygr-pr-network-launches-eight-festive-season-pr-packages-for-brands-competing-in-india-s-rs-60-000-crore-ad-season-126101300021_1.html",
+    "student_relevance": 30,
+    "trend": "NEW"
+  },
+  "ff944301163a8b77": {
+    "agri_focus": false,
+    "banking_focus": false,
+    "category": "Science & Technology",
+    "first_seen": "2026-10-11",
+    "headline": "10th Edition of India Mobile Congress 2026 Concludes Successfully",
+    "headline_hi": "",
+    "importance_score": 20,
+    "last_seen": "2026-10-11",
+    "raw_facts": "The 10th edition of the India Mobile Congress 2026 concluded on Saturday with a focus on artificial intelligence (AI) applications in agriculture, youth-led robotics, autonomous AI agents for 5G networks and expanding digital connectivity to underserved communities. Held under the theme ‘Scale Without Boundaries’, the four-day event brought together policymakers, industry leaders, researchers, startups and […] The post 10th Edition of India Mobile Congress 2026 Concludes Successfully appeared first on Tech Achieve Media.",
+    "scores": [
+      {
+        "date": "2026-10-11",
+        "job": "daily_2026-10-10",
+        "score": 20.0
+      }
+    ],
+    "source_level": 4,
+    "source_name": "Tech Achieve Media",
+    "source_url": "https://techachievemedia.com/live-coverage/10th-edition-of-india-mobile-congress-2026-concludes-successfully/",
+    "student_relevance": 32,
+    "trend": "NEW"
+  },
+  "ffc9b691b280b8d0": {
+    "agri_focus": false,
+    "banking_focus": true,
+    "category": "Banking & Finance",
+    "first_seen": "2026-10-13",
+    "headline": "Unlocking $5.79 Billion in private financing: The World Bank Group Is leading the charge for Private Capital Mobilization in Nigeria - World Bank Group",
+    "headline_hi": "",
+    "importance_score": 18,
+    "last_seen": "2026-10-13",
+    "raw_facts": "Unlocking $5.79 Billion in private financing: The World Bank Group Is leading the charge for Private Capital Mobilization in Nigeria World Bank Group",
+    "scores": [
+      {
+        "date": "2026-10-13",
+        "job": "weekly_2026-10-11",
+        "score": 18.0
+      }
+    ],
+    "source_level": 0,
+    "source_name": "World Bank",
+    "source_url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPd3ZqU3BEX2VHTWNsaHBRTk5qYVNaUk5CblRrNzNUSVZ0ZXkyTmgwamJXMkFTa056U2Y2cnNoV1V3cGFqM1NGU1ZCczlyeHI3SUctRVAyRGltdFdVNml4cWY2dnFyOXNoSV9mTmVfUDNFcGRrbDFieUc2ZEZCTUM5TkJqMnRiX1N5bG9EMGt1RWJGZmxxcF9kODlZQktHZXdXNHdSVGVnZXVRZTEwdF81bENfZ1pxT0ZlOHhzNjEyY29WYUFWZnBQZQ?oc=5",
+    "student_relevance": 43,
+    "trend": "NEW"
+  },
   "4c9f68ad45b84d3f": {
     "title": "2026-10-14 Time of Issue: 13:25:00 hours IST (Mid-Day) ALL INDIA WEATHER SUMMARY AND FORECAST BULLETIN Significant Weather Featu - IMD",
     "link": "https://news.google.com/rss/articles/CBMikAFBVV95cUxPMEREcjNPNlV2Q0xtcVpqUUwtUmk0YmVuRDBzV3lLZFN2Yk83aDdQLURFM0NaXzZnUnF4VWkxUnc0dkpRZkFFUDN6N3RSOXN5YllVM1JqVUFzWGtzMFlsNGgxUnJsOEFBc1d4T0JBdXZ2dmZQVnJ4UGVZb3ExaVMwWVdja241T3RPYTR5SkR5Nm0?oc=5",
@@ -377,6 +1625,60 @@
     "last_seen": "2026-10-15T05:56:03.567274+00:00",
     "last_job_id": "daily_2026-10-15"
   },
+  "91a0e2f1ec9ec2ee": {
+    "title": "- Reserve Bank of India",
+    "link": "https://news.google.com/rss/articles/CBMimAFBVV95cUxNUnFWZGVVM0NDeVpnbjVBUHRwTEFETnRIWms1YmNONDdlZmQxTFJ5OTdsMF85TTdvcmFQTmxtaHVTd2Zudk02U1E4dzM4b0NPbGVEWWRDaXBwVDFJU19yYWNRX2FHd1NuRVhCRVlISFE2UDhMWlg5YjAwbFViZEhPRWJYWjRuR3N5bW93TEkxaXVrbHBYMW9zYQ?oc=5",
+    "summary": "Reserve Bank of India",
+    "published": "2026-10-14T07:43:01+00:00",
+    "source_feed": "https://news.google.com/rss/search?q=site%3Arbi.org.in%20when%3A2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source_name": "RBI",
+    "source_id": "src-03",
+    "source_tier": "tier1",
+    "publisher_url": "https://www.rbi.org.in",
+    "source_level": 0,
+    "official": false,
+    "category": "Banking & Finance",
+    "language": "en",
+    "collected_at": "2026-10-15T05:07:50.437238+00:00",
+    "content_hash": "76b217b48d27547f",
+    "headline_en": "- Reserve Bank of India",
+    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMimAFBVV95cUxNUnFWZGVVM0NDeVpnbjVBUHRwTEFETnRIWms1YmNONDdlZmQxTFJ5OTdsMF85TTdvcmFQTmxtaHVTd2Zudk02U1E4dzM4b0NPbGVEWWRDaXBwVDFJU19yYWNRX2FHd1NuRVhCRVlISFE2UDhMWlg5YjAwbFViZEhPRWJYWjRuR3N5bW93TEkxaXVrbHBYMW9zYQ?oc=5\" target=\"_blank\"></a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Reserve Bank of India</font>",
+    "source_url": "https://news.google.com/rss/articles/CBMimAFBVV95cUxNUnFWZGVVM0NDeVpnbjVBUHRwTEFETnRIWms1YmNONDdlZmQxTFJ5OTdsMF85TTdvcmFQTmxtaHVTd2Zudk02U1E4dzM4b0NPbGVEWWRDaXBwVDFJU19yYWNRX2FHd1NuRVhCRVlISFE2UDhMWlg5YjAwbFViZEhPRWJYWjRuR3N5bW93TEkxaXVrbHBYMW9zYQ?oc=5",
+    "event_id": "91a0e2f1ec9ec2ee",
+    "verified_at": "2026-10-15T05:08:13.500039+00:00",
+    "confidence_score": 0.545,
+    "verification_method": "heuristic+cross_source",
+    "corroborating_sources": [],
+    "flags": [
+      "independent_source_verification_missing"
+    ],
+    "is_verified": true,
+    "verification_mode": "dry_run",
+    "provenance_verified": false,
+    "duplicate_sources": [
+      "https://news.google.com/rss/search?q=site%3Arbi.org.in%20when%3A2d&hl=en-IN&gl=IN&ceid=IN:en"
+    ],
+    "source_count": 1,
+    "factors": {
+      "national_impact": 5,
+      "govt_policy": 0,
+      "economy": 0,
+      "agriculture": 0,
+      "banking": 10,
+      "exam_relevance": 0,
+      "future_importance": 1,
+      "static_fact_value": 1,
+      "uniqueness": 5
+    },
+    "raw_total": 22,
+    "source_type": "CORE PRIMARY",
+    "source_reliability": 100,
+    "importance_score": 22,
+    "student_relevance": 47,
+    "banking_focus": true,
+    "last_seen": "2026-10-15T05:09:08.468127+00:00",
+    "last_job_id": "daily_2026-10-15"
+  },
   "d46247684679b494": {
     "title": "Weather Warning Bulletin - IMD",
     "link": "https://news.google.com/rss/articles/CBMibEFVX3lxTE9OaXJTMzhZTDhFQ2I4dnVXVWo3emZOUUpsU0s1NGFhZWo5d1ZBR0JhdGdMZUJnbE1SWWNZdFBMV0RQdUI0TWFhOWpQQlhITDVWZjZOOVpLNGJOamgzTlRPUlpCdDI0bTY3M0s1Nw?oc=5",
@@ -594,6 +1896,60 @@
     "last_seen": "2026-10-15T05:56:03.567274+00:00",
     "last_job_id": "daily_2026-10-15"
   },
+  "b7afea9cd19e1aad": {
+    "title": "International Financial Services Centres Authority - International Financial Services Centres Authority (IFSCA)",
+    "link": "https://news.google.com/rss/articles/CBMilwFBVV95cUxPbmZBZ1NDYk9wcTAyUE5Hckt0aTVKTTJsa2wxR050VzJzQjUtTnVxS1RKTGt3RHhPTG1ReDdDN3hIRi13R1RFS3JNSHduckdIT3dBMmFKbHVVa3A1NnNkMWhJbnR1a2ZmRldFclBicDd4SUo1enY1UXRVUlNrQ2VsOTl2aV9KeENkN0NjZVcyZHUxNUFsTF9F?oc=5",
+    "summary": "International Financial Services Centres Authority International Financial Services Centres Authority (IFSCA)",
+    "published": "2026-10-14T05:11:39+00:00",
+    "source_feed": "https://news.google.com/rss/search?q=site%3Aifsca.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source_name": "IFSCA",
+    "source_id": "src-24",
+    "source_tier": "tier1",
+    "publisher_url": "https://ifsca.gov.in",
+    "source_level": 2,
+    "official": false,
+    "category": "Banking & Finance",
+    "language": "en",
+    "collected_at": "2026-10-15T05:07:58.433511+00:00",
+    "content_hash": "3f85b3d4d36ae6dd",
+    "headline_en": "International Financial Services Centres Authority - International Financial Services Centres Authority (IFSCA)",
+    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMilwFBVV95cUxPbmZBZ1NDYk9wcTAyUE5Hckt0aTVKTTJsa2wxR050VzJzQjUtTnVxS1RKTGt3RHhPTG1ReDdDN3hIRi13R1RFS3JNSHduckdIT3dBMmFKbHVVa3A1NnNkMWhJbnR1a2ZmRldFclBicDd4SUo1enY1UXRVUlNrQ2VsOTl2aV9KeENkN0NjZVcyZHUxNUFsTF9F?oc=5\" target=\"_blank\">International Financial Services Centres Authority</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">International Financial Services Centres Authority (IFSCA)</font>",
+    "source_url": "https://news.google.com/rss/articles/CBMilwFBVV95cUxPbmZBZ1NDYk9wcTAyUE5Hckt0aTVKTTJsa2wxR050VzJzQjUtTnVxS1RKTGt3RHhPTG1ReDdDN3hIRi13R1RFS3JNSHduckdIT3dBMmFKbHVVa3A1NnNkMWhJbnR1a2ZmRldFclBicDd4SUo1enY1UXRVUlNrQ2VsOTl2aV9KeENkN0NjZVcyZHUxNUFsTF9F?oc=5",
+    "event_id": "b7afea9cd19e1aad",
+    "verified_at": "2026-10-15T05:08:14.625432+00:00",
+    "confidence_score": 0.545,
+    "verification_method": "heuristic+cross_source",
+    "corroborating_sources": [],
+    "flags": [
+      "independent_source_verification_missing"
+    ],
+    "is_verified": true,
+    "verification_mode": "dry_run",
+    "provenance_verified": false,
+    "duplicate_sources": [
+      "https://news.google.com/rss/search?q=site%3Aifsca.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en"
+    ],
+    "source_count": 1,
+    "factors": {
+      "national_impact": 5,
+      "govt_policy": 0,
+      "economy": 0,
+      "agriculture": 0,
+      "banking": 10,
+      "exam_relevance": 0,
+      "future_importance": 1,
+      "static_fact_value": 2,
+      "uniqueness": 5
+    },
+    "raw_total": 23,
+    "source_type": "FINANCE/ECONOMY",
+    "source_reliability": 90,
+    "importance_score": 21,
+    "student_relevance": 46,
+    "banking_focus": true,
+    "last_seen": "2026-10-15T05:09:08.468127+00:00",
+    "last_job_id": "daily_2026-10-15"
+  },
   "ec2476f1bf25d7db": {
     "title": "banner M Kisan",
     "link": "https://icar.org.in/hi/banner-m-kisan",
@@ -697,6 +2053,60 @@
     "student_relevance": 45,
     "agri_focus": true,
     "last_seen": "2026-10-15T05:56:03.567274+00:00",
+    "last_job_id": "daily_2026-10-15"
+  },
+  "bc3b8bfee9207ccd": {
+    "title": "Instructions given to expedite the computerization of PACS - Ministry of Cooperation",
+    "link": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQSjZYWHNsS1BnM3pSVkhERXktbDluNW5sRzlHbmZYWjdVQU52c3p3dHlzUnJ2WEVtVlF0d2xjZHh0bTBhRXFHY2x2dmFPbUJSODBmYlk0b0p6cUhqb1djOWJOU2w5UjVDWnBjTmRLdGE1V3VyNWt0M0pNMDUyamg5RHlhOXMtaUpWZWJNbTdFQkFPNGd6Y0NPVVU0T0RKSWtyZHlB?oc=5",
+    "summary": "Instructions given to expedite the computerization of PACS Ministry of Cooperation",
+    "published": "2026-10-14T05:49:33+00:00",
+    "source_feed": "https://news.google.com/rss/search?q=site%3Acooperation.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source_name": "Ministry of Cooperation",
+    "source_id": "src-35",
+    "source_tier": "tier1",
+    "publisher_url": "https://cooperation.gov.in",
+    "source_level": 3,
+    "official": false,
+    "category": "Agriculture",
+    "language": "en",
+    "collected_at": "2026-10-15T05:08:01.301507+00:00",
+    "content_hash": "170875895cdeaf50",
+    "headline_en": "Instructions given to expedite the computerization of PACS - Ministry of Cooperation",
+    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMiowFBVV95cUxQSjZYWHNsS1BnM3pSVkhERXktbDluNW5sRzlHbmZYWjdVQU52c3p3dHlzUnJ2WEVtVlF0d2xjZHh0bTBhRXFHY2x2dmFPbUJSODBmYlk0b0p6cUhqb1djOWJOU2w5UjVDWnBjTmRLdGE1V3VyNWt0M0pNMDUyamg5RHlhOXMtaUpWZWJNbTdFQkFPNGd6Y0NPVVU0T0RKSWtyZHlB?oc=5\" target=\"_blank\">Instructions given to expedite the computerization of PACS</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Ministry of Cooperation</font>",
+    "source_url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQSjZYWHNsS1BnM3pSVkhERXktbDluNW5sRzlHbmZYWjdVQU52c3p3dHlzUnJ2WEVtVlF0d2xjZHh0bTBhRXFHY2x2dmFPbUJSODBmYlk0b0p6cUhqb1djOWJOU2w5UjVDWnBjTmRLdGE1V3VyNWt0M0pNMDUyamg5RHlhOXMtaUpWZWJNbTdFQkFPNGd6Y0NPVVU0T0RKSWtyZHlB?oc=5",
+    "event_id": "bc3b8bfee9207ccd",
+    "verified_at": "2026-10-15T05:08:17.957659+00:00",
+    "confidence_score": 0.545,
+    "verification_method": "heuristic+cross_source",
+    "corroborating_sources": [],
+    "flags": [
+      "independent_source_verification_missing"
+    ],
+    "is_verified": true,
+    "verification_mode": "dry_run",
+    "provenance_verified": false,
+    "duplicate_sources": [
+      "https://news.google.com/rss/search?q=site%3Acooperation.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en"
+    ],
+    "source_count": 1,
+    "factors": {
+      "national_impact": 0,
+      "govt_policy": 0,
+      "economy": 0,
+      "agriculture": 15,
+      "banking": 0,
+      "exam_relevance": 0,
+      "future_importance": 1,
+      "static_fact_value": 2,
+      "uniqueness": 5
+    },
+    "raw_total": 23,
+    "source_type": "OTHER GOVERNMENT",
+    "source_reliability": 85,
+    "importance_score": 20,
+    "student_relevance": 45,
+    "agri_focus": true,
+    "last_seen": "2026-10-15T05:09:08.468127+00:00",
     "last_job_id": "daily_2026-10-15"
   },
   "20f7f86cac108a69": {
@@ -1280,6 +2690,58 @@
     "last_seen": "2026-10-15T05:56:03.567274+00:00",
     "last_job_id": "daily_2026-10-15"
   },
+  "8130b27c69795ee4": {
+    "title": "Directorate of Revenue Intelligence seizes ₹30 crore worth of salt smuggled from Pakistan",
+    "link": "https://www.thehindu.com/news/national/directorate-of-revenue-intelligence-seizes-30-crore-worth-of-salt-smuggled-from-pakistan/article71585065.ece",
+    "summary": "Following the Pahalgam terror attack in April 2025, the Indian government had banned the direct or indirect import or transit of all goods originating in or exported from Pakistan, in the interest of national security and public policy",
+    "published": "2026-10-14T18:11:20+00:00",
+    "source_feed": "https://www.thehindu.com/news/national/feeder/default.rss",
+    "source_name": "The Hindu National",
+    "source_id": "feed-02-the-hindu-national",
+    "source_tier": "tier2",
+    "publisher_url": "https://www.thehindu.com/news/national/feeder/default.rss",
+    "official": false,
+    "category": "National",
+    "language": "en",
+    "collected_at": "2026-10-15T05:07:47.388220+00:00",
+    "content_hash": "8130b27c69795ee4",
+    "headline_en": "Directorate of Revenue Intelligence seizes ₹30 crore worth of salt smuggled from Pakistan",
+    "raw_facts": "Following the Pahalgam terror attack in April 2025, the Indian government had banned the direct or indirect import or transit of all goods originating in or exported from Pakistan, in the interest of national security and public policy",
+    "source_url": "https://www.thehindu.com/news/national/directorate-of-revenue-intelligence-seizes-30-crore-worth-of-salt-smuggled-from-pakistan/article71585065.ece",
+    "event_id": "8130b27c69795ee4",
+    "verified_at": "2026-10-15T05:08:11.991460+00:00",
+    "confidence_score": 0.545,
+    "verification_method": "heuristic+cross_source",
+    "corroborating_sources": [],
+    "flags": [
+      "independent_source_verification_missing"
+    ],
+    "is_verified": true,
+    "verification_mode": "dry_run",
+    "provenance_verified": false,
+    "duplicate_sources": [
+      "https://www.thehindu.com/news/national/feeder/default.rss"
+    ],
+    "source_count": 1,
+    "factors": {
+      "national_impact": 10,
+      "govt_policy": 4,
+      "economy": 4,
+      "agriculture": 0,
+      "banking": 0,
+      "exam_relevance": 0,
+      "future_importance": 0,
+      "static_fact_value": 1,
+      "uniqueness": 5
+    },
+    "raw_total": 24,
+    "source_type": "Reuters/Trusted News",
+    "source_reliability": 90,
+    "importance_score": 22,
+    "student_relevance": 30,
+    "last_seen": "2026-10-15T05:09:08.468127+00:00",
+    "last_job_id": "daily_2026-10-15"
+  },
   "045c240962cc6332": {
     "title": "Next AI phase about outcomes, not experiments, says OpenAI executive",
     "link": "https://www.business-standard.com/technology/artificial-intelligence/next-ai-phase-about-outcomes-not-experiments-says-openai-executive-126101401123_1.html",
@@ -1490,6 +2952,59 @@
     "importance_score": 22,
     "student_relevance": 30,
     "last_seen": "2026-10-15T05:56:03.567274+00:00",
+    "last_job_id": "daily_2026-10-15"
+  },
+  "0dc370bb23885660": {
+    "title": "Competition Commission of India, Government of India - Competition Commission of India",
+    "link": "https://news.google.com/rss/articles/CBMif0FVX3lxTFBKdDQ5V0toOUtzZU8tQVJOZ1gzQ3ZhVXVkVjhacEpvNkhwM1ktM1VqSzczaTJ6dzdnc0MxUzZDcC1aNDdhbTlZdW85VmFtUFBLNmJjVVhyUElTQ2F2bGo1X0VDM3V2TTZseFRWWENoZkRSMTRLMmo2ZlcwUFNJYTA?oc=5",
+    "summary": "Competition Commission of India, Government of India Competition Commission of India",
+    "published": "2026-10-14T10:15:54+00:00",
+    "source_feed": "https://news.google.com/rss/search?q=site%3Acci.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en",
+    "source_name": "Competition Commission of India",
+    "source_id": "src-28",
+    "source_tier": "tier1",
+    "publisher_url": "https://www.cci.gov.in",
+    "source_level": 2,
+    "official": false,
+    "category": "Economy",
+    "language": "en",
+    "collected_at": "2026-10-15T05:07:59.455725+00:00",
+    "content_hash": "05cb312fd368c04e",
+    "headline_en": "Competition Commission of India, Government of India - Competition Commission of India",
+    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMif0FVX3lxTFBKdDQ5V0toOUtzZU8tQVJOZ1gzQ3ZhVXVkVjhacEpvNkhwM1ktM1VqSzczaTJ6dzdnc0MxUzZDcC1aNDdhbTlZdW85VmFtUFBLNmJjVVhyUElTQ2F2bGo1X0VDM3V2TTZseFRWWENoZkRSMTRLMmo2ZlcwUFNJYTA?oc=5\" target=\"_blank\">Competition Commission of India, Government of India</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Competition Commission of India</font>",
+    "source_url": "https://news.google.com/rss/articles/CBMif0FVX3lxTFBKdDQ5V0toOUtzZU8tQVJOZ1gzQ3ZhVXVkVjhacEpvNkhwM1ktM1VqSzczaTJ6dzdnc0MxUzZDcC1aNDdhbTlZdW85VmFtUFBLNmJjVVhyUElTQ2F2bGo1X0VDM3V2TTZseFRWWENoZkRSMTRLMmo2ZlcwUFNJYTA?oc=5",
+    "event_id": "0dc370bb23885660",
+    "verified_at": "2026-10-15T05:08:14.821312+00:00",
+    "confidence_score": 0.545,
+    "verification_method": "heuristic+cross_source",
+    "corroborating_sources": [],
+    "flags": [
+      "independent_source_verification_missing"
+    ],
+    "is_verified": true,
+    "verification_mode": "dry_run",
+    "provenance_verified": false,
+    "duplicate_sources": [
+      "https://news.google.com/rss/search?q=site%3Acci.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en"
+    ],
+    "source_count": 1,
+    "factors": {
+      "national_impact": 5,
+      "govt_policy": 4,
+      "economy": 0,
+      "agriculture": 0,
+      "banking": 0,
+      "exam_relevance": 0,
+      "future_importance": 2,
+      "static_fact_value": 1,
+      "uniqueness": 5
+    },
+    "raw_total": 17,
+    "source_type": "FINANCE/ECONOMY",
+    "source_reliability": 90,
+    "importance_score": 15,
+    "student_relevance": 30,
+    "last_seen": "2026-10-15T05:09:08.468127+00:00",
     "last_job_id": "daily_2026-10-15"
   },
   "5a7c51211d484a36": {
@@ -1704,1520 +3219,5 @@
     "student_relevance": 38,
     "last_seen": "2026-10-15T05:56:03.567274+00:00",
     "last_job_id": "daily_2026-10-15"
-  },
-  "91a0e2f1ec9ec2ee": {
-    "title": "- Reserve Bank of India",
-    "link": "https://news.google.com/rss/articles/CBMimAFBVV95cUxNUnFWZGVVM0NDeVpnbjVBUHRwTEFETnRIWms1YmNONDdlZmQxTFJ5OTdsMF85TTdvcmFQTmxtaHVTd2Zudk02U1E4dzM4b0NPbGVEWWRDaXBwVDFJU19yYWNRX2FHd1NuRVhCRVlISFE2UDhMWlg5YjAwbFViZEhPRWJYWjRuR3N5bW93TEkxaXVrbHBYMW9zYQ?oc=5",
-    "summary": "Reserve Bank of India",
-    "published": "2026-10-14T07:43:01+00:00",
-    "source_feed": "https://news.google.com/rss/search?q=site%3Arbi.org.in%20when%3A2d&hl=en-IN&gl=IN&ceid=IN:en",
-    "source_name": "RBI",
-    "source_id": "src-03",
-    "source_tier": "tier1",
-    "publisher_url": "https://www.rbi.org.in",
-    "source_level": 0,
-    "official": false,
-    "category": "Banking & Finance",
-    "language": "en",
-    "collected_at": "2026-10-15T05:07:50.437238+00:00",
-    "content_hash": "76b217b48d27547f",
-    "headline_en": "- Reserve Bank of India",
-    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMimAFBVV95cUxNUnFWZGVVM0NDeVpnbjVBUHRwTEFETnRIWms1YmNONDdlZmQxTFJ5OTdsMF85TTdvcmFQTmxtaHVTd2Zudk02U1E4dzM4b0NPbGVEWWRDaXBwVDFJU19yYWNRX2FHd1NuRVhCRVlISFE2UDhMWlg5YjAwbFViZEhPRWJYWjRuR3N5bW93TEkxaXVrbHBYMW9zYQ?oc=5\" target=\"_blank\"></a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Reserve Bank of India</font>",
-    "source_url": "https://news.google.com/rss/articles/CBMimAFBVV95cUxNUnFWZGVVM0NDeVpnbjVBUHRwTEFETnRIWms1YmNONDdlZmQxTFJ5OTdsMF85TTdvcmFQTmxtaHVTd2Zudk02U1E4dzM4b0NPbGVEWWRDaXBwVDFJU19yYWNRX2FHd1NuRVhCRVlISFE2UDhMWlg5YjAwbFViZEhPRWJYWjRuR3N5bW93TEkxaXVrbHBYMW9zYQ?oc=5",
-    "event_id": "91a0e2f1ec9ec2ee",
-    "verified_at": "2026-10-15T05:08:13.500039+00:00",
-    "confidence_score": 0.545,
-    "verification_method": "heuristic+cross_source",
-    "corroborating_sources": [],
-    "flags": [
-      "independent_source_verification_missing"
-    ],
-    "is_verified": true,
-    "verification_mode": "dry_run",
-    "provenance_verified": false,
-    "duplicate_sources": [
-      "https://news.google.com/rss/search?q=site%3Arbi.org.in%20when%3A2d&hl=en-IN&gl=IN&ceid=IN:en"
-    ],
-    "source_count": 1,
-    "factors": {
-      "national_impact": 5,
-      "govt_policy": 0,
-      "economy": 0,
-      "agriculture": 0,
-      "banking": 10,
-      "exam_relevance": 0,
-      "future_importance": 1,
-      "static_fact_value": 1,
-      "uniqueness": 5
-    },
-    "raw_total": 22,
-    "source_type": "CORE PRIMARY",
-    "source_reliability": 100,
-    "importance_score": 22,
-    "student_relevance": 47,
-    "banking_focus": true,
-    "last_seen": "2026-10-15T05:09:08.468127+00:00",
-    "last_job_id": "daily_2026-10-15"
-  },
-  "b7afea9cd19e1aad": {
-    "title": "International Financial Services Centres Authority - International Financial Services Centres Authority (IFSCA)",
-    "link": "https://news.google.com/rss/articles/CBMilwFBVV95cUxPbmZBZ1NDYk9wcTAyUE5Hckt0aTVKTTJsa2wxR050VzJzQjUtTnVxS1RKTGt3RHhPTG1ReDdDN3hIRi13R1RFS3JNSHduckdIT3dBMmFKbHVVa3A1NnNkMWhJbnR1a2ZmRldFclBicDd4SUo1enY1UXRVUlNrQ2VsOTl2aV9KeENkN0NjZVcyZHUxNUFsTF9F?oc=5",
-    "summary": "International Financial Services Centres Authority International Financial Services Centres Authority (IFSCA)",
-    "published": "2026-10-14T05:11:39+00:00",
-    "source_feed": "https://news.google.com/rss/search?q=site%3Aifsca.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en",
-    "source_name": "IFSCA",
-    "source_id": "src-24",
-    "source_tier": "tier1",
-    "publisher_url": "https://ifsca.gov.in",
-    "source_level": 2,
-    "official": false,
-    "category": "Banking & Finance",
-    "language": "en",
-    "collected_at": "2026-10-15T05:07:58.433511+00:00",
-    "content_hash": "3f85b3d4d36ae6dd",
-    "headline_en": "International Financial Services Centres Authority - International Financial Services Centres Authority (IFSCA)",
-    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMilwFBVV95cUxPbmZBZ1NDYk9wcTAyUE5Hckt0aTVKTTJsa2wxR050VzJzQjUtTnVxS1RKTGt3RHhPTG1ReDdDN3hIRi13R1RFS3JNSHduckdIT3dBMmFKbHVVa3A1NnNkMWhJbnR1a2ZmRldFclBicDd4SUo1enY1UXRVUlNrQ2VsOTl2aV9KeENkN0NjZVcyZHUxNUFsTF9F?oc=5\" target=\"_blank\">International Financial Services Centres Authority</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">International Financial Services Centres Authority (IFSCA)</font>",
-    "source_url": "https://news.google.com/rss/articles/CBMilwFBVV95cUxPbmZBZ1NDYk9wcTAyUE5Hckt0aTVKTTJsa2wxR050VzJzQjUtTnVxS1RKTGt3RHhPTG1ReDdDN3hIRi13R1RFS3JNSHduckdIT3dBMmFKbHVVa3A1NnNkMWhJbnR1a2ZmRldFclBicDd4SUo1enY1UXRVUlNrQ2VsOTl2aV9KeENkN0NjZVcyZHUxNUFsTF9F?oc=5",
-    "event_id": "b7afea9cd19e1aad",
-    "verified_at": "2026-10-15T05:08:14.625432+00:00",
-    "confidence_score": 0.545,
-    "verification_method": "heuristic+cross_source",
-    "corroborating_sources": [],
-    "flags": [
-      "independent_source_verification_missing"
-    ],
-    "is_verified": true,
-    "verification_mode": "dry_run",
-    "provenance_verified": false,
-    "duplicate_sources": [
-      "https://news.google.com/rss/search?q=site%3Aifsca.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en"
-    ],
-    "source_count": 1,
-    "factors": {
-      "national_impact": 5,
-      "govt_policy": 0,
-      "economy": 0,
-      "agriculture": 0,
-      "banking": 10,
-      "exam_relevance": 0,
-      "future_importance": 1,
-      "static_fact_value": 2,
-      "uniqueness": 5
-    },
-    "raw_total": 23,
-    "source_type": "FINANCE/ECONOMY",
-    "source_reliability": 90,
-    "importance_score": 21,
-    "student_relevance": 46,
-    "banking_focus": true,
-    "last_seen": "2026-10-15T05:09:08.468127+00:00",
-    "last_job_id": "daily_2026-10-15"
-  },
-  "bc3b8bfee9207ccd": {
-    "title": "Instructions given to expedite the computerization of PACS - Ministry of Cooperation",
-    "link": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQSjZYWHNsS1BnM3pSVkhERXktbDluNW5sRzlHbmZYWjdVQU52c3p3dHlzUnJ2WEVtVlF0d2xjZHh0bTBhRXFHY2x2dmFPbUJSODBmYlk0b0p6cUhqb1djOWJOU2w5UjVDWnBjTmRLdGE1V3VyNWt0M0pNMDUyamg5RHlhOXMtaUpWZWJNbTdFQkFPNGd6Y0NPVVU0T0RKSWtyZHlB?oc=5",
-    "summary": "Instructions given to expedite the computerization of PACS Ministry of Cooperation",
-    "published": "2026-10-14T05:49:33+00:00",
-    "source_feed": "https://news.google.com/rss/search?q=site%3Acooperation.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en",
-    "source_name": "Ministry of Cooperation",
-    "source_id": "src-35",
-    "source_tier": "tier1",
-    "publisher_url": "https://cooperation.gov.in",
-    "source_level": 3,
-    "official": false,
-    "category": "Agriculture",
-    "language": "en",
-    "collected_at": "2026-10-15T05:08:01.301507+00:00",
-    "content_hash": "170875895cdeaf50",
-    "headline_en": "Instructions given to expedite the computerization of PACS - Ministry of Cooperation",
-    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMiowFBVV95cUxQSjZYWHNsS1BnM3pSVkhERXktbDluNW5sRzlHbmZYWjdVQU52c3p3dHlzUnJ2WEVtVlF0d2xjZHh0bTBhRXFHY2x2dmFPbUJSODBmYlk0b0p6cUhqb1djOWJOU2w5UjVDWnBjTmRLdGE1V3VyNWt0M0pNMDUyamg5RHlhOXMtaUpWZWJNbTdFQkFPNGd6Y0NPVVU0T0RKSWtyZHlB?oc=5\" target=\"_blank\">Instructions given to expedite the computerization of PACS</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Ministry of Cooperation</font>",
-    "source_url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxQSjZYWHNsS1BnM3pSVkhERXktbDluNW5sRzlHbmZYWjdVQU52c3p3dHlzUnJ2WEVtVlF0d2xjZHh0bTBhRXFHY2x2dmFPbUJSODBmYlk0b0p6cUhqb1djOWJOU2w5UjVDWnBjTmRLdGE1V3VyNWt0M0pNMDUyamg5RHlhOXMtaUpWZWJNbTdFQkFPNGd6Y0NPVVU0T0RKSWtyZHlB?oc=5",
-    "event_id": "bc3b8bfee9207ccd",
-    "verified_at": "2026-10-15T05:08:17.957659+00:00",
-    "confidence_score": 0.545,
-    "verification_method": "heuristic+cross_source",
-    "corroborating_sources": [],
-    "flags": [
-      "independent_source_verification_missing"
-    ],
-    "is_verified": true,
-    "verification_mode": "dry_run",
-    "provenance_verified": false,
-    "duplicate_sources": [
-      "https://news.google.com/rss/search?q=site%3Acooperation.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en"
-    ],
-    "source_count": 1,
-    "factors": {
-      "national_impact": 0,
-      "govt_policy": 0,
-      "economy": 0,
-      "agriculture": 15,
-      "banking": 0,
-      "exam_relevance": 0,
-      "future_importance": 1,
-      "static_fact_value": 2,
-      "uniqueness": 5
-    },
-    "raw_total": 23,
-    "source_type": "OTHER GOVERNMENT",
-    "source_reliability": 85,
-    "importance_score": 20,
-    "student_relevance": 45,
-    "agri_focus": true,
-    "last_seen": "2026-10-15T05:09:08.468127+00:00",
-    "last_job_id": "daily_2026-10-15"
-  },
-  "8130b27c69795ee4": {
-    "title": "Directorate of Revenue Intelligence seizes ₹30 crore worth of salt smuggled from Pakistan",
-    "link": "https://www.thehindu.com/news/national/directorate-of-revenue-intelligence-seizes-30-crore-worth-of-salt-smuggled-from-pakistan/article71585065.ece",
-    "summary": "Following the Pahalgam terror attack in April 2025, the Indian government had banned the direct or indirect import or transit of all goods originating in or exported from Pakistan, in the interest of national security and public policy",
-    "published": "2026-10-14T18:11:20+00:00",
-    "source_feed": "https://www.thehindu.com/news/national/feeder/default.rss",
-    "source_name": "The Hindu National",
-    "source_id": "feed-02-the-hindu-national",
-    "source_tier": "tier2",
-    "publisher_url": "https://www.thehindu.com/news/national/feeder/default.rss",
-    "official": false,
-    "category": "National",
-    "language": "en",
-    "collected_at": "2026-10-15T05:07:47.388220+00:00",
-    "content_hash": "8130b27c69795ee4",
-    "headline_en": "Directorate of Revenue Intelligence seizes ₹30 crore worth of salt smuggled from Pakistan",
-    "raw_facts": "Following the Pahalgam terror attack in April 2025, the Indian government had banned the direct or indirect import or transit of all goods originating in or exported from Pakistan, in the interest of national security and public policy",
-    "source_url": "https://www.thehindu.com/news/national/directorate-of-revenue-intelligence-seizes-30-crore-worth-of-salt-smuggled-from-pakistan/article71585065.ece",
-    "event_id": "8130b27c69795ee4",
-    "verified_at": "2026-10-15T05:08:11.991460+00:00",
-    "confidence_score": 0.545,
-    "verification_method": "heuristic+cross_source",
-    "corroborating_sources": [],
-    "flags": [
-      "independent_source_verification_missing"
-    ],
-    "is_verified": true,
-    "verification_mode": "dry_run",
-    "provenance_verified": false,
-    "duplicate_sources": [
-      "https://www.thehindu.com/news/national/feeder/default.rss"
-    ],
-    "source_count": 1,
-    "factors": {
-      "national_impact": 10,
-      "govt_policy": 4,
-      "economy": 4,
-      "agriculture": 0,
-      "banking": 0,
-      "exam_relevance": 0,
-      "future_importance": 0,
-      "static_fact_value": 1,
-      "uniqueness": 5
-    },
-    "raw_total": 24,
-    "source_type": "Reuters/Trusted News",
-    "source_reliability": 90,
-    "importance_score": 22,
-    "student_relevance": 30,
-    "last_seen": "2026-10-15T05:09:08.468127+00:00",
-    "last_job_id": "daily_2026-10-15"
-  },
-  "0dc370bb23885660": {
-    "title": "Competition Commission of India, Government of India - Competition Commission of India",
-    "link": "https://news.google.com/rss/articles/CBMif0FVX3lxTFBKdDQ5V0toOUtzZU8tQVJOZ1gzQ3ZhVXVkVjhacEpvNkhwM1ktM1VqSzczaTJ6dzdnc0MxUzZDcC1aNDdhbTlZdW85VmFtUFBLNmJjVVhyUElTQ2F2bGo1X0VDM3V2TTZseFRWWENoZkRSMTRLMmo2ZlcwUFNJYTA?oc=5",
-    "summary": "Competition Commission of India, Government of India Competition Commission of India",
-    "published": "2026-10-14T10:15:54+00:00",
-    "source_feed": "https://news.google.com/rss/search?q=site%3Acci.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en",
-    "source_name": "Competition Commission of India",
-    "source_id": "src-28",
-    "source_tier": "tier1",
-    "publisher_url": "https://www.cci.gov.in",
-    "source_level": 2,
-    "official": false,
-    "category": "Economy",
-    "language": "en",
-    "collected_at": "2026-10-15T05:07:59.455725+00:00",
-    "content_hash": "05cb312fd368c04e",
-    "headline_en": "Competition Commission of India, Government of India - Competition Commission of India",
-    "raw_facts": "<a href=\"https://news.google.com/rss/articles/CBMif0FVX3lxTFBKdDQ5V0toOUtzZU8tQVJOZ1gzQ3ZhVXVkVjhacEpvNkhwM1ktM1VqSzczaTJ6dzdnc0MxUzZDcC1aNDdhbTlZdW85VmFtUFBLNmJjVVhyUElTQ2F2bGo1X0VDM3V2TTZseFRWWENoZkRSMTRLMmo2ZlcwUFNJYTA?oc=5\" target=\"_blank\">Competition Commission of India, Government of India</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Competition Commission of India</font>",
-    "source_url": "https://news.google.com/rss/articles/CBMif0FVX3lxTFBKdDQ5V0toOUtzZU8tQVJOZ1gzQ3ZhVXVkVjhacEpvNkhwM1ktM1VqSzczaTJ6dzdnc0MxUzZDcC1aNDdhbTlZdW85VmFtUFBLNmJjVVhyUElTQ2F2bGo1X0VDM3V2TTZseFRWWENoZkRSMTRLMmo2ZlcwUFNJYTA?oc=5",
-    "event_id": "0dc370bb23885660",
-    "verified_at": "2026-10-15T05:08:14.821312+00:00",
-    "confidence_score": 0.545,
-    "verification_method": "heuristic+cross_source",
-    "corroborating_sources": [],
-    "flags": [
-      "independent_source_verification_missing"
-    ],
-    "is_verified": true,
-    "verification_mode": "dry_run",
-    "provenance_verified": false,
-    "duplicate_sources": [
-      "https://news.google.com/rss/search?q=site%3Acci.gov.in%20when%3A14d&hl=en-IN&gl=IN&ceid=IN:en"
-    ],
-    "source_count": 1,
-    "factors": {
-      "national_impact": 5,
-      "govt_policy": 4,
-      "economy": 0,
-      "agriculture": 0,
-      "banking": 0,
-      "exam_relevance": 0,
-      "future_importance": 2,
-      "static_fact_value": 1,
-      "uniqueness": 5
-    },
-    "raw_total": 17,
-    "source_type": "FINANCE/ECONOMY",
-    "source_reliability": 90,
-    "importance_score": 15,
-    "student_relevance": 30,
-    "last_seen": "2026-10-15T05:09:08.468127+00:00",
-    "last_job_id": "daily_2026-10-15"
-  },
-  "019a93844e92aa23": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Economy",
-    "first_seen": "2026-10-13",
-    "headline": "SIP inflows hit all-time high of Rs 32,490 crore in September: AMFI data",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Mumbai, Oct 12 (IANS) Monthly mutual fund inflows through systematic investment plans (SIPs) hit a new all-time high in September, rising to Rs 32,490 crore from Rs 32,297 crore in August, according to data released by the Association of Mutual Funds in India (AMFI) on Monday. While total mutual fund industry assets under management stood at Rs 82.64 lakh crore and equity net inflow surged by 30.6 per cent to Rs 38,306.55 crore. AMFI data showed open-ended equity schemes mobilised Rs 74,831.96 crore during the month against redemption of Rs 36,525.41 crore. Net AUM for equity schemes stood at ",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 20.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Thehawk",
-    "source_url": "https://www.thehawk.in/news/economy-and-business/sip-inflows-hit-all-time-high-of-rs-32490-crore-in-september-amfi-data",
-    "student_relevance": 35,
-    "trend": "NEW"
-  },
-  "0b8ebbf1a2cac380": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "RBI tightens rules on rupee non-deliverable contracts, widens 20% cash reserve requirement",
-    "headline_hi": "",
-    "importance_score": 19,
-    "last_seen": "2026-10-13",
-    "raw_facts": "The Reserve Bank of India on Monday tightened rules on rupee non-deliverable derivative contracts, limiting overseas clients to using them only for hedging, and widened a 20% cash reserve requirement to banks' own rupee currency hedges.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "weekly_2026-10-11",
-        "score": 19.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Economic Times",
-    "source_url": "https://economictimes.indiatimes.com/markets/forex/forex-news/rbi-tightens-rules-on-rupee-non-deliverable-contracts-widens-20-cash-reserve-requirement/articleshow/134905710.cms",
-    "student_relevance": 44,
-    "trend": "NEW"
-  },
-  "207c2950bba38ffc": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute",
-    "headline_hi": "",
-    "importance_score": 21,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Old Monk has announced a loss exceeding Rs 500 crore after the Food Safety and Standards Authority of India (FSSAI) imposed conditions on the sale of the popular rum in Maharashtra. The regulator has insisted that the product must be labelled as “rum-like” instead of the traditional “rum” description. This dispute was brought before the […] The post Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute appeared first on The CSR Journal.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "weekly_2026-10-11",
-        "score": 21.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Csr Journal",
-    "source_url": "https://thecsrjournal.in/old-monk-reports-rs-500-crore-loss-amid-labelling-dispute",
-    "student_relevance": 46,
-    "trend": "NEW"
-  },
-  "2642f7e39dd46015": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "International",
-    "first_seen": "2026-10-13",
-    "headline": "Pakistani woman offering namaz in the middle of an Adelaide road gets killed by car: Australian court suspends driver’s prison sentence",
-    "headline_hi": "",
-    "importance_score": 10,
-    "last_seen": "2026-10-13",
-    "raw_facts": "An Australian court suspended the prison sentence of driver Ashton Friend, who struck and killed 20-year-old Pakistani student Samia Malik",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 10.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Op India",
-    "source_url": "https://www.opindia.com/news-updates/pakistani-woman-offering-namaz-in-the-middle-of-an-adelaide-road-gets-killed-by-car-australian-court-suspends/",
-    "student_relevance": 22,
-    "trend": "NEW"
-  },
-  "32400129e9c5fcec": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "Job Description - National on Animal Health Expert (2602118) - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 25,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Job Description - National on Animal Health Expert (2602118) Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 25.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxNYk1wVFRtUTM1cnR6U0Q2LVBOR28yRUlHZ0ZDcGVqQzJRU3ByYTJXbXF1SlF4SG9jVTJmdXhxZkpGZncxZXhiUlpKaGNXbVJhV0xuZElSWGxHSmhCbWh2R2FDTlVkcXJZY1NXSjN6VXZZZWpmNWszeUpxckE4VmdrVFpmNmpRMmdYd3htSFdSRXBFZ1BLOGpIUWQ2M0lBem5zRlZxRDJieWtmTVAwT2lWWXRNT2NtUC0z?oc=5",
-    "student_relevance": 50,
-    "trend": "NEW"
-  },
-  "366279499a0ff005": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "International",
-    "first_seen": "2026-10-13",
-    "headline": "Jio IPO may be valued at Rs 11 lakh crore: What it means for RIL, Bharti Airtel and telecom stocks",
-    "headline_hi": "",
-    "importance_score": 18,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Jio Platforms’ proposed Rs 30,000 crore IPO could become India’s biggest-ever share sale, valuing Mukesh Ambani’s digital business at up to Rs 11 lakh crore. With global and domestic investors showing interest, the listing will test Jio’s valuation against Bharti Airtel, potentially reshape telecom sector dynamics and offer investors a direct route to participate in Reliance’s digital growth story.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 18.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Economic Times",
-    "source_url": "https://economictimes.indiatimes.com/markets/ipos/fpos/jio-ipo-may-be-valued-at-rs-11-lakh-crore-what-it-means-for-ril-bharti-airtel-and-telecom-stocks/articleshow/134885702.cms",
-    "student_relevance": 30,
-    "trend": "NEW"
-  },
-  "3a68c14bf31d9398": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Government Schemes",
-    "first_seen": "2026-10-13",
-    "headline": "दिल्ली में EV खरीदने वालों की Good News: 100% रोड टैक्स माफ, 2700 लोगों को फायदा, बांटे गए 7.91 करोड़ इंसेंटिव",
-    "headline_hi": "",
-    "importance_score": 11,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Delhi EV Policy 2026 Incentives दिल्ली EV पॉलिसी 2026 के तहत 8 अक्टूबर तक 7.91 करोड़ रुपये के इंसेंटिव बांटे गए। जानें इलेक्ट्रिक गाड़ी खरीदने और पुरानी गाड़ी स्क्रैप कराने पर किसे कितना फायदा मिला।",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 11.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "One India",
-    "source_url": "https://hindi.oneindia.com/news/delhi/delhi-ev-policy-2026-incentives-offered-motorists-touch-rs-791-crore-road-tax-waiver-1666431.html",
-    "student_relevance": 31,
-    "trend": "NEW"
-  },
-  "3b46348ead73c82a": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-13",
-    "headline": "Spectrum Digital Appoints Narin Shetty as Group President – Marketing & Growth Mumbai, India #Ad",
-    "headline_hi": "",
-    "importance_score": 24,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Narin Shetty will lead marketing, growth and strategic business initiatives at Spectrum Digital as the company prepares for its next phase of expansion. The post Spectrum Digital Appoints Narin Shetty as Group President – Marketing & Growth Mumbai, India #Ad appeared first on MEDIANAMA.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 24.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Medianama",
-    "source_url": "https://www.medianama.com/2026/10/223-spectrum-digital-appoints-narin-shetty-as-group-president-marketing-growth-mumbai-india-ad/",
-    "student_relevance": 32,
-    "trend": "NEW"
-  },
-  "41799c6016fdcc3a": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "Events - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Events Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiSEFVX3lxTE1VdThaS2RPOF9pVmdoeWhqcFBsaFFLUE1LS05jMG95aXdEa2JKb2Y5Vk1IWWJvTGJvMmZXbkp4MW50NzJjWmJmRQ?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "6c861b5ed1fc1ae6": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Government Schemes",
-    "first_seen": "2026-10-13",
-    "headline": "Highlights - Ministry of Statistics and Program Implementation",
-    "headline_hi": "",
-    "importance_score": 21,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Highlights Ministry of Statistics and Program Implementation | Also reported: - Ministry of Statistics and Program Implementation; - Ministry of Statistics and Program Implementation; - Ministry of Statistics and Program Implementation",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 21.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "MoSPI",
-    "source_url": "https://news.google.com/rss/articles/CBMitAFBVV95cUxORTZHakhZS0xBXzcwWnJCb0E2SlBnV3lrNXVGZmk5dVRjdDBWVVQzdEZ1WjVBa1BIVzdHektuVGRRaHpBdzZqOFgxRS05MXpfd3lNWXJrN0h1Z0pkQnB5djhrZWRBTzMzVVgyUmQwYndrTUsyY0dJOFNWT096T2NMRjNSamdaVEZMMUprUFdGVTJYb0JKV2dzeklmVk05bUVsaTZCbWZ1SEQyOG1QRm9oQUpqTWo?oc=5",
-    "student_relevance": 41,
-    "trend": "NEW"
-  },
-  "79200e600cfff23d": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "Bank Of India Declares ₹575.40 Crore Future Enterprises Loan Account As Fraud, Full Provision Made",
-    "headline_hi": "",
-    "importance_score": 19,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Bank of India declares Future Enterprises' Rs 575.40 crore NPA account as fraud, makes full provision for the exposure and reports the matter to RBI in its latest regulatory filing.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 19.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Free Press Journal",
-    "source_url": "https://www.freepressjournal.in/business/bank-of-india-declares-57540-crore-future-enterprises-loan-account-as-fraud-full-provision-made",
-    "student_relevance": 44,
-    "trend": "NEW"
-  },
-  "7a72db102b6120ee": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "20, Tue - Side Events - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "20, Tue - Side Events Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiYkFVX3lxTE1PcDk2OUF0bExGQnVFcjg1SHY3VFNvXzQ2SEMyU0I4Q1BFZ3ZCWng5aUtvZ2NVQU1CdnU2dmpZZ09uR0JURzBBUkNETTJxM0hPMTdTRjl0YmMySmZOY3gzdlFn?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "7bab7995eaa95bf4": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "Login - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Login Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMingFBVV95cUxNaWxISGc4U3RDeDk1ZFRybDB6bmJ1Rmdjb3pqVnkyNDg1WHJEajkzekEwdW5yMHIxNC1OajB2NjE2eEdIekFkOG0ySUFNSGIxak05Y0xiRmZPeFlUbkdqVnU1b1hMekI4X3FwSzVPZG54TXotVHQ1Y3JkRWw3SHVNYmFpWm9jSV9VbER1Mi12alJtS04wYzI0NnFQYVAzQQ?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "7f97ed624063c7e7": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "World Food Forum 2026: Flagship event opens under theme “Innovate Today. Nourish Tomorrow.” - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 22,
-    "last_seen": "2026-10-13",
-    "raw_facts": "World Food Forum 2026: Flagship event opens under theme “Innovate Today. Nourish Tomorrow.” Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 22.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMixwFBVV95cUxQTmM3RWlRcXotSU81b19ZNnBVSmxadXV0Z0FUODVGMm9jX3JTd3BEMmhKTTRXOGU3bVFTUXRFN0R4eTBjdmlST05JS1BCLS01ZlcxUzJqMWtyWUFnVjR4S25tTGZRN0sxeTNNNkRHQU9PcnNTZkFyZmszeWRwYnRvdFpFcXFnYTZpWnBvSzlfRE00bDNnU1FMRmFnTWlwcFBzb0ZDUExqZXJYSDBNRGNMMDVTdEdNel8wWlRwbTd2aTExbUdDWk1J?oc=5",
-    "student_relevance": 47,
-    "trend": "NEW"
-  },
-  "827439bad2867d66": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "Job Description - Disaster Risk Management and Climate Change Adaptation Specialist (2602114) - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Job Description - Disaster Risk Management and Climate Change Adaptation Specialist (2602114) Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxOQjBsUGtrdjczM09uRzREZXktZW4yR3MzREpHcG5LT255MXRKVlROeUdUOUxLVG10X3Q5RjNKVUlvWU1fdjliallka0JPbW9ZUXdKSkE4ZnItVGhVaTl6WkdDdWdQSnZkVEZuaGtiQ3JFbHpEVXZxMzhkSjRseUg5TU9tSFFxZlc4UVh6MzBuemQ1VnJoUklxNnM0VWhiNUN3cVo0UHNrN2JTX2YyWkZWRWFMVHFLQ1c3?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "95ce8d369decf1ed": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-13",
-    "headline": "Amazon Great Indian Festival 2026: Asus Vivobook 15 is available with over Rs 32,000 discount, check details",
-    "headline_hi": "",
-    "importance_score": 13,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Amazon Great Indian Festival 2026: Asus Vivobook 15 is available with over Rs 32,000 discount, check details",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 13.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Digit",
-    "source_url": "https://www.digit.in/news/laptops/amazon-great-indian-festival-2026-asus-vivobook-15-is-available-with-over-rs-32000-discount-check-details.html",
-    "student_relevance": 21,
-    "trend": "NEW"
-  },
-  "a0d68d6dfe202a58": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "MDR on UPI: Keralam hotels association says will stop accepting UPI payments above ₹2,000 from October 15",
-    "headline_hi": "",
-    "importance_score": 13,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Announcement following introduction of 0.4% UPI merchant discount rate, which the association says will impose additional financial burden on small establishments",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 13.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/kerala/mdr-on-upi-keralam-hotels-association-says-will-stop-accepting-upi-payments-above-2000-from-october-15/article71578221.ece",
-    "student_relevance": 38,
-    "trend": "NEW"
-  },
-  "a324b8df420ac60e": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "Press Releases - Reserve Bank of India",
-    "headline_hi": "",
-    "importance_score": 25,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Press Releases Reserve Bank of India",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 25.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "RBI",
-    "source_url": "https://news.google.com/rss/articles/CBMieEFVX3lxTE9DT2x5N0NTbVJWU1pFa3hwUFQ0STlNSDlFaUZoTUVoYTk1dGllZFk1TWo0RVhIcTcyc0RRVm5iRnJhd0pnWXhDTHQ4YlJGb0dreDZRekg3WWhISWFWbWpaM2R4c29LV1dRTl9ic1lfMzJvcHBvbklmbg?oc=5",
-    "student_relevance": 50,
-    "trend": "NEW"
-  },
-  "a4e08b419914de66": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Economy",
-    "first_seen": "2026-10-13",
-    "headline": "Bombay Chamber Hosts Interactive Meeting on “Doing Business with Romania” to Strengthen India–Romania Trade and Investment Ties",
-    "headline_hi": "",
-    "importance_score": 19,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Bombay Chamber Hosts Interactive Meeting on “Doing Business with Romania” to Strengthen India–Romania Trade and Investment Ties The international Trade & Commerce Commitee of Bombay Chamber on October 7th, 2026 hosted an Interactive Meeting on “Doing Business with Romania” in partnership with the Embassy of Romania, and the Hon. Consul of Romaina, Mumbai, at The Ruby,",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 19.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Bombay Chamber -",
-    "source_url": "https://bombaychamber.com/industry-news/bombay-chamber-hosts-interactive-meeting-on-doing-business-with-romania-to-strengthen-india-romania-trade-and-investment-ties/",
-    "student_relevance": 34,
-    "trend": "NEW"
-  },
-  "aaee37bc74c9926b": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "YM11 - Young Scientists Group: Young women navigating agrifood systems in conflict settings - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "YM11 - Young Scientists Group: Young women navigating agrifood systems in conflict settings Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPTG9FTzlZWVVrcVlneG5wT3VkX21vU0JOR3ZyRzdTXzNiWVFEem1OT1lZazJDUW5XVm5sMDItVXhHZEpqc2JvdU1yTXotVUNGM0RJR2xzakY3SzZsWmJ3cEZWYjVaUXVxS0dGWVZoOURGbERSUGoxdldMeUVnTldjTG1kdE01czRRVHZPbzV0MmhFVUFqY1h0RVJoZnROSm5vWlZxQWtLazJ2TzI0QmlYT3pPNHJEMWYyUXpVY0FMdUQtV1JNMm5LbA?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "ad01069d0e6a1489": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Economy",
-    "first_seen": "2026-10-13",
-    "headline": "Tata Motors, Stellantis Broaden Partnership for Technology and Export Growth",
-    "headline_hi": "",
-    "importance_score": 22,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Tata Motors and Stellantis are expanding their collaboration in vehicle technology and global exports, highlighting the growing importance of strategic partnerships in the automotive industry. The broader cooperation is expected to support technology development, improve product capabilities and create opportunities to strengthen the companies’ presence in international markets. Collaboration between automotive manufacturers can also help […] The post Tata Motors, Stellantis Broaden Partnership for Technology and Export Growth appeared first on India Seatrade News.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 22.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "India Seatrade News",
-    "source_url": "https://indiaseatradenews.com/tata-motors-stellantis-broaden-partnership-for-technology-and-export-growth/",
-    "student_relevance": 37,
-    "trend": "NEW"
-  },
-  "ad4bf924af9a4c34": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "Event | Small AI: More and Better Jobs | Annual Meetings 2026 - World Bank Live",
-    "headline_hi": "",
-    "importance_score": 17,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Event | Small AI: More and Better Jobs | Annual Meetings 2026 World Bank Live",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 17.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "World Bank",
-    "source_url": "https://news.google.com/rss/articles/CBMif0FVX3lxTFA2SUdxaUs4UUhiY2lHV0ZDMGpHNW9tWkFPTmowdDhIVG9RbkxFTUNKMWM1ZTNwX21SamlhS1dTeUVrVGF5RHRPajB6T1NibFA5ZXlPSUI1a0VPZ2RMUF96MmxVRVJhUnVtNjVCMGZ3WjF0bUNuRE45OHZJNXh4MDg?oc=5",
-    "student_relevance": 42,
-    "trend": "NEW"
-  },
-  "b56b3a676df3fcc8": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Economy",
-    "first_seen": "2026-10-13",
-    "headline": "Gold ETF inflows jump to Rs 4,451 crore in September: Why are investors turning to the yellow metal?",
-    "headline_hi": "",
-    "importance_score": 10,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Gold ETFs attracted Rs 4,451 crore in September, the highest monthly inflow in seven months, despite a broader mutual fund outflow trend. Investors turned to gold amid geopolitical tensions, economic uncertainty, and a correction in prices.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 10.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Et Now",
-    "source_url": "https://www.etnownews.com/markets/gold-etf-inflows-jump-september-investors-turn-to-gold-safe-haven-asset-article-156324247",
-    "student_relevance": 25,
-    "trend": "NEW"
-  },
-  "bc42e73b88639603": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "Ranveer Singh Car Collection: Dhurandhar Star Buys Rs 2 Crore BMW i7 Electric Sedan, Drives It Home",
-    "headline_hi": "",
-    "importance_score": 15,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Ranveer Singh has reportedly bought a BMW i7 luxury electric sedan worth over Rs 2 crore. The actor was spotted driving the car on Mumbai roads.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 15.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "News 18",
-    "source_url": "https://www.news18.com/movies/bollywood/ranveer-singh-car-collection-dhurandhar-star-buys-rs-2-crore-bmw-i7-electric-sedan-drives-it-home-10377841.html",
-    "student_relevance": 40,
-    "trend": "NEW"
-  },
-  "bf8566dd0e07534a": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "What is the electoral roll cyber scam in which a 79-year-old Pune man lost ₹11.92 lakh?",
-    "headline_hi": "",
-    "importance_score": 13,
-    "last_seen": "2026-10-13",
-    "raw_facts": "The case raises questions about how banking credentials were compromised and whether personal information associated with electoral applications was obtained through phishing or other means",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 13.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/maharashtra/what-is-the-electoral-roll-cyber-scam-in-which-a-79-year-old-pune-man-lost-1192-lakh/article71578039.ece",
-    "student_relevance": 38,
-    "trend": "NEW"
-  },
-  "bfb1f59f16e168e4": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "The value of private investment in AI in India in 2025 that tripled from $1.2 billion in 2024. However, only 23.4% of Indian firms reported using AI, compared w",
-    "headline_hi": "",
-    "importance_score": 28,
-    "last_seen": "2026-10-13",
-    "raw_facts": "The value of private investment in AI in India in 2025 that tripled from $1.2 billion in 2024. However, only 23.4% of Indian firms reported using AI, compared with 42.7% of firms in the United States, according to a recent World Bank survey.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "weekly_2026-10-11",
-        "score": 28.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Global Indian",
-    "source_url": "https://www.globalindian.com/worldinnumbers/the-value-of-private-investment-in-ai-in-india-in-2025-that-tripled-from-1-2-billion-in-2024-however-only-23-4-per-cent-of-indian-firms-reported-using-ai-compared-with-42-7-per-cent-of-firms-in-th/",
-    "student_relevance": 53,
-    "trend": "NEW"
-  },
-  "c6f104c61430957e": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Economy",
-    "first_seen": "2026-10-13",
-    "headline": "Fitch unit raises India FY27 growth forecast to 7.5%",
-    "headline_hi": "",
-    "importance_score": 19,
-    "last_seen": "2026-10-13",
-    "raw_facts": "BMI has raised India's economic growth forecast for 2026-27 to 7.5% from the previous estimate of 6.8%. The agency cites strong growth momentum and ongoing investment in artificial intelligence as key factors. However, risks from rising oil prices and potential El Nino disruptions could negatively impact growth. Additionally, the forecast for 2027-28 has been adjusted down to 6.3%, reflecting concerns for household consumption.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "weekly_2026-10-11",
-        "score": 19.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Economic Times",
-    "source_url": "https://economictimes.indiatimes.com/news/economy/fitch-unit-ups-indias-fy27-growth-forecast-to-75-amid-ai-investment-boom-but-cautions-on-oil-prices-and-el-nino-risks/articleshow/134901962.cms",
-    "student_relevance": 34,
-    "trend": "NEW"
-  },
-  "d412d9c90c106288": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-13",
-    "headline": "Job Description - Programme Assistant (2602116) - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Job Description - Programme Assistant (2602116) Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMifkFVX3lxTE4xTURHNXM0bXZISUN1dzVmcmpVTUdNVFRvOXRrR05oWmx5Qk51cFpOVWJIRHRlX0EyNUFyZTBXRXBPdXpYVUxVMFZaRHotb01hVU9Jdl8wT1pvZWdtbHEwUndqY3lkNUM1TXlONmVrMTUxRUtrY3hfejZXbW5RZw?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "f13605a8eccd3219": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-13",
-    "headline": "Sona Mohapatra defends 'Dhurandhar: The Revenge' Grammy submissions: 'There’s a good reason why these musicians have no choice'",
-    "headline_hi": "",
-    "importance_score": 18,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Sona Mohapatra champions the cause of Indian musicians striving for Grammy acknowledgment, shedding light on the lack of appreciation and support for local talent in India. She points out that these artists often seek validation from international platforms. Mohapatra advocates for fostering an environment where all music receives due respect in India. Notably, 'Dhurandhar 2' is vying for nine categories at the forthcoming Grammy Awards.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-05",
-        "score": 18.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Times Of India",
-    "source_url": "https://timesofindia.indiatimes.com/entertainment/hindi/bollywood/news/sona-mohapatra-defends-dhurandhar-the-revenge-grammy-submissions-theres-a-good-reason-why-these-musicians-have-no-choice/articleshow/134894464.cms",
-    "student_relevance": 26,
-    "trend": "NEW"
-  },
-  "faa956eaa8fd014b": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "World Bank Group Launches Philanthropy Hub to Unlock Capital, Knowledge and Networks for Development - World Bank Group",
-    "headline_hi": "",
-    "importance_score": 17,
-    "last_seen": "2026-10-13",
-    "raw_facts": "World Bank Group Launches Philanthropy Hub to Unlock Capital, Knowledge and Networks for Development World Bank Group",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 17.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "World Bank",
-    "source_url": "https://news.google.com/rss/articles/CBMi2AFBVV95cUxPZHZTN0JleHFyX2JpR2JDLVdrMUxrN3lPZUgyRnpKOXRiRkhwekRaZGpOdFlXNXZGZWU2X1paOU9wZFNXZ1dIenpkY05DX0ptbU1XeTgyWEx0Y3ZWSkRoZ3lzWjBMUjI5ZDlTRC1nMThpa2l6S1hIcS12d0FrcWlSTTdYQUxqbkhQb1ZzVzM0TEFRa2s3UW56ODU1TG1tZ243aDZEMk5CT0tPWGZBbUt0OGlJa2h1U0Ruby1KakgxMG9HejFtMzMycnFuazJCUlZpSGczQmpTNjA?oc=5",
-    "student_relevance": 42,
-    "trend": "NEW"
-  },
-  "ff848185f11b241f": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-13",
-    "headline": "Vygr PR Network Launches Eight Festive Season PR Packages for Brands Competing in India's Rs 60,000 Crore Ad Season",
-    "headline_hi": "",
-    "importance_score": 22,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Mumbai (Maharashtra) [India], October 12: Vygr Media has launched the Vygr Festive Special Packages, a set of eight festive season PR packages for founders, consumer brands, financial services firms and growth-stage companies. The packages are built for brands that want earned media coverage and stronger brand visibility while festive attention is at its peak.",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "daily_2026-10-13",
-        "score": 22.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Business Standard",
-    "source_url": "https://www.business-standard.com/content/press-releases-ani/vygr-pr-network-launches-eight-festive-season-pr-packages-for-brands-competing-in-india-s-rs-60-000-crore-ad-season-126101300021_1.html",
-    "student_relevance": 30,
-    "trend": "NEW"
-  },
-  "ffc9b691b280b8d0": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-13",
-    "headline": "Unlocking $5.79 Billion in private financing: The World Bank Group Is leading the charge for Private Capital Mobilization in Nigeria - World Bank Group",
-    "headline_hi": "",
-    "importance_score": 18,
-    "last_seen": "2026-10-13",
-    "raw_facts": "Unlocking $5.79 Billion in private financing: The World Bank Group Is leading the charge for Private Capital Mobilization in Nigeria World Bank Group",
-    "scores": [
-      {
-        "date": "2026-10-13",
-        "job": "weekly_2026-10-11",
-        "score": 18.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "World Bank",
-    "source_url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxPd3ZqU3BEX2VHTWNsaHBRTk5qYVNaUk5CblRrNzNUSVZ0ZXkyTmgwamJXMkFTa056U2Y2cnNoV1V3cGFqM1NGU1ZCczlyeHI3SUctRVAyRGltdFdVNml4cWY2dnFyOXNoSV9mTmVfUDNFcGRrbDFieUc2ZEZCTUM5TkJqMnRiX1N5bG9EMGt1RWJGZmxxcF9kODlZQktHZXdXNHdSVGVnZXVRZTEwdF81bENfZ1pxT0ZlOHhzNjEyY29WYUFWZnBQZQ?oc=5",
-    "student_relevance": 43,
-    "trend": "NEW"
-  },
-  "0907dd4d50b4e04b": {
-    "agri_focus": false,
-    "banking_focus": true,
-    "category": "Banking & Finance",
-    "first_seen": "2026-10-11",
-    "headline": "Three out of 19 SIR tribunals vacant; ECI awaits names from Calcutta HC",
-    "headline_hi": "",
-    "importance_score": 14,
-    "last_seen": "2026-10-11",
-    "raw_facts": "While these tribunals report to Calcutta High Court, ECI provides them with secretarial assistance, including staff and digital platform for online hearings.",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 14.0
-      },
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 14.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/west-bengal/three-out-of-19-sir-tribunals-vacant-eci-awaits-names-from-calcutta-hc/article71571244.ece",
-    "student_relevance": 39,
-    "trend": "STABLE"
-  },
-  "292f79fd3eea624b": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "Job Description - GIAHS Monitoring and Evaluation Specialist (2601946) - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Job Description - GIAHS Monitoring and Evaluation Specialist (2601946) Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxOazhJdDE5MmhMV3F0eTFTT2diTUFFZkVHaFFzVGI1UldydjR6ZG9Pa2ExTUs5ckJmTzJIU05XTm9uRGZ5dnhGWVZQanVqdWoxVXdPSzZZcGNvWFBKckJ6d1U1blNpb0ltQjlGeUoyREJadmhjcUFzYzd3c2Qxa1VqNE9BMmFrNTJh?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "4015b4041ccb2d96": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "International",
-    "first_seen": "2026-10-11",
-    "headline": "E-autos remain out of service as Rs. 30,000 subsidy per auto delayed in Keralam",
-    "headline_hi": "",
-    "importance_score": 10,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Thirty of the 105 e-autos run by the Ernakulam Jilla Autorickshaw Drivers Cooperative Society have been idle for a year, with the society moving the High Court over the stalled subsidy",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 10.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/kerala/e-autos-remain-out-of-service-as-rs-30000-subsidy-per-auto-delayed-in-kerala/article71570877.ece",
-    "student_relevance": 22,
-    "trend": "NEW"
-  },
-  "536060602c9984a7": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "SKUAST-K, IMI to host 13th Sustainable Mountain Development Summit from October 12",
-    "headline_hi": "",
-    "importance_score": 30,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Srinagar, Oct 10: The Sher-e-Kashmir University of Agricultural Sciences and Technology of Kashmir (SKUAST-K) and the Integrated Mountain Initiative (IMI) will jointly host the 13th Sustainable Mountain Development Summit (SMDS) alongside the Jammu and Kashmir Agriculture Science Congress-2026 at the university’s Shalimar campus from October 12 to 14. The three-day national-level event, themed “Contouring Sustainable Himalayan Landscapes for Inclusive Viksit Bharat”, will bring together policymakers, scientists, administrators, farmers and development professionals to deliberate on climate-res",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 30.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Greater Kashmir",
-    "source_url": "https://www.greaterkashmir.com/business/skuast-k-imi-to-host-13th-sustainable-mountain-development-summit-from-october-12-12664464",
-    "student_relevance": 55,
-    "trend": "NEW"
-  },
-  "5a3f9493d78827c7": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "Noticias | Cambio climático | Organización de las Naciones Unidas para la Alimentación y la Agricultura - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Noticias | Cambio climático | Organización de las Naciones Unidas para la Alimentación y la Agricultura Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 20.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiXkFVX3lxTE5ZSzFCSzY3SndPYUhRRG1uMngzb3dBVlEtRkFRSzBmNFZPMFZpdmRQdzV2d19TNjZkSnFLU1llWmNRWjByR3AzUDZkUEdMcDFNUUNFMTBlZ3A0RHlkQ2c?oc=5",
-    "student_relevance": 45,
-    "trend": "NEW"
-  },
-  "7530c1aae9ee4f0f": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "India Mobile Congress 2026 ends with focus on AI, 5G & rural tech",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-11",
-    "raw_facts": "The 10th India Mobile Congress 2026 concluded, focusing on deploying AI in agriculture, developing AI agents for 5G networks, and expanding digital connectivity to rural areas to strengthen India's global telecommunications standing.",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 20.0
-      },
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-10",
-        "score": 20.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Asianet Newsable",
-    "source_url": "https://newsable.asianetnews.com/business/india-mobile-congress-2026-ends-with-focus-on-ai-5g-rural-tech-articleshow-gazycru",
-    "student_relevance": 45,
-    "trend": "STABLE"
-  },
-  "80254c449a8bc0cf": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "First Session: Let's Talk About Good Practices for Sustainable Agriculture - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 22,
-    "last_seen": "2026-10-11",
-    "raw_facts": "First Session: Let's Talk About Good Practices for Sustainable Agriculture Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-10",
-        "score": 22.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxQZWw1a1ZjVzFxdk9SZTZqSDhRVXF5VlF1VHNJemtWX1VPUkRzZHZWdDhVVmg0UDA4WWNVUDRMTTJ0R0labUxrRWotUDRFeDEwOTM4cTB1UEtIbEozOGFqbVN4dXRKNHM2S24xNlF2c1ZVZXNtbnpvN09Fd2p0WnloSGE2bE14VjhybEU2U2FuTEVSMjBkQWc?oc=5",
-    "student_relevance": 47,
-    "trend": "NEW"
-  },
-  "811c5539ee681150": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "FAO GLOBEFISH at the European Maritime Day in Naples to support youth involvement in fisheries and aquaculture markets and trade - Food and Agriculture Organiza",
-    "headline_hi": "",
-    "importance_score": 29,
-    "last_seen": "2026-10-11",
-    "raw_facts": "FAO GLOBEFISH at the European Maritime Day in Naples to support youth involvement in fisheries and aquaculture markets and trade Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 29.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMirAJBVV95cUxQbThwTk02ZEE1aEROMm02QWt0anBySVV2RGphYUtQbnBwbEhfZUQwNlAwLVEza2VYV0RKX1liN0ZvM2JpQ3lRRFlxS2ZWUkV0T0YwS2NUZ3pMN2Fjc1FiS1NlTV9iMUlzUXhVZmFFR1ZrYXJiZjZBTjVmYmhXaUxOTWhwdFZGLXBUUGZfYmptR1hicWtWNUNIaHpNak9UWUNjd2hjdHNpOWxSN0RrdnRiWHdpaklJMFBvU0NReWQydG84dnhZbGVTa1hqWVRxcGtyNTNKQ3p0c2t3LWxTSUUtaEt3SzBKY29BcFNJSEsyclhhZFVpVVd5SFdTckhXeXFzcXBub1ZlYWhGRWFuOEFfeGlFRVljQUZiNW5uZTY4Y1d6WlFvOXQ2ZnFydHg?oc=5",
-    "student_relevance": 54,
-    "trend": "NEW"
-  },
-  "8bafb2356c1b0716": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "Supporting regional fishery bodies to implement international agreements - Pêches et aquaculture de la FAO - Food and Agriculture Organization",
-    "headline_hi": "",
-    "importance_score": 37,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Supporting regional fishery bodies to implement international agreements - Pêches et aquaculture de la FAO Food and Agriculture Organization | Also reported: Integrating climate change into the work of regional fishery bodies - Pêches et aquaculture de la FAO - Food and Agriculture Organization",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-10",
-        "score": 37.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "FAO",
-    "source_url": "https://news.google.com/rss/articles/CBMiakFVX3lxTFBBN01DWVZ2Q2wwdHNMUExmR21NWE5vMWlMa0dxSEo5ajNfNkdGQ09iT2FUVG5FVDZDY2tkRnVSNFM1bnFjN0tYNjVyOGhxaUNEU0JubERfc3VhbXZ0bnFUZ214WVlGVWVkWUE?oc=5",
-    "student_relevance": 62,
-    "trend": "NEW"
-  },
-  "95946c04d7036026": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-11",
-    "headline": "BJP-led folk artistes embark on beating ‘Dappu’ for 75 hours, with an eye on Guinness",
-    "headline_hi": "",
-    "importance_score": 10,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Around 2,000 artistes began a 75-hour non-stop drum-beating event in Tirupati to mark PM Modi’s 75th birthday, as part of the BJP’s month-long ‘Seva Sankalp Abhiyan’",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 10.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/andhra-pradesh/bjp-led-folk-artistes-embark-on-beating-dappu-for-75-hours-with-an-eye-on-guinness/article71570979.ece",
-    "student_relevance": 18,
-    "trend": "NEW"
-  },
-  "9f2f418903a77e7f": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-11",
-    "headline": "Government of India Ministry of Earth Sciences India Meteorological Department Press Release Date: 10th October 2026 Time of Iss - IMD",
-    "headline_hi": "",
-    "importance_score": 15,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Government of India Ministry of Earth Sciences India Meteorological Department Press Release Date: 10th October 2026 Time of Iss IMD",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-10",
-        "score": 15.0
-      }
-    ],
-    "source_level": 0,
-    "source_name": "IMD",
-    "source_url": "https://news.google.com/rss/articles/CBMihwFBVV95cUxObGhzeHhYNW5wOUJkYVJKNFV6U1d3VThJN1o0VVlmZnRaLWlkeVVTOTZSQzFPLTVMSHZxZ0MzdTUtUktmaUhJZHFzNlRNNlRzbWZyTEZhMm1EZGtiQlpRcEJnMm1HWWlpZm5RVFVyQk43LTNIQmx4V0pZYWoxcHhlaGVmeGVDaVk?oc=5",
-    "student_relevance": 23,
-    "trend": "NEW"
-  },
-  "dd3fe03aebacac7f": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "Vetrix 2026 opens new avenues for agri-entrepreneurs",
-    "headline_hi": "",
-    "importance_score": 21,
-    "last_seen": "2026-10-11",
-    "raw_facts": "The national-level ideathon organised by K-AgTech LaunchPad of KAU and KVASU provided a platform for students, researchers and aspiring entrepreneurs to showcase innovative ideas in veterinary science, animal husbandry and allied sectors",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 21.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/kerala/vetrix-2026-opens-new-avenues-for-agri-entrepreneurs/article71571581.ece",
-    "student_relevance": 46,
-    "trend": "NEW"
-  },
-  "e43a0effec3eedbb": {
-    "agri_focus": true,
-    "banking_focus": false,
-    "category": "Agriculture",
-    "first_seen": "2026-10-11",
-    "headline": "Farmer's Son Starts Barosi With Rs 15 Lakh, Builds a Shark Tank-Featured Ghee Brand at Rs 56 Cr",
-    "headline_hi": "",
-    "importance_score": 23,
-    "last_seen": "2026-10-11",
-    "raw_facts": "India has always had a love-hate relationship with ghee. People once thought ghee was harmful because it contained bad fat and raised cholesterol. But that image has changed in recent years. The Indian ghee market was valued at Rs 3,774.5 billion in 2025 and is expected to grow at a CAGR of 7.70% and reach Rs 7,532.7 billion in 2034, according to IMARC Group. Brands that sell ghee have experienced this shift very closely. \"In the last 6-7 years, there has been a new awareness of ghee. Consumers see and buy it from a health and wellness perspective. It is good for you; it has good fats, and it ",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-10",
-        "score": 23.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Startuppedia",
-    "source_url": "https://startuppedia.in/startup-stories/farmers-son-starts-barosi-with-rs-15-lakh-builds-a-shark-tank-featured-ghee-brand-at-rs-56-cr-12659457",
-    "student_relevance": 48,
-    "trend": "NEW"
-  },
-  "f65f93b228b21496": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-11",
-    "headline": "PM Modi in Chennai LIVE | Prime Minister inaugurates Metro Rail's Phase 2 stretch, ₹13000-crore worth development projects",
-    "headline_hi": "",
-    "importance_score": 16,
-    "last_seen": "2026-10-11",
-    "raw_facts": "Six years after the work began, Chennai Metro Rail Limited (CMRL)’s first train ran from Porur Bypass at noon on October 11, 2026, with Mr. Modi and Chief Minister C. Joseph Vijay being the first few commuters.",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-11",
-        "score": 16.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/cities/chennai/chennai-metro-phase-two-inauguration-poonamallee-vadapalani-narendra-modi-visit-schedule-cm-vijay-meeting-live-updates/article71570613.ece",
-    "student_relevance": 24,
-    "trend": "NEW"
-  },
-  "ff944301163a8b77": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Science & Technology",
-    "first_seen": "2026-10-11",
-    "headline": "10th Edition of India Mobile Congress 2026 Concludes Successfully",
-    "headline_hi": "",
-    "importance_score": 20,
-    "last_seen": "2026-10-11",
-    "raw_facts": "The 10th edition of the India Mobile Congress 2026 concluded on Saturday with a focus on artificial intelligence (AI) applications in agriculture, youth-led robotics, autonomous AI agents for 5G networks and expanding digital connectivity to underserved communities. Held under the theme ‘Scale Without Boundaries’, the four-day event brought together policymakers, industry leaders, researchers, startups and […] The post 10th Edition of India Mobile Congress 2026 Concludes Successfully appeared first on Tech Achieve Media.",
-    "scores": [
-      {
-        "date": "2026-10-11",
-        "job": "daily_2026-10-10",
-        "score": 20.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "Tech Achieve Media",
-    "source_url": "https://techachievemedia.com/live-coverage/10th-edition-of-india-mobile-congress-2026-concludes-successfully/",
-    "student_relevance": 32,
-    "trend": "NEW"
-  },
-  "47a6fc762a6bf79f": {
-    "first_seen": "2026-10-05",
-    "headline": "Website of Jal Jeevan Mission, Uttar Pradesh | Governance | Governance & Planning | Category - National Portal of India",
-    "last_seen": "2026-10-05",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-04",
-        "score": 24.0
-      }
-    ],
-    "trend": "NEW"
-  },
-  "6a0cae7d99419f6b": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-05",
-    "headline": "Shivaraj Patil demands 12-hour power supply",
-    "headline_hi": "",
-    "importance_score": 8,
-    "last_seen": "2026-10-05",
-    "raw_facts": "Shivaraj Patil demands 12-hour power supply",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-05",
-        "score": 8.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/karnataka/shivaraj-patil-demands-12-hour-power-supply/article71547520.ece",
-    "student_relevance": 16,
-    "trend": "NEW"
-  },
-  "711210498f946834": {
-    "first_seen": "2026-10-05",
-    "headline": "DARE/ICAR Launches Special Campaign 6.0 with Nationwide Cleanliness Drives and Felicitation of Safai Mitras - Indian Council Of Agricultural Research",
-    "last_seen": "2026-10-05",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-04",
-        "score": 30.0
-      }
-    ],
-    "trend": "NEW"
-  },
-  "716948c9aa830e33": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-05",
-    "headline": "KSTDC to invest ₹100 crore to upgrade Mayura properties, enhance visitor experience",
-    "headline_hi": "",
-    "importance_score": 9,
-    "last_seen": "2026-10-05",
-    "raw_facts": "KSTDC to invest ₹100 crore to upgrade Mayura properties, enhance visitor experience",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-05",
-        "score": 9.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/karnataka/kstdc-to-invest-100-crore-to-upgrade-mayura-properties-enhance-visitor-experience/article71547423.ece",
-    "student_relevance": 17,
-    "trend": "NEW"
-  },
-  "90006ae76c4448ea": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "Science & Technology",
-    "first_seen": "2026-10-05",
-    "headline": "Ranga Reddy DMHO, Health Inspector held in ₹1 lakh bribery case",
-    "headline_hi": "",
-    "importance_score": 4,
-    "last_seen": "2026-10-05",
-    "raw_facts": "Ranga Reddy DMHO, Health Inspector held in ₹1 lakh bribery case",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-05",
-        "score": 4.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/telangana/ranga-reddy-dmho-in-acb-net-for-taking-1-lakh-bribe/article71547261.ece",
-    "student_relevance": 16,
-    "trend": "NEW"
-  },
-  "9aac17c186673a5a": {
-    "agri_focus": false,
-    "banking_focus": false,
-    "category": "National",
-    "first_seen": "2026-10-05",
-    "headline": "Congress slams BJP for ‘wrecking’ economy, claims foreign investors withdrew ₹4.03 lakh crore in 2026",
-    "headline_hi": "",
-    "importance_score": 12,
-    "last_seen": "2026-10-05",
-    "raw_facts": "Foreign portfolio ownership in NSE-listed companies declined to about 15.8%, says Congress leader Shaktisinh Gohil.",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-05",
-        "score": 12.0
-      }
-    ],
-    "source_level": 4,
-    "source_name": "The Hindu National",
-    "source_url": "https://www.thehindu.com/news/national/congress-slams-bjp-for-wrecking-economy-claims-foreign-investors-withdrew-403-lakh-crore-in-2026/article71548150.ece",
-    "student_relevance": 20,
-    "trend": "NEW"
-  },
-  "aad4015b2380a25d": {
-    "first_seen": "2026-10-05",
-    "headline": "National Advisory Board on Management of Genetic Resources Charts Roadmap for Strengthening India's Agrobiodiversity Conservation and Sustainable Utilization | ",
-    "last_seen": "2026-10-05",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-04",
-        "score": 32.0
-      }
-    ],
-    "trend": "NEW"
-  },
-  "c30216e0c3baeae9": {
-    "first_seen": "2026-10-05",
-    "headline": "Financial Inclusion in India: Banking Every Citizen, Empowering Every Household - PIB",
-    "last_seen": "2026-10-05",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-04",
-        "score": 20.0
-      }
-    ],
-    "trend": "NEW"
-  },
-  "ee24ef37ff7a9266": {
-    "first_seen": "2026-10-05",
-    "headline": "UPI: Transforming India's Payment Landscape - PIB",
-    "last_seen": "2026-10-05",
-    "scores": [
-      {
-        "date": "2026-10-05",
-        "job": "daily_2026-10-04",
-        "score": 20.0
-      }
-    ],
-    "trend": "NEW"
   }
 }
