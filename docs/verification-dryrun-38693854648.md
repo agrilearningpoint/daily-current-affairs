@@ -1,6 +1,5 @@
 # Dry-run evidence — run 38693854648
 
-- status: **completed/failure**
 - run URL: https://github.com/agrilearningpoint/daily-current-affairs/actions/runs/38693854648
 - edition: 2026-10-15 (DRY_RUN=1)
 
@@ -25,50 +24,373 @@
 }
 ```
 
-## Selected headlines
-
-- [29/54] Agriculture: 2026-10-14 Time of Issue: 13:25:00 hours IST (Mid-Day) ALL INDIA WEATHER SUMMARY AND FORECAST BULLETIN Significant Weather Featu - IMD
-- [24/49] Banking & Finance: Annual Report - Reserve Bank of India
-- [23/38] Economy: International Spirits and Wines Association of India Vs.Uttarakhand Agricultural Produce Marketing Board & Others - Competition Commission of India
-- [28/36] National: India asks UN human rights office to seek answers from Pakistan on PoK
-- [22/47] Agriculture: Weather Warning Bulletin - IMD
-- [23/48] Banking & Finance: Engagement of Pharmacist in the Bank on contract basis with fixed hourly remuneration, Mumbai - Reserve Bank of India
-- [15/30] Economy: The Commission approves the acquisition of certain shareholding in Kids Clinic India Limited by NuageLux BidCo S.à r.l - Competition Commission of India
-- [27/35] National: HDB Financial Services sees 34% profit jump to ₹780 crore in Q2FY27
-- [22/47] Agriculture: प्रभाि-आधाररत पूिाानुमान और चेतािननयााँ/Impact Based Fore - IMD
-- [22/47] Banking & Finance: Tenders - Reserve Bank of India
-- [15/30] Economy: भारतीय ित धा आयोग - Competition Commission of India
-- [26/34] National: IMF chief urges wealthy nations to tackle rising global debt levels
-- [22/47] Agriculture: - Department of Animal Husbandry and Dairying
-- [22/47] Banking & Finance: Press Releases - Reserve Bank of India
-- [24/32] National: Cabinet approves Productivity Linked Bonus (PLB) for 78 days to Railway Employees - PM India
-- [22/47] Agriculture: STATE FORECAST DETAILED FORECAST AND WARNINGS: - IMD
-- [22/47] Banking & Finance: Database - Reserve Bank of India
-- [24/32] National: Don’t stand in the way of protesting students, they are voice of India: Rahul tells PM and HM
-- [20/45] Agriculture: banner M Kisan
-- [22/47] Banking & Finance: Press Releases| Official Website of Reserve Bank of India - Reserve Bank of India
-- [23/31] National: Cabinet approves continuation of the National Social Assistance Programme for five years from 2026-27 to 2030-31 - PM India
-- [20/45] Agriculture: Untitled - Ministry of Cooperation
-- [22/47] Banking & Finance: - Reserve Bank of India
-- [23/31] National: India asks when UN body will report on PoK human rights concerns
-- [23/31] National: Supreme Court to hear Rahul Gandhi, Oppn. leaders’ plea against CEC Gyanesh Kumar and SIR on Oct. 15
-- [23/31] National: Satyagraha for Constitution-as-commons
-- [23/31] National: ECI Candidate Affidavit - Election Commission of India - ECI
-- [23/31] National: Rupee rises 31 paise to 94.86 against US dollar during early trade
-
-## Stage log timings
+## Stage log inventory
 
 | log | lines | first | last |
 |---|---|---|---|
 | content_editor.log | 2508 | 2026-10-15 06:41:15 | 2026-10-15 07:26:29 |
 
-## State
+## Log excerpts (retries / skips / QA)
+
+```
+content_editor.log: 2026-10-15 06:41:15 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:18 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:18 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:20 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:20 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:22 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:22 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:24 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:24 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:41:25 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:27 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:27 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:29 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:29 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:31 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:31 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:33 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:33 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:41:34 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:36 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:36 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:38 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:38 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:40 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:40 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:43 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:43 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:41:43 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:45 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:45 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:47 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:47 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:49 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:49 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:51 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:41:51 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:41:52 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:54 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:41:54 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:56 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:56 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:58 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:41:58 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:01 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:01 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:01 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:03 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:03 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:05 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:05 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:07 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:07 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:10 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:10 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:10 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:12 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:12 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:14 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:14 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:16 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:16 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:19 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:19 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:19 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:21 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:21 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:23 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:23 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:25 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:25 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:28 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:28 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:28 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:30 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:30 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:32 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:32 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:34 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:34 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:37 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:37 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:37 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:39 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:39 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:41 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:41 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:43 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:43 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:45 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:45 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:46 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:48 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:48 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:50 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:50 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:52 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:52 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:55 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:42:55 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:42:55 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:57 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:42:57 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:59 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:42:59 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:01 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:01 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:04 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:04 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:04 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:06 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:06 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:08 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:08 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:10 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:10 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:12 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:12 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:13 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:15 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:15 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:17 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:17 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:19 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:19 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:21 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:21 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:22 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:24 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:24 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:26 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:26 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:28 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:28 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:30 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:30 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:30 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:33 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:33 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:35 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:35 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:37 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:37 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:39 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:39 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:40 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:42 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:42 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:44 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:44 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:46 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:46 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:48 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:48 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:49 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:51 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:43:51 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:53 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:53 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:55 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:43:55 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:57 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:43:57 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:43:57 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:00 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:00 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:02 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:02 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:04 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:04 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:06 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:06 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:44:06 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:08 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:09 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:11 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:11 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:13 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:13 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:16 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:16 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:44:16 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:18 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:18 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:20 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:20 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:22 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:22 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:25 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:25 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:44:25 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:27 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:27 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:29 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:29 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:31 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:31 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:34 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:34 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:44:34 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:36 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:36 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:38 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:38 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:40 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:40 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:42 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:42 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:44:43 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:45 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:45 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:47 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:47 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:49 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:49 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:51 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:44:51 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:44:52 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:54 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:44:54 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:56 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:56 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:58 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:44:58 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:00 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:00 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:00 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:03 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:03 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:05 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:05 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:07 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:07 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:10 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:10 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:10 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:12 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:12 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:14 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:14 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:16 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:16 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:19 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:19 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:19 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:21 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:21 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:23 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:23 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:25 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:25 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:28 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:28 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:28 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:30 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:30 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:32 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:32 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:34 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:34 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:37 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:37 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:37 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:39 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:39 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:41 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:41 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:43 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:43 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:45 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:45 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:46 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:48 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:48 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:50 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:50 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:52 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:52 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:54 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:45:54 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:45:55 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:57 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:45:57 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:59 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:45:59 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:46:01 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:46:01 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:46:03 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:46:03 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:46:03 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:46:06 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:46:06 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:46:08 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+content_editor.log: 2026-10-15 06:46:08 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:46:10 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+content_editor.log: 2026-10-15 06:46:10 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:46:12 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+content_editor.log: 2026-10-15 06:46:12 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+content_editor.log: 2026-10-15 06:46:12 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:46:15 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+content_editor.log: 2026-10-15 06:46:15 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+```
+
+## Stage log tails
+
+### content_editor.log
+
+```
+2026-10-15 07:25:51 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+2026-10-15 07:25:51 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:25:53 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:25:53 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:25:55 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:25:55 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:25:57 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:25:57 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:00 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:00 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+2026-10-15 07:26:00 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:02 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:02 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:26:04 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:26:04 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:26:06 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:26:06 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:09 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:09 | WARNING  | pipeline.content | [Translation] AI unavailable for task=key_points (validation failed: ['mistral: no response'])
+2026-10-15 07:26:09 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:11 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:11 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:26:13 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:26:13 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:26:15 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:26:15 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:18 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:18 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])
+2026-10-15 07:26:18 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:20 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:20 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:26:22 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+2026-10-15 07:26:22 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:26:24 | WARNING  | pipeline.ai_translator | [Translator] openrouter failed: 402 Client Error: Payment Required for url: https://openrouter.ai/api/v1/chat/completions
+2026-10-15 07:26:24 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:26 | WARNING  | pipeline.ai_translator | [Translator] mistral rate-limited (429)
+2026-10-15 07:26:26 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['mistral: no response'])
+2026-10-15 07:26:27 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:29 | WARNING  | pipeline.ai_translator | [Translator] gemini rate-limited (429)
+2026-10-15 07:26:29 | WARNING  | pipeline.ai_translator | [Translator] groq failed: 404 Client Error: Not Found for url: https://api.groq.com/openai/v1/chat/completions
+```
+
+## Committed state at collection time
 
 ```json
 {
- "status": "running",
+ "status": "failed",
  "dry_run": true,
  "last_success_stage": "11_importance_memory",
- "failed_stage": null
+ "failed_stage": "12_content_editor",
+ "checkpoint_run_id": "38693854648",
+ "last_error": "12_content_editor: failed after 3 attempt(s): timeout after 900s"
 }
 ```
