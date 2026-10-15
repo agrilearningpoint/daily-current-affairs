@@ -1,16 +1,16 @@
 {
- "daily_2026-10-10": {
-  "chat_id": "-1004485392227",
-  "file_sha256": "9fd1a5e8b2433066e4fc2167953741b144b110aa958aadc1210354326750ee2b",
-  "message_id": 25,
-  "published_at": "2026-10-11T20:47:16.819141+05:30",
-  "status": "PUBLISHED"
- },
- "daily_2026-10-11": {
-  "chat_id": "-1004485392227",
-  "file_sha256": "8a0e1a03a8c67bd9693272cc553901803e7b17c40a60a984f6430c4b9869d8d2",
-  "message_id": 23,
-  "published_at": "2026-10-11T17:55:12.602941+05:30",
-  "status": "PUBLISHED"
- }
+  "daily_2026-10-10": {
+    "chat_id": "-1004485392227",
+    "file_sha256": "9fd1a5e8b2433066e4fc2167953741b144b110aa958aadc1210354326750ee2b",
+    "message_id": 25,
+    "published_at": "2026-10-11T20:47:16.819141+05:30",
+    "status": "PUBLISHED"
+  },
+  "daily_2026-10-11": {
+    "chat_id": "-1004485392227",
+    "file_sha256": "8a0e1a03a8c67bd9693272cc553901803e7b17c40a60a984f6430c4b9869d8d2",
+    "message_id": 23,
+    "published_at": "2026-10-11T17:55:12.602941+05:30",
+    "status": "PUBLISHED"
+  }
 }
