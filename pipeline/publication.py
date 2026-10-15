@@ -10,11 +10,39 @@ def positive_message_id(value):
     return type(value) is int and value > 0
 
 
+def migrate_legacy_flat_ledger(value: dict):
+    """Adopt the pre-versioned flat ledger ``{key: {jobs: [...], last_published}}``.
+
+    Identity (chat_id/file_hash) cannot be recovered from that format, so the
+    entries are preserved as ``legacy_unknown`` records: they are never treated
+    as live receipts, but the editions they list can never be silently resent.
+    Returns ``None`` when ``value`` is not that legacy shape.
+    """
+    if not isinstance(value, dict) or "records" in value or "version" in value or not value:
+        return None
+    records = {}
+    for key, entry in value.items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("jobs", []), list):
+            return None
+        jobs = [str(job) for job in entry.get("jobs") or []]
+        records[str(key)] = {
+            "job_id": jobs[-1] if jobs else None,
+            "jobs": jobs,
+            "last_published": entry.get("last_published"),
+            "status": "legacy_unknown",
+            "legacy_migrated": True,
+        }
+    return {"version": 1, "records": records}
+
+
 def records_at(path: Path):
     """Missing ledgers are empty; malformed existing ledgers must fail closed."""
     if not path.exists():
         return {}
     value = json.loads(path.read_text(encoding="utf-8"))
+    legacy = migrate_legacy_flat_ledger(value)
+    if legacy is not None:
+        value = legacy
     if not isinstance(value, dict) or not isinstance(value.get("records"), dict):
         raise ValueError(f"invalid record map in {path.name}")
     if any(not isinstance(record, dict) for record in value["records"].values()):

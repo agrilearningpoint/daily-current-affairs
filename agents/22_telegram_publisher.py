@@ -119,6 +119,17 @@ def load_ledger() -> Dict[str, Any]:
                 raise ValueError("legacy publication record has no stable identity")
             records[key] = record
         data = {"version": 1, "records": records}
+    else:
+        from pipeline.publication import migrate_legacy_flat_ledger
+        legacy = migrate_legacy_flat_ledger(data)
+        if legacy is not None:
+            data = legacy
+            logger.warning(
+                "Publication ledger used the pre-versioned flat schema; adopted %d "
+                "legacy entr(ies) as legacy_unknown (live resend of those editions "
+                "stays blocked until manual reconciliation)",
+                len(data["records"]),
+            )
     if not isinstance(data, dict) or not isinstance(data.get("records"), dict):
         raise ValueError("invalid publication ledger; manual reconciliation required")
     if any(not isinstance(record, dict) for record in data["records"].values()):
@@ -400,6 +411,18 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
            for record in ledger.get("records", {}).values()):
         logger.error("Publication outcome uncertain for %s; manual reconciliation required, refusing resend", job_id)
         return False
+
+    legacy_jobs = {job for record in ledger.get("records", {}).values()
+                   if isinstance(record, dict) and record.get("status") == "legacy_unknown"
+                   for job in ((record.get("jobs") or []) + ([record["job_id"]] if record.get("job_id") else []))}
+    if job_id in legacy_jobs:
+        if DRY_RUN:
+            logger.warning("[DRY-RUN] %s appears in unreconciled legacy history; "
+                           "a live send would be refused", job_id)
+        else:
+            logger.error("Legacy publication history covers %s and cannot be reconciled "
+                         "automatically; manual reconciliation required, refusing send", job_id)
+            return False
 
     if is_published(ledger, key):
         record = ledger["records"][key]
