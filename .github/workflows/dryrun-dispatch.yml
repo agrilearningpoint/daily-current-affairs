@@ -149,6 +149,16 @@ jobs:
               if p.is_file():
                   out += ["", f"## PDF {label} report", "", "```json", p.read_text()[:2500], "```"]
 
+          timings = []
+          for log in sorted(pathlib.Path("evidence/logs").rglob("*.log")):
+              lines = [l for l in log.read_text(errors="replace").splitlines() if l.strip()]
+              if not lines:
+                  continue
+              timings.append(f"| {log.name} | {len(lines)} | {lines[0][:19]} | {lines[-1][:19]} |")
+          if timings:
+              out += ["", "## Stage log timings", "",
+                      "| log | lines | first | last |", "|---|---|---|---|"] + timings
+
           wanted = ("[DRY-RUN]", "Would publish", "No live publication receipt",
                     "selected", "relevant=", "PDF QA", "Pipeline", "stage ")
           log_lines = []
@@ -177,8 +187,17 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -f "docs/verification-dryrun-${{ steps.dispatch.outputs.run_id }}.md" ]; then
-            git add "docs/verification-dryrun-${{ steps.dispatch.outputs.run_id }}.md"
+          file="docs/verification-dryrun-${{ steps.dispatch.outputs.run_id }}.md"
+          if [ -f "$file" ]; then
+            git add "$file"
             git commit -m "docs: dry-run evidence for run ${{ steps.dispatch.outputs.run_id }} [skip ci]"
-            git push origin "HEAD:$REF"
+            for attempt in 1 2 3 4 5; do
+              # the daily run pushes its own state commits while this job waits
+              git pull --rebase --autostash origin "$REF" || true
+              if git push origin "HEAD:$REF"; then
+                echo "evidence pushed on attempt $attempt"
+                break
+              fi
+              sleep 10
+            done
           fi
