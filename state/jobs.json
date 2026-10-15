@@ -158,9 +158,9 @@
       "start": "2026-10-14T10:10:03.339834+05:30",
       "end": "2026-10-15T10:10:03.339834+05:30"
     },
-    "github_run_id": "38682601833",
-    "status": "failed",
-    "updated_at": "2026-10-15T04:41:28.930302+00:00",
+    "github_run_id": "38685059847",
+    "status": "running",
+    "updated_at": "2026-10-15T05:07:39.563293+00:00",
     "last_success_stage": "07_student_domain_relevance",
     "last_error": "10_final_news_selection: failed after 3 attempt(s): [10_final_news_selection] job=daily_2026-10-15 type=daily date=2026-10-15\n\n2026-10-15 04:41:25,933 | INFO     | root | [FINAL NEWS SELECTION AGENT v2] selected 2 items (target=28)\n2026-10-15 04:41:25,933 | INFO     | root |   Agriculture: 1\n2026-10-15 04:41:25,933 | INFO     | root |   economy_data: 1\n[10] FAILED: only 2 selected (min 5)",
     "failed_stage": "10_final_news_selection",
