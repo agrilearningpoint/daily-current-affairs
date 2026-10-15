@@ -130,42 +130,42 @@
     "stage_history": []
   },
   "daily_2026-10-15": {
-    "started_at": "2026-10-15T05:07:41.091353+00:00",
+    "started_at": "2026-10-15T05:55:01.482347+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-15.json": {
         "stage": "01_source_fetch",
-        "sha256": "d44c8edd0788a788bdb28bc84899fe47f676da060e9e0719d7a935bef819455b"
+        "sha256": "4611de30f893550022c923e8a5412acd731b0401f2627c67e44b8b709d1dbb50"
       },
       "data/verified/daily_2026-10-15.json": {
         "stage": "04_fact_verification",
-        "sha256": "f880867222a1ccc19ce5258db5ec9ac37c0c37b7a610e86f2fe972c315dcae8c"
+        "sha256": "b7efff59636eb879ece9bbeb91c9ba15cd6846b735f2cb1c52e9677c180210bf"
       },
       "data/dedup/daily_2026-10-15.json": {
         "stage": "05_deduplication",
-        "sha256": "643c094c8e5467a78b07d6b94edd69de8c727bdaa74e69e1739b27e7af6b8d23"
+        "sha256": "22bff67ecdf5bde49d0379a9ae0a367a63b7ac02327603a6b26236e88f90c31e"
       },
       "data/scored/daily_2026-10-15.json": {
         "stage": "06_news_importance",
-        "sha256": "eab46a8d208981ca9136517e13dfa4d18ed849f92b6e5f73140d319c96f14aa7"
+        "sha256": "85284584b495ad8ca7051ac3eff412e1957db3f9ee489f4df7b4b84825d09435"
       },
       "data/selected/daily_2026-10-15.json": {
         "stage": "10_final_news_selection",
-        "sha256": "a2e7eb402cf675117263b3198ce0ea59162c8256b5d9c7ff0fa76a55929cbdb6"
+        "sha256": "61551d85c6b4d7dffe46ea6ef59aef414c6ec1afa5068e1038219de753618fbe"
       }
     },
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-10-15",
     "job_type": "daily",
     "job_date": "2026-10-15",
-    "dry_run": false,
+    "dry_run": true,
     "window": {
-      "start": "2026-10-14T10:37:41.090954+05:30",
-      "end": "2026-10-15T10:37:41.090954+05:30"
+      "start": "2026-10-14T11:25:01.482065+05:30",
+      "end": "2026-10-15T11:25:01.482065+05:30"
     },
     "github_run_id": "38689350606",
     "status": "running",
-    "updated_at": "2026-10-15T05:54:59.999530+00:00",
-    "last_success_stage": "11_importance_memory",
-    "checkpoint_run_id": "38685059847"
+    "updated_at": "2026-10-15T06:39:49.631267+00:00",
+    "checkpoint_run_id": "38689350606",
+    "last_success_stage": "11_importance_memory"
   }
 }
