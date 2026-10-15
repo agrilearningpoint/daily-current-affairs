@@ -26,6 +26,12 @@ on:
         type: boolean
         default: false
 
+      dry_run:
+        description: "Dry run only: do not send Telegram messages or publish live."
+        required: false
+        type: boolean
+        default: false
+
 concurrency:
   group: daily-pipeline
   cancel-in-progress: false
@@ -149,6 +155,7 @@ jobs:
           GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-4o-mini' }}
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: |
           ARGS=(--job-type daily --date "$EDITION_DATE")
           if [ "$RESET_REQUEST" = "true" ]; then ARGS+=(--reset); fi
@@ -225,7 +232,7 @@ jobs:
       # Notifications
       # --------------------------------------------------------------------- #
       - name: Notify success (Telegram)
-        if: success()
+        if: success() && github.event.inputs.dry_run != 'true' 
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -236,7 +243,7 @@ jobs:
             Run: #${{ github.run_number }}
 
       - name: Notify failure (Telegram)
-        if: failure()
+        if: failure() && github.event.inputs.dry_run != 'true' 
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}

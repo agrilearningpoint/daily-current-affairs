@@ -15,6 +15,23 @@ CATEGORY_NAMES = {
 }
 
 
+def normalize_category(category):
+    """Map source/legacy category keys to the canonical category names used downstream."""
+    if category is None or str(category).strip() == "":
+        return "National"
+    key = str(category).strip().lower()
+    if key in CATEGORY_NAMES:
+        return CATEGORY_NAMES[key]
+    try:
+        from pipeline.collector import CATEGORY_ALIASES
+    except Exception:
+        CATEGORY_ALIASES = {}
+    if key in CATEGORY_ALIASES:
+        return CATEGORY_ALIASES[key]
+    # Last resort: preserve a cleaned, title-cased value rather than dropping it.
+    return str(category).strip()
+
+
 def normalize_item(item):
     if not isinstance(item, dict):
         raise ValueError("news item must be an object")
@@ -29,7 +46,7 @@ def normalize_item(item):
     tier = str(item.get("source_tier", "tier3"))
     out["source_tier"] = tier if tier.startswith("tier") else "tier" + tier
     category = item.get("category") or "National"
-    out["category"] = CATEGORY_NAMES.get(category.lower(), category)
+    out["category"] = normalize_category(category)
     out["event_id"] = item.get("event_id") or hashlib.sha256(
         (out["headline_en"] + "|" + out["source_url"]).encode("utf-8")
     ).hexdigest()[:16]

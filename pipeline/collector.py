@@ -161,12 +161,20 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 CATEGORY_ALIASES = {
     "agriculture_core": "Agriculture", "agriculture": "Agriculture", "agri": "Agriculture",
+    "agriculture_economy": "Agriculture", "agriculture_specialists": "Agriculture",
     "banking_finance": "Banking & Finance", "finance": "Banking & Finance",
-    "economy_data": "Economy", "economy": "Economy", "govt_national": "National",
+    "economy_data": "Economy", "economy": "Economy", "finance_economy": "Economy",
+    "govt_national": "National", "government": "Government Schemes",
+    "government schemes": "Government Schemes", "govt": "National",
     "international": "International", "science": "Science & Technology",
-    "environment": "Environment", "discovery": "National", "aggregator": "National",
-    "health": "Science & Technology", "energy": "Environment", "education": "National",
-    "defence": "National", "rural": "Agriculture", "cooperation": "Agriculture",
+    "defence_science": "Science & Technology", "food_safety": "Science & Technology",
+    "environment": "Environment", "forestry_environment": "Environment",
+    "energy": "Environment",
+    "discovery": "National", "aggregator": "National", "aggregator": "National",
+    "health": "Science & Technology", "education": "National",
+    "defence": "National", "rural": "Agriculture", "rural_development": "Agriculture",
+    "cooperation": "Agriculture", "horticulture": "Agriculture",
+    "food_processing": "Agriculture", "general": "National",
 }
 
 
