@@ -45,6 +45,8 @@ from difflib import SequenceMatcher
 
 import requests
 
+from pipeline.artifacts import normalize_category
+
 # --------------------------------------------------------------------------- #
 # Logging
 # --------------------------------------------------------------------------- #
@@ -350,6 +352,7 @@ def verify_article(
 
     return {
         **article,
+        "category": normalize_category(article.get("category")),
         "event_id": content_hash(article),
         "title": clean_text(article.get("title", ""), 500),
         "link": article.get("link", ""),

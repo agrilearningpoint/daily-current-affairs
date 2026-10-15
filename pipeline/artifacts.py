@@ -4,32 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-CATEGORY_NAMES = {
-    "agriculture": "Agriculture", "agri": "Agriculture",
-    "banking": "Banking & Finance", "finance": "Banking & Finance",
-    "banking & finance": "Banking & Finance", "economy": "Economy",
-    "government": "Government Schemes", "government schemes": "Government Schemes",
-    "national": "National", "general": "National", "international": "International",
-    "science": "Science & Technology", "science & technology": "Science & Technology",
-    "environment": "Environment", "sports": "Sports", "health": "Health",
-}
-
-
-def normalize_category(category):
-    """Map source/legacy category keys to the canonical category names used downstream."""
-    if category is None or str(category).strip() == "":
-        return "National"
-    key = str(category).strip().lower()
-    if key in CATEGORY_NAMES:
-        return CATEGORY_NAMES[key]
-    try:
-        from pipeline.collector import CATEGORY_ALIASES
-    except Exception:
-        CATEGORY_ALIASES = {}
-    if key in CATEGORY_ALIASES:
-        return CATEGORY_ALIASES[key]
-    # Last resort: preserve a cleaned, title-cased value rather than dropping it.
-    return str(category).strip()
+from pipeline.categories import CATEGORY_NAMES, normalize_category  # noqa: F401 (re-exported)
 
 
 def normalize_item(item):

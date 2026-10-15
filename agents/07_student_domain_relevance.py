@@ -29,20 +29,23 @@ class Agent:
 
     def run(self):
         import logging, re
+        from pipeline.artifacts import normalize_category
         from pipeline.state import SCORED_DIR, data_path, read_json, write_json_atomic
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
         BOOST = {"Agriculture": 25, "Banking & Finance": 25, "Government Schemes": 20, "Economy": 15,
                  "International": 12, "Science & Technology": 12, "Environment": 12, "Sports": 8, "National": 8}
         DEMOTE = re.compile(r"crime|murder|rape|accident|traffic|celebrity|bollywood|gossip|match-fixing|political party rally", re.I)
         for it in items:
-            r = min(100, it.get("importance_score", 0) + BOOST.get(it.get("category", ""), 0))
+            cat = normalize_category(it.get("category", ""))
+            it["category"] = cat
+            r = min(100, it.get("importance_score", 0) + BOOST.get(cat, 0))
             if DEMOTE.search(it.get("headline_en", "") + " " + it.get("raw_facts", "")):
                 r = max(0, r - 40)
             it["student_relevance"] = r
             # domain coverage tags (formerly Agents 08 & 09)
-            if it.get("category") == "Agriculture":
+            if cat == "Agriculture":
                 it["agri_focus"] = True
-            if it.get("category") == "Banking & Finance":
+            if cat == "Banking & Finance":
                 it["banking_focus"] = True
         items.sort(key=lambda x: -x["student_relevance"])
         keep = [i for i in items if i["student_relevance"] >= 30]

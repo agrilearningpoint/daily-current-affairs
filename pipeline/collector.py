@@ -46,9 +46,12 @@ from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import feedparser
+
 import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
+
+from pipeline.categories import CATEGORY_ALIASES  # noqa: F401 (re-exported)
 
 # Support both `python -m pipeline.collector` and direct script execution from
 # main.py (`python /repo/pipeline/collector.py`).
@@ -158,25 +161,6 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
     "Sports": ("sports", "cricket", "hockey", "tournament", "medal", "olympic", "federation"),
 }
-
-CATEGORY_ALIASES = {
-    "agriculture_core": "Agriculture", "agriculture": "Agriculture", "agri": "Agriculture",
-    "agriculture_economy": "Agriculture", "agriculture_specialists": "Agriculture",
-    "banking_finance": "Banking & Finance", "finance": "Banking & Finance",
-    "economy_data": "Economy", "economy": "Economy", "finance_economy": "Economy",
-    "govt_national": "National", "government": "Government Schemes",
-    "government schemes": "Government Schemes", "govt": "National",
-    "international": "International", "science": "Science & Technology",
-    "defence_science": "Science & Technology", "food_safety": "Science & Technology",
-    "environment": "Environment", "forestry_environment": "Environment",
-    "energy": "Environment",
-    "discovery": "National", "aggregator": "National", "aggregator": "National",
-    "health": "Science & Technology", "education": "National",
-    "defence": "National", "rural": "Agriculture", "rural_development": "Agriculture",
-    "cooperation": "Agriculture", "horticulture": "Agriculture",
-    "food_processing": "Agriculture", "general": "National",
-}
-
 
 @dataclass(frozen=True)
 class CollectorConfig:

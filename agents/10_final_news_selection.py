@@ -14,8 +14,11 @@ class Agent:
         self.name = "FINAL NEWS SELECTION AGENT v2"
 
     def run(self):
+        from pipeline.artifacts import normalize_category
         from pipeline.state import SCORED_DIR, SELECTED_DIR, data_path, read_json, write_json_atomic
         scored = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
+        for item in scored:
+            item["category"] = normalize_category(item.get("category", ""))
         if not scored:
             self.context["stage_failed"] = "no scored items"
             raise RuntimeError(self.context["stage_failed"])
