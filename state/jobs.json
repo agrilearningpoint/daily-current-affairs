@@ -157,14 +157,14 @@
     "job_id": "daily_2026-10-15",
     "job_type": "daily",
     "job_date": "2026-10-15",
-    "dry_run": true,
+    "dry_run": false,
     "window": {
       "start": "2026-10-14T10:37:41.090954+05:30",
       "end": "2026-10-15T10:37:41.090954+05:30"
     },
-    "github_run_id": "38685059847",
+    "github_run_id": "38689350606",
     "status": "running",
-    "updated_at": "2026-10-15T05:52:33.537150+00:00",
+    "updated_at": "2026-10-15T05:54:59.999530+00:00",
     "last_success_stage": "11_importance_memory",
     "checkpoint_run_id": "38685059847"
   }
