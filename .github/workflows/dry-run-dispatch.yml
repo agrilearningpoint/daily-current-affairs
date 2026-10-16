@@ -44,11 +44,13 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       REF: ${{ github.ref_name }}
-      EDITION_DATE: "2026-10-16"
+      EDITION_DATE: "2026-10-15"
       # empty = dispatch a new dry run; otherwise collect evidence for this run id
       COLLECT_RUN_ID: ""
       # fresh edition: the stale live record for this date must not be resumed
       RESET_INPUT: "true"
+      # 1 = every log excerpt/tail in the report; 0 = compact report only
+      FULL_EVIDENCE: "0"
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -178,7 +180,8 @@ jobs:
               if p.is_file():
                   out += ["", f"## PDF {label} report", "", "```json", p.read_text()[:2000], "```"]
 
-          logs = sorted(pathlib.Path("evidence/logs").rglob("*.log"))
+          full = os.environ.get("FULL_EVIDENCE", "0") == "1"
+          logs = sorted(pathlib.Path("evidence/logs").rglob("*.log")) if full else []
           if logs:
               out += ["", "## Stage log inventory", "", "| log | lines | first | last |", "|---|---|---|---|"]
               for log in logs:
@@ -214,6 +217,34 @@ jobs:
           print("\n".join(out)[:3000])
           PY
 
+      - name: Render page previews (kept small; the full PDF stays a run artifact)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          job_id="daily_${EDITION_DATE}"
+          pdf=$(find evidence/ckpt -name "${job_id}.pdf" | head -1 || true)
+          if [ -z "$pdf" ]; then echo "no PDF for $job_id (run likely refused before stage 18)"; exit 0; fi
+          python3 -m pip install --quiet pymupdf
+          mkdir -p docs/preview
+          python3 - "$pdf" "$job_id" <<'PY'
+          import sys, pathlib
+          pdf_path, job_id = sys.argv[1], sys.argv[2]
+          try:
+              import pymupdf as fitz
+          except ImportError:
+              import fitz
+          doc = fitz.open(pdf_path)
+          out = pathlib.Path("docs/preview")
+          picks = sorted({1, 2, len(doc)})
+          for page_no in picks:
+              pix = doc[page_no - 1].get_pixmap(dpi=62)
+              target = out / f"{job_id}-page{page_no}.png"
+              pix.save(target)
+              print(f"{target} {target.stat().st_size} bytes")
+          print(f"{job_id}: {len(doc)} pages total")
+          PY
+          ls -la docs/preview/
+
       - name: Commit evidence report
         run: |
           set -euo pipefail
@@ -222,7 +253,10 @@ jobs:
           file="docs/verification-dryrun-${{ steps.target.outputs.run_id }}.md"
           [ -f "$file" ] || { echo "no evidence file"; exit 1; }
           git add "$file"
-          git commit -m "docs: dry-run evidence for run ${{ steps.target.outputs.run_id }} [skip ci]"
+          if compgen -G "docs/preview/*.png" > /dev/null; then
+            git add docs/preview/*.png
+          fi
+          git commit -m "docs: dry-run report + page previews for run ${{ steps.target.outputs.run_id }} [skip ci]"
           for attempt in 1 2 3 4 5; do
             # the daily run pushes its own state commits while this job waits
             git pull --rebase --autostash origin "$REF" || true
