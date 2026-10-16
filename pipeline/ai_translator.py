@@ -90,6 +90,12 @@ class ProviderRateLimited(Exception):
     """Signal that the current provider should be skipped for this edition."""
 
 
+class ProviderRequestFailed(Exception):
+    def __init__(self, reason: str, *, retryable: bool = False):
+        super().__init__(reason)
+        self.retryable = retryable
+
+
 def _cache_key(text: str, task: str) -> str:
     h = hashlib.sha256(f"{task}::{text}".encode("utf-8")).hexdigest()[:24]
     return h
@@ -183,12 +189,11 @@ def _build_prompt(text: str, task: str) -> Tuple[str, str]:
 # --------------------------------------------------------------------------- #
 # Provider HTTP call
 # --------------------------------------------------------------------------- #
-def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional[str]:
+def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
     try:
         import requests
-    except ImportError:
-        logger.error("[Translator] requests library missing")
-        return None
+    except ImportError as exc:
+        raise ProviderRequestFailed("requests library missing") from exc
 
     if provider["name"] == "gemini":
         url = f"{provider['url']}/{provider['model']}:generateContent"
@@ -203,23 +208,33 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
-        if r.status_code == 429:
-            logger.warning("[Translator] %s rate-limited (429)", provider["name"])
-            raise ProviderRateLimited(provider["name"])
+    except requests.Timeout as exc:
+        raise ProviderRequestFailed("request timed out", retryable=True) from exc
+    except requests.RequestException as exc:
+        raise ProviderRequestFailed("network request failed", retryable=True) from exc
+
+    if r.status_code == 429:
+        logger.warning("[Translator] %s rate-limited (429)", provider["name"])
+        raise ProviderRateLimited(provider["name"])
+    try:
         r.raise_for_status()
+    except requests.HTTPError as exc:
+        status = r.status_code
+        raise ProviderRequestFailed(f"HTTP {status}", retryable=status >= 500) from exc
+
+    try:
         data = r.json()
         if provider["name"] == "gemini":
             candidates = data.get("candidates") or []
             parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
-            return "".join(part.get("text", "") for part in parts).strip() or None
-        # OpenAI-compatible shape
-        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
-    except ProviderRateLimited:
-        raise
-    except Exception as exc:
-        from pipeline.persistence import redact
-        logger.warning("[Translator] %s failed: %s", provider["name"], redact(str(exc), dict(os.environ)))
-        return None
+            translated = "".join(part.get("text", "") for part in parts).strip()
+        else:
+            translated = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+    except (ValueError, AttributeError, IndexError, TypeError) as exc:
+        raise ProviderRequestFailed("malformed response") from exc
+    if not translated:
+        raise ProviderRequestFailed("empty response")
+    return translated
 
 
 # --------------------------------------------------------------------------- #
@@ -314,11 +329,11 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                 provider_issues.append(f"{provider['name']}: rate limited")
                 logger.info("[Translator] moving to the next configured provider")
                 break
-            if not hindi:
-                if attempt < MAX_RETRIES:
+            except ProviderRequestFailed as exc:
+                if exc.retryable and attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
-                provider_issues.append(f"{provider['name']}: no response")
+                provider_issues.append(f"{provider['name']}: {exc}")
                 break
 
             passed, conf, issues = _validate(text, hindi)

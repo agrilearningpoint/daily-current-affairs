@@ -86,3 +86,18 @@ def test_translation_falls_back_after_a_rate_limited_provider(monkeypatch):
     assert attempted == ["gemini", "groq"]
     assert result["passed"] is True
     assert result["provider"] == "groq"
+
+
+def test_translation_reports_provider_http_failures(monkeypatch):
+    configure_providers(monkeypatch, ["gemini", "openrouter"])
+    attempted = []
+
+    def unavailable(provider, system, user):
+        attempted.append(provider["name"])
+        raise ai_translator.ProviderRequestFailed("HTTP 401")
+
+    monkeypatch.setattr(ai_translator, "_call_provider", unavailable)
+    result = ai_translator.translate_content("Farmers receive support.")
+
+    assert attempted == ["gemini", "openrouter"]
+    assert result["issues"] == ["gemini: HTTP 401", "openrouter: HTTP 401"]
