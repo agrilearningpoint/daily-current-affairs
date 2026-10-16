@@ -199,7 +199,7 @@
         "sha256": "bdb26a9ae2a1ef4fbaa25d421d47db5e33e1211ad243113d3fd8d6926a3ee369"
       }
     },
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "daily_2026-10-15",
     "job_type": "daily",
     "job_date": "2026-10-15",
@@ -209,11 +209,11 @@
       "end": "2026-10-15T10:10:03.339834+05:30"
     },
     "github_run_id": "38943868324",
-    "status": "running",
-    "updated_at": "2026-10-16T17:59:51.607716+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-16T18:00:53.995743+00:00",
     "last_success_stage": "11_importance_memory",
-    "checkpoint_run_id": "38912886628",
-    "last_error": "12_content_editor: failed after 3 attempt(s): 14:06:20 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: mistral: rate_limit\n2026-10-16 14:06:20 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 14:06:20 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=4 fallback=0 untranslated=3 (AI success 57.1%)\n2026-10-16 14:06:20 | WARNING  | pipeline.content | [Content Builder] 3 translations need review (AI did not pass)\n2026-10-16 14:06:20 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "checkpoint_run_id": "38943868324",
+    "last_error": "12_content_editor: failed after 3 attempt(s): 16 18:00:50 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 18:00:50 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 18:00:50 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=6 fallback=0 untranslated=1 (AI success 85.7%)\n2026-10-16 18:00:50 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-16 18:00:50 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor"
   },
   "daily_2026-10-16": {
