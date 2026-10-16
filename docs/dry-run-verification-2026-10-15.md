@@ -92,7 +92,7 @@ credits themselves (gemini/mistral rate-limited, groq model 404, openrouter 402)
 
 ## 6. Temporary tooling on the branch
 
-`.github/workflows/dryrun-dispatch.yml` is bootstrap-only: this session's GitHub
+`.github/workflows/dry-run-dispatch.yml` is bootstrap-only: this session's GitHub
 token has no `actions: write`, so it dispatches `daily.yml` (dry-run, no reset)
 from a push-triggered job, waits for it, downloads its checkpoints/logs — blob
 endpoints are unreachable from the maintainer sandbox — and commits an evidence
