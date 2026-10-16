@@ -185,6 +185,7 @@ def test_source_fetch_drops_chrome_entries(monkeypatch):
 
     class _Response:
         content = GOOGLE_NEWS_STYLE_FEED.encode("utf-8")
+        status_code = 200
 
         def raise_for_status(self):
             return None
@@ -270,6 +271,7 @@ def test_feed_entries_pointing_at_the_site_root_are_dropped(monkeypatch):
 
     class _Response:
         content = payload.encode("utf-8")
+        status_code = 200
 
         def raise_for_status(self):
             return None

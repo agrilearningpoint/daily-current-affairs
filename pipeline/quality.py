@@ -112,6 +112,26 @@ NEWS_VERBS = frozenset({
 
 # Exactly these paths are a site's landing page: a feed entry pointing there is
 # the site itself, not an article (e.g. title "- Reserve Bank of India").
+# Non-editorial material that official sites publish on the same feeds as news:
+# recruitment notices, tenders and routine periodic bulletins. The 2026-10-15
+# edition carried a bank pharmacist vacancy and a daily agromet bulletin, which
+# is what these two patterns exist to keep out.
+NOTICE_RE = re.compile(
+    r"\b(?:engagement of\b[^|]{0,90}\bon (?:contract|contractual|deputation|ad-?hoc|consolidated)"
+    r"|walk-?in interview"
+    r"|invites? applications?"
+    r"|applications? (?:are )?invited"
+    r"|advt\.?\s*no\.?"
+    r"|advertisement no\.?"
+    r"|notice inviting (?:tender|quotation|bid|expression)"
+    r"|last date (?:for|to) appl(?:y|ication))\b", re.IGNORECASE)
+ROUTINE_RE = re.compile(
+    r"\b(?:agromet advisory (?:service )?bulletin"
+    r"|agromet bulletin"
+    r"|(?:daily|weekly|monthly|fortnightly) (?:weather|rainfall|market|price|arrival) "
+    r"(?:bulletin|report|summary|advisory))\b", re.IGNORECASE)
+MARKUP_RE = re.compile(r"[<>]")
+
 _LANDING_PATHS = frozenset({
     "", "/", "/default.aspx", "/en", "/en/", "/english", "/english/", "/home",
     "/home.aspx", "/index.aspx", "/index.htm", "/index.html", "/index.php",
@@ -288,6 +308,12 @@ def reject_reason(title: str, source_name: str = "") -> Optional[str]:
         return "self-link"
     if _ADDRESS_RE.search(text):
         return "address"
+    if NOTICE_RE.search(text):
+        return "notice"
+    if ROUTINE_RE.search(text):
+        return "routine-bulletin"
+    if MARKUP_RE.search(text):
+        return "markup-leak"  # HTML fragment leaked into the headline field
     return None
 
 

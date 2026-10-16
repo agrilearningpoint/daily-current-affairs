@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -105,6 +106,89 @@ def content_hash(title: str, link: str) -> str:
 # Fetch + normalize
 # --------------------------------------------------------------------------
 
+# Some official feeds answer a 403 to any client that does not look like a
+# browser (measured: Indian Express, Ministry of External Affairs). The retry UA
+# still identifies the collector, so a publisher can block it deliberately.
+UA_DEFAULT = "alp-collector/1.0 (+https://github.com/agrilearningpoint/daily-current-affairs)"
+UA_BROWSER = ("Mozilla/5.0 (compatible; alp-collector/1.0; "
+              "+https://github.com/agrilearningpoint/daily-current-affairs)")
+BLOCKED_STATUS = {403, 405, 406}
+
+# Entities that appear in official feeds without being declared in their DTD.
+_UNDECLARED_ENTITIES = {
+    "&nbsp;": "&#160;", "&mdash;": "&#8212;", "&ndash;": "&#8211;",
+    "&rsquo;": "&#8217;", "&lsquo;": "&#8216;", "&ldquo;": "&#8220;",
+    "&rdquo;": "&#8221;", "&hellip;": "&#8230;", "&bull;": "&#8226;",
+    "&middot;": "&#183;", "&euro;": "&#8364;", "&pound;": "&#163;",
+}
+_ENTITY_RE = re.compile(r"&(?:#\d{1,7}|#x[0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});")
+_BARE_AMP_RE = re.compile(r"&(?!(?:#\d{1,7}|#x[0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});)")
+_CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def repair_feed_xml(payload: bytes) -> bytes:
+    """Best-effort repair of the XML that some official feeds actually serve.
+
+    Measured failures: PIB (bare ``&`` inside a copy deck) and SEBI (undeclared
+    HTML entity) both made feedparser reject an otherwise complete feed, which
+    silently dropped a tier-1 source from the edition. Only the three documented
+    defects are touched; anything still malformed stays an error.
+    """
+    text = payload.decode("utf-8", errors="replace").lstrip("\ufeff")
+    for entity, replacement in _UNDECLARED_ENTITIES.items():
+        text = text.replace(entity, replacement)
+    text = _BARE_AMP_RE.sub("&amp;", text)
+    return _CONTROL_RE.sub(b"", text.encode("utf-8", errors="replace"))
+
+
+def _looks_like_html(payload: bytes) -> bool:
+    head = payload[:512].lstrip().lower()
+    return head.startswith(b"<!doctype html") or head.startswith(b"<html")
+
+
+def fetch_feed_bytes(spec: SourceSpec) -> Tuple[bytes | None, str | None]:
+    """Return ``(payload, error)``; retries once with a browser-style UA on 403."""
+    errors: List[str] = []
+    timeout = int(os.getenv("ALP_FEED_TIMEOUT", "20"))
+    for ua in (UA_DEFAULT, UA_BROWSER):
+        try:
+            response = requests.get(spec.rss_url, headers={"User-Agent": ua},
+                                    timeout=timeout)
+        except Exception as exc:  # network/disk level failure
+            # No second request: a stage retry (orchestrator) is the right place
+            # for transient network errors, and the run must still fail closed.
+            errors.append(f"{type(exc).__name__}: {exc}")
+            break
+        if response.status_code in BLOCKED_STATUS and ua == UA_DEFAULT:
+            errors.append(f"HTTP {response.status_code} to the default user agent")
+            continue
+        try:
+            response.raise_for_status()
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            continue
+        return response.content, None
+    return None, "; ".join(errors) or "unknown fetch failure"
+
+
+def parse_feed(payload: bytes) -> Tuple[Any, str | None]:
+    """Parse feed bytes, repairing the documented XML defects once before giving up."""
+    parsed = feedparser.parse(payload)
+    if parsed.entries:
+        return parsed, None
+    if _looks_like_html(payload):
+        # An HTML block page parses "successfully" with zero entries, so it must
+        # be reported from the payload type rather than from bozo.
+        return parsed, "feed returned an HTML page (blocked or moved)"
+    if parsed.bozo:
+        message = str(getattr(parsed, "bozo_exception", "unparseable feed"))
+        repaired = feedparser.parse(repair_feed_xml(payload))
+        if repaired.entries or not repaired.bozo:
+            return repaired, None
+        return repaired, f"feed parse error ({message})"
+    return parsed, None  # a healthy feed may legitimately carry no items
+
+
 def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
                seen_hashes: set) -> Tuple[List[Dict[str, Any]], int, int, str | None, int]:
     """Fetch one feed.
@@ -119,20 +203,15 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
     collected: List[Dict[str, Any]] = []
     malformed = 0
     chrome_skipped = 0
-    try:
-        response = requests.get(spec.rss_url, headers={"User-Agent": "alp-collector/1.0"},
-                                timeout=int(os.getenv("ALP_FEED_TIMEOUT", "20")))
-        response.raise_for_status()
-        parsed = feedparser.parse(response.content)
-    except Exception as exc:  # network/disk level failure
-        return [], 0, 0, f"{type(exc).__name__}: {exc}", 0
+    payload, error = fetch_feed_bytes(spec)
+    if error or payload is None:
+        return [], 0, 0, error or "empty response", 0
 
-    status = getattr(parsed, "status", None)
-    if parsed.bozo and not parsed.entries:
-        err = getattr(parsed, "bozo_exception", "unparseable feed")
-        if status == 404:
+    parsed, parse_error = parse_feed(payload)
+    if parse_error:
+        if getattr(parsed, "status", None) == 404:
             return [], 0, 0, f"HTTP 404 (feed moved/deleted): {spec.rss_url}", 0
-        return [], 0, 0, f"feed parse error ({err})", 0
+        return [], 0, 0, parse_error, 0
 
     entries = list(getattr(parsed, "entries", []) or [])
     for entry in entries:
