@@ -116,6 +116,47 @@
     "job_date": null,
     "stage_history": []
   },
+  "daily_2026-10-14": {
+    "started_at": "2026-10-16T07:07:15.768728+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-14.json": {
+        "stage": "01_source_fetch",
+        "sha256": "7b7fb29dbb0182bb9dfabe12a18a748ac2d49ba8dd6731f5f5a322006bd0a459"
+      },
+      "data/verified/daily_2026-10-14.json": {
+        "stage": "04_fact_verification",
+        "sha256": "887566235e6379642ed3b56adefc98fe2a69d026e3a4c19d71c2f715d88589f8"
+      },
+      "data/dedup/daily_2026-10-14.json": {
+        "stage": "05_deduplication",
+        "sha256": "57c42397b90e57dd2732723234cd2e6c673b8a9dd7bffe0166c8c12bd99e9f6e"
+      },
+      "data/scored/daily_2026-10-14.json": {
+        "stage": "06_news_importance",
+        "sha256": "31185057ea687b0d7319a45fb73b90c19fa5386263105970f424d11e7665db55"
+      },
+      "data/selected/daily_2026-10-14.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "610a1c9328743ce436cad5ad8056f5659252f636e90dedd98d776516067edb2c"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-10-14",
+    "job_type": "daily",
+    "job_date": "2026-10-14",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-13T00:00:00+05:30",
+      "end": "2026-10-13T23:59:59.999999+05:30"
+    },
+    "github_run_id": "38865159266",
+    "status": "failed",
+    "updated_at": "2026-10-16T07:09:04.781510+00:00",
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): stral after an earlier rate limit\n2026-10-16 07:09:01 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['groq: HTTP 404', 'openrouter: HTTP 402'])\n2026-10-16 07:09:01 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=2 fallback=0 untranslated=4 (AI success 33.3%)\n2026-10-16 07:09:01 | WARNING  | pipeline.content | [Content Builder] 4 translations need review (AI did not pass)\n2026-10-16 07:09:01 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "38865159266"
+  },
   "daily_2026-10-15": {
     "started_at": "2026-10-15T04:40:03.340200+00:00",
     "artifacts": {
@@ -193,46 +234,5 @@
     "last_error": "12_content_editor: failed after 3 attempt(s): translator | [Translator] mistral rate-limited (429)\n2026-10-16 06:42:29 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])\n2026-10-16 06:42:29 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=7 (AI success 0.0%)\n2026-10-16 06:42:29 | WARNING  | pipeline.content | [Content Builder] 7 translations need review (AI did not pass)\n2026-10-16 06:42:29 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "38862263452"
-  },
-  "daily_2026-10-14": {
-    "started_at": "2026-10-16T07:07:15.768728+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-14.json": {
-        "stage": "01_source_fetch",
-        "sha256": "7b7fb29dbb0182bb9dfabe12a18a748ac2d49ba8dd6731f5f5a322006bd0a459"
-      },
-      "data/verified/daily_2026-10-14.json": {
-        "stage": "04_fact_verification",
-        "sha256": "887566235e6379642ed3b56adefc98fe2a69d026e3a4c19d71c2f715d88589f8"
-      },
-      "data/dedup/daily_2026-10-14.json": {
-        "stage": "05_deduplication",
-        "sha256": "57c42397b90e57dd2732723234cd2e6c673b8a9dd7bffe0166c8c12bd99e9f6e"
-      },
-      "data/scored/daily_2026-10-14.json": {
-        "stage": "06_news_importance",
-        "sha256": "31185057ea687b0d7319a45fb73b90c19fa5386263105970f424d11e7665db55"
-      },
-      "data/selected/daily_2026-10-14.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "610a1c9328743ce436cad5ad8056f5659252f636e90dedd98d776516067edb2c"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-10-14",
-    "job_type": "daily",
-    "job_date": "2026-10-14",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-13T00:00:00+05:30",
-      "end": "2026-10-13T23:59:59.999999+05:30"
-    },
-    "github_run_id": "38865159266",
-    "status": "failed",
-    "updated_at": "2026-10-16T07:09:04.781510+00:00",
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): stral after an earlier rate limit\n2026-10-16 07:09:01 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['groq: HTTP 404', 'openrouter: HTTP 402'])\n2026-10-16 07:09:01 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=2 fallback=0 untranslated=4 (AI success 33.3%)\n2026-10-16 07:09:01 | WARNING  | pipeline.content | [Content Builder] 4 translations need review (AI did not pass)\n2026-10-16 07:09:01 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
-    "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "38865159266"
   }
 }
