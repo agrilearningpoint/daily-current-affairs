@@ -29,8 +29,11 @@ class Agent:
             cats[cat] = cats.get(cat, 0) + 1
         for cat, cnt in sorted(cats.items(), key=lambda x: -x[1]):
             logging.info(f"  {cat}: {cnt}")
-        if len(selected) < 5:
-            self.context["stage_failed"] = f"only {len(selected)} selected (min 5)"
+        min_items = 1 if self.job_type == "daily" else 5
+        if len(selected) < min_items:
+            self.context["stage_failed"] = (
+                f"only {len(selected)} selected (min {min_items} for {self.job_type})"
+            )
             raise RuntimeError(self.context["stage_failed"])
         write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": selected})
         self.context["selected_count"] = len(selected)

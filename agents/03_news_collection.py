@@ -328,12 +328,10 @@ def deduplicate(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def save_articles(articles: List[Dict[str, Any]], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = output_path.with_suffix(".json.tmp")
-    tmp.write_text(
-        json.dumps(articles, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(articles, handle, ensure_ascii=False, indent=2)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, output_path)
     logger.info("Saved %d articles → %s", len(articles), output_path)
 
