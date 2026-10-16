@@ -116,6 +116,63 @@
     "job_date": null,
     "stage_history": []
   },
+  "daily_2026-10-14": {
+    "started_at": "2026-10-16T07:25:12.565851+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-14.json": {
+        "stage": "01_source_fetch",
+        "sha256": "665d8123132cd752ce3c806fa225c94ace1c2587089fce84938c9f9e1f837155"
+      },
+      "data/verified/daily_2026-10-14.json": {
+        "stage": "04_fact_verification",
+        "sha256": "9f92cf3337799dbf50b64d0ce6349a1e226462448ff4134ce2b0653d9a69bfb5"
+      },
+      "data/dedup/daily_2026-10-14.json": {
+        "stage": "05_deduplication",
+        "sha256": "b11387411937f9b9c80b0ffd95ab5c7f4a965f147d83c0d5237e9cc2d4c11aca"
+      },
+      "data/scored/daily_2026-10-14.json": {
+        "stage": "06_news_importance",
+        "sha256": "993e13d459c3b573be2c7b9bc080831cb63b9ea221c17e14396c89b3a6e99cb1"
+      },
+      "data/selected/daily_2026-10-14.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "89a916e57d3f099a490a9374c86d78f3e511959701453ca36b73ad5eace975b2"
+      },
+      "data/content/daily_2026-10-14.json": {
+        "stage": "12_content_editor",
+        "sha256": "80c1dceb5548482ee9dd7c7f76fe27f4c71d477684c6665a588f2fc74db3254c"
+      },
+      "data/mcq/daily_2026-10-14.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "913284d66d866bc6b93ecc67e1c3100523c44d16cf7a43e4779180342a7a0fff"
+      },
+      "output/daily_2026-10-14.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "2efe949cf3a3470fe01dd5091aeb5fb1dd8029d3031816b0922aa447ff39b8a6"
+      },
+      "logs/qa/daily_2026-10-14_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "79bcb4a5e6ec959facf3267de74e6abfb76391e2d894c803dee921e87581e7b0"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-10-14",
+    "job_type": "daily",
+    "job_date": "2026-10-14",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-13T00:00:00+05:30",
+      "end": "2026-10-13T23:59:59.999999+05:30"
+    },
+    "github_run_id": "38867039764",
+    "status": "failed",
+    "updated_at": "2026-10-16T07:26:23.525353+00:00",
+    "last_success_stage": "19_pdf_qa",
+    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-16 07:26:20 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-16 07:26:20 | ERROR    | agent.22_telegram_publisher | Publication ledger unreadable; manual reconciliation required, refusing send\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "failed_stage": "22_telegram_publisher",
+    "checkpoint_run_id": "38867039764"
+  },
   "daily_2026-10-15": {
     "started_at": "2026-10-15T04:40:03.340200+00:00",
     "artifacts": {
@@ -193,62 +250,5 @@
     "last_error": "12_content_editor: failed after 3 attempt(s): translator | [Translator] mistral rate-limited (429)\n2026-10-16 06:42:29 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])\n2026-10-16 06:42:29 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=7 (AI success 0.0%)\n2026-10-16 06:42:29 | WARNING  | pipeline.content | [Content Builder] 7 translations need review (AI did not pass)\n2026-10-16 06:42:29 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "38862263452"
-  },
-  "daily_2026-10-14": {
-    "started_at": "2026-10-16T07:25:12.565851+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-14.json": {
-        "stage": "01_source_fetch",
-        "sha256": "665d8123132cd752ce3c806fa225c94ace1c2587089fce84938c9f9e1f837155"
-      },
-      "data/verified/daily_2026-10-14.json": {
-        "stage": "04_fact_verification",
-        "sha256": "9f92cf3337799dbf50b64d0ce6349a1e226462448ff4134ce2b0653d9a69bfb5"
-      },
-      "data/dedup/daily_2026-10-14.json": {
-        "stage": "05_deduplication",
-        "sha256": "b11387411937f9b9c80b0ffd95ab5c7f4a965f147d83c0d5237e9cc2d4c11aca"
-      },
-      "data/scored/daily_2026-10-14.json": {
-        "stage": "06_news_importance",
-        "sha256": "993e13d459c3b573be2c7b9bc080831cb63b9ea221c17e14396c89b3a6e99cb1"
-      },
-      "data/selected/daily_2026-10-14.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "89a916e57d3f099a490a9374c86d78f3e511959701453ca36b73ad5eace975b2"
-      },
-      "data/content/daily_2026-10-14.json": {
-        "stage": "12_content_editor",
-        "sha256": "80c1dceb5548482ee9dd7c7f76fe27f4c71d477684c6665a588f2fc74db3254c"
-      },
-      "data/mcq/daily_2026-10-14.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "913284d66d866bc6b93ecc67e1c3100523c44d16cf7a43e4779180342a7a0fff"
-      },
-      "output/daily_2026-10-14.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "2efe949cf3a3470fe01dd5091aeb5fb1dd8029d3031816b0922aa447ff39b8a6"
-      },
-      "logs/qa/daily_2026-10-14_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "79bcb4a5e6ec959facf3267de74e6abfb76391e2d894c803dee921e87581e7b0"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-10-14",
-    "job_type": "daily",
-    "job_date": "2026-10-14",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-13T00:00:00+05:30",
-      "end": "2026-10-13T23:59:59.999999+05:30"
-    },
-    "github_run_id": "38867039764",
-    "status": "failed",
-    "updated_at": "2026-10-16T07:26:23.525353+00:00",
-    "last_success_stage": "19_pdf_qa",
-    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-16 07:26:20 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-16 07:26:20 | ERROR    | agent.22_telegram_publisher | Publication ledger unreadable; manual reconciliation required, refusing send\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
-    "failed_stage": "22_telegram_publisher",
-    "checkpoint_run_id": "38867039764"
   }
 }
