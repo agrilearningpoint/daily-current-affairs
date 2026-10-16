@@ -318,3 +318,9 @@ def test_third_round_chrome_is_rejected(title, source_name, reason):
 def test_third_round_headlines_survive(title):
     """Headlines that share wording with chrome must not be swallowed."""
     assert quality.reject_reason(title, "PIB") is None
+
+
+def test_short_title_case_section_names_are_rejected():
+    assert quality.reject_reason("Administration Division - Department of Agriculture & Farmers Welfare", "Discovery") == "section-label"
+    assert quality.reject_reason("Cabinet approves new division for farmers", "PIB") is None
+    assert quality.reject_reason("Election Commission announces poll dates for five states", "PIB") is None

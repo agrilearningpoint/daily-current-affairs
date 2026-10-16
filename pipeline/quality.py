@@ -156,11 +156,21 @@ def clean_spaces(value: str) -> str:
 
 
 def _ends_with_section_suffix(title: str) -> bool:
+    """``CROP INSURANCE DIVISION`` / ``Administration Division``: a section name.
+
+    ALL-CAPS labels are rejected however long they are; title-case names only
+    when they are short (<= 3 words), so a headline such as "Cabinet approves
+    new division for farmers" is never mistaken for one.
+    """
     stripped = clean_spaces(title)
-    if not stripped or any(char.islower() for char in stripped):
+    if not stripped:
         return False
-    words = stripped.replace(",", " ").split()
-    return bool(words) and words[-1].casefold().strip(".?") in SECTION_SUFFIXES
+    words = [word for word in stripped.replace(",", " ").split() if word]
+    if not words or words[-1].casefold().strip(".?") not in SECTION_SUFFIXES:
+        return False
+    if any(char.islower() for char in stripped):
+        return len(words) <= 3
+    return True
 
 
 def _looks_like_section_label(title: str) -> bool:

@@ -26,6 +26,10 @@ on:
   push:
     paths:
       - ".github/workflows/dryrun-dispatch.yml"
+      # A change to the collection filter must be verified against live feeds
+      # before it can be trusted, so it triggers its own dry-run verification
+      # (dry_run=true only - this workflow can never publish).
+      - "pipeline/quality.py"
 
 permissions:
   actions: write
