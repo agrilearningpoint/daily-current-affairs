@@ -136,7 +136,7 @@ def _build_default_providers() -> List[Provider]:
             name="groq",
             url="https://api.groq.com/openai/v1/chat/completions",
             key=groq_key,
-            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             priority=20, rpm_limit=30, rpd_limit=14400,
         ))
 

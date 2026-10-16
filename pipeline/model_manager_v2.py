@@ -47,7 +47,7 @@ PROVIDER_CONFIGS = {
     "groq": {
         "env_key": "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
-        "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+        "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
         "rate_limits": {"rpm": 30, "rpd": 14400},
         "test_prompt": "Say 'Hello' in one word.",
         "expected_response": ["hello", "hi"],

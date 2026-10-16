@@ -57,7 +57,7 @@ PROVIDERS = [
      "model": os.getenv("GEMINI_MODEL", "gemini-flash-latest"), "priority": 10},
     {"name": "groq", "env_keys": ["GROQ_API_KEY"],
      "url": "https://api.groq.com/openai/v1/chat/completions",
-     "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "priority": 20},
+     "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), "priority": 20},
     {"name": "openai", "env_keys": ["OPENAI_API_KEY"],
      "url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions",
      "model": os.getenv("ALP_LLM", "gpt-4o-mini"), "priority": 30},

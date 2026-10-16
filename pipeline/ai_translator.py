@@ -209,8 +209,12 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
     except requests.Timeout as exc:
+        logger.warning("[Translator] %s request timed out", provider["name"])
         raise ProviderRequestFailed("request timed out", retryable=True) from exc
     except requests.RequestException as exc:
+        from pipeline.persistence import redact
+        safe_error = redact(str(exc), dict(os.environ))
+        logger.warning("[Translator] %s request failed: %s", provider["name"], safe_error)
         raise ProviderRequestFailed("network request failed", retryable=True) from exc
 
     if r.status_code == 429:

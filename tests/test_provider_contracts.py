@@ -32,6 +32,16 @@ def test_setup_and_translation_use_the_same_provider_registry(monkeypatch):
     assert actual[0]["env_used"] == "LLM_API_KEY"
 
 
+def test_groq_default_uses_a_current_model(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "diagnostic-groq-not-a-credential")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+
+    groq = next(provider for provider in ai_router._build_default_providers()
+                if provider.name == "groq")
+
+    assert groq.model == "openai/gpt-oss-120b"
+
+
 @pytest.mark.parametrize("provider_name", ["gemini", "generic-openai"])
 def test_translator_uses_provider_native_request_and_response(monkeypatch, provider_name):
     provider = {"name": provider_name, "key": "diagnostic-key-not-a-credential", "model": "diagnostic-model",
@@ -74,7 +84,8 @@ def test_translator_redacts_provider_errors(monkeypatch, caplog):
         raise requests.ConnectionError(f"diagnostic URL key={value}")
 
     monkeypatch.setattr(requests, "post", post)
-    assert ai_translator._call_provider(provider, "translate", "test") is None
+    with pytest.raises(ai_translator.ProviderRequestFailed, match="network request failed"):
+        ai_translator._call_provider(provider, "translate", "test")
     assert value not in caplog.text and "[REDACTED]" in caplog.text
 
 
