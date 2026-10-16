@@ -44,6 +44,11 @@ with per-feed telemetry in the stage log (`… 81 chrome skipped` for IFSCA,
 `14` for Department of Financial Services, …) and `chrome_rejected_count` in the
 edition JSON.
 
+Raw per-run evidence dumps (log excerpts, QA JSON, stage inventory) were removed
+from the repository as clutter: every run above keeps its Actions artifacts and
+run URL, and only this summary is tracked. Ask the dispatcher for the detailed
+document (`COLLECT_RUN_ID=<run>` + push) whenever the raw evidence is needed again.
+
 ## Known limitations (not fixed here)
 
 1. **Translation providers are rate-limited or out of credit** (gemini 429,
