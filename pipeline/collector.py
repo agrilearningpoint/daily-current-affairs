@@ -52,6 +52,11 @@ from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
 from pipeline.categories import CATEGORY_ALIASES  # noqa: F401 (re-exported)
+from pipeline.quality import reject_reason
+
+# Candidates dropped as site chrome during the current collection run. Reset by
+# collect_with_report and surfaced in the report/log so editions can be audited.
+CHROME_REJECTED = 0
 
 # Support both `python -m pipeline.collector` and direct script execution from
 # main.py (`python /repo/pipeline/collector.py`).
@@ -198,6 +203,7 @@ class CollectionReport:
     source_success_count: int = 0
     source_failure_count: int = 0
     raw_item_count: int = 0
+    chrome_rejected_count: int = 0
     in_window_count: int = 0
     unique_item_count: int = 0
     core_coverage: dict[str, Any] = field(default_factory=dict)
@@ -480,6 +486,11 @@ def _parse_feed(source: dict[str, Any], feed_url: str, body: str, method: str, g
             continue
         summary = clean_text(entry.get("summary", "") or entry.get("description", "") or entry.get("subtitle", ""), 2500)
         published = parse_dt(entry.get("published") or entry.get("updated") or entry.get("created"))
+        if reject_reason(title, str(source.get("name", ""))):
+            global CHROME_REJECTED
+            CHROME_REJECTED += 1
+            logger.debug("Skipping chrome entry from %s: %s", feed_url, title[:80])
+            continue
         out.append(make_item(
             title=title,
             link=link,
@@ -514,6 +525,10 @@ def _extract_listing_items(source: dict[str, Any], page_url: str, body: str, gro
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for anchor in soup.select("a[href]"):
+        # Header/nav/footer/aside anchors are site chrome, not articles; the 2026-10-16
+        # dry run shipped "Hyperlink Policy"/"Accessibility Help" from exactly these.
+        if anchor.find_parent(["nav", "header", "footer", "aside"]) is not None:
+            continue
         title = clean_text(anchor.get_text(" ", strip=True), 500)
         if len(title) < 25:
             continue
@@ -529,6 +544,11 @@ def _extract_listing_items(source: dict[str, Any], page_url: str, body: str, gro
         if href in seen:
             continue
         seen.add(href)
+        if reject_reason(title, str(source.get("name", ""))):
+            global CHROME_REJECTED
+            CHROME_REJECTED += 1
+            logger.debug("Skipping chrome anchor on %s: %s", page_url, title[:80])
+            continue
         out.append(make_item(
             title=title,
             link=href,
@@ -821,6 +841,8 @@ def collect_with_report(
     start_window, end_window = collect_window(cfg.job_type, cfg.job_date)
     started_dt = datetime.now(IST)
     started_mono = time.monotonic()
+    global CHROME_REJECTED
+    CHROME_REJECTED = 0
     report = CollectionReport(cfg.job_type, cfg.job_date, started_dt.isoformat())
     selected = [(group, source) for group, source in _source_registry() if _source_is_enabled_for_job(source, cfg.job_type)]
     selected.sort(key=lambda pair: (-int(pair[1].get("priority", 0)), int(pair[1].get("level", 5)), str(pair[1].get("name", ""))))
@@ -864,6 +886,7 @@ def collect_with_report(
     report.source_success_count = sum(1 for result in source_results if result.success)
     report.source_failure_count = sum(1 for result in source_results if not result.success)
     report.raw_item_count = len(raw_items)
+    report.chrome_rejected_count = CHROME_REJECTED
 
     in_window_items: list[dict[str, Any]] = []
     for item in raw_items:
@@ -903,9 +926,10 @@ def collect_with_report(
         )
 
     logger.info(
-        "Collection complete job=%s type=%s items=%d raw=%d sources_ok=%d/%d duration=%.1fs core=%.1f%%",
-        cfg.job_date, cfg.job_type, len(unique_items), len(raw_items), report.source_success_count,
-        report.source_count, report.duration_seconds, report.core_coverage.get("coverage_ratio", 0.0) * 100,
+        "Collection complete job=%s type=%s items=%d raw=%d chrome_rejected=%d sources_ok=%d/%d duration=%.1fs core=%.1f%%",
+        cfg.job_date, cfg.job_type, len(unique_items), len(raw_items), report.chrome_rejected_count,
+        report.source_success_count, report.source_count, report.duration_seconds,
+        report.core_coverage.get("coverage_ratio", 0.0) * 100,
     )
     return {"items": unique_items, "report": asdict(report), "window": {"start": start_window.isoformat(), "end": end_window.isoformat()}}
 
