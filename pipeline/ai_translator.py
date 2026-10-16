@@ -83,6 +83,11 @@ class _LRUCache:
 
 
 _CACHE = _LRUCache()
+_RATE_LIMITED_PROVIDERS = set()
+
+
+class ProviderRateLimited(Exception):
+    """Signal that the current provider should be skipped for this edition."""
 
 
 def _cache_key(text: str, task: str) -> str:
@@ -144,6 +149,7 @@ def reset_provider_cache() -> None:
     """Call after rotating keys / changing config."""
     global _PROVIDERS_CACHE
     _PROVIDERS_CACHE = None
+    _RATE_LIMITED_PROVIDERS.clear()
 
 
 # --------------------------------------------------------------------------- #
@@ -199,7 +205,7 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
         r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
         if r.status_code == 429:
             logger.warning("[Translator] %s rate-limited (429)", provider["name"])
-            return None
+            raise ProviderRateLimited(provider["name"])
         r.raise_for_status()
         data = r.json()
         if provider["name"] == "gemini":
@@ -208,6 +214,8 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
             return "".join(part.get("text", "") for part in parts).strip() or None
         # OpenAI-compatible shape
         return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+    except ProviderRateLimited:
+        raise
     except Exception as exc:
         from pipeline.persistence import redact
         logger.warning("[Translator] %s failed: %s", provider["name"], redact(str(exc), dict(os.environ)))
@@ -291,16 +299,26 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
         return result
 
     system, user = _build_prompt(text, task)
-    last_issues: List[str] = []
+    provider_issues: List[str] = []
 
     for provider in providers:
+        if provider["name"] in _RATE_LIMITED_PROVIDERS:
+            logger.info("[Translator] skipping %s after an earlier rate limit", provider["name"])
+            continue
+        logger.info("[Translator] trying provider %s", provider["name"])
         for attempt in range(1, MAX_RETRIES + 1):
-            hindi = _call_provider(provider, system, user)
+            try:
+                hindi = _call_provider(provider, system, user)
+            except ProviderRateLimited:
+                _RATE_LIMITED_PROVIDERS.add(provider["name"])
+                provider_issues.append(f"{provider['name']}: rate limited")
+                logger.info("[Translator] moving to the next configured provider")
+                break
             if not hindi:
                 if attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
-                last_issues = [f"{provider['name']}: no response"]
+                provider_issues.append(f"{provider['name']}: no response")
                 break
 
             passed, conf, issues = _validate(text, hindi)
@@ -317,7 +335,7 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                              provider["name"], conf, task)
                 return result
             else:
-                last_issues = issues
+                provider_issues.append(f"{provider['name']}: validation failed")
                 logger.warning("[Translator] %s validation failed: %s",
                                provider["name"], issues)
                 break  # try next provider
@@ -328,7 +346,7 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
         "passed": False,
         "confidence": 0.0,
         "provider": "all-failed",
-        "issues": last_issues,
+        "issues": provider_issues or ["no usable providers available"],
     }
     _CACHE.put(key, result)
     return result
