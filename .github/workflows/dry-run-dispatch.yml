@@ -46,7 +46,7 @@ jobs:
       REF: ${{ github.ref_name }}
       EDITION_DATE: "2026-10-15"
       # empty = dispatch a new dry run; otherwise collect evidence for this run id
-      COLLECT_RUN_ID: ""
+      COLLECT_RUN_ID: "38904929697"
       # fresh edition: the stale live record for this date must not be resumed
       RESET_INPUT: "true"
       # 1 = every log excerpt/tail in the report; 0 = compact report only
@@ -247,22 +247,47 @@ jobs:
 
       - name: Commit evidence report
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          file="docs/verification-dryrun-${{ steps.target.outputs.run_id }}.md"
-          [ -f "$file" ] || { echo "no evidence file"; exit 1; }
+          run_id="${{ steps.target.outputs.run_id }}"
+          file="docs/verification-dryrun-${run_id}.md"
+          [ -f "$file" ] || { echo "::error::no evidence file at $file"; exit 1; }
           git add "$file"
           if compgen -G "docs/preview/*.png" > /dev/null; then
             git add docs/preview/*.png
           fi
-          git commit -m "docs: dry-run report + page previews for run ${{ steps.target.outputs.run_id }} [skip ci]"
+          git commit -m "docs: dry-run report + page previews for run ${run_id} [skip ci]" || true
+
+          pushed=0
           for attempt in 1 2 3 4 5; do
-            # the daily run pushes its own state commits while this job waits
-            git pull --rebase --autostash origin "$REF" || true
-            if git push origin "HEAD:$REF"; then
-              echo "evidence pushed on attempt $attempt"
-              break
-            fi
-            sleep 10
+            if git push origin "HEAD:$REF"; then echo "pushed on attempt $attempt"; pushed=1; break; fi
+            # the daily run pushes its own state commits while this job waits, so the
+            # branch moves under us: rebase, and fall back to a merge if rebasing the
+            # shallow checkout cannot find a common base.
+            git fetch --depth=50 origin "$REF" || git fetch origin "$REF" || true
+            git rebase FETCH_HEAD >/tmp/rebase.log 2>&1 || {
+              git rebase --abort >/dev/null 2>&1 || true
+              git merge --no-edit -X ours FETCH_HEAD >/tmp/merge.log 2>&1 || true
+            }
+            sleep 5
           done
+
+          if [ "$pushed" != 1 ]; then
+            # Make the failure readable from the report itself: job logs are not
+            # reachable from every environment, the committed file is.
+            {
+              echo ""
+              echo "## Commit diagnostics (push failed)"
+              echo '```'
+              git status --porcelain=v1 | head -20
+              echo "local HEAD: $(git rev-parse --short HEAD)"
+              echo "remote HEAD: $(git rev-parse --short FETCH_HEAD 2>/dev/null || echo unknown)"
+              tail -20 /tmp/rebase.log 2>/dev/null || true
+              tail -20 /tmp/merge.log 2>/dev/null || true
+              echo '```'
+            } >> "$file"
+            git add "$file"
+            git -c user.name="github-actions[bot]" commit --amend --no-edit >/dev/null 2>&1 || true
+            git push origin "HEAD:$REF" || echo "::error::evidence push failed after 5 attempts"
+          fi
