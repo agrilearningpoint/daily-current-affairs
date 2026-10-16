@@ -193,9 +193,13 @@
       "data/scored/daily_2026-10-15.json": {
         "stage": "06_news_importance",
         "sha256": "8b11321b1dc36c14c70c726999095259a4392d0f178e6fe8982bfd6b4d0d8f14"
+      },
+      "data/selected/daily_2026-10-15.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "bdb26a9ae2a1ef4fbaa25d421d47db5e33e1211ad243113d3fd8d6926a3ee369"
       }
     },
-    "run_attempts": 2,
+    "run_attempts": 3,
     "job_id": "daily_2026-10-15",
     "job_type": "daily",
     "job_date": "2026-10-15",
@@ -205,12 +209,12 @@
       "end": "2026-10-15T10:10:03.339834+05:30"
     },
     "github_run_id": "38879882929",
-    "status": "running",
-    "updated_at": "2026-10-16T09:21:53.597942+00:00",
-    "last_success_stage": "07_student_domain_relevance",
-    "last_error": "10_final_news_selection: failed after 3 attempt(s): [10_final_news_selection] job=daily_2026-10-15 type=daily date=2026-10-15\n\n2026-10-15 07:27:23,464 | INFO     | root | [FINAL NEWS SELECTION AGENT v2] selected 2 items (target=28)\n2026-10-15 07:27:23,464 | INFO     | root |   Agriculture: 1\n2026-10-15 07:27:23,464 | INFO     | root |   economy_data: 1\n[10] FAILED: only 2 selected (min 5)",
-    "failed_stage": "10_final_news_selection",
-    "checkpoint_run_id": "38694723499"
+    "status": "failed",
+    "updated_at": "2026-10-16T09:23:06.330678+00:00",
+    "last_success_stage": "11_importance_memory",
+    "checkpoint_run_id": "38879882929",
+    "last_error": "12_content_editor: failed after 3 attempt(s): 09:23:02 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: mistral: rate_limit\n2026-10-16 09:23:02 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 09:23:02 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=2 fallback=0 untranslated=5 (AI success 28.6%)\n2026-10-16 09:23:02 | WARNING  | pipeline.content | [Content Builder] 5 translations need review (AI did not pass)\n2026-10-16 09:23:02 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "failed_stage": "12_content_editor"
   },
   "daily_2026-10-16": {
     "run_attempts": 1,
