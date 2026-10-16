@@ -1,24 +1,27 @@
-# TEMPORARY BOOTSTRAP WORKFLOW — remove once the dry run is verified.
+# Dry-run dispatcher / evidence collector.
 #
-# Why it exists: this session's GitHub connection can read runs, push commits
-# and open PRs, but its token has no `actions: write`, so `gh workflow run
-# daily.yml` from outside Actions returns HTTP 403. A workflow triggered by a
-# push can grant `actions: write` to its own GITHUB_TOKEN, which may dispatch
-# another workflow in the same repository. Run artifacts also live behind blob
-# endpoints that the maintainer sandbox cannot reach, so evidence has to be
-# collected and committed from inside Actions.
+# Why it exists: a session token can read runs, push commits and open PRs, but
+# without `actions: write` `gh workflow run daily.yml` returns HTTP 403, and run
+# artifacts live behind blob endpoints that a sandbox cannot always reach. This
+# workflow runs on the repo's own GITHUB_TOKEN (which may dispatch another
+# workflow) and collects the evidence from inside Actions.
 #
-# Two modes, both dry-run only:
+# It is DRY-RUN ONLY: the dispatched job always gets `dry_run=true`, so no live
+# Telegram publication can happen from here.
+#
+# Two modes:
 #   * COLLECT_RUN_ID set  -> only download that run's artifacts and publish
 #     docs/verification-dryrun-<id>.md (counts, QA report, log excerpts/tails)
 #   * COLLECT_RUN_ID empty -> dispatch a fresh Daily News Pipeline dry run,
 #     wait for it, then do the same collection
-name: Dry-run dispatch (temporary)
+#
+# Trigger: push this file (path-filtered, so it never runs on ordinary commits)
+# or run it from the Actions UI with workflow_dispatch.
+name: Dry-run dispatch
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - arena/7d5d7f3d-daily-current-affairs
     paths:
       - ".github/workflows/dryrun-dispatch.yml"
 
@@ -30,15 +33,16 @@ jobs:
   collect:
     name: Dispatch / collect dry-run evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 80
+    timeout-minutes: 110
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       REF: ${{ github.ref_name }}
-      EDITION_DATE: "2026-10-15"
+      EDITION_DATE: "2026-10-16"
       # empty = dispatch a new dry run; otherwise collect evidence for this run id
-      COLLECT_RUN_ID: "38879882929"
-      RESET_INPUT: "false"
+      COLLECT_RUN_ID: ""
+      # fresh edition: the stale live record for this date must not be resumed
+      RESET_INPUT: "true"
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -81,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           run_id="${{ steps.target.outputs.run_id }}"
-          for _ in $(seq 1 480); do
+          for _ in $(seq 1 600); do
             read -r status conclusion < <(gh run view "$run_id" --repo "$REPO" \
               --json status,conclusion --jq '[.status, (.conclusion // "-")] | join(" ")')
             echo "$(date -u +%H:%M:%S) $status/$conclusion"
