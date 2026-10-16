@@ -119,6 +119,20 @@ def load_ledger() -> Dict[str, Any]:
                 raise ValueError("legacy publication record has no stable identity")
             records[key] = record
         data = {"version": 1, "records": records}
+    if isinstance(data, dict) and "records" not in data and data:
+        legacy = all(
+            isinstance(key, str) and len(key) == 16
+            and all(char in "0123456789abcdef" for char in key)
+            and isinstance(record, dict)
+            and isinstance(record.get("jobs"), list) and record["jobs"]
+            and all(isinstance(job, str) and job for job in record["jobs"])
+            and isinstance(record.get("last_published"), str)
+            for key, record in data.items()
+        )
+        if legacy:
+            for record in data.values():
+                datetime.strptime(record["last_published"], "%Y-%m-%d")
+            return {"version": 1, "records": {}, "legacy_history": data}
     if not isinstance(data, dict) or not isinstance(data.get("records"), dict):
         raise ValueError("invalid publication ledger; manual reconciliation required")
     if any(not isinstance(record, dict) for record in data["records"].values()):
@@ -390,6 +404,12 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
         if not content.get("items") or any(not isinstance(i, dict) or i.get("needs_review") is not False or i.get("verification_passed") is not True for i in content["items"]):
             logger.error("Content lacks verified provenance or completed translation review; publish blocked")
             return False
+    if any(job_id in record.get("jobs", [])
+           for record in ledger.get("legacy_history", {}).values()
+           if isinstance(record, dict)):
+        logger.error("Legacy publication history contains %s without a verifiable receipt; manual reconciliation required",
+                     job_id)
+        return False
     key = _ledger_key(job_id, TELEGRAM_CHAT_ID, fh)
 
     allow_revision = os.getenv("ALP_ALLOW_EDITION_REVISION", "0") == "1"
