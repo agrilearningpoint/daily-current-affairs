@@ -149,9 +149,9 @@
       "start": "2026-10-13T00:00:00+05:30",
       "end": "2026-10-13T23:59:59.999999+05:30"
     },
-    "github_run_id": "38863857208",
-    "status": "failed",
-    "updated_at": "2026-10-16T06:56:34.485200+00:00",
+    "github_run_id": "38865159266",
+    "status": "running",
+    "updated_at": "2026-10-16T07:07:14.197968+00:00",
     "last_success_stage": "11_importance_memory",
     "last_error": "12_content_editor: failed after 3 attempt(s):  after an earlier rate limit\n2026-10-16 06:56:32 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['groq: no response', 'openrouter: no response'])\n2026-10-16 06:56:32 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=6 (AI success 0.0%)\n2026-10-16 06:56:32 | WARNING  | pipeline.content | [Content Builder] 6 translations need review (AI did not pass)\n2026-10-16 06:56:32 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
