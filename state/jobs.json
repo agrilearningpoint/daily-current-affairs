@@ -165,9 +165,9 @@
       "start": "2026-10-13T00:00:00+05:30",
       "end": "2026-10-13T23:59:59.999999+05:30"
     },
-    "github_run_id": "38867039764",
-    "status": "failed",
-    "updated_at": "2026-10-16T07:26:23.525353+00:00",
+    "github_run_id": "38868302797",
+    "status": "running",
+    "updated_at": "2026-10-16T07:37:00.518071+00:00",
     "last_success_stage": "19_pdf_qa",
     "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-16 07:26:20 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-16 07:26:20 | ERROR    | agent.22_telegram_publisher | Publication ledger unreadable; manual reconciliation required, refusing send\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "22_telegram_publisher",
