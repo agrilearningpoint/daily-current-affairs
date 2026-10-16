@@ -160,7 +160,10 @@ jobs:
                   out.append(f"- {stage}: ```{json.dumps(distribution(value), ensure_ascii=False)}```")
           if sel:
               out += ["", "## Selected items", ""]
-              out += [f"- [{i.get('importance_score')}/{i.get('student_relevance')}] {i.get('category')}: {str(i.get('headline_en'))[:90]}"
+              # Include the link: it is what tells a real article apart from a
+              # section page or a listing entry that only looks like news.
+              out += [f"- [{i.get('importance_score')}/{i.get('student_relevance')}] {i.get('category')}: "
+                      f"{str(i.get('headline_en'))[:90]} | {str(i.get('source_url') or i.get('link') or '')[:120]}"
                       for i in sel[:40]]
 
           for label, path in (("qa", f"evidence/ckpt/logs/qa/{job_id}_qa.json"),
