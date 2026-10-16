@@ -217,7 +217,7 @@
     "failed_stage": "12_content_editor"
   },
   "daily_2026-10-16": {
-    "run_attempts": 2,
+    "run_attempts": 3,
     "job_id": "daily_2026-10-16",
     "job_type": "daily",
     "job_date": "2026-10-16",
@@ -227,8 +227,8 @@
       "end": "2026-10-16T12:07:53.714279+05:30"
     },
     "github_run_id": "38912890307",
-    "status": "running",
-    "updated_at": "2026-10-16T14:06:59.188833+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-16T14:07:47.758837+00:00",
     "started_at": "2026-10-16T06:37:56.180455+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-16.json": {
@@ -253,8 +253,8 @@
       }
     },
     "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): -16 09:24:19 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 09:24:19 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 09:24:19 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=7 (AI success 0.0%)\n2026-10-16 09:24:19 | WARNING  | pipeline.content | [Content Builder] 7 translations need review (AI did not pass)\n2026-10-16 09:24:19 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "last_error": "12_content_editor: failed after 3 attempt(s): 16 14:07:45 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 14:07:45 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 14:07:45 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=2 fallback=0 untranslated=5 (AI success 28.6%)\n2026-10-16 14:07:45 | WARNING  | pipeline.content | [Content Builder] 5 translations need review (AI did not pass)\n2026-10-16 14:07:45 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "38879885706"
+    "checkpoint_run_id": "38912890307"
   }
 }
