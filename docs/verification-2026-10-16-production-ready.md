@@ -49,6 +49,34 @@ from the repository as clutter: every run above keeps its Actions artifacts and
 run URL, and only this summary is tracked. Ask the dispatcher for the detailed
 document (`COLLECT_RUN_ID=<run>` + push) whenever the raw evidence is needed again.
 
+## 15 October edition: backdated recovery build
+
+`daily_2026-10-15` was never published (the ledger holds 10-10, 10-11, 10-14) and
+the live job for that date failed at `12_content_editor` with a 2-item selection.
+It was rebuilt twice with `dry_run=true, reset=true`, so nothing was sent to
+Telegram.
+
+| build | run | raw → selected | PDF | QA | delivery |
+|---|---|---|---|---|---|
+| A (before the feed fixes) | 38904929697 | 46 → 46 → 41 → 8 → 8 | 19 pages, 4,903,641 B, sha256 `7c0d127d…` | `passed: true` (low_hindi 5.46 %, overflow pages 6, 18) | draft release `dryrun-daily_2026-10-15` |
+| B (current code) | 38906490713 | 38 → 38 → 36 → 6 → 6 | 17 pages, 4,383,171 B, sha256 `a9d8bb7a…` | `passed: true` (low_hindi 5.62 %, overflow page 14) | draft release `dryrun-daily_2026-10-15-r38906490713` |
+
+Both builds finished stage `24_final_health_audit` with `dry_run: true`, and both
+log `[DRY-RUN] Would publish daily_2026-10-15.pdf …` plus "No live publication
+receipt to pin." — Telegram was never called. MCQs: 15 generated, 17 in the PDF,
+15 answers found, no duplicates, no blank pages in either build.
+
+Why the pool is small: collection is windowed to the edition day
+(`pipeline/windows.py`), and RSS feeds only retain about a day or two, so a
+backdated run sees the tail of 15 October only. Same-day runs collect 400+ raw
+items (run 38901156671: raw 406 → selected 19).
+
+Build A's log evidence named the feed failures that were silently shrinking every
+edition (fixed in `a915646`, see the commit): PIB and SEBI were rejected by
+feedparser as whole feeds (bare `&`, undeclared `&nbsp;`), and Indian Express,
+Business Standard, NITI Aayog, MEA and PIB answer HTTP 403 even to the
+browser-style user agent.
+
 ## Known limitations (not fixed here)
 
 1. **Translation providers are rate-limited or out of credit** (gemini 429,
@@ -57,12 +85,28 @@ document (`COLLECT_RUN_ID=<run>` + push) whenever the raw evidence is needed aga
    dialling but cannot create quota. Hindi coverage stays low (≈ 7 %) while the
    providers refuse, and a live run still fails closed at stage 12 rather than
    publishing unreviewed content.
-2. **Residual non-news items** in a 19-item edition (~3): ICAR/IMD feed entries
+2. **Residual non-news items** in a same-day edition (~3 of 19): ICAR/IMD feed entries
    that are course/weather bulletins, and titles such as `O & M/PG & RTI` or
    `Division of Biochemistry`. The IMDA feed is mangled at the source
    (`प्रभाि-आधाररत …`), so it should be re-mapped or dropped in
    `pipeline/source_registry`.
-3. **Discovery feeds dominate the raw pool** (`discovery` 198 of 406) and supply
+3. **Official feeds block the runner's IP** (PIB, SEBI, NITI Aayog, Indian
+   Express, Business Standard, MEA: HTTP 403 even with a browser-style user
+   agent). The UA retry in `pipeline/01_source_fetch.py` only covers publishers
+   that block on the user-agent string; an IP-level block needs a proxy or an
+   allowlisted fetcher, or those sources must be marked disabled in the registry
+   so they stop counting as silent failures. Until then the tier-1 direct feeds
+   over Google News discovery carry the edition.
+4. **Two of the six selected items in the 15 October build are still
+   non-editorial**: an IMD rainfall table (`Significant Weather Observations
+   Stations Rainfall (in mm)`), an India.gov.in listing entry
+   (`View Details… Amul Dairy …`) and a CCI legal notice (`General Statement …
+   (Settlement) Regulations, 2024`). No further title filter was added on
+   purpose: with only six scoring survivors, one more rule can trip
+   `min_items = 5` and fail the edition closed. This belongs in
+   `pipeline/source_registry` (drop/mark the aggregator pages), not in more
+   regexes.
+5. **Discovery feeds dominate the raw pool** (`discovery` 198 of 406) and supply
    most chrome; a source-level review of `pipeline/source_registry` would raise
    yield per run.
 

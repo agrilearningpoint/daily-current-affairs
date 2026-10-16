@@ -176,63 +176,45 @@
     "checkpoint_run_id": "38868302797"
   },
   "daily_2026-10-15": {
-    "started_at": "2026-10-16T13:16:06.911307+00:00",
+    "started_at": "2026-10-15T04:40:03.340200+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-15.json": {
         "stage": "01_source_fetch",
-        "sha256": "6ec3421bc6948819312e23ec77dfa09d9eb0cdabf42d29a1e26176d88bfc8fd7"
+        "sha256": "de5414d737763dcc509427b87bd84cf96df26d28c9d2323e0f4dbe832c755df4"
       },
       "data/verified/daily_2026-10-15.json": {
         "stage": "04_fact_verification",
-        "sha256": "06f49a4e03b7dd00fe31babf5ead2f7434807f2138232faa1414bd3d21bbad07"
+        "sha256": "2b7f31f8d2d57183bb631ce703c1b431b36fa2276e471475adf30f4e5c523a9d"
       },
       "data/dedup/daily_2026-10-15.json": {
         "stage": "05_deduplication",
-        "sha256": "6249bda8cec71c80015ad51f57651670f202dee5744512f8b9030daf8450ee75"
+        "sha256": "c5f04afa0bd1c22989e8519cb6ad86ddb942f2abaebc5bfa1e005b360d347f92"
       },
       "data/scored/daily_2026-10-15.json": {
         "stage": "06_news_importance",
-        "sha256": "1611d826a1f3b52f3da4bfcce109eeb8b08ed08a671b035e29836d96dd4b3420"
+        "sha256": "8b11321b1dc36c14c70c726999095259a4392d0f178e6fe8982bfd6b4d0d8f14"
       },
       "data/selected/daily_2026-10-15.json": {
         "stage": "10_final_news_selection",
-        "sha256": "9d5f7e2cc3f642efc18532559c652c6c9cb5918c9fa77e3938b6909894eff649"
-      },
-      "data/content/daily_2026-10-15.json": {
-        "stage": "12_content_editor",
-        "sha256": "21d33f435b191c71da13333846796728f0bdfd3f068f04195820c39172d86e00"
-      },
-      "data/mcq/daily_2026-10-15.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "87e6a0cc8036a1530386406b4bb51aaa9c43c86fee8a08566bff674ee7143b8b"
-      },
-      "output/daily_2026-10-15.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "a9d8bb7add57dcc7e5329ee028068d520ec003ce402ed1b45431bcd0d7deb47e"
-      },
-      "logs/qa/daily_2026-10-15_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "ab3ef4f8932d581933b642a859b918b78621e51235883aca54175268e517fde4"
-      },
-      "logs/qa/daily_2026-10-15_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "faaa105097db61369acb47634d40c4651b1ab2a75165e561ba7a22d593ae1295"
+        "sha256": "bdb26a9ae2a1ef4fbaa25d421d47db5e33e1211ad243113d3fd8d6926a3ee369"
       }
     },
-    "run_attempts": 1,
+    "run_attempts": 3,
     "job_id": "daily_2026-10-15",
     "job_type": "daily",
     "job_date": "2026-10-15",
-    "dry_run": true,
+    "dry_run": false,
     "window": {
-      "start": "2026-10-14T00:00:00+05:30",
-      "end": "2026-10-14T23:59:59.999999+05:30"
+      "start": "2026-10-14T10:10:03.339834+05:30",
+      "end": "2026-10-15T10:10:03.339834+05:30"
     },
-    "github_run_id": "38906490713",
-    "status": "success",
-    "updated_at": "2026-10-16T13:17:02.150857+00:00",
-    "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "38906490713"
+    "github_run_id": "38879882929",
+    "status": "failed",
+    "updated_at": "2026-10-16T09:23:06.330678+00:00",
+    "last_success_stage": "11_importance_memory",
+    "checkpoint_run_id": "38879882929",
+    "last_error": "12_content_editor: failed after 3 attempt(s): 09:23:02 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: mistral: rate_limit\n2026-10-16 09:23:02 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 09:23:02 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=2 fallback=0 untranslated=5 (AI success 28.6%)\n2026-10-16 09:23:02 | WARNING  | pipeline.content | [Content Builder] 5 translations need review (AI did not pass)\n2026-10-16 09:23:02 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "failed_stage": "12_content_editor"
   },
   "daily_2026-10-16": {
     "run_attempts": 2,
