@@ -116,26 +116,6 @@
     "job_date": null,
     "stage_history": []
   },
-  "daily_2026-10-14": {
-    "job_id": "daily_2026-10-14",
-    "job_type": "daily",
-    "status": "running",
-    "created_at": "2026-10-14T12:00:09.480512+00:00",
-    "updated_at": "2026-10-16T05:17:07.197198+00:00",
-    "last_success_stage": "05_deduplication",
-    "failed_stage": "06_news_importance",
-    "attempts": 1,
-    "error": "06_news_importance: stage execution failed",
-    "job_date": "2026-10-14",
-    "stage_history": [],
-    "run_attempts": 0,
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-13T00:00:00+05:30",
-      "end": "2026-10-13T23:59:59.999999+05:30"
-    },
-    "github_run_id": "38854915382"
-  },
   "daily_2026-10-15": {
     "started_at": "2026-10-15T04:40:03.340200+00:00",
     "artifacts": {
@@ -172,5 +152,46 @@
     "last_error": "10_final_news_selection: failed after 3 attempt(s): [10_final_news_selection] job=daily_2026-10-15 type=daily date=2026-10-15\n\n2026-10-15 07:27:23,464 | INFO     | root | [FINAL NEWS SELECTION AGENT v2] selected 2 items (target=28)\n2026-10-15 07:27:23,464 | INFO     | root |   Agriculture: 1\n2026-10-15 07:27:23,464 | INFO     | root |   economy_data: 1\n[10] FAILED: only 2 selected (min 5)",
     "failed_stage": "10_final_news_selection",
     "checkpoint_run_id": "38694723499"
+  },
+  "daily_2026-10-14": {
+    "started_at": "2026-10-16T05:17:08.905876+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-14.json": {
+        "stage": "01_source_fetch",
+        "sha256": "85f54dd6469eb7d670d396b3d994c3070581660d1c5fadf2120e8afeccde8e55"
+      },
+      "data/verified/daily_2026-10-14.json": {
+        "stage": "04_fact_verification",
+        "sha256": "95a38011a837ee3c5b4ded4ac98371a38aa4526ef1db7764ee95e8ec60640487"
+      },
+      "data/dedup/daily_2026-10-14.json": {
+        "stage": "05_deduplication",
+        "sha256": "76357ea59386dfdcbca74cbb3f0cc3ab37a02679ec936bc4285dfea195c496fa"
+      },
+      "data/scored/daily_2026-10-14.json": {
+        "stage": "06_news_importance",
+        "sha256": "2c0363577fa3bb6ba6b5171f32bdd2e031123baeb0ef422e6ac81a408ac87378"
+      },
+      "data/selected/daily_2026-10-14.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "d70ec67da198bd8d18f84405f6c609e65df618a2ef62422728c07291a46f4c90"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-10-14",
+    "job_type": "daily",
+    "job_date": "2026-10-14",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-13T00:00:00+05:30",
+      "end": "2026-10-13T23:59:59.999999+05:30"
+    },
+    "github_run_id": "38854915382",
+    "status": "failed",
+    "updated_at": "2026-10-16T05:20:48.253482+00:00",
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): translator | [Translator] mistral rate-limited (429)\n2026-10-16 05:20:44 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['mistral: no response'])\n2026-10-16 05:20:44 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=6 (AI success 0.0%)\n2026-10-16 05:20:44 | WARNING  | pipeline.content | [Content Builder] 6 translations need review (AI did not pass)\n2026-10-16 05:20:44 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "38854915382"
   }
 }
