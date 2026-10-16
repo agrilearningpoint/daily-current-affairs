@@ -5,6 +5,9 @@ Titles in the "dropped" list are taken verbatim from the 2026-10-16 dry run
 "kept" list are the real news items from the same edition, plus boundary cases
 the rules must not swallow.
 """
+import sys
+from pathlib import Path
+
 import pytest
 
 from pipeline import collector, quality
@@ -138,3 +141,67 @@ def test_chrome_rejections_are_counted_for_the_collection_report():
         "Cabinet clears wheat MSP hike of Rs 150 per quintal for rabi season"]
     assert collector.CHROME_REJECTED == 2, "the report must show how much chrome was dropped"
     assert "chrome_rejected_count" in collector.CollectionReport("daily", "2026-10-16", "").__dict__
+
+
+# --------------------------------------------------------------------------- #
+# Production collection path: pipeline/01_source_fetch.py
+# --------------------------------------------------------------------------- #
+import importlib.util  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+
+from pipeline.source_registry import SourceSpec  # noqa: E402
+
+GOOGLE_NEWS_STYLE_FEED = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <item>
+    <title>Hyperlink Policy - Department of Agriculture &amp; Farmers Welfare</title>
+    <link>https://agriwelfare.gov.in/hyperlink-policy</link>
+    <pubDate>Thu, 16 Oct 2026 06:00:00 GMT</pubDate>
+    <description>Hyperlink Policy</description>
+  </item>
+  <item>
+    <title>CROP INSURANCE DIVISION - Department of Agriculture &amp; Farmers Welfare</title>
+    <link>https://agriwelfare.gov.in/crop-insurance</link>
+    <pubDate>Thu, 16 Oct 2026 06:05:00 GMT</pubDate>
+    <description>CROP INSURANCE DIVISION</description>
+  </item>
+  <item>
+    <title>Cabinet clears wheat MSP hike of Rs 150 per quintal for rabi season</title>
+    <link>https://example.gov.in/news/msp-hike</link>
+    <pubDate>Thu, 16 Oct 2026 06:10:00 GMT</pubDate>
+    <description>Wheat support price increased.</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_source_fetch_drops_chrome_entries(monkeypatch):
+    """The Chrome that shipped in run 38897677177 came through this stage."""
+    module_path = Path(__file__).resolve().parents[1] / "pipeline" / "01_source_fetch.py"
+    spec = importlib.util.spec_from_file_location("alp_source_fetch_quality", module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    class _Response:
+        content = GOOGLE_NEWS_STYLE_FEED.encode("utf-8")
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(module.requests, "get", lambda *a, **k: _Response())
+    feed_spec = SourceSpec(
+        source_id="agriwelfare", name="Department of Agriculture & Farmers Welfare",
+        rss_url="https://agriwelfare.gov.in/rss.xml", category="agriculture",
+        tier="tier1", language="en", official=True, extra={},
+    )
+    window_start = datetime(2026, 10, 15, tzinfo=timezone.utc)
+    window_end = datetime(2026, 10, 17, tzinfo=timezone.utc)
+
+    articles, total, malformed, error, chrome_skipped = module.fetch_spec(
+        feed_spec, window_start, window_end, set())
+
+    assert error is None and total == 3 and malformed == 0
+    assert chrome_skipped == 2, "chrome entries must be counted so runs stay auditable"
+    assert [a["title"] for a in articles] == [
+        "Cabinet clears wheat MSP hike of Rs 150 per quintal for rabi season"]
