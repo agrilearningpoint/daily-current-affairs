@@ -50,7 +50,7 @@ jobs:
       # fresh edition: the stale live record for this date must not be resumed
       RESET_INPUT: "true"
       # 1 = every log excerpt/tail in the report; 0 = compact report only
-      FULL_EVIDENCE: "0"
+      FULL_EVIDENCE: "1"
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
