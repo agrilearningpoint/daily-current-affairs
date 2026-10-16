@@ -7,7 +7,7 @@ def test_provider_discovery_keeps_all_configured_keys(monkeypatch):
     providers = [
         {"name": name, "url": f"https://{name}.example/v1/chat/completions",
          "key": f"test-key-{name}", "model": f"{name}-model"}
-        for name in ("gemini", "groq", "openrouter", "mistral")
+        for name in ("gemini", "groq", "openrouter", "mistral", "nvidia")
     ]
     monkeypatch.setattr(ai_router, "list_providers", lambda: providers)
     monkeypatch.setattr(ai_translator, "_PROVIDERS_CACHE", None)
@@ -15,7 +15,7 @@ def test_provider_discovery_keeps_all_configured_keys(monkeypatch):
     discovered = ai_translator._discover_providers()
 
     assert [provider["name"] for provider in discovered] == [
-        "gemini", "groq", "openrouter", "mistral"
+        "gemini", "groq", "openrouter", "mistral", "nvidia"
     ]
 
 
@@ -32,7 +32,7 @@ def configure_providers(monkeypatch, names):
 
 
 def test_rate_limited_provider_is_skipped_and_all_keys_are_tried(monkeypatch):
-    providers = configure_providers(monkeypatch, ["gemini", "groq", "openrouter", "mistral"])
+    providers = configure_providers(monkeypatch, ["gemini", "groq", "openrouter", "mistral", "nvidia"])
     attempted = []
 
     def rate_limited(provider, system, user):

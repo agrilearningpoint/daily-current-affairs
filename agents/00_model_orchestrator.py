@@ -64,6 +64,9 @@ PROVIDERS = [
     {"name": "mistral", "env_keys": ["MISTRAL_API_KEY"],
      "url": "https://api.mistral.ai/v1/chat/completions",
      "model": os.getenv("MISTRAL_MODEL", "mistral-small-latest"), "priority": 50},
+    {"name": "nvidia", "env_keys": ["NVIDIA_API_KEY"],
+     "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+     "model": os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"), "priority": 60},
 ]
 
 
@@ -72,7 +75,8 @@ def load_keys() -> List[Dict[str, Any]]:
     from pipeline.ai_router import _build_default_providers
     env_names = {"gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
                  "groq": "GROQ_API_KEY", "openai": "OPENAI_API_KEY", "mistral": "MISTRAL_API_KEY",
-                 "generic-openai": "LLM_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+                 "generic-openai": "LLM_API_KEY", "openrouter": "OPENROUTER_API_KEY",
+                 "nvidia": "NVIDIA_API_KEY"}
     return [{"name": provider.name, "url": provider.url, "key": provider.key,
              "model": provider.model, "priority": provider.priority,
              "env_used": env_names[provider.name]} for provider in _build_default_providers()]

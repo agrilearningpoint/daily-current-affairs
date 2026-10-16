@@ -27,14 +27,7 @@ from calendar import monthrange
 from collections import Counter
 from typing import List, Dict, Any, Optional, Tuple
 
-import requests
 from pydantic import BaseModel, Field, field_validator
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
 
 # ------------------------------------------------------------------
 # Logging
@@ -60,11 +53,6 @@ OUTPUT_DIR = "data/monthly"
 MAX_ARTICLES_IN_DIGEST = 60
 MAX_SECTIONS = 8
 LLM_CHUNK_SIZE = 8
-LLM_API_URL = os.getenv("LLM_API_URL", "")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
-LLM_TIMEOUT = 120
-MAX_LLM_RETRIES = 3
 
 STOPWORDS = {
     "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
@@ -365,39 +353,19 @@ def rule_based_digest(
 # ------------------------------------------------------------------
 # LLM Digest
 # ------------------------------------------------------------------
-@retry(
-    stop=stop_after_attempt(MAX_LLM_RETRIES),
-    wait=wait_exponential(multiplier=2, min=2, max=30),
-    retry=retry_if_exception_type(requests.RequestException),
-    reraise=True,
-)
 def _call_llm(prompt: str) -> str:
-    if not LLM_API_URL or not LLM_API_KEY:
+    from pipeline.ai_router import is_configured, route
+
+    if not is_configured():
         raise RuntimeError("LLM not configured")
-    headers = {
-        "Authorization": f"Bearer {LLM_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a senior news analyst creating a monthly digest. "
-                    "Return JSON only with key 'sections': list of "
-                    "{heading: string, content: string, article_ids: list, tags: list}. "
-                    "Group thematically. Be factual and concise. Do not invent facts."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.3,
-        "response_format": {"type": "json_object"},
-    }
-    response = requests.post(LLM_API_URL, headers=headers, json=payload, timeout=LLM_TIMEOUT)
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    return route(prompt, task="monthly_digest",
+                 response_format={"type": "json_object"}, fail_on_all=True,
+                 system_prompt=(
+                     "You are a senior news analyst creating a monthly digest. "
+                     "Group the provided source-grounded articles thematically. "
+                     "Do not invent facts. Return JSON only with a sections list; "
+                     "each section has heading, content, article_ids, and tags."
+                 ))
 
 
 def _chunk(items: List[Any], size: int) -> List[List[Any]]:
@@ -460,7 +428,8 @@ def build_monthly_digest(
 ) -> MonthlyDigest:
     fallback = rule_based_digest(articles, weekly_digests, start, end, month_str)
 
-    if not (LLM_API_URL and LLM_API_KEY):
+    from pipeline.ai_router import is_configured
+    if not is_configured():
         logger.info("LLM not configured; using rule-based monthly digest.")
         return fallback
 

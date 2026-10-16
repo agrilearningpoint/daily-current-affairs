@@ -64,13 +64,23 @@ PROVIDER_CONFIGS = {
         "cooldown_seconds": 30,
         "priority": 3,
     },
+    "nvidia": {
+        "env_key": "NVIDIA_API_KEY",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "models": [os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")],
+        "rate_limits": {"rpm": 30, "rpd": 5000},
+        "test_prompt": "Say 'Hello' in one word.",
+        "expected_response": ["hello", "hi"],
+        "cooldown_seconds": 30,
+        "priority": 4,
+    },
 }
 
 TASK_FALLBACK_CHAINS = {
-    "content": ["groq", "gemini", "openrouter"],
-    "verification": ["groq", "gemini", "openrouter"],
-    "bilingual": ["gemini", "groq"],
-    "mcq": ["groq", "openrouter", "gemini"],
+    "content": ["groq", "gemini", "openrouter", "nvidia"],
+    "verification": ["groq", "gemini", "openrouter", "nvidia"],
+    "bilingual": ["gemini", "groq", "nvidia"],
+    "mcq": ["groq", "openrouter", "gemini", "nvidia"],
 }
 
 

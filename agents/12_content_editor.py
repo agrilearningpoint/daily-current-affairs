@@ -20,20 +20,12 @@ import os
 import re
 import sys
 import json
-import time
 import hashlib
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-import requests
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
 
 # ------------------------------------------------------------------
 # Logging
@@ -57,13 +49,6 @@ OUTPUT_DIR = "data/edited"
 MAX_TITLE_LEN = 120
 MAX_SUMMARY_LEN = 500
 MIN_SUMMARY_LEN = 80
-LLM_API_URL = os.getenv("LLM_API_URL", "")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
-LLM_TIMEOUT = 60
-MAX_LLM_RETRIES = 3
-
-
 # ------------------------------------------------------------------
 # Pydantic Models (Output Contract)
 # ------------------------------------------------------------------
@@ -179,40 +164,19 @@ def rule_based_edit(article: Dict[str, Any]) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 # LLM-Based Editing
 # ------------------------------------------------------------------
-@retry(
-    stop=stop_after_attempt(MAX_LLM_RETRIES),
-    wait=wait_exponential(multiplier=2, min=2, max=20),
-    retry=retry_if_exception_type(requests.RequestException),
-    reraise=True,
-)
 def _call_llm(prompt: str) -> str:
-    if not LLM_API_URL or not LLM_API_KEY:
+    from pipeline.ai_router import is_configured, route
+
+    if not is_configured():
         raise RuntimeError("LLM not configured")
-    headers = {
-        "Authorization": f"Bearer {LLM_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional news editor. "
-                    "Return JSON only with keys: title, summary, change_log (list of strings). "
-                    f"Title max {MAX_TITLE_LEN} chars, summary between {MIN_SUMMARY_LEN} and {MAX_SUMMARY_LEN} chars."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.2,
-        "response_format": {"type": "json_object"},
-    }
-    response = requests.post(
-        LLM_API_URL, headers=headers, json=payload, timeout=LLM_TIMEOUT
-    )
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    return route(prompt, task="content_editing",
+                 response_format={"type": "json_object"}, fail_on_all=True,
+                 system_prompt=(
+                     "You are a professional news editor. Preserve all facts. Return "
+                     "JSON only with keys title, summary, and change_log (a list of "
+                     "strings). The title must be at most 120 characters and the "
+                     "summary must be 80 to 500 characters."
+                 ))
 
 
 def llm_edit(article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -253,7 +217,8 @@ def edit_article(article: Dict[str, Any]) -> EditedArticle:
 
     working = dict(article)
     llm_result: Optional[Dict[str, Any]] = None
-    if LLM_API_URL and LLM_API_KEY:
+    from pipeline.ai_router import is_configured
+    if is_configured():
         llm_result = llm_edit(article)
 
     if llm_result:

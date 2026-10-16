@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 MODEL MANAGER — Self-healing LLM model registry with load distribution
-- Manages 6 providers: Gemini, Groq, OpenRouter, Mistral, Jina, NewsData
+- Manages LLM providers plus Jina and NewsData
 - On model error: fetches provider's /models endpoint, picks FREE models matching task
 - Load distribution: round-robin + per-provider RPM tracking + exponential backoff
 - Batch division: news work split into 5-10 item chunks to avoid burst limits
@@ -13,10 +13,12 @@ PROVIDER_MODELS = {
     "groq": ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"],
     "openrouter": ["apodex/apodex-1.1-mini:free", "nvidia/nemotron-3.5-lightning:free", "liquid/lfm-2.5-2.6b:free", "google/gemini-flash-1.5:free"],
     "mistral": ["mistral-small-latest", "mistral-large-latest", "open-mistral-7b", "open-mixtral-8x7b"],
+    "nvidia": [os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")],
 }
 
 # RPM limits (conservative)
-RPM_LIMITS = {"gemini": 60, "groq": 30, "openrouter": 20, "mistral": 30, "jina": 100, "newsdata": 10}
+RPM_LIMITS = {"gemini": 60, "groq": 30, "openrouter": 20, "mistral": 30,
+              "nvidia": 30, "jina": 100, "newsdata": 10}
 _usage = {k: [] for k in RPM_LIMITS}  # timestamps of recent calls
 
 def _env(k):
@@ -72,6 +74,14 @@ def _fetch_available_models(provider):
             r = requests.get("https://api.mistral.ai/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=15)
             if r.status_code == 200:
                 return [m["id"] for m in r.json().get("data",[])]
+        elif provider == "nvidia":
+            key = _env("NVIDIA_API_KEY")
+            if not key: return []
+            headers = {"Authorization": "Bearer " + key}
+            r = requests.get("https://integrate.api.nvidia.com/v1/models",
+                             headers=headers, timeout=15)
+            if r.status_code == 200:
+                return [m["id"] for m in r.json().get("data", [])]
     except Exception as e:
         logging.debug(f"[model_manager] fetch {provider} failed: {e}")
     return []
@@ -92,12 +102,12 @@ def call_with_fallback(prompt, task="content", batch_size=5):
     - batch_size: items per call (5-10 to avoid limit)
     - Tries providers in priority order, rotates on 429/500, refreshes model list on 404
     """
-    providers = ["gemini", "groq", "openrouter", "mistral"]
+    providers = ["gemini", "groq", "openrouter", "mistral", "nvidia"]
     # For translation/content prefer groq (fast), for scoring prefer gemini
     if task in ("translation", "bilingual"):
-        providers = ["groq", "gemini", "openrouter", "mistral"]
+        providers = ["groq", "gemini", "openrouter", "mistral", "nvidia"]
     elif task == "scoring":
-        providers = ["gemini", "groq", "mistral", "openrouter"]
+        providers = ["gemini", "groq", "mistral", "openrouter", "nvidia"]
     
     last_err = None
     for provider in providers:
@@ -122,6 +132,10 @@ def call_with_fallback(prompt, task="content", batch_size=5):
                 elif provider == "mistral":
                     from pipeline.llm_helper import call_mistral
                     txt, used = call_mistral(prompt, model)
+                    return txt, used
+                elif provider == "nvidia":
+                    from pipeline.llm_helper import call_nvidia
+                    txt, used = call_nvidia(prompt, model)
                     return txt, used
             except Exception as e:
                 err = str(e).lower()
