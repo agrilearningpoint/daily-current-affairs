@@ -57,13 +57,16 @@ PROVIDERS = [
      "model": os.getenv("GEMINI_MODEL", "gemini-flash-latest"), "priority": 10},
     {"name": "groq", "env_keys": ["GROQ_API_KEY"],
      "url": "https://api.groq.com/openai/v1/chat/completions",
-     "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "priority": 20},
+     "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), "priority": 20},
     {"name": "openai", "env_keys": ["OPENAI_API_KEY"],
      "url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions",
      "model": os.getenv("ALP_LLM", "gpt-4o-mini"), "priority": 30},
     {"name": "mistral", "env_keys": ["MISTRAL_API_KEY"],
      "url": "https://api.mistral.ai/v1/chat/completions",
      "model": os.getenv("MISTRAL_MODEL", "mistral-small-latest"), "priority": 50},
+    {"name": "nvidia", "env_keys": ["NVIDIA_API_KEY"],
+     "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+     "model": os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"), "priority": 60},
 ]
 
 
@@ -72,7 +75,8 @@ def load_keys() -> List[Dict[str, Any]]:
     from pipeline.ai_router import _build_default_providers
     env_names = {"gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
                  "groq": "GROQ_API_KEY", "openai": "OPENAI_API_KEY", "mistral": "MISTRAL_API_KEY",
-                 "generic-openai": "LLM_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+                 "generic-openai": "LLM_API_KEY", "openrouter": "OPENROUTER_API_KEY",
+                 "nvidia": "NVIDIA_API_KEY"}
     return [{"name": provider.name, "url": provider.url, "key": provider.key,
              "model": provider.model, "priority": provider.priority,
              "env_used": env_names[provider.name]} for provider in _build_default_providers()]
@@ -136,9 +140,10 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
 def atomic_write(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=2)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, path)
 
 

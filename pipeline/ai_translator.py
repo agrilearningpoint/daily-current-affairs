@@ -44,13 +44,6 @@ logger = logging.getLogger(__name__)
 TIMEOUT = int(os.getenv("ALP_TRANSLATION_TIMEOUT", "45"))
 MAX_RETRIES = int(os.getenv("ALP_TRANSLATION_MAX_RETRIES", "2"))
 CACHE_MAX_SIZE = int(os.getenv("ALP_TRANSLATION_CACHE_SIZE", "2000"))
-# Circuit breaker: a provider that answers 429 keeps the whole translation stage
-# blocked for minutes on every single text, and one that answers 401/402/403/404
-# never recovers inside the run at all. Park it instead of re-dialling it.
-PROVIDER_COOLDOWN = int(os.getenv("ALP_TRANSLATION_PROVIDER_COOLDOWN", "600"))
-PROVIDER_DEAD_COOLDOWN = int(os.getenv("ALP_TRANSLATION_PROVIDER_DEAD_COOLDOWN", "3600"))
-# Status codes that mean "this credential/quota is not usable right now".
-_DEAD_STATUS = {401, 402, 403, 404}
 
 # Regexes for validation (mirrors content.py to stay consistent)
 _NUM_RE = re.compile(
@@ -90,35 +83,57 @@ class _LRUCache:
 
 
 _CACHE = _LRUCache()
+_RATE_LIMITED_PROVIDERS = set()
+# Providers whose credentials/quota are rejected outright (401/402/403/404) or
+# that keep failing at transport level stay parked for the rest of the edition:
+# re-dialling them for every text is what burned the 900s stage budget three
+# times on 2026-10-15.
+_PARKED_PROVIDERS: Dict[str, float] = {}
+_PARK_COOLDOWN = int(os.getenv("ALP_TRANSLATION_PROVIDER_COOLDOWN", "900"))
+_PERMANENT_STATUS = {401, 402, 403, 404}
 
 
-# --------------------------------------------------------------------------- #
-# Provider circuit breaker
-# --------------------------------------------------------------------------- #
-_PROVIDER_DOWN_UNTIL: Dict[str, float] = {}
+class ProviderRateLimited(Exception):
+    """Signal that the current provider should be skipped for this edition."""
+
+
+class ProviderRequestFailed(Exception):
+    def __init__(self, reason: str, *, retryable: bool = False):
+        super().__init__(reason)
+        self.retryable = retryable
+
+
+def _park_provider(name: str, reason: str, seconds: int = _PARK_COOLDOWN) -> None:
+    """Stop dialling a provider that cannot answer for this edition."""
+    until = time.monotonic() + max(0, seconds)
+    if until > _PARKED_PROVIDERS.get(name, 0.0):
+        first_time = name not in _PARKED_PROVIDERS
+        _PARKED_PROVIDERS[name] = until
+        if first_time:
+            logger.warning("[Translator] %s parked for %ds (%s)", name, seconds, reason)
 
 
 def _provider_available(name: str) -> bool:
-    """False while the provider is parked after a failure."""
-    return _PROVIDER_DOWN_UNTIL.get(name, 0.0) <= time.monotonic()
-
-
-def _park_provider(name: str, seconds: int, reason: str) -> None:
-    until = time.monotonic() + max(0, seconds)
-    if until > _PROVIDER_DOWN_UNTIL.get(name, 0.0):
-        if not _PROVIDER_DOWN_UNTIL.get(name):
-            logger.warning("[Translator] %s parked for %ds (%s)", name, seconds, reason)
-        _PROVIDER_DOWN_UNTIL[name] = until
-
-
-def reset_provider_circuits() -> None:
-    """Clear park timers (used by tests and by a fresh translator process)."""
-    _PROVIDER_DOWN_UNTIL.clear()
+    if name in _RATE_LIMITED_PROVIDERS:
+        return False
+    return _PARKED_PROVIDERS.get(name, 0.0) <= time.monotonic()
 
 
 def available_providers() -> List[Dict[str, Any]]:
-    """Configured providers that are not currently parked."""
+    """Configured providers that are still worth dialling in this process."""
     return [p for p in _discover_providers() if _provider_available(p.get("name", ""))]
+
+
+def reset_provider_state() -> None:
+    """Clear rate-limit/park state (fresh process, --reset, or tests)."""
+    _RATE_LIMITED_PROVIDERS.clear()
+    _PARKED_PROVIDERS.clear()
+
+
+def _is_permanent_failure(reason: str) -> bool:
+    """True when retrying this provider later in the run is pointless."""
+    match = re.search(r"HTTP (\d{3})", reason or "")
+    return bool(match) and int(match.group(1)) in _PERMANENT_STATUS
 
 
 def _cache_key(text: str, task: str) -> str:
@@ -180,6 +195,7 @@ def reset_provider_cache() -> None:
     """Call after rotating keys / changing config."""
     global _PROVIDERS_CACHE
     _PROVIDERS_CACHE = None
+    _RATE_LIMITED_PROVIDERS.clear()
 
 
 # --------------------------------------------------------------------------- #
@@ -213,12 +229,11 @@ def _build_prompt(text: str, task: str) -> Tuple[str, str]:
 # --------------------------------------------------------------------------- #
 # Provider HTTP call
 # --------------------------------------------------------------------------- #
-def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional[str]:
+def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
     try:
         import requests
-    except ImportError:
-        logger.error("[Translator] requests library missing")
-        return None
+    except ImportError as exc:
+        raise ProviderRequestFailed("requests library missing") from exc
 
     if provider["name"] == "gemini":
         url = f"{provider['url']}/{provider['model']}:generateContent"
@@ -231,31 +246,41 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> Optional
         headers = {"Authorization": f"Bearer {provider['key']}", "Content-Type": "application/json"}
         payload = {"model": provider["model"], "temperature": 0.1,
                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
-    name = provider["name"]
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
-        if r.status_code in _DEAD_STATUS:
-            logger.warning("[Translator] %s rejected credentials/request (%d)", name, r.status_code)
-            _park_provider(name, PROVIDER_DEAD_COOLDOWN, f"HTTP {r.status_code}")
-            return None
-        if r.status_code == 429:
-            logger.warning("[Translator] %s rate-limited (429)", name)
-            _park_provider(name, PROVIDER_COOLDOWN, "HTTP 429 rate limit")
-            return None
+    except requests.Timeout as exc:
+        logger.warning("[Translator] %s request timed out", provider["name"])
+        raise ProviderRequestFailed("request timed out", retryable=True) from exc
+    except requests.RequestException as exc:
+        from pipeline.persistence import redact
+        safe_error = redact(str(exc), dict(os.environ))
+        logger.warning("[Translator] %s request failed: %s", provider["name"], safe_error)
+        raise ProviderRequestFailed("network request failed", retryable=True) from exc
+
+    if r.status_code == 429:
+        logger.warning("[Translator] %s rate-limited (429)", provider["name"])
+        raise ProviderRateLimited(provider["name"])
+    if r.status_code in _PERMANENT_STATUS:
+        _park_provider(provider["name"], f"HTTP {r.status_code}")
+    try:
         r.raise_for_status()
+    except requests.HTTPError as exc:
+        status = r.status_code
+        raise ProviderRequestFailed(f"HTTP {status}", retryable=status >= 500) from exc
+
+    try:
         data = r.json()
         if provider["name"] == "gemini":
             candidates = data.get("candidates") or []
             parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
-            return "".join(part.get("text", "") for part in parts).strip() or None
-        # OpenAI-compatible shape
-        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
-    except Exception as exc:
-        from pipeline.persistence import redact
-        logger.warning("[Translator] %s failed: %s", name, redact(str(exc), dict(os.environ)))
-        if not str(exc).startswith("4"):
-            _park_provider(name, PROVIDER_COOLDOWN, type(exc).__name__)
-        return None
+            translated = "".join(part.get("text", "") for part in parts).strip()
+        else:
+            translated = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+    except (ValueError, AttributeError, IndexError, TypeError) as exc:
+        raise ProviderRequestFailed("malformed response") from exc
+    if not translated:
+        raise ProviderRequestFailed("empty response")
+    return translated
 
 
 # --------------------------------------------------------------------------- #
@@ -322,33 +347,41 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
         logger.debug("[Translator] cache hit for task=%s", task)
         return cached
 
-    providers = available_providers()
+    providers = _discover_providers()
     if not providers:
-        configured = bool(_discover_providers())
         result = {
             "translated_hi": "",
             "passed": False,
             "confidence": 0.0,
-            "provider": "parked" if configured else "none",
-            "issues": ["all providers parked after failures" if configured
-                       else "no providers configured"],
+            "provider": "none",
+            "issues": ["no providers configured"],
         }
         _CACHE.put(key, result)
         return result
 
     system, user = _build_prompt(text, task)
-    last_issues: List[str] = []
+    provider_issues: List[str] = []
 
     for provider in providers:
+        if not _provider_available(provider["name"]):
+            logger.info("[Translator] skipping %s (rate limited or parked earlier)", provider["name"])
+            continue
+        logger.info("[Translator] trying provider %s", provider["name"])
         for attempt in range(1, MAX_RETRIES + 1):
-            if not _provider_available(provider["name"]):
-                break  # parked by a previous attempt/text; do not sleep and retry
-            hindi = _call_provider(provider, system, user)
-            if not hindi:
-                if attempt < MAX_RETRIES:
+            try:
+                hindi = _call_provider(provider, system, user)
+            except ProviderRateLimited:
+                _RATE_LIMITED_PROVIDERS.add(provider["name"])
+                provider_issues.append(f"{provider['name']}: rate limited")
+                logger.info("[Translator] moving to the next configured provider")
+                break
+            except ProviderRequestFailed as exc:
+                if exc.retryable and attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
-                last_issues = [f"{provider['name']}: no response"]
+                if _is_permanent_failure(str(exc)):
+                    _park_provider(provider["name"], str(exc))
+                provider_issues.append(f"{provider['name']}: {exc}")
                 break
 
             passed, conf, issues = _validate(text, hindi)
@@ -365,20 +398,22 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                              provider["name"], conf, task)
                 return result
             else:
-                last_issues = issues
+                provider_issues.append(f"{provider['name']}: validation failed")
                 logger.warning("[Translator] %s validation failed: %s",
                                provider["name"], issues)
                 break  # try next provider
 
-    # All providers failed. If none of them can be dialled any more, say so —
-    # the caller and the logs must not look like a per-text content problem.
-    parked = not available_providers()
+    # All providers failed. ``exhausted`` is true when nothing is left to dial
+    # (every provider parked), so the caller can tell "wired but rejected" from
+    # "configured a provider that failed once". ``issues`` stays the plain
+    # per-provider failure list that the callers/tests already parse.
     result = {
         "translated_hi": "",
         "passed": False,
         "confidence": 0.0,
-        "provider": "parked" if parked else "all-failed",
-        "issues": last_issues or (["all providers parked after failures"] if parked else []),
+        "provider": "all-failed",
+        "issues": provider_issues or ["no usable providers available"],
+        "exhausted": bool(provider_issues) and not available_providers(),
     }
     _CACHE.put(key, result)
     return result

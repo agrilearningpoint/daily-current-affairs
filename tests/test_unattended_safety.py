@@ -161,6 +161,19 @@ def test_pipeline_lock_blocks_a_second_process(tmp_path, monkeypatch):
     assert not main.JOBS_STATE_PATH.exists()
 
 
+def test_windows_file_lock_rejects_a_second_nonblocking_lock(tmp_path):
+    import pipeline.persistence as persistence
+
+    if persistence.msvcrt is None:
+        pytest.skip("Windows locking API is unavailable")
+
+    lock_path = tmp_path / "pipeline.lock"
+    with persistence.file_lock(lock_path):
+        with pytest.raises(BlockingIOError):
+            with persistence.file_lock(lock_path, blocking=False):
+                pytest.fail("a second handle acquired an exclusive Windows lock")
+
+
 def test_watchdog_invalid_attempts_clear_stale_plan(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "ROOT", tmp_path)
     monkeypatch.setattr(main, "JOBS_STATE_PATH", tmp_path / "state/jobs.json")

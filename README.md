@@ -206,6 +206,10 @@ python -c "from main import load_state; print('✅ Imports OK')"
 | `LLM_MODEL` | `gpt-4o-mini` | Model name |
 | `GEMINI_API_KEY` | — | Gemini (primary in fallback) |
 | `GROQ_API_KEY` | — | Groq (fast fallback) |
+| `OPENROUTER_API_KEY` | — | OpenRouter fallback |
+| `MISTRAL_API_KEY` | — | Mistral fallback |
+| `NVIDIA_API_KEY` | — | NVIDIA NIM fallback; store it as a GitHub Actions secret |
+| `NVIDIA_MODEL` | `meta/llama-3.3-70b-instruct` | NVIDIA NIM model |
 | `MIN_CONFIDENCE_THRESHOLD` | `0.3` | Verification threshold (0–1) |
 | `MIN_VERIFIED_COUNT` | `1` | Min items to proceed |
 | `TELEGRAM_PARSE_MODE` | `HTML` | Message format |
@@ -541,7 +545,7 @@ for jid, j in sorted(s.jobs.items(), reverse=True)[:7]:
 
 2. **Hindi rendering in PDF** requires specific fonts (`src/fonts/Mukta-*.ttf`). Missing fonts → empty PDF.
 
-3. **AI provider rate limits** — Gemini free tier: 60 RPM. Pipeline auto-falls back to Groq/OpenAI/Mistral. Configure via `.env`.
+3. **AI provider availability and quotas** — the router tries each configured provider in priority order, including Gemini, Groq, OpenAI-compatible endpoints, OpenRouter, Mistral, and NVIDIA NIM. Each provider still needs a valid key, accessible model, and available quota. Configure keys locally in `.env` and in GitHub Actions repository secrets; never commit credentials.
 
 4. **Telegram message limit** — 4096 chars. Publisher auto-chunks long summaries.
 

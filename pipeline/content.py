@@ -4,8 +4,8 @@ CONTENT EDITOR + BILINGUAL + MCQ LIBRARY (Agents 12-14, 16)
 
 Rule "Never invent facts": every key point / static fact / MCQ answer must be a
 substring-extractable fact from the item's own headline + raw_facts. Extraction is
-deterministic, so there is zero hallucination. If an optional AI provider is
-configured (OPENAI_API_KEY), it is used ONLY to polish wording, and the polished
+deterministic, so there is zero hallucination. If any AI provider is configured,
+it is used ONLY to polish wording, and the polished
 text is re-checked against the source (numbers + capitalised names must survive).
 
 v4 (production audit) - what changed vs v3
@@ -35,7 +35,7 @@ Translation
 - translator import is cached (no log spam), identical strings are cached.
 
 Env switches (all optional)
-  OPENAI_API_KEY / ALP_LLM        -> enables AI polishing of English wording
+  Any configured AI provider     -> enables AI polishing of English wording
   ALP_DISABLE_POLISH=1            -> never call the polish API
   ALP_TRANSLATION_STRICT=1        -> no deterministic Hindi fallback
   ALP_MEMORY_PATH=<file.json>     -> override importance-memory location
@@ -489,25 +489,23 @@ def _facts_preserved(candidate, original, source_text):
 
 
 def polish_with_ai(text, source_text):
-    key = os.getenv("OPENAI_API_KEY")
-    if not key or os.getenv("ALP_DISABLE_POLISH", "0") == "1" or not text:
+    if os.getenv("ALP_DISABLE_POLISH", "0") == "1" or not text:
         return text
     try:
-        import requests as _rq
-        r = _rq.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": "Bearer " + key},
-            json={"model": os.getenv("ALP_LLM", "gpt-4o-mini"),
-                  "temperature": 0,
-                  "messages": [
-                      {"role": "system",
-                       "content": "You are a copy editor. Rewrite for clarity only. Never add, remove or "
-                                  "change any fact, number or name. Reply with the rewritten text only."},
-                      {"role": "user", "content": text}],
-                  "max_tokens": 300},
-            timeout=30)
-        r.raise_for_status()
-        cand = _norm_ws(r.json()["choices"][0]["message"]["content"]).strip("\"'")
+        from pipeline.ai_router import is_configured, route
+        if not is_configured():
+            return text
+        candidate = route(
+            text,
+            task="polish",
+            system_prompt=(
+                "Rewrite the text for clarity only. Never add, remove, or change any "
+                "fact, number, or name. Reply with the rewritten text only."
+            ),
+        )
+        if not candidate:
+            return text
+        cand = _norm_ws(candidate).strip("\"'")
     except Exception as exc:
         logger.warning("[Polish] skipped: %s", exc)
         return text

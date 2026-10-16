@@ -1,5 +1,19 @@
 {
-  "generated_at": "2026-10-15T05:18:19.160475+00:00",
-  "actions": [],
-  "error": "invalid recovery state, ledger, budget or run-attempt counter"
+  "generated_at": "2026-10-16T09:21:19.458186+00:00",
+  "stuck_running": [],
+  "recent_failed_final": [
+    "daily_2026-10-15",
+    "daily_2026-10-16"
+  ],
+  "actions": [
+    {
+      "job_id": "daily_2026-10-15",
+      "action": "retry"
+    },
+    {
+      "job_id": "daily_2026-10-16",
+      "action": "retry"
+    }
+  ],
+  "manual_attention": []
 }

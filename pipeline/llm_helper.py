@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 LLM HELPER — Multi-provider fallback for AGRI LEARNING POINT
-Chain: Gemini → Groq → OpenRouter → Mistral (all from env, never hardcoded)
+Chain: Gemini → Groq → OpenRouter → Mistral → NVIDIA NIM (all from env, never hardcoded)
 SECURITY: keys from env only (GitHub Secrets in prod, .env locally)
 """
 import os, requests, logging
@@ -54,6 +54,18 @@ def call_mistral(prompt, model="mistral-large-latest"):
         timeout=60)
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"].strip(), f"mistral/{model}"
+
+def call_nvidia(prompt, model=None):
+    model = model or _env("NVIDIA_MODEL") or "meta/llama-3.3-70b-instruct"
+    key = _env("NVIDIA_API_KEY")
+    if not key:
+        raise RuntimeError("NVIDIA_API_KEY missing")
+    r = requests.post("https://integrate.api.nvidia.com/v1/chat/completions",
+        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+        json={"model": model, "messages": [{"role":"user","content": prompt}], "temperature": 0.3},
+        timeout=60)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"].strip(), f"nvidia/{model}"
 
 def call_jina_reader(url):
     """Fetch URL via Jina Reader API (correct endpoint: r.jina.ai, better JS handling)"""
@@ -115,4 +127,8 @@ def call_llm(prompt, prefer="gemini"):
         return call_mistral(prompt)
     except Exception as e:
         errors.append(f"mistral:{e}")
+    try:
+        return call_nvidia(prompt)
+    except Exception as e:
+        errors.append(f"nvidia:{e}")
     raise RuntimeError(f"All LLM providers failed: {'; '.join(errors[:3])}")

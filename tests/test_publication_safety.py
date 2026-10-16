@@ -207,6 +207,33 @@ def test_corrupt_publication_ledger_never_becomes_an_empty_retry(publication_tai
     assert remote["calls"] == []
 
 
+def test_legacy_publication_ledger_preserves_history_and_blocks_duplicate(publication_tail):
+    publisher, _, _, remote, _, root = publication_tail
+    legacy = {"0907dd4d50b4e04b": {"jobs": [JOB], "last_published": "2026-10-05"}}
+    publisher.LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    publisher.LEDGER_FILE.write_text(json.dumps(legacy))
+
+    ledger = publisher.load_ledger()
+    assert ledger["records"] == {}
+    assert ledger["legacy_history"] == legacy
+    assert not publisher.publish_pdf(root / f"output/{JOB}.pdf", ledger)
+    assert remote["calls"] == []
+
+
+def test_legacy_publication_history_allows_an_unpublished_job(publication_tail):
+    publisher, _, _, remote, digest, root = publication_tail
+    legacy = {"0907dd4d50b4e04b": {"jobs": ["daily_2026-10-04"],
+                                  "last_published": "2026-10-04"}}
+    publisher.LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    publisher.LEDGER_FILE.write_text(json.dumps(legacy))
+
+    assert main.execute_job("daily", "2026-10-05") == 0
+    ledger = publisher.load_ledger()
+    assert ledger["legacy_history"] == legacy
+    assert remote["calls"].count("sendDocument") == 1
+    assert publication_issues(root, JOB, digest, CHAT) == []
+
+
 def test_pin_refuses_a_foreign_chat(publication_tail):
     _, pin, _, remote, _, _ = publication_tail
     assert not pin.process_verification({"job_id": JOB, "chat_id": "foreign", "message_id": MESSAGE})

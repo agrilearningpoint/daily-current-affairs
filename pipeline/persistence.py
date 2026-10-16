@@ -1,23 +1,60 @@
-"""Atomic JSON writes and POSIX locks for unattended Linux/GitHub runners."""
+"""Atomic JSON writes and cross-platform file locks for unattended pipeline runs."""
 
 from contextlib import contextmanager
-import fcntl
+import errno
 import json
 import os
 from pathlib import Path
 import tempfile
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows fallback
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - POSIX fallback
+    msvcrt = None
+
 
 @contextmanager
 def file_lock(path: Path, *, blocking=True):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+", encoding="utf-8") as handle:
-        flags = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
-        fcntl.flock(handle.fileno(), flags)
+    if fcntl is not None:
+        with path.open("a+", encoding="utf-8") as handle:
+            flags = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
+            fcntl.flock(handle.fileno(), flags)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        return
+
+    if msvcrt is None:  # pragma: no cover - unsupported platform
+        raise OSError("file locking is unsupported on this platform")
+
+    with path.open("a+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            mode = msvcrt.LK_LOCK if blocking else msvcrt.LK_NBLCK
+            msvcrt.locking(handle.fileno(), mode, 1)
+        except OSError as exc:
+            if not blocking and (
+                exc.errno in {errno.EACCES, errno.EDEADLK}
+                or getattr(exc, "winerror", None) == 33
+            ):
+                raise BlockingIOError(errno.EAGAIN, "file is already locked", str(path)) from exc
+            raise
         try:
             yield
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 def write_json_atomic(path: Path, data):

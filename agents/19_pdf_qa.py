@@ -21,7 +21,7 @@ Env:
   PDF_QA_MIN_PAGES       (default 2)
   PDF_QA_MAX_PAGES       (default 200)
   PDF_QA_MIN_HINDI_PCT   (default 5.0)  — % of chars that must be Devanagari
-  PDF_QA_MIN_MCQ_COUNT   (default 10)
+  PDF_QA_MIN_MCQ_COUNT   (default 10; sparse editions require 2 per story)
   PDF_QA_STRICT          (1 = fail on warnings; 0 = warnings OK)
   PDF_QA_RENDER_CHECK    (1 = render pages to image for blank detection)
 
@@ -348,16 +348,23 @@ def check_text_content(report: QAReport, text: str) -> None:
                    hindi_pct=round(report.hindi_pct, 2))
 
 
-def check_mcqs(report: QAReport, text: str) -> None:
+def minimum_mcq_count(item_count: int) -> int:
+    """Require two validated questions per selected story, capped at the normal edition minimum."""
+    if item_count < 1:
+        return MIN_MCQ_COUNT
+    return min(MIN_MCQ_COUNT, item_count * 2)
+
+
+def check_mcqs(report: QAReport, text: str, min_mcq_count: int = MIN_MCQ_COUNT) -> None:
     mcq_count, answer_count, dup_count = compute_mcq_stats(text)
     report.mcq_count = mcq_count
     report.answers_found = answer_count
     report.duplicate_questions = dup_count
 
-    if mcq_count < MIN_MCQ_COUNT:
+    if mcq_count < min_mcq_count:
         report.add("error", "insufficient_mcqs",
-                   f"Only {mcq_count} MCQs found (min {MIN_MCQ_COUNT})",
-                   count=mcq_count, min=MIN_MCQ_COUNT)
+                   f"Only {mcq_count} MCQs found (min {min_mcq_count})",
+                   count=mcq_count, min=min_mcq_count)
 
     if answer_count < mcq_count * 0.8:
         report.add("warning", "missing_answers",
@@ -417,7 +424,7 @@ def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
-def run_qa(pdf_path: Path) -> QAReport:
+def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
     report = QAReport(
         pdf_path=str(pdf_path),
         checked_at=datetime.now(timezone.utc).isoformat(),
@@ -440,7 +447,7 @@ def run_qa(pdf_path: Path) -> QAReport:
         check_images(report, doc)
         text = extract_text(doc)
         check_text_content(report, text)
-        check_mcqs(report, text)
+        check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)
         check_visual_overflow(report, doc)
     finally:
@@ -486,7 +493,23 @@ def main() -> int:
         return 2
 
     logger.info("QA check: %s", pdf.name)
-    report = run_qa(pdf)
+    selected_path = ctx.find_input("selected")
+    if selected_path is None:
+        logger.error("Selected-news artifact not found for %s", ctx.job_id)
+        return 2
+    try:
+        selected = json.loads(selected_path.read_text(encoding="utf-8"))
+        selected_items = selected.get("items") if isinstance(selected, dict) else None
+        if not isinstance(selected_items, list) or not selected_items:
+            raise ValueError("selected-news artifact must contain a non-empty items list")
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        logger.error("Cannot determine selected-news count for %s: %s", ctx.job_id, exc)
+        return 2
+
+    min_mcq_count = minimum_mcq_count(len(selected_items))
+    logger.info("QA requires at least %d MCQs for %d selected stories",
+                min_mcq_count, len(selected_items))
+    report = run_qa(pdf, min_mcq_count=min_mcq_count)
 
     # Save report
     report_file = ctx.qa_report_path()

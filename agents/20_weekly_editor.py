@@ -17,7 +17,7 @@ Production features:
 Env:
   WEEKLY_LOOKBACK_DAYS    (default 7)
   WEEKLY_MAX_ARTICLES     (default 40)
-  LLM_API_URL, LLM_API_KEY (optional)
+  Any provider configured in pipeline.ai_router (optional)
 """
 from __future__ import annotations
 
@@ -74,9 +74,10 @@ def resolve_week_range(reference: Optional[datetime] = None) -> Tuple[datetime, 
 def atomic_write(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=2)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, path)
 
 
@@ -179,13 +180,12 @@ def build_rule_based(articles: List[Dict[str, Any]], start: datetime, end: datet
 
 def try_llm_digest(articles: List[Dict[str, Any]], start: datetime, end: datetime) -> Optional[Dict[str, Any]]:
     """Try LLM. Returns None if unavailable."""
-    url = os.getenv("LLM_API_URL")
-    key = os.getenv("LLM_API_KEY")
-    if not (url and key):
+    from pipeline.ai_router import is_configured, route
+
+    if not is_configured():
         return None
 
     try:
-        import requests
         # Chunk articles to stay under token limits
         chunk = articles[:20]
         payload = {
@@ -197,24 +197,21 @@ def try_llm_digest(articles: List[Dict[str, Any]], start: datetime, end: datetim
                 for a in chunk
             ]
         }
-        r = requests.post(
-            url,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json={
-                "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
-                "messages": [
-                    {"role": "system",
-                     "content": "Create a weekly news digest. Return JSON: "
-                                '{"sections":[{"heading":str,"content":str,"article_ids":list}]}'},
-                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-                ],
-                "temperature": 0.3,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=60,
+        prompt = (
+            "Create a weekly news digest from these source-grounded articles. "
+            'Return JSON: {"sections":[{"heading":str,"content":str,"article_ids":list}]}.\n'
+            + json.dumps(payload, ensure_ascii=False)
         )
-        r.raise_for_status()
-        data = json.loads(r.json()["choices"][0]["message"]["content"])
+        raw = route(prompt, task="weekly_digest",
+                    response_format={"type": "json_object"},
+                    system_prompt=(
+                        "Create a factual weekly news digest grounded only in the "
+                        "provided articles. Return JSON only with a sections list; "
+                        "each section has heading, content, and article_ids."
+                    ))
+        if not raw:
+            return None
+        data = json.loads(raw)
         sections = data.get("sections") or []
         if not sections:
             return None

@@ -21,7 +21,8 @@ Features:
 - Never raises to caller — always returns a string (or raises if all providers fail AND fail_on_all=True)
 
 Env:
-  GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY
+  GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY,
+  OPENROUTER_API_KEY, NVIDIA_API_KEY
   AI_ROUTER_MAX_CALLS_PER_HOUR (default 500)
   AI_ROUTER_TIMEOUT (default 60)
   AI_ROUTER_CACHE_SIZE (default 1000)
@@ -136,7 +137,7 @@ def _build_default_providers() -> List[Provider]:
             name="groq",
             url="https://api.groq.com/openai/v1/chat/completions",
             key=groq_key,
-            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             priority=20, rpm_limit=30, rpd_limit=14400,
         ))
 
@@ -155,7 +156,7 @@ def _build_default_providers() -> List[Provider]:
     # Generic OpenAI-compatible (LLM_API_URL + LLM_API_KEY)
     generic_url = os.getenv("LLM_API_URL")
     generic_key = os.getenv("LLM_API_KEY")
-    if generic_url and generic_key and not any(p.name == "openai" for p in providers):
+    if generic_url and generic_key:
         providers.append(Provider(
             name="generic-openai",
             url=generic_url,
@@ -179,6 +180,16 @@ def _build_default_providers() -> List[Provider]:
             key=mistral_key,
             model=os.getenv("MISTRAL_MODEL", "mistral-small-latest"),
             priority=50, rpm_limit=60, rpd_limit=5000,
+        ))
+
+    nvidia_key = os.getenv("NVIDIA_API_KEY")
+    if nvidia_key:
+        providers.append(Provider(
+            name="nvidia",
+            url="https://integrate.api.nvidia.com/v1/chat/completions",
+            key=nvidia_key,
+            model=os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"),
+            priority=60, rpm_limit=30, rpd_limit=5000,
         ))
 
     providers.sort(key=lambda p: p.priority)
@@ -259,8 +270,17 @@ class _LRUCache:
 _CACHE = _LRUCache(CACHE_SIZE)
 
 
-def _cache_key(prompt: str, task: str) -> str:
-    return hashlib.sha256(f"{task}::{prompt}".encode("utf-8")).hexdigest()[:24]
+def _cache_key(
+    prompt: str,
+    task: str,
+    response_format: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
+    needs_hindi: bool = False,
+) -> str:
+    options = json.dumps(response_format or {}, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(
+        f"{task}::{options}::{system_prompt or ''}::{needs_hindi}::{prompt}".encode("utf-8")
+    ).hexdigest()[:24]
 
 
 # --------------------------------------------------------------------------- #
@@ -287,7 +307,7 @@ def _within_budget() -> bool:
 def _classify_error(status: int, body: str) -> str:
     if status == 429:
         return FailureType.RATE_LIMIT
-    if status in (401, 403):
+    if status in (401, 402, 403):
         return FailureType.AUTH_ERROR
     if status == 404:
         return FailureType.MODEL_ERROR
@@ -303,13 +323,15 @@ def _call_provider(
     prompt: str,
     task: str,
     needs_hindi: bool = False,
+    response_format: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Call one provider. Returns (content, failure_type).
     On success: (content, None)
     On failure: (None, failure_type)
     """
-    system_msg = (
+    system_msg = system_prompt or (
         "You are a helpful assistant for an Indian competitive-exam current-affairs bot. "
         "Respond with accurate, factual information. "
         + ("Reply in Hindi (Devanagari)." if needs_hindi else "Reply in English.")
@@ -317,17 +339,18 @@ def _call_provider(
 
     # Gemini uses a different API shape
     if provider.name == "gemini":
-        url = f"{provider.url}/{provider.model}:generateContent?key={provider.key}"
+        url = f"{provider.url}/{provider.model}:generateContent"
         payload = {
-            "contents": [{
-                "parts": [
-                    {"text": system_msg},
-                    {"text": prompt},
-                ]
-            }],
+            "systemInstruction": {"parts": [{"text": system_msg}]},
+            "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.2},
         }
-        headers = {"Content-Type": "application/json"}
+        if response_format and response_format.get("type") == "json_object":
+            payload["generationConfig"]["responseMimeType"] = "application/json"
+        headers = {
+            "x-goog-api-key": provider.key,
+            "Content-Type": "application/json",
+        }
     else:
         url = provider.url
         payload = {
@@ -338,6 +361,8 @@ def _call_provider(
             ],
             "temperature": 0.2,
         }
+        if response_format:
+            payload["response_format"] = response_format
         headers = {
             "Authorization": f"Bearer {provider.key}",
             "Content-Type": "application/json",
@@ -389,6 +414,8 @@ def route(
     task: str = "general",
     needs_hindi: bool = False,
     fail_on_all: bool = False,
+    response_format: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
 ) -> Optional[str]:
     """
     Route a prompt across providers with fallback.
@@ -409,7 +436,7 @@ def route(
         return "" if not fail_on_all else None
 
     # Cache check
-    ck = _cache_key(prompt, task)
+    ck = _cache_key(prompt, task, response_format, system_prompt, needs_hindi)
     cached = _CACHE.get(ck)
     if cached is not None:
         logger.debug("[Router] Cache hit for task=%s", task)
@@ -439,7 +466,9 @@ def route(
         logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
         provider.record_call()
 
-        content, failure = _call_provider(provider, prompt, task, needs_hindi)
+        content, failure = _call_provider(
+            provider, prompt, task, needs_hindi, response_format, system_prompt
+        )
 
         if content is not None:
             _CACHE.put(ck, content)
@@ -488,6 +517,11 @@ def stats() -> Dict[str, Any]:
         "calls_last_hour": sum(1 for t in _CALL_TIMES if now - t < 3600),
         "hourly_budget": MAX_CALLS_PER_HOUR,
     }
+
+
+def is_configured() -> bool:
+    """Whether at least one provider has usable key, endpoint, and model configuration."""
+    return bool(_get_providers())
 
 
 def clear_cache() -> None:

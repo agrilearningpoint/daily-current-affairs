@@ -1,50 +1,53 @@
-"""Translator provider circuit breaker.
+"""Translator provider parking on top of main's rate-limit skipping.
 
-Live 2026-10-15 evidence: every configured provider rejected translation calls
-(Gemini 429, Groq 404 unknown model, OpenRouter 402 no credit, Mistral 429), and
-the translator re-dialled all of them for every text of every item — the stage
-burned its whole 900s budget three times and the edition could never reach the
-PDF stage. A provider that is rate-limited or whose credentials are rejected
-must be parked for the rest of the run instead.
+Live 2026-10-15 evidence: gemini 429, groq 404 (unknown model), openrouter 402
+(no credit) and mistral 429 - every provider rejected every call, and the
+translator re-dialled them for each text of each item, which burned the whole
+900 s stage budget three times. main added rate-limit skipping; these tests pin
+the additional guarantee that a provider whose credentials are rejected outright
+is not dialled again either.
 """
 import pytest
 import requests
 
-from pipeline import ai_translator as translator
-
-PROVIDERS = [
-    {"name": "gemini", "url": "https://gemini.example/models", "key": "k1", "model": "m1"},
-    {"name": "mistral", "url": "https://mistral.example/chat", "key": "k2", "model": "m2"},
-]
+from pipeline import ai_translator
 
 
 class _Response:
-    def __init__(self, status_code):
+    def __init__(self, status_code, body=None):
         self.status_code = status_code
+        self._body = body or {"choices": [{"message": {"content": "भारत ने योजना को मंजूरी दी।"}}]}
         self.text = "diagnostic"
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise RuntimeError(f"{self.status_code} Client Error")
+            error = requests.HTTPError(f"{self.status_code} Client Error")
+            error.response = self
+            raise error
 
     def json(self):
-        return {"choices": [{"message": {"content": "भारत ने योजना को मंजूरी दी।"}}]}
+        return self._body
+
+
+PROVIDERS = [
+    {"name": "gemini", "url": "https://gemini.example/v1/models", "key": "k1", "model": "m1"},
+    {"name": "mistral", "url": "https://mistral.example/v1/chat/completions", "key": "k2", "model": "m2"},
+]
 
 
 @pytest.fixture(autouse=True)
 def clean_state(monkeypatch):
-    translator.reset_provider_circuits()
-    translator._CACHE.clear()
-    monkeypatch.setattr(translator, "_PROVIDERS_CACHE", list(PROVIDERS), raising=False)
-    monkeypatch.setattr(translator.time, "sleep", lambda _seconds: None)
+    ai_translator.reset_provider_state()
+    ai_translator.clear_cache()
+    monkeypatch.setattr(ai_translator, "_PROVIDERS_CACHE", list(PROVIDERS), raising=False)
+    monkeypatch.setattr(ai_translator.time, "sleep", lambda _seconds: None)
     yield
-    translator.reset_provider_circuits()
-    translator._CACHE.clear()
-    monkeypatch.setattr(translator, "_PROVIDERS_CACHE", None, raising=False)
+    ai_translator.reset_provider_state()
+    ai_translator.clear_cache()
+    monkeypatch.setattr(ai_translator, "_PROVIDERS_CACHE", None, raising=False)
 
 
 def _install_post(monkeypatch, statuses, calls):
-    """Return configured status codes per provider name and count the calls."""
     def post(url, *, headers, json, timeout):
         name = "gemini" if "gemini" in url else "mistral"
         calls.append(name)
@@ -52,54 +55,74 @@ def _install_post(monkeypatch, statuses, calls):
         if isinstance(code, Exception):
             raise code
         return _Response(code)
-    # _call_provider imports requests lazily, so patch the module attribute
     monkeypatch.setattr(requests, "post", post)
 
 
-def test_rate_limited_provider_is_parked_and_not_redialled(monkeypatch):
+def test_rate_limited_providers_are_not_redialled(monkeypatch):
     calls = []
     _install_post(monkeypatch, {"gemini": 429, "mistral": 429}, calls)
-    first = translator.translate_content("Wheat MSP raised by Rs 150 per quintal.", task="headline")
-    assert first["passed"] is False and first["provider"] == "parked"
-    assert calls.count("gemini") == 1, "a 429 provider must be parked after one attempt"
-    assert calls.count("mistral") == 1
+    first = ai_translator.translate_content("Wheat MSP raised by Rs 150 per quintal.", task="headline")
+    assert first["passed"] is False
+    assert calls.count("gemini") == 1 and calls.count("mistral") == 1
 
     calls.clear()
-    second = translator.translate_content("Kharif sowing area increased 2 percent.", task="headline")
-    assert second["provider"] == "parked"
-    assert calls == [], "parked providers must not be dialled again for other texts"
+    second = ai_translator.translate_content("Kharif sowing area increased 2 percent.", task="headline")
+    assert second["passed"] is False
+    assert calls == [], "providers that already refused must not be dialled again"
 
 
-def test_rejected_credentials_open_a_long_circuit(monkeypatch):
+@pytest.mark.parametrize("status, healthy", [(402, "mistral"), (404, "mistral"), (401, "mistral")])
+def test_rejected_credentials_park_the_provider(monkeypatch, status, healthy):
+    calls = []
+    _install_post(monkeypatch, {"gemini": status, "mistral": 200}, calls)
+    result = ai_translator.translate_content("Cabinet approved a scheme for farmers.", task="headline")
+    assert result["passed"] is True and result["provider"] == healthy
+    assert ai_translator._provider_available("gemini") is False
+    assert [p["name"] for p in ai_translator.available_providers()] == ["mistral"]
+
+    calls.clear()
+    ai_translator.translate_content("ICAR released a drought tolerant variety.", task="headline")
+    assert "gemini" not in calls, "a parked provider must be skipped for later texts"
+
+
+def test_server_errors_stay_retryable_and_do_not_park_forever(monkeypatch):
+    calls = []
+    _install_post(monkeypatch, {"gemini": 503, "mistral": 200}, calls)
+    result = ai_translator.translate_content("Wheat procurement began in the state mandis.", task="headline")
+    assert result["provider"] == "mistral"
+    assert ai_translator._provider_available("gemini") is True, "5xx is transient, not dead credentials"
+
+
+def test_park_expiry_restores_the_provider(monkeypatch):
     calls = []
     _install_post(monkeypatch, {"gemini": 402, "mistral": 429}, calls)
-    translator.translate_content("RBI kept the repo rate at 6.00 percent.", task="headline")
-    assert translator._provider_available("gemini") is False
-    assert translator._provider_available("mistral") is False
-    # 402 means "no credit" — a far longer park than a transient 429
-    assert translator._PROVIDER_DOWN_UNTIL["gemini"] > translator._PROVIDER_DOWN_UNTIL["mistral"]
+    ai_translator.translate_content("NABARD announced a refinance facility.", task="headline")
+    assert ai_translator._provider_available("gemini") is False
+    for name in list(ai_translator._PARKED_PROVIDERS):
+        ai_translator._PARKED_PROVIDERS[name] = 0.0
+    assert ai_translator._provider_available("gemini") is True
 
 
-def test_healthy_provider_still_answers_and_opens_no_circuit(monkeypatch):
+def test_exhausted_flag_marks_a_parked_dead_end(monkeypatch):
+    """A caller can distinguish "all providers rejected" from a one-off failure."""
     calls = []
-    _install_post(monkeypatch, {"gemini": 429, "mistral": 200}, calls)
-    result = translator.translate_content("Cabinet approved a scheme for farmers.", task="headline")
-    assert result["passed"] is True and result["provider"] == "mistral"
-    assert translator._provider_available("mistral") is True
-    assert translator._provider_available("gemini") is False
+    _install_post(monkeypatch, {"gemini": 401, "mistral": 402}, calls)
+    result = ai_translator.translate_content("Buffer stock release was approved.", task="headline")
+    assert result["passed"] is False
+    assert result["issues"] == ["gemini: HTTP 401", "mistral: HTTP 402"]
+    assert result["exhausted"] is True
+    assert ai_translator.available_providers() == []
 
 
-def test_cooldown_expiry_restores_the_provider(monkeypatch):
+def test_transient_failures_do_not_report_exhausted(monkeypatch):
     calls = []
-    _install_post(monkeypatch, {"gemini": 429, "mistral": 429}, calls)
-    translator.translate_content("ICAR released a drought tolerant variety.", task="headline")
-    assert translator._provider_available("gemini") is False
-    for name in list(translator._PROVIDER_DOWN_UNTIL):
-        translator._PROVIDER_DOWN_UNTIL[name] = 0.0
-    assert translator._provider_available("gemini") is True
+    _install_post(monkeypatch, {"gemini": 503, "mistral": 503}, calls)
+    result = ai_translator.translate_content("Sowing progress is ahead of last year.", task="headline")
+    assert result["passed"] is False
+    assert result["exhausted"] is False, "5xx providers are still diallable next time"
 
 
-def test_no_configured_provider_is_reported_distinctly(monkeypatch):
-    monkeypatch.setattr(translator, "_PROVIDERS_CACHE", [], raising=False)
-    result = translator.translate_content("Some text for translation.", task="general")
+def test_no_configured_provider_reports_no_providers(monkeypatch):
+    monkeypatch.setattr(ai_translator, "_PROVIDERS_CACHE", [], raising=False)
+    result = ai_translator.translate_content("Some text for translation.", task="general")
     assert result["provider"] == "none" and result["issues"] == ["no providers configured"]

@@ -23,7 +23,7 @@ Env switches:
   MIN_CONFIDENCE_THRESHOLD=0.3   # 0.0-1.0, default 0.3 (lower = more permissive)
   MIN_VERIFIED_COUNT=1           # min items to pass (default 1, was hardcoded 5)
   ALP_DISABLE_LLM_VERIFY=1       # skip LLM verify entirely (heuristics only)
-  LLM_API_URL, LLM_API_KEY       # OpenAI-compatible endpoint
+  Any provider configured in pipeline.ai_router
 """
 from __future__ import annotations
 
@@ -43,7 +43,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 from difflib import SequenceMatcher
 
-import requests
 
 from pipeline.artifacts import normalize_category
 
@@ -75,11 +74,6 @@ MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.3"))
 MIN_VERIFIED_COUNT = int(os.getenv("MIN_VERIFIED_COUNT", "1"))
 DISABLE_LLM = os.getenv("ALP_DISABLE_LLM_VERIFY", "0") == "1"
 
-LLM_API_URL = os.getenv("LLM_API_URL", "")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
-LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "30"))
-LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
 
 # Regexes
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
@@ -249,47 +243,24 @@ def heuristic_score(article: Dict[str, Any]) -> Tuple[float, List[str]]:
 # Strategy 3: LLM Verification (optional, with retries)
 # --------------------------------------------------------------------------- #
 def _call_llm(prompt: str) -> Optional[str]:
-    """Call LLM with retry. Returns content or None."""
-    if not LLM_API_URL or not LLM_API_KEY:
+    """Use the shared provider router; return None if all providers fail."""
+    from pipeline.ai_router import is_configured, route
+
+    if not is_configured():
         return None
-
-    headers = {
-        "Authorization": f"Bearer {LLM_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system",
-             "content": "You are a fact-checking assistant. Respond with JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.0,
-        "response_format": {"type": "json_object"},
-    }
-
-    for attempt in range(1, LLM_MAX_RETRIES + 1):
-        try:
-            r = requests.post(
-                LLM_API_URL, headers=headers, json=payload, timeout=LLM_TIMEOUT
-            )
-            if r.status_code == 429:
-                wait = 2 ** attempt
-                logger.warning("LLM rate-limited, waiting %ds", wait)
-                time.sleep(wait)
-                continue
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
-        except Exception as exc:
-            logger.warning("LLM attempt %d/%d failed: %s", attempt, LLM_MAX_RETRIES, exc)
-            if attempt < LLM_MAX_RETRIES:
-                time.sleep(2 ** attempt)
-    return None
+    return route(prompt, task="fact_verification",
+                 response_format={"type": "json_object"},
+                 system_prompt=(
+                     "You are a careful fact-checking assistant. Assess plausibility "
+                     "without treating unverified claims as facts. Return JSON only "
+                     "with confidence (0.0 to 1.0) and flags (a list of strings)."
+                 ))
 
 
 def llm_score(article: Dict[str, Any]) -> Tuple[float, List[str]]:
     """LLM-based verification. Returns (score, flags). Silent fail → (0, ['llm_unavailable'])."""
-    if DISABLE_LLM or not LLM_API_URL or not LLM_API_KEY:
+    from pipeline.ai_router import is_configured
+    if DISABLE_LLM or not is_configured():
         return 0.0, ["llm_disabled"]
 
     prompt = (
@@ -328,7 +299,8 @@ def verify_article(
 
     llm_s = 0.0
     llm_flags: List[str] = []
-    if not DISABLE_LLM and LLM_API_URL and LLM_API_KEY:
+    from pipeline.ai_router import is_configured
+    if not DISABLE_LLM and is_configured():
         llm_s, llm_flags = llm_score(article)
 
     # Weighted combination
@@ -382,9 +354,10 @@ def load_latest_raw() -> Optional[Path]:
 def atomic_write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    with open(tmp, "rb") as f:
-        os.fsync(f.fileno())
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=2)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, path)
 
 
@@ -392,6 +365,8 @@ def atomic_write_json(path: Path, data: Any) -> None:
 # Main
 # --------------------------------------------------------------------------- #
 def main() -> int:
+    from pipeline.ai_router import is_configured
+
     input_file = load_latest_raw()
     if input_file is None:
         logger.error("No raw news files found in %s", INPUT_DIR)
@@ -416,7 +391,7 @@ def main() -> int:
     logger.info(
         "Verifying %d articles | threshold=%.2f | min_count=%d | llm=%s",
         len(articles), MIN_CONFIDENCE_THRESHOLD, MIN_VERIFIED_COUNT,
-        "off" if DISABLE_LLM else ("on" if LLM_API_KEY else "unconfigured"),
+        "off" if DISABLE_LLM else ("on" if is_configured() else "unconfigured"),
     )
 
     start_time = time.time()
