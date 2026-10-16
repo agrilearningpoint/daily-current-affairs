@@ -217,62 +217,44 @@
     "failed_stage": "12_content_editor"
   },
   "daily_2026-10-16": {
-    "started_at": "2026-10-16T12:32:19.925465+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-16.json": {
-        "stage": "01_source_fetch",
-        "sha256": "ec9e548bdfef7d74cb643dac140ef3b3e69d0f49a59196817faa80255c77e3d6"
-      },
-      "data/verified/daily_2026-10-16.json": {
-        "stage": "04_fact_verification",
-        "sha256": "0bb30a1abbc5db5423e11a2b96cdcb940feae4ffab8fcb94e52b25257df45e3f"
-      },
-      "data/dedup/daily_2026-10-16.json": {
-        "stage": "05_deduplication",
-        "sha256": "c370deff266b68475ea09ab875f4d8e7737e19b95c8a2c967730f2c3acec51dc"
-      },
-      "data/scored/daily_2026-10-16.json": {
-        "stage": "06_news_importance",
-        "sha256": "6db0a8b9ca54de2c95cd1e7fe95d5d8615c00568c9616c66a13aec05f7f426a8"
-      },
-      "data/selected/daily_2026-10-16.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "cb177c98993b61c6442f51bd54ca041cafbba875906719195f110ed89b7356b3"
-      },
-      "data/content/daily_2026-10-16.json": {
-        "stage": "12_content_editor",
-        "sha256": "1b37df75c76fabb6e6aedf6c5fff45b90ed4056c1278cc6a6607ac66800289ae"
-      },
-      "data/mcq/daily_2026-10-16.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "629cccc91e345843b4729a598e5c6aa6fbe3b360c216f2f02c363c5276303e17"
-      },
-      "output/daily_2026-10-16.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "e60eccd36b297e4a342dfc945f9086da3abdc1241c8cf740eec3eff409ba432b"
-      },
-      "logs/qa/daily_2026-10-16_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "12258f5eb5bd099ec46241458fdf2ba1bc9f9cc8fe3ee6d74fa8d7ea44e6da73"
-      },
-      "logs/qa/daily_2026-10-16_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "add6c79078b63c94be44098dbc42e9986be0a5f75e072bfafee651357e0c0ae9"
-      }
-    },
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-10-16",
     "job_type": "daily",
     "job_date": "2026-10-16",
-    "dry_run": true,
+    "dry_run": false,
     "window": {
-      "start": "2026-10-15T18:02:19.925078+05:30",
-      "end": "2026-10-16T18:02:19.925078+05:30"
+      "start": "2026-10-15T12:07:53.714279+05:30",
+      "end": "2026-10-16T12:07:53.714279+05:30"
     },
-    "github_run_id": "38901156671",
-    "status": "success",
-    "updated_at": "2026-10-16T12:34:00.376285+00:00",
-    "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "38901156671"
+    "github_run_id": "38879885706",
+    "status": "failed",
+    "updated_at": "2026-10-16T09:24:23.945847+00:00",
+    "started_at": "2026-10-16T06:37:56.180455+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-16.json": {
+        "stage": "01_source_fetch",
+        "sha256": "536741443fba0cacec822b5db8492e0ef2f878fecd1776943a3a69e90c5f16de"
+      },
+      "data/verified/daily_2026-10-16.json": {
+        "stage": "04_fact_verification",
+        "sha256": "7a96de138412a0852127da96d2cebdc4960701438477c5458d454de94dc0ef61"
+      },
+      "data/dedup/daily_2026-10-16.json": {
+        "stage": "05_deduplication",
+        "sha256": "e92a799bca48ebf687fb279978ca556718223747d596bf1039e568d344ff1049"
+      },
+      "data/scored/daily_2026-10-16.json": {
+        "stage": "06_news_importance",
+        "sha256": "d46bb00ae53e44191855f8020eab6e2f7777f01846cbe9d3a4f8979f3d19fc76"
+      },
+      "data/selected/daily_2026-10-16.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "61429273bd5db65f8c053695a23dff20d87c5f7e63b32874860423c72093b1a8"
+      }
+    },
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): -16 09:24:19 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 09:24:19 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 09:24:19 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=7 (AI success 0.0%)\n2026-10-16 09:24:19 | WARNING  | pipeline.content | [Content Builder] 7 translations need review (AI did not pass)\n2026-10-16 09:24:19 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "38879885706"
   }
 }
