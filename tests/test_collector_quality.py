@@ -30,9 +30,9 @@ CHROME = [
     ("ECI Candidate Affidavit - Election Commission of India - ECI", "ECI", "document-page"),
     ("F. No. BEDF/2022-23-000051/054 16.10.2026 NOTICE INVITING TENDER The Basmati Export Develo", "APEDA", "document-page"),
     ("Election Commission of India Nirvachan Sadan, Ashoka Road, New Delhi-110001 No.23/2026-ERS", "ECI", "address"),
-    ("Competition Commission of India, Government of India - Competition Commission of India", "Competition Commission of India", "self-link"),
-    ("International Financial Services Centres Authority - International Financial Services Centres Authority", "International Financial Services Centres Authority", "duplicate-name"),
-    ("- Reserve Bank of India", "Reserve Bank of India", "self-link"),
+    ("Competition Commission of India, Government of India - Competition Commission of India", "Competition Commission of India", "duplicate-name"),
+    ("International Financial Services Centres Authority - International Financial Services Centres Authority", "International Financial Services Centres Authority", "org-name"),
+    ("- Reserve Bank of India", "Reserve Bank of India", "publisher-only"),
     ("", "PIB", "empty"),
 ]
 
@@ -217,7 +217,7 @@ EXTRA_CHROME = [
     ("Synoptic observations Significant Weather Rainfall(cm) Maximum Temperature - IMD", "IMD",
      "document-page"),
     ("International Financial Services Centres Authority - International Financial Services Centres Authority",
-     "Discovery: Banking", "duplicate-name"),
+     "Discovery: Banking", "org-name"),
 ]
 
 EXTRA_NEWS = [
@@ -286,3 +286,35 @@ def test_feed_entries_pointing_at_the_site_root_are_dropped(monkeypatch):
     assert chrome_skipped == 1
     assert [a["title"] for a in articles] == [
         "RBI keeps repo rate unchanged, flags inflation risk"]
+
+
+THIRD_ROUND_CHROME = [
+    ("Agricultural and Processed Food Products Export Development Authority - APEDA",
+     "Discovery: Agriculture", "org-name"),
+    ("National Bank for Agriculture and Rural Development - NABARD",
+     "Discovery: Agriculture", "org-name"),
+    ("International Financial Services Centres Authority - IFSCA",
+     "Discovery: Banking", "org-name"),
+    ("- Reserve Bank of India", "Discovery: Banking", "publisher-only"),
+]
+
+THIRD_ROUND_NEWS = [
+    "Government notifies new Food Safety Authority",
+    "RBI imposes penalty on Bank of Baroda",
+    "New Agriculture University opens in Punjab",
+    "Ministry of Finance releases Rs 500 crore for state",
+    "PM MODI LAUNCHES NEW SCHEME FOR FARMERS",
+    "UPI transactions cross 20 billion in October, says NPCI",
+]
+
+
+@pytest.mark.parametrize(("title", "source_name", "reason"), THIRD_ROUND_CHROME)
+def test_third_round_chrome_is_rejected(title, source_name, reason):
+    """Patterns still shipping in run 38899269269."""
+    assert quality.reject_reason(title, source_name) == reason
+
+
+@pytest.mark.parametrize("title", THIRD_ROUND_NEWS)
+def test_third_round_headlines_survive(title):
+    """Headlines that share wording with chrome must not be swallowed."""
+    assert quality.reject_reason(title, "PIB") is None

@@ -92,6 +92,24 @@ SECTION_SUFFIXES = frozenset({
     "department", "directorate", "division", "ministry", "section", "wing",
 })
 
+# A title that is only an organisation name ("Agricultural and Processed Food
+# Products Export Development Authority - APEDA") is a site listing, not news -
+# unless it also carries a news verb.
+ORG_SUFFIXES = frozenset({
+    "agency", "association", "authority", "bank", "board", "bureau",
+    "commission", "corporation", "council", "department", "development",
+    "directorate", "division", "federation", "institute", "limited", "ltd",
+    "ministry", "organisation", "organization", "society", "trust", "university",
+})
+_ORG_STOPWORDS = frozenset({"&", "and", "at", "for", "in", "of", "on", "the", "to"})
+NEWS_VERBS = frozenset({
+    "announces", "announced", "approves", "approved", "asks", "bans", "banned",
+    "clears", "cleared", "cuts", "extends", "flags", "gets", "holds", "inks",
+    "issues", "issued", "launches", "launched", "notifies", "notified", "plans",
+    "raises", "releases", "released", "rises", "says", "seeks", "sets", "signs",
+    "starts", "wins",
+})
+
 # Exactly these paths are a site's landing page: a feed entry pointing there is
 # the site itself, not an article (e.g. title "- Reserve Bank of India").
 _LANDING_PATHS = frozenset({
@@ -171,6 +189,44 @@ def _looks_like_about_page(title: str) -> bool:
     return True
 
 
+def _looks_like_org_name(title: str) -> bool:
+    """``…Export Development Authority`` is a site listing, not a story.
+
+    Three signals must line up: the title ends in an organisation noun, it reads
+    as a proper noun (>= 70 % of its content words capitalised) and it carries no
+    news verb and no digits. A headline such as "Government notifies new Food
+    Safety Authority" or "RBI imposes penalty on Bank of Baroda" fails at least
+    two of them.
+    """
+    words = [word.strip(".,:;()&") for word in clean_spaces(title).split()]
+    words = [word for word in words if word]
+    if len(words) < 4 or any(char.isdigit() for char in title):
+        return False
+    lowered = [word.casefold() for word in words]
+    if any(word in NEWS_VERBS for word in lowered):
+        return False
+    if lowered[-1] not in ORG_SUFFIXES:
+        return False
+    content = [word for word in words if word.casefold() not in _ORG_STOPWORDS]
+    if not content:
+        return False
+    capitalised = sum(1 for word in content if word[:1].isupper())
+    return capitalised / len(content) >= 0.7
+
+
+def _repeats_itself(title: str) -> bool:
+    """``…Authority - …Authority``: the same name twice is not a headline."""
+    tokens = _normalize(title).split()
+    if len(tokens) < 6:
+        return False
+    for size in (5, 4, 3):
+        head = tokens[:size]
+        for start in range(1, len(tokens) - size + 1):
+            if tokens[start:start + size] == head:
+                return True
+    return False
+
+
 def _is_self_link(title: str, source_name: str) -> bool:
     """``Competition Commission of India, Government of India`` != a headline."""
     normalized, site = _normalize(title), _normalize(source_name)
@@ -190,6 +246,8 @@ def reject_reason(title: str, source_name: str = "") -> Optional[str]:
     text = clean_spaces(title)
     if not text:
         return "empty"
+    if text[0] in "-|–—":
+        return "publisher-only"  # Google News renders a headline-less page this way
     if len(text) < _MIN_TITLE_CHARS:
         return "too-short"
     core, _publisher = split_publisher(text)
@@ -209,6 +267,10 @@ def reject_reason(title: str, source_name: str = "") -> Optional[str]:
             return "section-label"
         if _looks_like_about_page(candidate):
             return "about-page"
+        if _looks_like_org_name(candidate):
+            return "org-name"
+        if _repeats_itself(candidate):
+            return "duplicate-name"
     _head, publisher = split_publisher(text)
     if publisher and _normalize(_head) == _normalize(publisher):
         return "duplicate-name"  # "…Authority - …Authority": the site listed itself

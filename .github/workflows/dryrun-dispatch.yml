@@ -16,7 +16,9 @@
 #     wait for it, then do the same collection
 #
 # Trigger: push this file (path-filtered, so it never runs on ordinary commits)
-# or run it from the Actions UI with workflow_dispatch.
+# or run it from the Actions UI with workflow_dispatch. It must touch this file
+# on purpose: a verification run should never be a side effect of a code commit,
+# because the dispatched job always runs the branch tip.
 name: Dry-run dispatch
 
 on:
