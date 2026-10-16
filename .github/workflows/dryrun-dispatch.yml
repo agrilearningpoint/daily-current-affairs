@@ -37,7 +37,7 @@ jobs:
       REF: ${{ github.ref_name }}
       EDITION_DATE: "2026-10-15"
       # empty = dispatch a new dry run; otherwise collect evidence for this run id
-      COLLECT_RUN_ID: "38879885706"
+      COLLECT_RUN_ID: "38879882929"
       RESET_INPUT: "false"
     steps:
       - name: Checkout branch
@@ -139,12 +139,21 @@ jobs:
               out.append(f"| content | {len(content)} |")
           if mcq is not None:
               out.append(f"| mcq | {len(mcq)} |")
-          if sel:
+          def distribution(items_):
               cats = {}
-              for item in sel:
+              for item in items_ or []:
                   cats[item.get("category", "?")] = cats.get(item.get("category", "?"), 0) + 1
-              out += ["", "## Selected categories", "", "```",
-                      json.dumps(cats, indent=1, ensure_ascii=False), "```"]
+              return cats
+
+          out += ["", "## Category distribution per stage (raw keys here = normalisation missing)", ""]
+          for stage in ("raw", "verified", "dedup", "scored", "selected"):
+              value = items(f"evidence/ckpt/data/{stage}/{job_id}.json", "articles")
+              if value is not None:
+                  out.append(f"- {stage}: ```{json.dumps(distribution(value), ensure_ascii=False)}```")
+          if sel:
+              out += ["", "## Selected items", ""]
+              out += [f"- [{i.get('importance_score')}/{i.get('student_relevance')}] {i.get('category')}: {str(i.get('headline_en'))[:90]}"
+                      for i in sel[:40]]
 
           for label, path in (("qa", f"evidence/ckpt/logs/qa/{job_id}_qa.json"),
                               ("health", f"evidence/ckpt/logs/qa/{job_id}_health.json")):
