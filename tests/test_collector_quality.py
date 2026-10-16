@@ -31,7 +31,7 @@ CHROME = [
     ("F. No. BEDF/2022-23-000051/054 16.10.2026 NOTICE INVITING TENDER The Basmati Export Develo", "APEDA", "document-page"),
     ("Election Commission of India Nirvachan Sadan, Ashoka Road, New Delhi-110001 No.23/2026-ERS", "ECI", "address"),
     ("Competition Commission of India, Government of India - Competition Commission of India", "Competition Commission of India", "self-link"),
-    ("International Financial Services Centres Authority - International Financial Services Centres Authority", "International Financial Services Centres Authority", "self-link"),
+    ("International Financial Services Centres Authority - International Financial Services Centres Authority", "International Financial Services Centres Authority", "duplicate-name"),
     ("- Reserve Bank of India", "Reserve Bank of India", "self-link"),
     ("", "PIB", "empty"),
 ]
@@ -205,3 +205,84 @@ def test_source_fetch_drops_chrome_entries(monkeypatch):
     assert chrome_skipped == 2, "chrome entries must be counted so runs stay auditable"
     assert [a["title"] for a in articles] == [
         "Cabinet clears wheat MSP hike of Rs 150 per quintal for rabi season"]
+
+
+EXTRA_CHROME = [
+    ("AGRICULTURE TRADE POLICY, PROMOTION AND LOGISTICS DEVELOPMENT DIVISION - Department of Agriculture & Farmers Welfare",
+     "Discovery: Agriculture", "section-label"),
+    ("Photos - Department of Agriculture & Farmers Welfare", "Discovery: Agriculture", "nav-label"),
+    ("Related Links - Department of Agriculture & Farmers Welfare", "Discovery: Agriculture", "nav-label"),
+    ("estic", "Discovery: Agriculture", "too-short"),
+    ("STATE FORECAST DETAILED FORECAST AND WARNINGS: - IMD", "IMD", "document-page"),
+    ("Synoptic observations Significant Weather Rainfall(cm) Maximum Temperature - IMD", "IMD",
+     "document-page"),
+    ("International Financial Services Centres Authority - International Financial Services Centres Authority",
+     "Discovery: Banking", "duplicate-name"),
+]
+
+EXTRA_NEWS = [
+    "Nifty - ends flat",
+    "India - GDP grows 7% in FY27",
+    "MSP - up Rs 150 per quintal",
+    "PM MODI LAUNCHES NEW SCHEME FOR FARMERS IN BIHAR TODAY",
+]
+
+
+@pytest.mark.parametrize(("title", "source_name", "reason"), EXTRA_CHROME)
+def test_second_round_chrome_is_rejected(title, source_name, reason):
+    """Patterns seen in run 38898331313 after the first filter round."""
+    assert quality.reject_reason(title, source_name) == reason
+
+
+@pytest.mark.parametrize("title", EXTRA_NEWS)
+def test_second_round_headlines_survive(title):
+    assert quality.reject_reason(title, "The Hindu") is None
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("https://www.rbi.org.in/", True),
+    ("https://www.rbi.org.in", True),
+    ("https://agriwelfare.gov.in/index.aspx", True),
+    ("https://pib.gov.in/home.aspx", True),
+    ("https://pib.gov.in/PressReleasePage.aspx?PRID=1234", False),
+    ("https://www.thehindu.com/business/budget/article123.ece", False),
+    ("", False),
+])
+def test_landing_links_are_detected(url, expected):
+    assert quality.is_landing_link(url) is expected
+
+
+def test_feed_entries_pointing_at_the_site_root_are_dropped(monkeypatch):
+    """'- Reserve Bank of India' shipped in run 38898331313: a site, not an article."""
+    module_path = Path(__file__).resolve().parents[1] / "pipeline" / "01_source_fetch.py"
+    spec = importlib.util.spec_from_file_location("alp_source_fetch_roothome", module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    payload = """<?xml version="1.0"?><rss version="2.0"><channel>
+      <item><title>- Reserve Bank of India</title><link>https://www.rbi.org.in/</link>
+        <pubDate>Thu, 16 Oct 2026 06:00:00 GMT</pubDate></item>
+      <item><title>RBI keeps repo rate unchanged, flags inflation risk</title>
+        <link>https://www.rbi.org.in/pressrelease/1234.aspx</link>
+        <pubDate>Thu, 16 Oct 2026 06:10:00 GMT</pubDate></item>
+    </channel></rss>"""
+
+    class _Response:
+        content = payload.encode("utf-8")
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(module.requests, "get", lambda *a, **k: _Response())
+    feed_spec = SourceSpec(
+        source_id="rbi", name="Reserve Bank of India", rss_url="https://www.rbi.org.in/rss.xml",
+        category="banking_finance", tier="tier1", language="en", official=True, extra={})
+    articles, total, malformed, error, chrome_skipped = module.fetch_spec(
+        feed_spec, datetime(2026, 10, 15, tzinfo=timezone.utc),
+        datetime(2026, 10, 17, tzinfo=timezone.utc), set())
+
+    assert error is None and total == 2
+    assert chrome_skipped == 1
+    assert [a["title"] for a in articles] == [
+        "RBI keeps repo rate unchanged, flags inflation risk"]

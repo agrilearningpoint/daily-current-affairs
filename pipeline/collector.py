@@ -52,7 +52,7 @@ from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 
 from pipeline.categories import CATEGORY_ALIASES  # noqa: F401 (re-exported)
-from pipeline.quality import reject_reason
+from pipeline.quality import is_landing_link, reject_reason
 
 # Candidates dropped as site chrome during the current collection run. Reset by
 # collect_with_report and surfaced in the report/log so editions can be audited.
@@ -486,7 +486,7 @@ def _parse_feed(source: dict[str, Any], feed_url: str, body: str, method: str, g
             continue
         summary = clean_text(entry.get("summary", "") or entry.get("description", "") or entry.get("subtitle", ""), 2500)
         published = parse_dt(entry.get("published") or entry.get("updated") or entry.get("created"))
-        if reject_reason(title, str(source.get("name", ""))):
+        if reject_reason(title, str(source.get("name", ""))) or is_landing_link(link):
             global CHROME_REJECTED
             CHROME_REJECTED += 1
             logger.debug("Skipping chrome entry from %s: %s", feed_url, title[:80])

@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pipeline.quality import reject_reason
+from pipeline.quality import is_landing_link, reject_reason
 from pipeline.source_registry import SourceSpec, SourceConfigError, load_sources
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -141,9 +141,10 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         if not title or not link.lower().startswith(("http://", "https://")):
             malformed += 1
             continue  # validated at collection boundary; logged via counter
-        if reject_reason(title, spec.name):
+        if reject_reason(title, spec.name) or is_landing_link(link):
             chrome_skipped += 1
             continue  # site chrome, not a news item
+
         published = _parse_entry_time(entry)
         if published is None:
             # Missing timestamps are NOT treated as current news.

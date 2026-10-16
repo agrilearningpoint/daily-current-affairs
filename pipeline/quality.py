@@ -22,18 +22,22 @@ from __future__ import annotations
 import os
 import re
 from typing import Optional
+from urllib.parse import urlsplit
 
 FILTER_ENV = "ALP_CHROME_FILTER"
 
 # Exact labels (normalised: lowercase, punctuation collapsed to single spaces).
 NAV_LABELS = frozenset({
-    "about", "about us", "archives", "archive", "accessibility",
+    "about", "about us", "archives", "archive", "accessibility", "documents",
     "accessibility help", "accessibility statement", "careers", "circulars",
     "contact", "contact us", "copyright policy", "disclaimer", "download",
     "downloads", "faq", "faqs", "feedback", "help", "home", "hyperlink policy",
     "jump to main content", "login", "media gallery", "notifications",
-    "photo gallery", "press release", "press releases", "privacy policy",
+    "photo gallery", "photos", "press release", "press releases", "privacy policy",
     "publications", "recruitment", "register", "reports", "right to information",
+    "forms", "gallery", "guidelines", "important links", "links", "notices",
+    "orders", "other links", "programmes", "quick links", "related links",
+    "schemes", "useful links", "videos",
     "rti", "rti act", "screen reader access", "site map", "sitemap",
     "skip to main content", "statistics", "subscribe", "tender", "tenders",
     "terms and conditions", "terms of use", "untitled", "vacancies",
@@ -50,9 +54,9 @@ NAV_PREFIXES = (
 
 # Phrases that identify a page as documentation wherever they appear.
 NAV_CONTAINS = (
-    "accessibility help", "candidate affidavit", "hyperlink policy",
-    "nivachan sadan", "notice inviting tender", "official website",
-    "web information manager",
+    "accessibility help", "candidate affidavit", "detailed forecast and warnings",
+    "hyperlink policy", "nivachan sadan", "notice inviting tender",
+    "official website", "synoptic observations", "web information manager",
 )
 
 # Trailing fragments that mean "this title is just the publisher's own name".
@@ -78,6 +82,23 @@ _MAX_ABOUT_WORDS = 5
 
 _MAX_LABEL_WORDS = 4
 _MAX_LABEL_CHARS = 40
+_MIN_TITLE_CHARS = 12
+
+# ALL-CAPS titles ending in one of these are section/division names, never
+# headlines - e.g. "AGRICULTURE TRADE POLICY, PROMOTION AND LOGISTICS
+# DEVELOPMENT DIVISION".
+SECTION_SUFFIXES = frozenset({
+    "authority", "board", "cell", "commission", "corporation", "council",
+    "department", "directorate", "division", "ministry", "section", "wing",
+})
+
+# Exactly these paths are a site's landing page: a feed entry pointing there is
+# the site itself, not an article (e.g. title "- Reserve Bank of India").
+_LANDING_PATHS = frozenset({
+    "", "/", "/default.aspx", "/en", "/en/", "/english", "/english/", "/home",
+    "/home.aspx", "/index.aspx", "/index.htm", "/index.html", "/index.php",
+    "/index.shtml",
+})
 
 
 def chrome_filter_enabled() -> bool:
@@ -96,13 +117,13 @@ def split_publisher(title: str) -> tuple[str, str]:
     no digits, no sentence punctuation) so headlines that legitimately contain a
     dash - e.g. ``Wheat MSP - up Rs 150`` - stay intact.
     """
-    text = clean_spaces(title)
+    text = clean_spaces(title).strip("-|–— ")
     for separator in (" - ", " | ", "|", " – ", " — "):
         if separator not in text:
             continue
         head, _, tail = text.rpartition(separator)
         head, tail = head.strip(), tail.strip()
-        if len(head) < 8 or not tail or len(tail) > _MAX_PUBLISHER_CHARS:
+        if len(head) < 4 or not tail or len(tail) > _MAX_PUBLISHER_CHARS:
             continue
         if len(tail.split()) > _MAX_PUBLISHER_WORDS:
             continue
@@ -114,6 +135,14 @@ def split_publisher(title: str) -> tuple[str, str]:
 
 def clean_spaces(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip())
+
+
+def _ends_with_section_suffix(title: str) -> bool:
+    stripped = clean_spaces(title)
+    if not stripped or any(char.islower() for char in stripped):
+        return False
+    words = stripped.replace(",", " ").split()
+    return bool(words) and words[-1].casefold().strip(".?") in SECTION_SUFFIXES
 
 
 def _looks_like_section_label(title: str) -> bool:
@@ -161,11 +190,15 @@ def reject_reason(title: str, source_name: str = "") -> Optional[str]:
     text = clean_spaces(title)
     if not text:
         return "empty"
+    if len(text) < _MIN_TITLE_CHARS:
+        return "too-short"
     core, _publisher = split_publisher(text)
     for candidate in (text, core):
         normalized = _normalize(candidate)
         if not normalized:
             return "publisher-only"
+        if _ends_with_section_suffix(candidate):
+            return "section-label"
         if normalized in NAV_LABELS:
             return "nav-label"
         if normalized.startswith(NAV_PREFIXES):
@@ -176,11 +209,24 @@ def reject_reason(title: str, source_name: str = "") -> Optional[str]:
             return "section-label"
         if _looks_like_about_page(candidate):
             return "about-page"
+    _head, publisher = split_publisher(text)
+    if publisher and _normalize(_head) == _normalize(publisher):
+        return "duplicate-name"  # "…Authority - …Authority": the site listed itself
     if _is_self_link(core, source_name) or _is_self_link(text, source_name):
         return "self-link"
     if _ADDRESS_RE.search(text):
         return "address"
     return None
+
+
+def is_landing_link(url: str) -> bool:
+    """True when ``url`` is a site root/index page rather than an article."""
+    if not url:
+        return False
+    path = urlsplit(url).path or ""
+    if path.endswith("/") and len(path) > 1:
+        path = path.rstrip("/")
+    return path.casefold() in _LANDING_PATHS
 
 
 def is_chrome_title(title: str, source_name: str = "") -> bool:
