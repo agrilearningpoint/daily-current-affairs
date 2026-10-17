@@ -6,14 +6,11 @@
 
 This is synthetic/offline verification, **not a live news, provider-credential, Telegram delivery or pinning test**. No real Telegram message was sent. No PAT was requested, used or stored.
 
-Evidence is committed alongside this report:
+The raw test, preflight, lint and stage-evidence dumps from this pass were
+removed from the working tree to keep the repository lean; they remain readable
+in git history (`git show <commit>:docs/verification/2026-10-15-pytest.txt`).
 
-- `docs/verification/2026-10-15-pytest.txt`
-- `docs/verification/2026-10-15-preflight.txt`
-- `docs/verification/2026-10-15-fatal-lint.txt`
-- `docs/verification/2026-10-15-stage-evidence.json`
-
-The preceding 14 October report is a historical checkpoint, not the latest result.
+Current status lives in `docs/verification-2026-10-16-production-ready.md`.
 
 ## Genuine defects found and fixed in this pass
 
