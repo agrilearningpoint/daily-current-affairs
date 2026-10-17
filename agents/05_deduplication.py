@@ -79,12 +79,38 @@ def normalize_text(t: str) -> str:
     return WHITESPACE_RE.sub(" ", t).strip()
 
 
+STOPWORDS = {
+    "india", "the", "and", "for", "with", "from", "this", "that", "are", "was", "but", "not",
+    "has", "have", "will", "their", "they", "what", "when", "where", "who", "how", "which",
+    "all", "been", "can", "may", "its", "also", "more", "than", "into", "out", "over",
+    "after", "on", "in", "to", "of", "a", "an", "by", "is", "at", "as", "be", "it", "says",
+    "just", "your", "our", "new", "now", "back",
+}
+
+
+def get_keywords(title: str) -> set[str]:
+    words = re.findall(r"\b[a-z]{4,}\b", (title or "").lower())
+    return {w for w in words if w not in STOPWORDS}
+
+
+def text_similarity(s1: str, s2: str) -> float:
+    kw1 = get_keywords(s1)
+    kw2 = get_keywords(s2)
+    if not kw1 or not kw2:
+        return 0.0
+    inter = len(kw1 & kw2)
+    union = len(kw1 | kw2)
+    return inter / union if union > 0 else 0.0
+
+
 def fingerprint(text: str) -> str:
     return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()[:16]
 
 
 def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, normalize_text(a), normalize_text(b)).ratio()
+    seq = SequenceMatcher(None, normalize_text(a), normalize_text(b)).ratio()
+    jacc = text_similarity(a, b)
+    return max(seq, jacc)
 
 
 # --------------------------------------------------------------------------- #

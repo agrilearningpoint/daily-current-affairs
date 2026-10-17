@@ -102,6 +102,56 @@ def content_hash(title: str, link: str) -> str:
     return hashlib.sha256(f"{norm_title}|{norm_link}".encode("utf-8")).hexdigest()[:16]
 
 
+QUALITY_PUBLISHERS = {
+    "thehindu": "The Hindu", "indianexpress": "Indian Express", "ndtv": "NDTV",
+    "timesofindia": "TOI", "hindustantimes": "Hindustan Times", "thewire": "The Wire",
+    "moneycontrol": "Moneycontrol", "deccanherald": "Deccan Herald", "theprint": "The Print",
+    "scroll.in": "Scroll", "bbc": "BBC", "reuters": "Reuters", "bloomberg": "Bloomberg",
+    "forbes": "Forbes", "financialexpress": "Financial Express", "cnbctv18": "CNBC TV18",
+    "pib": "PIB", "ani": "ANI", "pti": "PTI", "ddnews": "DD News",
+    "news18": "News18", "indiatoday": "India Today", "thequint": "The Quint",
+    "icar": "ICAR", "iari": "IARI", "rbi": "RBI", "nabard": "NABARD", "niti": "NITI Aayog",
+}
+
+
+def clean_url(url: str) -> str:
+    """Normalize and unwrap Google News redirect links and strip tracking tokens."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if url.startswith("/"):
+        url = "https://news.google.com" + url
+    if "news.google.com" in url:
+        m = re.search(r"url=([^&\s]+)", url)
+        if m:
+            try:
+                from urllib.parse import unquote
+                url = unquote(m.group(1))
+            except Exception:
+                pass
+    if "news.google.com" in url and len(url) > 120:
+        m = re.search(r"CBM[ij][a-zA-Z0-9_-]+", url)
+        if m:
+            cid = m.group(0)
+            url = "https://news.google.com/articles/" + cid
+    return url[:300]
+
+
+def resolve_publisher(url: str, default_name: str) -> str:
+    """Extract clean publication brand from target domain."""
+    if not url:
+        return default_name
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower().replace("www.", "").replace("m.", "")
+        for key, name in QUALITY_PUBLISHERS.items():
+            if key in domain:
+                return name
+    except Exception:
+        pass
+    return default_name
+
+
 def sanitize_feed_text(text: str) -> str:
     """Strip raw HTML tags, unescape HTML entities, and collapse whitespace."""
     if not text:
@@ -142,7 +192,7 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
     for entry in entries:
         raw_title = getattr(entry, "title", "") or ""
         title = sanitize_feed_text(raw_title)
-        link = (getattr(entry, "link", "") or "").strip()
+        link = clean_url((getattr(entry, "link", "") or "").strip())
         if not title or not link.lower().startswith(("http://", "https://")):
             malformed += 1
             continue  # validated at collection boundary; logged via counter
@@ -162,13 +212,14 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             continue
         seen_hashes.add(h)
         summary = sanitize_feed_text(getattr(entry, "summary", "") or "")
+        source_name = resolve_publisher(link, spec.name)
         collected.append({
             "title": title,
             "link": link,
             "summary": summary[:2000],
             "published": published.isoformat(),
             "source_feed": spec.rss_url,
-            "source_name": spec.name,
+            "source_name": source_name,
             "source_id": spec.source_id,
             "source_tier": spec.tier,
             "publisher_url": spec.extra.get("url", spec.rss_url),

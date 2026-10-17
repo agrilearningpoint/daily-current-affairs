@@ -98,7 +98,7 @@ if not _HAS_SHAPING:
 COLORS = {
     "primary_navy": HexColor("#0A2540"),       # Executive Deep Navy
     "secondary_navy": HexColor("#1E3A8A"),     # Royal Navy
-    "primary_green": HexColor("#1B5E20"),      # Deep Forest Agriculture Green
+    "primary_green": HexColor("#1E5E2B"),      # Deep Forest Coaching Green
     "light_green": HexColor("#E8F5E9"),        # Subtle Mint Tint
     "agri_accent": HexColor("#2E7D32"),        # Vibrant Leaf Green
     "banking_blue": HexColor("#0D47A1"),       # Deep Banking Blue
@@ -111,7 +111,7 @@ COLORS = {
     "science_light": HexColor("#F0F9FF"),
     "environment_green": HexColor("#15803D"),
     "environment_light": HexColor("#F0FDF4"),
-    "sports_red": HexColor("#B91C1C"),
+    "sports_red": HexColor("#B91C1C"),         # Coaching Outer Red Border
     "sports_light": HexColor("#FEF2F2"),
     "alert_gold": HexColor("#D97706"),         # Amber Alert
     "alert_light": HexColor("#FEF3C7"),        # Light Amber Box
@@ -120,8 +120,8 @@ COLORS = {
     "muted_text": HexColor("#64748B"),         # Cool Gray
     "border_light": HexColor("#E2E8F0"),       # Clean Thin Border
     "card_bg": HexColor("#F8FAFC"),            # Soft Card Background
-    "header_bg": HexColor("#0A2540"),          # Header Dark Navy
-    "footer_bg": HexColor("#0A2540"),          # Footer Dark Navy
+    "header_bg": HexColor("#1E5E2B"),          # Dark Forest Green Header
+    "footer_bg": HexColor("#1E5E2B"),          # Dark Forest Green Footer
 }
 
 CATEGORY_STYLE = {
@@ -598,40 +598,60 @@ def header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
     canvas_obj.setFillColor(COLORS["header_bg"])
     canvas_obj.rect(0, PAGE_H - 17*mm, PAGE_W, 17*mm, fill=1, stroke=0)
 
-    # Accent thin strip below header
-    canvas_obj.setFillColor(COLORS["primary_green"])
+    # Accent thin red strip below header
+    canvas_obj.setFillColor(COLORS["sports_red"])
     canvas_obj.rect(0, PAGE_H - 18.2*mm, PAGE_W, 1.2*mm, fill=1, stroke=0)
 
-    # Top Brand + Exam Text
-    canvas_obj.setFillColor(white)
-    canvas_obj.setFont(FONT_BOLD, 8.5)
-    canvas_obj.drawString(14*mm, PAGE_H - 8*mm, "AGRI LEARNING POINT")
-    canvas_obj.drawCentredString(PAGE_W / 2, PAGE_H - 8*mm, "DAILY CURRENT AFFAIRS  |  BY SATYAM SIR")
-    canvas_obj.drawRightString(PAGE_W - 14*mm, PAGE_H - 8*mm, "BILINGUAL STUDY MATERIAL")
+    # Left Logo in Header
+    logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
+    if os.path.exists(logo_path):
+        try:
+            canvas_obj.drawImage(logo_path, 8*mm, PAGE_H - 15.8*mm, width=13*mm, height=13*mm, preserveAspectRatio=True, mask="auto")
+        except Exception:
+            pass
 
-    canvas_obj.setFont(FONT_REGULAR, 6.5)
-    canvas_obj.setFillColor(HexColor("#94A3B8"))
-    canvas_obj.drawString(14*mm, PAGE_H - 13*mm, "Target: AGTA • AFO • ICAR • NABARD • FCI • IBPS • State Agriculture Exams")
-    canvas_obj.drawRightString(PAGE_W - 14*mm, PAGE_H - 13*mm, "Daily • Weekly • Monthly Series")
+    # Top Brand + Exam Text (Centered)
+    canvas_obj.setFillColor(white)
+    canvas_obj.setFont(FONT_BOLD, 8.8)
+    canvas_obj.drawCentredString(PAGE_W / 2 + 5*mm, PAGE_H - 7.5*mm, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS  |  BY SATYAM SIR")
+
+    canvas_obj.setFont(FONT_SEMI, 6.8)
+    canvas_obj.setFillColor(HexColor("#FEF08A"))
+    canvas_obj.drawCentredString(PAGE_W / 2 + 5*mm, PAGE_H - 13*mm, "(UPSSSC AGTA, BHO, ICAR, AFO, FCI, NABARD, IFFCO & ALL AGRI EXAMS)")
+
+    # Right Tag (Bilingual)
+    canvas_obj.setFont(FONT_BOLD, 6.5)
+    canvas_obj.setFillColor(white)
+    canvas_obj.drawRightString(PAGE_W - 9*mm, PAGE_H - 7.5*mm, "BILINGUAL")
+    canvas_obj.setFont(FONT_REGULAR, 6.2)
+    canvas_obj.setFillColor(HexColor("#BBF7D0"))
+    canvas_obj.drawRightString(PAGE_W - 9*mm, PAGE_H - 13*mm, "DAILY DOSES")
+
+    # --- OUTER RED BORDER SURROUNDING CONTENT ---
+    canvas_obj.saveState()
+    canvas_obj.setStrokeColor(COLORS["sports_red"])
+    canvas_obj.setLineWidth(0.85)
+    canvas_obj.rect(7.5*mm, 10.8*mm, PAGE_W - 15*mm, PAGE_H - 29.8*mm, fill=0, stroke=1)
+    canvas_obj.restoreState()
 
     # --- BOTTOM FOOTER BAR ---
     canvas_obj.setFillColor(COLORS["footer_bg"])
-    canvas_obj.rect(0, 0, PAGE_W, 9.5*mm, fill=1, stroke=0)
+    canvas_obj.rect(0, 0, PAGE_W, 9.8*mm, fill=1, stroke=0)
 
-    # Accent thin strip above footer
-    canvas_obj.setFillColor(COLORS["alert_gold"])
-    canvas_obj.rect(0, 9.5*mm, PAGE_W, 0.8*mm, fill=1, stroke=0)
+    # Accent thin red strip above footer
+    canvas_obj.setFillColor(COLORS["sports_red"])
+    canvas_obj.rect(0, 9.8*mm, PAGE_W, 0.8*mm, fill=1, stroke=0)
 
     # Left Brand string
     canvas_obj.setFillColor(white)
     canvas_obj.setFont(FONT_REGULAR, 7)
-    canvas_obj.drawString(14*mm, 3.8*mm, "Agri Learning Point  |  By Satyam Sir")
+    canvas_obj.drawString(10*mm, 3.8*mm, "Agri Learning Point  |  By Satyam Sir")
 
     # Center Telegram links (Red Plane + Bright Cyan Clickable Channels)
     ch1_name = "@agrilearningpoint"
     ch2_name = "@agriquizworld"
-    ch1_url = "https://web.telegram.org/k/#@agrilearningpoint"
-    ch2_url = "https://web.telegram.org/k/#@agriquizworld"
+    ch1_url = "https://t.me/agrilearningpoint"
+    ch2_url = "https://t.me/agriquizworld"
     RED_ICON = HexColor("#EF4444")
     CYAN_TG = HexColor("#7DD3FC")
     icon_sz = 3.0*mm
@@ -681,8 +701,8 @@ def header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
             watermark_path = os.path.join(BASE_DIR, "assets", "logo.png")
         if os.path.exists(watermark_path):
             canvas_obj.saveState()
-            canvas_obj.setFillAlpha(0.04)
-            wm_size = 90*mm
+            canvas_obj.setFillAlpha(0.07)
+            wm_size = 110*mm
             wm_x = (PAGE_W - wm_size) / 2
             wm_y = (PAGE_H - wm_size) / 2
             canvas_obj.drawImage(watermark_path, wm_x, wm_y, width=wm_size, height=wm_size, preserveAspectRatio=True, mask="auto")
@@ -702,8 +722,8 @@ def cover_header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
             watermark_path = os.path.join(BASE_DIR, "assets", "logo.png")
         if os.path.exists(watermark_path):
             canvas_obj.saveState()
-            canvas_obj.setFillAlpha(0.04)
-            wm_size = 110*mm
+            canvas_obj.setFillAlpha(0.07)
+            wm_size = 120*mm
             wm_x = (PAGE_W - wm_size) / 2
             wm_y = (PAGE_H - wm_size) / 2
             canvas_obj.drawImage(watermark_path, wm_x, wm_y, width=wm_size, height=wm_size, preserveAspectRatio=True, mask="auto")
@@ -961,8 +981,8 @@ def mcq_block(
 def build_closing_kit(date_str: str) -> Flowable:
     """Builds a rich coaching revision kit at the end of the document."""
     items: List[Flowable] = []
-    items.append(Paragraph("<b>AGRI LEARNING POINT — COMPLETE EXAM SUCCESS SUITE</b>", ParagraphStyle("ck_title", fontName=FONT_BOLD, fontSize=12, leading=15, textColor=COLORS["primary_navy"], alignment=TA_CENTER)))
-    items.append(Paragraph("Target: AGTA • AFO • ICAR JRF/SRF • NABARD Grade A • FCI • IBPS SO", ParagraphStyle("ck_sub", fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_CENTER)))
+    items.append(Paragraph("<b>AGRI LEARNING POINT — COMPLETE EXAM SUCCESS SUITE</b>", ParagraphStyle("ck_title", fontName=FONT_BOLD, fontSize=12, leading=15, textColor=COLORS["header_bg"], alignment=TA_CENTER)))
+    items.append(Paragraph("Target: UPSSSC AGTA • BHO • ICAR • AFO • NABARD • FCI • IBPS SO", ParagraphStyle("ck_sub", fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_CENTER)))
     items.append(Spacer(1, 2*mm))
 
     # 3 Column features
@@ -1009,13 +1029,15 @@ def build_closing_kit(date_str: str) -> Flowable:
 
     # Closing Devanagari message via shaped engine
     msg_hi = "धन्यवाद ! मिलते हैं अगली दैनिक डोज के साथ — आपकी सफलता ही हमारा संकल्प है।"
-    items.append(hindi_to_image(msg_hi, width_mm=174, font_size_pt=11, bold=True, color="#0A2540", bg="white", align="center"))
+    items.append(hindi_to_image(msg_hi, width_mm=174, font_size_pt=11, bold=True, color="#1E5E2B", bg="white", align="center"))
+    items.append(Spacer(1, 1*mm))
+    items.append(Paragraph("<b>Agri Learning Point — By Satyam Sir</b>", ParagraphStyle("alp_sign", fontName=FONT_BOLD, fontSize=9, leading=11, textColor=COLORS["header_bg"], alignment=TA_CENTER)))
     items.append(Paragraph(f"© 2026 Agri Learning Point | Edition {date_str} | For Educational &amp; Competitive Exam Use Only", ParagraphStyle("discl", fontName=FONT_REGULAR, fontSize=6.5, leading=8, textColor=COLORS["muted_text"], alignment=TA_CENTER)))
 
     box = Table([[items]], colWidths=[PAGE_W - 28*mm])
     box.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), white),
-        ("BOX", (0, 0), (-1, -1), 0.8, COLORS["primary_navy"]),
+        ("BOX", (0, 0), (-1, -1), 0.8, COLORS["sports_red"]),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -1083,11 +1105,11 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     story.append(Spacer(1, 1.5*mm))
 
     # Target exam pills
-    pill_text = "TARGET EXAMS:  AGTA  •  AFO  •  ICAR JRF/SRF  •  NABARD  •  FCI  •  IBPS SO  •  STATE EXAMS"
+    pill_text = "TARGET EXAMS:  UPSSSC AGTA  •  BHO  •  ICAR  •  AFO  •  NABARD  •  FCI  •  IBPS SO  •  ALL AGRI EXAMS"
     t_pill = Table([[Paragraph(f"<b>{pill_text}</b>", STYLES["cover_pill"])]], colWidths=[PAGE_W - 28*mm])
     t_pill.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green"]),
-        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["primary_green"]),
+        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["primary_green"]),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("TOPPADDING", (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
@@ -1103,7 +1125,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     top_items = sorted(items, key=lambda x: -x.get("importance_score", 0))
     hl_rows: List[List[Flowable]] = [
         [
-            mixed_para("TODAY’S EXAM HEADLINES • आज के प्रमुख समाचार", "hl_top", STYLES["static_label"], fontSize=9.5, leading=12, textColor=white, bg="#0A2540", width_mm=(PAGE_W/mm - 28 - 38)),
+            mixed_para("TODAY’S EXAM HEADLINES • आज के प्रमुख समाचार", "hl_top", STYLES["static_label"], fontSize=9.5, leading=12, textColor=white, bg="#1E5E2B", width_mm=(PAGE_W/mm - 28 - 38)),
             Paragraph('<b><font color="white" size="8.5">CATEGORY</font></b>', ParagraphStyle("hl_cat_h", parent=STYLES["static_label"], fontSize=8.5, leading=11, alignment=TA_CENTER)),
         ]
     ]
@@ -1119,8 +1141,8 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
 
     t_hl = Table(hl_rows, colWidths=[PAGE_W - 28*mm - 38*mm, 38*mm])
     t_hl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary_navy"]),
-        ("BOX", (0, 0), (-1, -1), 0.8, COLORS["primary_navy"]),
+        ("BACKGROUND", (0, 0), (-1, 0), COLORS["header_bg"]),
+        ("BOX", (0, 0), (-1, -1), 0.8, COLORS["header_bg"]),
         ("INNERGRID", (0, 0), (-1, -1), 0.3, COLORS["border_light"]),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -1155,7 +1177,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     # Coaching Institute Exam Guide Box (Fills lower cover page with real exam value)
     guide_rows = [
         [
-            Paragraph("<b>🎯 EXAM RELEVANCE &amp; SYLLABUS ALIGNMENT</b>", ParagraphStyle("gr_h", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"])),
+            Paragraph("<b>🎯 EXAM RELEVANCE &amp; SYLLABUS ALIGNMENT</b>", ParagraphStyle("gr_h", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["header_bg"])),
             Paragraph("<b>DAILY STUDY MANDATE</b>", ParagraphStyle("gr_m", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_RIGHT)),
         ],
         [
@@ -1177,7 +1199,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     t_guide = Table(guide_rows, colWidths=[114*mm, 68*mm])
     t_guide.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), white),
-        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["primary_navy"]),
+        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["header_bg"]),
         ("LINEBELOW", (0, 0), (-1, 0), 0.4, COLORS["border_light"]),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -1188,6 +1210,24 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     ]))
     story.append(t_guide)
     story.append(Spacer(1, 2*mm))
+
+    links_bar = Table([
+        [
+            Paragraph('<b>Telegram:</b> <font color="#0284C7"><u>@agrilearningpoint</u></font>  |  <font color="#0284C7"><u>@agriquizworld</u></font>', ParagraphStyle("cp_tg", fontName=FONT_REGULAR, fontSize=7.5, leading=10, alignment=TA_CENTER)),
+            Paragraph('<b>YouTube:</b> <font color="#DC2626">Agri Learning Point</font>  |  <b>Guidance:</b> <font color="#0284C7">@Agrikrishna</font>', ParagraphStyle("cp_yt", fontName=FONT_REGULAR, fontSize=7.5, leading=10, alignment=TA_CENTER)),
+        ]
+    ], colWidths=[92*mm, 90*mm])
+    links_bar.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green"]),
+        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["primary_green"]),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    story.append(links_bar)
+    story.append(Spacer(1, 1.5*mm))
 
     story.append(Paragraph("Study Material Prepared for Daily Revision  |  Agri Learning Point by Satyam Sir", ParagraphStyle("cover_foot", fontName=FONT_REGULAR, fontSize=7, leading=9, textColor=COLORS["muted_text"], alignment=TA_CENTER)))
 
@@ -1204,7 +1244,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
         by_cat.setdefault(ck, []).append(it)
 
     # --- INDEX TABLE ---
-    story.append(mixed_para("INDEX • विषय-सूची", "idx_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["primary_navy"]))
+    story.append(mixed_para("INDEX • विषय-सूची", "idx_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["header_bg"]))
     story.append(Spacer(1, 1*mm))
 
     idx_rows: List[List[Flowable]] = [
@@ -1241,18 +1281,18 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     story.append(Spacer(1, 3.5*mm))
 
     # --- MOST IMPORTANT ONE-LINERS (Directly following index, no blank page!) ---
-    story.append(mixed_para("MOST IMPORTANT EXAM POINTERS • मुख्य परीक्षा तथ्य", "mi_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["primary_navy"]))
+    story.append(mixed_para("MOST IMPORTANT EXAM POINTERS • मुख्य परीक्षा तथ्य", "mi_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["header_bg"]))
     story.append(Spacer(1, 1*mm))
 
     for it in top_items[:8]:
         fact = next(iter(it.get("static_facts", {}).values()), "")
         clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
         clean_fact = _strip_html(fact)
-        line = f"<b>{clean_hl}</b>" + (f'  →  <font color="#1B5E20">{clean_fact}</font>' if clean_fact else "")
+        line = f"<b>{clean_hl}</b>" + (f'  →  <font color="#1E5E2B">{clean_fact}</font>' if clean_fact else "")
         story.append(Paragraph(f"•  {line}", STYLES["one_liner"]))
 
     story.append(Spacer(1, 3.5*mm))
-    story.append(HRFlowable(width="100%", thickness=0.8, color=COLORS["primary_navy"], spaceAfter=3*mm, spaceBefore=2*mm))
+    story.append(HRFlowable(width="100%", thickness=0.8, color=COLORS["header_bg"], spaceAfter=3*mm, spaceBefore=2*mm))
 
     # --- NEWS SECTIONS ---
     sec_no = 0
@@ -1283,7 +1323,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     # =========================================================================
     # 3. MCQ PRACTICE SECTION (All blocks KeepTogether to prevent orphans)
     # =========================================================================
-    story.append(mixed_para("PRACTICE MCQs • बहुविकल्पीय अभ्यास प्रश्न", "mcq_sec", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["primary_navy"]))
+    story.append(mixed_para("PRACTICE MCQs • बहुविकल्पीय अभ्यास प्रश्न", "mcq_sec", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["header_bg"]))
     story.append(Paragraph("Designed for AGTA, AFO, ICAR, NABARD, FCI &amp; IBPS Exam Patterns", ParagraphStyle("mcq_sub", fontName=FONT_REGULAR, fontSize=8, leading=10.5, textColor=COLORS["muted_text"])))
     story.append(Spacer(1, 2*mm))
 
