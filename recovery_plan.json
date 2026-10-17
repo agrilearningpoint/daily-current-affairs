@@ -1,17 +1,12 @@
 {
-  "generated_at": "2026-10-17T21:02:50.679609+00:00",
+  "generated_at": "2026-10-17T23:03:35.565587+00:00",
   "stuck_running": [],
   "recent_failed_final": [
     "daily_2026-10-15",
     "daily_2026-10-16",
     "daily_2026-10-17"
   ],
-  "actions": [
-    {
-      "job_id": "daily_2026-10-17",
-      "action": "retry"
-    }
-  ],
+  "actions": [],
   "manual_attention": [
     {
       "job_id": "daily_2026-10-15",
@@ -19,6 +14,10 @@
     },
     {
       "job_id": "daily_2026-10-16",
+      "reason": "recovery budget exhausted"
+    },
+    {
+      "job_id": "daily_2026-10-17",
       "reason": "recovery budget exhausted"
     }
   ]
