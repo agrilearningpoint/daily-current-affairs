@@ -1,81 +1,63 @@
-# =============================================================================
-# Daily Current Affairs — Production Requirements
-# =============================================================================
-# Python: 3.11.x (matches .github/workflows/*.yml)
-# Strategy: pinned versions (==) for reproducible builds
-# Regenerate with: pip-compile requirements.in --output-file requirements.txt
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Core Runtime — HTTP, Parsing, Date/Time
-# -----------------------------------------------------------------------------
-requests==2.32.3               # HTTP client (AI providers, feeds, Telegram)
-urllib3==2.2.3                 # Pin explicit: security fixes (CVE-2024-37891)
-certifi==2024.8.30             # SSL CA bundle (updated)
-charset-normalizer==3.4.0      # Encoding detection
-idna==3.10                     # International domain names
-
-feedparser==6.0.11             # RSS / Atom feed parser
-beautifulsoup4==4.12.3         # HTML parsing (cleaning feed content)
-lxml==5.3.0                    # Fast XML/HTML backend for BS4
-soupsieve==2.6                 # CSS selector support for BS4
-
-python-dateutil==2.9.0.post0   # Date parsing (feed timestamps)
-pytz==2024.2                   # Timezone database (IST handling)
-tzdata==2024.2                 # IANA tz database (Windows compatibility)
-
-# -----------------------------------------------------------------------------
-# Validation, Retry, Configuration
-# -----------------------------------------------------------------------------
-pydantic==2.9.2                # Data validation (state, article models)
-pydantic-core==2.23.4          # Pydantic v2 Rust core
-annotated-types==0.7.0         # Type hints for pydantic
-tenacity==8.5.0                # Retry with exponential backoff
-python-dotenv==1.0.1           # .env file loader
-
-# -----------------------------------------------------------------------------
-# PDF Generation (src/generate_pdf.py, generate_pdf_marp.py)
-# -----------------------------------------------------------------------------
-reportlab==4.2.0               # PDF generation with Hindi/Devanagari support
-Pillow==11.0.0                 # Image processing (watermark, thumbnails)
-pymupdf==1.24.10               # PDF manipulation / rendering
-markdown==3.7                  # Markdown → HTML for Marp workflow
-jinja2==3.1.4                  # Template engine (PDF layouts)
-MarkupSafe==3.0.1              # Jinja2 dependency (XSS-safe escaping)
-
-# -----------------------------------------------------------------------------
-# Security / Crypto
-# -----------------------------------------------------------------------------
-pycryptodome==3.21.0           # Crypto primitives (token signing, hashing)
-cryptography==43.0.3           # TLS / signing (used by some providers)
-
-# -----------------------------------------------------------------------------
-# Logging / Observability
-# -----------------------------------------------------------------------------
-colorama==0.4.6                # Cross-platform terminal colors
 
 # =============================================================================
-# OPTIONAL — Uncomment based on your deployment
+# Agri Learning Point — Daily Current Affairs
+# Python 3.11.x
 # =============================================================================
 
-# -----------------------------------------------------------------------------
-# AI Providers (multi-LLM orchestrator — pipeline/ai_router.py)
-# -----------------------------------------------------------------------------
-# google-generativeai==0.8.3   # Gemini (PRIMARY — as per .env.example)
-# groq==0.11.0                 # Groq (fast fallback)
-# openai==1.52.0               # OpenAI-compatible (also used for polish)
-# mistralai==1.2.0             # Mistral (final fallback)
-# anthropic==0.37.0            # Claude (optional)
+# HTTP, RSS, HTML and XML
+requests==2.32.5
+urllib3==2.5.0
+certifi==2025.7.14
+charset-normalizer==3.4.2
+idna==3.10
+feedparser==6.0.11
+beautifulsoup4==4.13.4
+lxml==5.4.0
+soupsieve==2.6
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.2
 
-# -----------------------------------------------------------------------------
-# Language Detection / Additional Translation
-# -----------------------------------------------------------------------------
-# langdetect==1.0.9            # Detect source language
-# deep-translator==1.11.4      # Alternative translation backends
+# Validation, retries and configuration
+pydantic==2.11.7
+tenacity==9.1.2
+python-dotenv==1.1.1
 
-# -----------------------------------------------------------------------------
-# Performance (optional — larger deployments)
-# -----------------------------------------------------------------------------
-# ujson==5.10.0                # Faster JSON (state I/O)
-# orjson==3.10.7               # Fastest JSON (drop-in for json)
-# uvloop==0.20.0               # Faster asyncio (Linux/macOS only)
+# PDF generation, Hindi font support and rendering
+reportlab==4.4.3
+Pillow==11.3.0
+PyMuPDF==1.26.3
+
+# Markdown and templates
+Markdown==3.8.2
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+
+# Security and cryptography
+pycryptodome==3.23.0
+cryptography==45.0.5
+
+# Logging
+colorama==0.4.6
+
+# =============================================================================
+# OPTIONAL AI SDKs
+# Install only if directly imported by your project code.
+# pipeline/ai_router.py uses HTTP requests for provider calls.
+# =============================================================================
+# google-genai
+# groq
+# openai
+# mistralai
+# anthropic
+
+# =============================================================================
+# OPTIONAL DEVELOPMENT TOOLS
+# Install separately for development and CI.
+# =============================================================================
+# pytest
+# pytest-cov
+# ruff
+# mypy
+# bandit
+# pip-tools
