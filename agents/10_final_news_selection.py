@@ -14,8 +14,11 @@ class Agent:
         self.name = "FINAL NEWS SELECTION AGENT v2"
 
     def run(self):
+        from pipeline.artifacts import normalize_category
         from pipeline.state import SCORED_DIR, SELECTED_DIR, data_path, read_json, write_json_atomic
         scored = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
+        for item in scored:
+            item["category"] = normalize_category(item.get("category", ""))
         if not scored:
             self.context["stage_failed"] = "no scored items"
             raise RuntimeError(self.context["stage_failed"])
@@ -29,7 +32,10 @@ class Agent:
             cats[cat] = cats.get(cat, 0) + 1
         for cat, cnt in sorted(cats.items(), key=lambda x: -x[1]):
             logging.info(f"  {cat}: {cnt}")
-        min_items = 1 if self.job_type == "daily" else 5
+        # Floor for every edition type. Never lowered to keep a thin edition
+        # alive: a 2-item "daily" is not a useful edition for the reader and it
+        # hides collection/verification regressions.
+        min_items = 5
         if len(selected) < min_items:
             self.context["stage_failed"] = (
                 f"only {len(selected)} selected (min {min_items} for {self.job_type})"

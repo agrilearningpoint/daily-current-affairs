@@ -11,7 +11,13 @@ def positive_message_id(value):
 
 
 def records_at(path: Path):
-    """Missing ledgers are empty; malformed existing ledgers must fail closed."""
+    """Missing ledgers are empty; malformed existing ledgers must fail closed.
+
+    Rows left over from the pre-versioned ledger (a job list and a date, no
+    chat_id/file_hash/status) carry no verifiable identity, so they are skipped
+    here: they can never be treated as a live receipt. ``agents/22`` keeps them
+    as ``legacy_history`` and refuses a resend for the editions they list.
+    """
     if not path.exists():
         return {}
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -19,7 +25,8 @@ def records_at(path: Path):
         raise ValueError(f"invalid record map in {path.name}")
     if any(not isinstance(record, dict) for record in value["records"].values()):
         raise ValueError(f"invalid record in {path.name}")
-    return value["records"]
+    return {key: record for key, record in value["records"].items()
+            if record.get("status") is not None}
 
 
 def publication_issues(root: Path, job_id: str, pdf_sha256: str, chat_id=None):

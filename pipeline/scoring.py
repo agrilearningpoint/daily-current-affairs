@@ -353,7 +353,8 @@ def score_item(item, source_score_map=None):
         w = FACTOR_WEIGHTS[fac]
         factors[fac] = min(w, round(w * min(hits, 4) / 4))  # 0→w graded by keyword hits
     # category boosts (explicit mapping so agri/banking exams get domain weight)
-    cat = item.get("category", "")
+    from pipeline.artifacts import normalize_category
+    cat = normalize_category(item.get("category", ""))
     if cat == "Agriculture":
         factors["agriculture"] = FACTOR_WEIGHTS["agriculture"]
     if cat == "Banking & Finance":

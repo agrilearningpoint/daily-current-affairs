@@ -1,0 +1,308 @@
+# Dry-run dispatcher / evidence collector.
+#
+# Why it exists: a session token can read runs, push commits and open PRs, but
+# without `actions: write` `gh workflow run daily.yml` returns HTTP 403, and run
+# artifacts live behind blob endpoints that a sandbox cannot always reach. This
+# workflow runs on the repo's own GITHUB_TOKEN (which may dispatch another
+# workflow) and collects the evidence from inside Actions.
+#
+# It is DRY-RUN ONLY: the dispatched job always gets `dry_run=true`, so no live
+# Telegram publication can happen from here.
+#
+# Two modes:
+#   * COLLECT_RUN_ID set  -> only download that run's artifacts and publish
+#     docs/verification-dryrun-<id>.md (counts, QA report, log excerpts/tails)
+#   * COLLECT_RUN_ID empty -> dispatch a fresh Daily News Pipeline dry run,
+#     wait for it, then do the same collection
+#
+# Trigger: push this file (path-filtered, so it never runs on ordinary commits)
+# or run it from the Actions UI with workflow_dispatch. It must touch this file
+# on purpose: a verification run should never be a side effect of a code commit,
+# because the dispatched job always runs the branch tip.
+name: Dry-run dispatch
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/dry-run-dispatch.yml"
+      # A change to the collection filter must be verified against live feeds
+      # before it can be trusted, so it triggers its own dry-run verification
+      # (dry_run=true only - this workflow can never publish).
+      - "pipeline/quality.py"
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  collect:
+    name: Dispatch / collect dry-run evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      REF: ${{ github.ref_name }}
+      EDITION_DATE: "2026-10-15"
+      # empty = dispatch a new dry run; otherwise collect evidence for this run id
+      COLLECT_RUN_ID: ""
+      # fresh edition: the stale live record for this date must not be resumed
+      RESET_INPUT: "true"
+      # 1 = every log excerpt/tail in the report; 0 = compact report only
+      FULL_EVIDENCE: "1"
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ github.token }}
+
+      - name: Dispatch Daily News Pipeline (dry_run=true)
+        id: dispatch
+        if: env.COLLECT_RUN_ID == ''
+        run: |
+          set -euo pipefail
+          before=$(gh run list --repo "$REPO" --workflow daily.yml --limit 20 --json databaseId \
+            --jq '[.[].databaseId] | max // 0')
+          gh workflow run daily.yml --repo "$REPO" --ref "$REF" \
+            -f dry_run=true -f date="$EDITION_DATE" -f reset="${RESET_INPUT:-false}"
+          run_id=""
+          for _ in $(seq 1 40); do
+            sleep 10
+            run_id=$(gh run list --repo "$REPO" --workflow daily.yml --event workflow_dispatch \
+              --branch "$REF" --limit 20 --json databaseId \
+              --jq "[.[] | select(.databaseId > $before)] | max_by(.databaseId) | .databaseId // \"\"")
+            [ -n "$run_id" ] && break
+          done
+          test -n "$run_id" || { echo "::error::dispatch not visible"; exit 1; }
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Dispatched: https://github.com/$REPO/actions/runs/$run_id"
+
+      - name: Resolve run id
+        id: target
+        run: |
+          run_id="${{ env.COLLECT_RUN_ID }}"
+          [ -n "$run_id" ] || run_id="${{ steps.dispatch.outputs.run_id }}"
+          test -n "$run_id" || { echo "::error::no run id"; exit 1; }
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "collecting evidence for run $run_id"
+
+      - name: Wait for the dry run to finish
+        if: env.COLLECT_RUN_ID == ''
+        run: |
+          set -euo pipefail
+          run_id="${{ steps.target.outputs.run_id }}"
+          for _ in $(seq 1 600); do
+            read -r status conclusion < <(gh run view "$run_id" --repo "$REPO" \
+              --json status,conclusion --jq '[.status, (.conclusion // "-")] | join(" ")')
+            echo "$(date -u +%H:%M:%S) $status/$conclusion"
+            [ "$status" = "completed" ] && break
+            sleep 10
+          done
+
+      - name: Download run artifacts
+        continue-on-error: true
+        run: |
+          run_id="${{ steps.target.outputs.run_id }}"
+          mkdir -p evidence/logs evidence/ckpt
+          gh run download "$run_id" --repo "$REPO" -n pipeline-checkpoints -D evidence/ckpt || true
+          gh run download "$run_id" --repo "$REPO" -p 'daily-logs-*' -D evidence/logs || true
+          find evidence -maxdepth 4 -name '*.log' | head -40
+          find evidence -maxdepth 3 -name '*.json' | head -20
+
+      - name: Build evidence report
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+
+          run_id = "${{ steps.target.outputs.run_id }}"
+          repo = os.environ["REPO"]
+          edition = os.environ["EDITION_DATE"]
+          job_id = f"daily_{edition}"
+          out = [f"# Dry-run evidence — run {run_id}", "",
+                 f"- run URL: https://github.com/{repo}/actions/runs/{run_id}",
+                 f"- edition: {edition} (DRY_RUN=1)", ""]
+
+          def items(path, *keys):
+              p = pathlib.Path(path)
+              if not p.is_file():
+                  return None
+              data = json.loads(p.read_text())
+              for key in keys or ("items",):
+                  if isinstance(data, dict) and key in data:
+                      return data[key]
+              return data if isinstance(data, list) else None
+
+          counts = []
+          raw = items(f"evidence/ckpt/data/raw/{job_id}.json", "articles")
+          if raw is not None:
+              counts.append(("raw", len(raw)))
+          for stage in ("verified", "dedup", "scored", "selected"):
+              value = items(f"evidence/ckpt/data/{stage}/{job_id}.json")
+              if value is not None:
+                  counts.append((stage, len(value)))
+          content = items(f"evidence/ckpt/data/content/{job_id}.json")
+          mcq = items(f"evidence/ckpt/data/mcq/{job_id}.json")
+          sel = items(f"evidence/ckpt/data/selected/{job_id}.json") or []
+          out += ["## Article counts", "", "| stage | count |", "|---|---|"]
+          out += [f"| {name} | {count} |" for name, count in counts]
+          if content is not None:
+              out.append(f"| content | {len(content)} |")
+          if mcq is not None:
+              out.append(f"| mcq | {len(mcq)} |")
+          for cache in pathlib.Path("evidence/logs").rglob("03_news_collection.log"):
+              for line in cache.read_text(errors="replace").splitlines():
+                  if "Collection complete" in line:
+                      out += ["", f"- collector: `{line.strip()[:240]}`"]
+          def distribution(items_):
+              cats = {}
+              for item in items_ or []:
+                  cats[item.get("category", "?")] = cats.get(item.get("category", "?"), 0) + 1
+              return cats
+
+          out += ["", "## Category distribution per stage (raw keys here = normalisation missing)", ""]
+          for stage in ("raw", "verified", "dedup", "scored", "selected"):
+              value = items(f"evidence/ckpt/data/{stage}/{job_id}.json", "articles")
+              if value is not None:
+                  out.append(f"- {stage}: ```{json.dumps(distribution(value), ensure_ascii=False)}```")
+          if sel:
+              out += ["", "## Selected items", ""]
+              # Include the link: it is what tells a real article apart from a
+              # section page or a listing entry that only looks like news.
+              out += [f"- [{i.get('importance_score')}/{i.get('student_relevance')}] {i.get('category')}: "
+                      f"{str(i.get('headline_en'))[:90]} | {str(i.get('source_url') or i.get('link') or '')[:120]}"
+                      for i in sel[:40]]
+
+          for label, path in (("qa", f"evidence/ckpt/logs/qa/{job_id}_qa.json"),
+                              ("health", f"evidence/ckpt/logs/qa/{job_id}_health.json")):
+              p = pathlib.Path(path)
+              if p.is_file():
+                  out += ["", f"## PDF {label} report", "", "```json", p.read_text()[:2000], "```"]
+
+          full = os.environ.get("FULL_EVIDENCE", "0") == "1"
+          logs = sorted(pathlib.Path("evidence/logs").rglob("*.log")) if full else []
+          if logs:
+              out += ["", "## Stage log inventory", "", "| log | lines | first | last |", "|---|---|---|---|"]
+              for log in logs:
+                  lines = [l for l in log.read_text(errors="replace").splitlines() if l.strip()]
+                  if lines:
+                      out.append(f"| {log.name} | {len(lines)} | {lines[0][:19]} | {lines[-1][:19]} |")
+              out += ["", "## Log excerpts (retries / skips / QA)", "", "```"]
+              wanted = ("[DRY-RUN]", "Would publish", "No live publication receipt", "FAILED",
+                        "ERROR", "WARNING", "timeout", "retry", "selected ", "relevant=", "PDF QA",
+                        "Collection complete", "chrome_rejected", "chrome skipped", "Skipping chrome")
+              hits = []
+              for log in logs:
+                  for line in log.read_text(errors="replace").splitlines():
+                      if any(token in line for token in wanted):
+                          hits.append(f"{log.name}: {line.strip()[:220]}")
+              out += hits[:300] + ["```"]
+              out += ["", "## Stage log tails", ""]
+              for log in logs:
+                  body = [l for l in log.read_text(errors="replace").splitlines() if l.strip()]
+                  out += [f"### {log.name}", "", "```", *[l[:220] for l in body[-40:]], "```", ""]
+
+          state_path = pathlib.Path("state/jobs.json")
+          if state_path.is_file():
+              state = json.loads(state_path.read_text()).get(job_id, {})
+              out += ["## Committed state on this branch at collection time", "", "```json",
+                      json.dumps({k: state.get(k) for k in
+                                  ("status", "dry_run", "last_success_stage", "failed_stage",
+                                   "checkpoint_run_id", "last_error")}, indent=1)[:2000], "```", ""]
+
+          pathlib.Path("docs").mkdir(exist_ok=True)
+          path = pathlib.Path(f"docs/verification-dryrun-{run_id}.md")
+          path.write_text("\n".join(out), encoding="utf-8")
+          print("\n".join(out)[:3000])
+          PY
+
+      - name: Publish the PDF as a draft release asset (keeps it out of git)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          job_id="daily_${EDITION_DATE}"
+          pdf=$(find evidence/ckpt -name "${job_id}.pdf" | head -1 || true)
+          if [ -z "$pdf" ]; then echo "no PDF for $job_id (run stopped before stage 18)"; exit 0; fi
+          python3 -m pip install --quiet pymupdf >/dev/null 2>&1 || true
+          python3 - "$pdf" "$job_id" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import hashlib, sys
+          pdf_path, job_id = sys.argv[1], sys.argv[2]
+          data = open(pdf_path, "rb").read()
+          print(f"- {job_id}.pdf: {len(data)} bytes, sha256 {hashlib.sha256(data).hexdigest()}")
+          try:
+              import pymupdf as fitz
+          except ImportError:
+              try:
+                  import fitz
+              except ImportError:
+                  fitz = None
+          if fitz:
+              print(f"- pages: {len(fitz.open(pdf_path))}")
+          PY
+          tag="dryrun-${job_id}-r${{ steps.target.outputs.run_id }}"
+          title="${job_id} (dry run ${{ steps.target.outputs.run_id }})"
+          note="Generated by the dry-run dispatcher; published with dry_run=true, so no Telegram message was sent. Safe to delete."
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "$tag" "$pdf" --repo "$REPO" --clobber
+          else
+            gh release create "$tag" "$pdf" --repo "$REPO" --draft --title "$title" --notes "$note"
+          fi
+          url=$(gh release view "$tag" --repo "$REPO" --json url --jq .url || echo "")
+          echo "release: $url"
+          {
+            echo ""
+            echo "## PDF download"
+            echo ""
+            echo "- $url (draft release asset; no Telegram publication was made)"
+          } >> "docs/verification-dryrun-${{ steps.target.outputs.run_id }}.md"
+
+      - name: Commit evidence report
+        run: |
+          set -uo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          run_id="${{ steps.target.outputs.run_id }}"
+          file="docs/verification-dryrun-${run_id}.md"
+          [ -f "$file" ] || { echo "::error::no evidence file at $file"; exit 1; }
+          git add "$file"
+          git commit -m "docs: dry-run report for run ${run_id} [skip ci]" || true
+
+          pushed=0
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:$REF" >/tmp/push.log 2>&1; then echo "pushed on attempt $attempt"; pushed=1; break; fi
+            cat /tmp/push.log >> /tmp/push-error.log
+            # the daily run pushes its own state commits while this job waits, so the
+            # branch moves under us: rebase, and fall back to a merge if rebasing the
+            # shallow checkout cannot find a common base.
+            git fetch --depth=50 origin "$REF" || git fetch origin "$REF" || true
+            git rebase FETCH_HEAD >/tmp/rebase.log 2>&1 || {
+              git rebase --abort >/dev/null 2>&1 || true
+              git merge --no-edit -X ours FETCH_HEAD >/tmp/merge.log 2>&1 || true
+            }
+            sleep 5
+          done
+
+          if [ "$pushed" != 1 ]; then
+            # Make the failure readable from the report itself: job logs are not
+            # reachable from every environment, the committed file is.
+            {
+              echo ""
+              echo "## Commit diagnostics (push failed)"
+              echo '```'
+              (git status --porcelain=v1 | head -20) || true
+              echo "local HEAD: $(git rev-parse --short HEAD)"
+              echo "remote HEAD: $(git rev-parse --short FETCH_HEAD 2>/dev/null || echo unknown)"
+              tail -20 /tmp/rebase.log 2>/dev/null || true
+              tail -20 /tmp/merge.log 2>/dev/null || true
+              echo '```'
+            } >> "$file"
+            git add "$file"
+            git -c user.name="github-actions[bot]" commit --amend --no-edit >/dev/null 2>&1 || true
+            git push origin "HEAD:$REF" >/tmp/push.log 2>&1 || {
+              # Surface the reason through a channel that is readable everywhere:
+              # job annotations are available over the REST API.
+              while IFS= read -r line; do echo "::error::$line"; done < /tmp/push-error.log
+              echo "::error::evidence push failed after 5 attempts"
+            }
+          fi

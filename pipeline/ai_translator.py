@@ -84,6 +84,13 @@ class _LRUCache:
 
 _CACHE = _LRUCache()
 _RATE_LIMITED_PROVIDERS = set()
+# Providers whose credentials/quota are rejected outright (401/402/403/404) or
+# that keep failing at transport level stay parked for the rest of the edition:
+# re-dialling them for every text is what burned the 900s stage budget three
+# times on 2026-10-15.
+_PARKED_PROVIDERS: Dict[str, float] = {}
+_PARK_COOLDOWN = int(os.getenv("ALP_TRANSLATION_PROVIDER_COOLDOWN", "900"))
+_PERMANENT_STATUS = {401, 402, 403, 404}
 
 
 class ProviderRateLimited(Exception):
@@ -94,6 +101,39 @@ class ProviderRequestFailed(Exception):
     def __init__(self, reason: str, *, retryable: bool = False):
         super().__init__(reason)
         self.retryable = retryable
+
+
+def _park_provider(name: str, reason: str, seconds: int = _PARK_COOLDOWN) -> None:
+    """Stop dialling a provider that cannot answer for this edition."""
+    until = time.monotonic() + max(0, seconds)
+    if until > _PARKED_PROVIDERS.get(name, 0.0):
+        first_time = name not in _PARKED_PROVIDERS
+        _PARKED_PROVIDERS[name] = until
+        if first_time:
+            logger.warning("[Translator] %s parked for %ds (%s)", name, seconds, reason)
+
+
+def _provider_available(name: str) -> bool:
+    if name in _RATE_LIMITED_PROVIDERS:
+        return False
+    return _PARKED_PROVIDERS.get(name, 0.0) <= time.monotonic()
+
+
+def available_providers() -> List[Dict[str, Any]]:
+    """Configured providers that are still worth dialling in this process."""
+    return [p for p in _discover_providers() if _provider_available(p.get("name", ""))]
+
+
+def reset_provider_state() -> None:
+    """Clear rate-limit/park state (fresh process, --reset, or tests)."""
+    _RATE_LIMITED_PROVIDERS.clear()
+    _PARKED_PROVIDERS.clear()
+
+
+def _is_permanent_failure(reason: str) -> bool:
+    """True when retrying this provider later in the run is pointless."""
+    match = re.search(r"HTTP (\d{3})", reason or "")
+    return bool(match) and int(match.group(1)) in _PERMANENT_STATUS
 
 
 def _cache_key(text: str, task: str) -> str:
@@ -220,6 +260,8 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
     if r.status_code == 429:
         logger.warning("[Translator] %s rate-limited (429)", provider["name"])
         raise ProviderRateLimited(provider["name"])
+    if r.status_code in _PERMANENT_STATUS:
+        _park_provider(provider["name"], f"HTTP {r.status_code}")
     try:
         r.raise_for_status()
     except requests.HTTPError as exc:
@@ -321,8 +363,8 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
     provider_issues: List[str] = []
 
     for provider in providers:
-        if provider["name"] in _RATE_LIMITED_PROVIDERS:
-            logger.info("[Translator] skipping %s after an earlier rate limit", provider["name"])
+        if not _provider_available(provider["name"]):
+            logger.info("[Translator] skipping %s (rate limited or parked earlier)", provider["name"])
             continue
         logger.info("[Translator] trying provider %s", provider["name"])
         for attempt in range(1, MAX_RETRIES + 1):
@@ -337,6 +379,8 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                 if exc.retryable and attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
+                if _is_permanent_failure(str(exc)):
+                    _park_provider(provider["name"], str(exc))
                 provider_issues.append(f"{provider['name']}: {exc}")
                 break
 
@@ -359,13 +403,17 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                                provider["name"], issues)
                 break  # try next provider
 
-    # All providers failed
+    # All providers failed. ``exhausted`` is true when nothing is left to dial
+    # (every provider parked), so the caller can tell "wired but rejected" from
+    # "configured a provider that failed once". ``issues`` stays the plain
+    # per-provider failure list that the callers/tests already parse.
     result = {
         "translated_hi": "",
         "passed": False,
         "confidence": 0.0,
         "provider": "all-failed",
         "issues": provider_issues or ["no usable providers available"],
+        "exhausted": bool(provider_issues) and not available_providers(),
     }
     _CACHE.put(key, result)
     return result

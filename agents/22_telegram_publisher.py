@@ -137,7 +137,38 @@ def load_ledger() -> Dict[str, Any]:
         raise ValueError("invalid publication ledger; manual reconciliation required")
     if any(not isinstance(record, dict) for record in data["records"].values()):
         raise ValueError("invalid publication record; manual reconciliation required")
-    return data
+    return _fold_legacy_rows_into_history(data)
+
+
+def _fold_legacy_rows_into_history(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Move unverifiable legacy rows out of ``records`` into ``legacy_history``.
+
+    The pre-versioned ledger kept ``{key: {"jobs": [...], "last_published": ...}}``
+    rows. A ledger migrated from it can still hold such rows inside ``records``
+    (that is the state committed on main today). They carry no chat_id/file_hash,
+    so they can neither authorise nor prove a send — but the editions they list
+    must never be resent silently. Returns ``data`` unchanged when there is
+    nothing to fold, so ordinary ledgers are untouched.
+    """
+    records = data["records"]
+    folded: Dict[str, Any] = {}
+    for key, record in list(records.items()):
+        if record.get("status") is not None:
+            continue
+        if not isinstance(record.get("jobs"), list) or not record["jobs"]:
+            continue
+        if not all(isinstance(job, str) and job for job in record["jobs"]):
+            raise ValueError("invalid legacy publication record; manual reconciliation required")
+        folded[key] = records.pop(key)
+    if not folded:
+        return data
+    history = dict(data.get("legacy_history", {}))
+    history.update(folded)
+    logger.warning("Adopted %d unverifiable legacy publication row(s) as history", len(folded))
+    merged = dict(data)
+    merged["legacy_history"] = history
+    merged["records"] = records
+    return merged
 
 
 def save_ledger(ledger: Dict[str, Any]) -> None:

@@ -4,15 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-CATEGORY_NAMES = {
-    "agriculture": "Agriculture", "agri": "Agriculture",
-    "banking": "Banking & Finance", "finance": "Banking & Finance",
-    "banking & finance": "Banking & Finance", "economy": "Economy",
-    "government": "Government Schemes", "government schemes": "Government Schemes",
-    "national": "National", "general": "National", "international": "International",
-    "science": "Science & Technology", "science & technology": "Science & Technology",
-    "environment": "Environment", "sports": "Sports", "health": "Health",
-}
+from pipeline.categories import CATEGORY_NAMES, normalize_category  # noqa: F401 (re-exported)
 
 
 def normalize_item(item):
@@ -29,7 +21,7 @@ def normalize_item(item):
     tier = str(item.get("source_tier", "tier3"))
     out["source_tier"] = tier if tier.startswith("tier") else "tier" + tier
     category = item.get("category") or "National"
-    out["category"] = CATEGORY_NAMES.get(category.lower(), category)
+    out["category"] = normalize_category(category)
     out["event_id"] = item.get("event_id") or hashlib.sha256(
         (out["headline_en"] + "|" + out["source_url"]).encode("utf-8")
     ).hexdigest()[:16]

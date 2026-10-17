@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -38,6 +39,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from pipeline.quality import is_landing_link, reject_reason
 from pipeline.source_registry import SourceSpec, SourceConfigError, load_sources
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -104,28 +106,112 @@ def content_hash(title: str, link: str) -> str:
 # Fetch + normalize
 # --------------------------------------------------------------------------
 
-def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
-               seen_hashes: set) -> Tuple[List[Dict[str, Any]], int, int, str | None]:
-    """Fetch one feed. Returns (articles, total_entries, skipped_malformed, error).
+# Some official feeds answer a 403 to any client that does not look like a
+# browser (measured: Indian Express, Ministry of External Affairs). The retry UA
+# still identifies the collector, so a publisher can block it deliberately.
+UA_DEFAULT = "alp-collector/1.0 (+https://github.com/agrilearningpoint/daily-current-affairs)"
+UA_BROWSER = ("Mozilla/5.0 (compatible; alp-collector/1.0; "
+              "+https://github.com/agrilearningpoint/daily-current-affairs)")
+BLOCKED_STATUS = {403, 405, 406}
 
+# Entities that appear in official feeds without being declared in their DTD.
+_UNDECLARED_ENTITIES = {
+    "&nbsp;": "&#160;", "&mdash;": "&#8212;", "&ndash;": "&#8211;",
+    "&rsquo;": "&#8217;", "&lsquo;": "&#8216;", "&ldquo;": "&#8220;",
+    "&rdquo;": "&#8221;", "&hellip;": "&#8230;", "&bull;": "&#8226;",
+    "&middot;": "&#183;", "&euro;": "&#8364;", "&pound;": "&#163;",
+}
+_ENTITY_RE = re.compile(r"&(?:#\d{1,7}|#x[0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});")
+_BARE_AMP_RE = re.compile(r"&(?!(?:#\d{1,7}|#x[0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});)")
+_CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def repair_feed_xml(payload: bytes) -> bytes:
+    """Best-effort repair of the XML that some official feeds actually serve.
+
+    Measured failures: PIB (bare ``&`` inside a copy deck) and SEBI (undeclared
+    HTML entity) both made feedparser reject an otherwise complete feed, which
+    silently dropped a tier-1 source from the edition. Only the three documented
+    defects are touched; anything still malformed stays an error.
+    """
+    text = payload.decode("utf-8", errors="replace").lstrip("\ufeff")
+    for entity, replacement in _UNDECLARED_ENTITIES.items():
+        text = text.replace(entity, replacement)
+    text = _BARE_AMP_RE.sub("&amp;", text)
+    return _CONTROL_RE.sub(b"", text.encode("utf-8", errors="replace"))
+
+
+def _looks_like_html(payload: bytes) -> bool:
+    head = payload[:512].lstrip().lower()
+    return head.startswith(b"<!doctype html") or head.startswith(b"<html")
+
+
+def fetch_feed_bytes(spec: SourceSpec) -> Tuple[bytes | None, str | None]:
+    """Return ``(payload, error)``; retries once with a browser-style UA on 403."""
+    errors: List[str] = []
+    timeout = int(os.getenv("ALP_FEED_TIMEOUT", "20"))
+    for ua in (UA_DEFAULT, UA_BROWSER):
+        try:
+            response = requests.get(spec.rss_url, headers={"User-Agent": ua},
+                                    timeout=timeout)
+        except Exception as exc:  # network/disk level failure
+            # No second request: a stage retry (orchestrator) is the right place
+            # for transient network errors, and the run must still fail closed.
+            errors.append(f"{type(exc).__name__}: {exc}")
+            break
+        if response.status_code in BLOCKED_STATUS and ua == UA_DEFAULT:
+            errors.append(f"HTTP {response.status_code} to the default user agent")
+            continue
+        try:
+            response.raise_for_status()
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            continue
+        return response.content, None
+    return None, "; ".join(errors) or "unknown fetch failure"
+
+
+def parse_feed(payload: bytes) -> Tuple[Any, str | None]:
+    """Parse feed bytes, repairing the documented XML defects once before giving up."""
+    parsed = feedparser.parse(payload)
+    if parsed.entries:
+        return parsed, None
+    if _looks_like_html(payload):
+        # An HTML block page parses "successfully" with zero entries, so it must
+        # be reported from the payload type rather than from bozo.
+        return parsed, "feed returned an HTML page (blocked or moved)"
+    if parsed.bozo:
+        message = str(getattr(parsed, "bozo_exception", "unparseable feed"))
+        repaired = feedparser.parse(repair_feed_xml(payload))
+        if repaired.entries or not repaired.bozo:
+            return repaired, None
+        return repaired, f"feed parse error ({message})"
+    return parsed, None  # a healthy feed may legitimately carry no items
+
+
+def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
+               seen_hashes: set) -> Tuple[List[Dict[str, Any]], int, int, str | None, int]:
+    """Fetch one feed.
+
+    Returns ``(articles, total_entries, skipped_malformed, error, chrome_skipped)``.
     Errors are reported per feed; they never discard results from other feeds.
+
+    ``chrome_skipped`` counts discovery entries that are site chrome rather than
+    news (see pipeline.quality) - the 2026-10-16 dry run showed those pages
+    otherwise reach selection and crowd out real news.
     """
     collected: List[Dict[str, Any]] = []
     malformed = 0
-    try:
-        response = requests.get(spec.rss_url, headers={"User-Agent": "alp-collector/1.0"},
-                                timeout=int(os.getenv("ALP_FEED_TIMEOUT", "20")))
-        response.raise_for_status()
-        parsed = feedparser.parse(response.content)
-    except Exception as exc:  # network/disk level failure
-        return [], 0, 0, f"{type(exc).__name__}: {exc}"
+    chrome_skipped = 0
+    payload, error = fetch_feed_bytes(spec)
+    if error or payload is None:
+        return [], 0, 0, error or "empty response", 0
 
-    status = getattr(parsed, "status", None)
-    if parsed.bozo and not parsed.entries:
-        err = getattr(parsed, "bozo_exception", "unparseable feed")
-        if status == 404:
-            return [], 0, 0, f"HTTP 404 (feed moved/deleted): {spec.rss_url}"
-        return [], 0, 0, f"feed parse error ({err})"
+    parsed, parse_error = parse_feed(payload)
+    if parse_error:
+        if getattr(parsed, "status", None) == 404:
+            return [], 0, 0, f"HTTP 404 (feed moved/deleted): {spec.rss_url}", 0
+        return [], 0, 0, parse_error, 0
 
     entries = list(getattr(parsed, "entries", []) or [])
     for entry in entries:
@@ -134,6 +220,10 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         if not title or not link.lower().startswith(("http://", "https://")):
             malformed += 1
             continue  # validated at collection boundary; logged via counter
+        if reject_reason(title, spec.name) or is_landing_link(link):
+            chrome_skipped += 1
+            continue  # site chrome, not a news item
+
         published = _parse_entry_time(entry)
         if published is None:
             # Missing timestamps are NOT treated as current news.
@@ -163,7 +253,7 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             "collected_at": datetime.now(timezone.utc).isoformat(),
             "content_hash": h,
         })
-    return collected, len(entries), malformed, None
+    return collected, len(entries), malformed, None, chrome_skipped
 
 
 def main() -> int:
@@ -188,9 +278,11 @@ def main() -> int:
     feed_failures: List[Dict[str, str]] = []
     ok_feeds = 0
 
+    chrome_rejected = 0
     for spec in specs:
-        arts, total, malformed, error = fetch_spec(
+        arts, total, malformed, error, chrome_skipped = fetch_spec(
             spec, window_start, window_end, seen_hashes)
+        chrome_rejected += chrome_skipped
         if error:
             feed_failures.append({"source_id": spec.source_id,
                                   "url": spec.rss_url, "error": error})
@@ -200,7 +292,8 @@ def main() -> int:
         ok_feeds += 1
         all_articles.extend(arts)
         print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
-              f"(of {total} entries, {malformed} malformed skipped)")
+              f"(of {total} entries, {malformed} malformed skipped, "
+              f"{chrome_skipped} chrome skipped)")
 
     edition = {
         "schema_version": "1.0",
@@ -216,6 +309,7 @@ def main() -> int:
         "sources_failed": len(feed_failures),
         "feed_failures": feed_failures,
         "article_count": len(all_articles),
+        "chrome_rejected_count": chrome_rejected,
         "articles": all_articles,
     }
 
@@ -231,7 +325,8 @@ def main() -> int:
         return 2
 
     print(f"[01_source_fetch] wrote {out_path} "
-          f"({len(all_articles)} articles, {ok_feeds}/{len(specs)} feeds ok)")
+          f"({len(all_articles)} articles, {ok_feeds}/{len(specs)} feeds ok, "
+          f"{chrome_rejected} chrome skipped)")
     return 0
 
 

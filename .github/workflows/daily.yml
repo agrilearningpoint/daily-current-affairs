@@ -26,6 +26,12 @@ on:
         type: boolean
         default: false
 
+      dry_run:
+        description: "Dry run only: do not send Telegram messages or publish live."
+        required: false
+        type: boolean
+        default: false
+
 concurrency:
   group: daily-pipeline
   cancel-in-progress: false
@@ -44,7 +50,10 @@ jobs:
   run-daily:
     name: Run Daily Pipeline
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # A full daily edition (collect -> verify -> select -> LLM translation ->
+    # MCQ -> PDF -> QA) does not fit in 45 minutes against live feeds: two
+    # 2026-10-15 attempts were cancelled by the cap while still in stage 12.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -109,6 +118,10 @@ jobs:
       - name: Persist start marker for hard-interruption recovery
         env:
           STATE_BRANCH: ${{ github.ref_name }}
+          # Must match the pipeline step: this marker rewrites the job entry
+          # (including dry_run), and a mode mismatch here silently disables
+          # checkpoint resume for the very run it is preparing.
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -151,6 +164,7 @@ jobs:
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-4o-mini' }}
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct' }}
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: |
           ARGS=(--job-type daily --date "$EDITION_DATE")
           if [ "$RESET_REQUEST" = "true" ]; then ARGS+=(--reset); fi
@@ -227,7 +241,7 @@ jobs:
       # Notifications
       # --------------------------------------------------------------------- #
       - name: Notify success (Telegram)
-        if: success()
+        if: success() && github.event.inputs.dry_run != 'true' 
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -238,7 +252,7 @@ jobs:
             Run: #${{ github.run_number }}
 
       - name: Notify failure (Telegram)
-        if: failure()
+        if: failure() && github.event.inputs.dry_run != 'true' 
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}

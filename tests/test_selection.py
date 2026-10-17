@@ -31,7 +31,34 @@ def test_cap():
 
 
 @pytest.mark.parametrize("count", [1, 2, 3, 4])
-def test_daily_selection_accepts_sparse_verified_editions(tmp_path, monkeypatch, count):
+def test_daily_selection_refuses_editions_below_the_floor(tmp_path, monkeypatch, count):
+    """A thin edition must fail loudly instead of shipping 1-4 items.
+
+    The floor is deliberately NOT relaxed for daily (see
+    agents/10_final_news_selection.py): failing here surfaces the upstream
+    collection/verification regression instead of hiding it behind a
+    2-item "edition".
+    """
+    from pipeline import state
+
+    job_id = "daily_2026-10-14"
+    scored_dir = tmp_path / "scored"
+    selected_dir = tmp_path / "selected"
+    monkeypatch.setattr(state, "SCORED_DIR", scored_dir)
+    monkeypatch.setattr(state, "SELECTED_DIR", selected_dir)
+    state.write_json_atomic(
+        state.data_path(scored_dir, job_id),
+        {"items": [{"event_id": str(i), "importance_score": count - i} for i in range(count)]},
+    )
+
+    with pytest.raises(RuntimeError, match="min 5"):
+        load_agent("10").Agent(job_id, "daily", {}).run()
+
+    assert not state.data_path(selected_dir, job_id).exists(), "a refused edition must not be written"
+
+
+@pytest.mark.parametrize("count", [5, 6, 9])
+def test_daily_selection_accepts_editions_at_or_above_the_floor(tmp_path, monkeypatch, count):
     from pipeline import state
 
     job_id = "daily_2026-10-14"
