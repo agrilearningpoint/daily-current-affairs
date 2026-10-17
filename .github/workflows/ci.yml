@@ -165,7 +165,7 @@ jobs:
           pip install pytest==8.3.3 pytest-cov==5.0.0
 
       - name: Install Hindi shaping runtime
-        run: sudo apt-get update && sudo apt-get install -y libfribidi0
+        run: sudo apt-get update && sudo apt-get install -y libraqm0 libraqm-dev libfribidi0
 
       - name: Prepare dirs
         run: |

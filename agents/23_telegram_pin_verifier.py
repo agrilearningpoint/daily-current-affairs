@@ -41,6 +41,8 @@ import requests
 # Logging
 # --------------------------------------------------------------------------- #
 REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 LOGS_DIR = REPO_ROOT / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -64,6 +66,21 @@ install_secret_log_filter()
 TELEGRAM_API_BASE = "https://api.telegram.org"
 PUBLISHED_LEDGER = REPO_ROOT / "state" / "published_events.json"
 PIN_LEDGER = REPO_ROOT / "state" / "pin_verification.json"
+
+def _load_dotenv() -> None:
+    env_file = REPO_ROOT / ".env"
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip("'\"")
+            if k not in os.environ:
+                os.environ[k] = v
+
+_load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
@@ -324,7 +341,7 @@ def process_verification(record: Dict[str, Any]) -> bool:
         if result.get("already_pinned"):
             logger.info("Already pinned (per API): %s", msg_id)
         else:
-            logger.info("✔ Pinned message_id=%s (job=%s)", msg_id, job_id)
+            logger.info("[OK] Pinned message_id=%s (job=%s)", msg_id, job_id)
     except PinVerifyPermanent as exc:
         logger.error("Permanent pin failure for %s: %s", msg_id, exc)
         _record_failure(pin_ledger, pin_key, record, str(exc))
@@ -407,9 +424,9 @@ def main() -> int:
         return 1
 
     if ok:
-        logger.info("✔ Pin verification complete.")
+        logger.info("[OK] Pin verification complete.")
         return 0
-    logger.error("✘ Pin verification failed.")
+    logger.error("[FAIL] Pin verification failed.")
     return 1
 
 

@@ -17,8 +17,10 @@ Contract:
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -100,6 +102,15 @@ def content_hash(title: str, link: str) -> str:
     return hashlib.sha256(f"{norm_title}|{norm_link}".encode("utf-8")).hexdigest()[:16]
 
 
+def sanitize_feed_text(text: str) -> str:
+    """Strip raw HTML tags, unescape HTML entities, and collapse whitespace."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"<[^>]+>", " ", text)
+    cleaned = html.unescape(cleaned)
+    return " ".join(cleaned.split()).strip()
+
+
 # --------------------------------------------------------------------------
 # Fetch + normalize
 # --------------------------------------------------------------------------
@@ -129,11 +140,16 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
 
     entries = list(getattr(parsed, "entries", []) or [])
     for entry in entries:
-        title = (getattr(entry, "title", "") or "").strip()
+        raw_title = getattr(entry, "title", "") or ""
+        title = sanitize_feed_text(raw_title)
         link = (getattr(entry, "link", "") or "").strip()
         if not title or not link.lower().startswith(("http://", "https://")):
             malformed += 1
             continue  # validated at collection boundary; logged via counter
+        # Discard fragments or junk headlines (e.g. Drupal 'estic', single words, < 15 chars)
+        if len(title) < 15 or len(title.split()) < 3:
+            malformed += 1
+            continue
         published = _parse_entry_time(entry)
         if published is None:
             # Missing timestamps are NOT treated as current news.
@@ -145,7 +161,7 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         if h in seen_hashes:
             continue
         seen_hashes.add(h)
-        summary = getattr(entry, "summary", "") or ""
+        summary = sanitize_feed_text(getattr(entry, "summary", "") or "")
         collected.append({
             "title": title,
             "link": link,

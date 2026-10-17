@@ -200,11 +200,18 @@ HI_POINT_STATEMENT = ("Statement-based questions \u0905\u092c \u0938\u092c\u0938
                       "pattern \u0939\u0948\u0964")
 
 
-# --------------------------------------------------------------------------- #
-# Small helpers
-# --------------------------------------------------------------------------- #
+import html
+
+def _strip_html(text):
+    if not text:
+        return ""
+    cleaned = re.sub(r"<[^>]+>", " ", str(text))
+    cleaned = html.unescape(cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def _norm_ws(text):
-    return re.sub(r"\s+", " ", text or "").strip()
+    return _strip_html(text)
 
 
 def _plain_headline(text):
@@ -541,8 +548,8 @@ def _build_entry(it, stats):
     if not isinstance(it, dict):
         return None
     title = _plain_headline(it.get("headline_en"))
-    if not title:
-        logger.warning("[Content Builder] skipped item without headline_en: %s", it.get("event_id"))
+    if not title or len(title) < 15 or len(title.split()) < 3:
+        logger.warning("[Content Builder] skipped empty or junk/fragment headline_en: %r (%s)", title, it.get("event_id"))
         return None
     event_id = str(it.get("event_id") or "ev_" + hashlib.sha1(title.encode("utf-8")).hexdigest()[:12])
     work = dict(it)

@@ -123,17 +123,17 @@ def register_fonts() -> Tuple[str, str, str, str]:
         logger.warning("No English font found — using Helvetica")
         return "Helvetica", "Helvetica-Bold", "Helvetica", "Helvetica-Bold"
 
-    if not hi:
-        logger.warning("No Devanagari font found — Hindi will not render properly!")
-        return "Eng", "Eng-Bold", "Eng", "Eng-Bold"
-
     try:
         pdfmetrics.registerFont(TTFont("Eng", str(en)))
         pdfmetrics.registerFont(TTFont("Eng-Bold", str(en_bold)))
-        pdfmetrics.registerFont(TTFont("Hindi", str(hi)))
-        pdfmetrics.registerFont(TTFont("Hindi-Bold", str(hi_bold)))
-        logger.info("Fonts registered: EN=%s HI=%s", en.name, hi.name)
-        return "Eng", "Eng-Bold", "Hindi", "Hindi-Bold"
+        if hi and hi_bold:
+            pdfmetrics.registerFont(TTFont("Hindi", str(hi)))
+            pdfmetrics.registerFont(TTFont("Hindi-Bold", str(hi_bold)))
+            logger.info("Fonts registered: EN=%s HI=%s", en.name, hi.name)
+            return "Eng", "Eng-Bold", "Hindi", "Hindi-Bold"
+        else:
+            logger.warning("No Devanagari font found — Hindi will fall back to English font!")
+            return "Eng", "Eng-Bold", "Eng", "Eng-Bold"
     except Exception as exc:
         logger.exception("Font registration failed: %s", exc)
         return "Helvetica", "Helvetica-Bold", "Helvetica", "Helvetica-Bold"

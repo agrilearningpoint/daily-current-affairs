@@ -44,14 +44,87 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # --- PDF libraries ---
+fitz = None
+pypdf = None
 try:
     import fitz  # PyMuPDF
-except ImportError:
+except (ImportError, Exception):
     try:
         import pymupdf as fitz  # newer name
-    except ImportError:
-        print("FATAL: PyMuPDF not installed. Run: pip install pymupdf", file=sys.stderr)
-        sys.exit(2)
+    except (ImportError, Exception):
+        fitz = None
+
+try:
+    import pypdf
+except ImportError:
+    pypdf = None
+
+
+class _PyPdfPageAdapter:
+    def __init__(self, page):
+        self._page = page
+        try:
+            mb = page.mediabox
+            self.rect = type("Rect", (), {"width": float(mb.width), "height": float(mb.height)})()
+        except Exception:
+            self.rect = type("Rect", (), {"width": 595.0, "height": 842.0})()
+
+    def get_text(self, kind="text"):
+        if kind == "blocks":
+            return []
+        try:
+            return self._page.extract_text() or ""
+        except Exception:
+            return ""
+
+    def get_fonts(self, full=True):
+        fonts = []
+        try:
+            resources = self._page.get("/Resources", {})
+            font_dict = resources.get("/Font", {})
+            for key, val in font_dict.items():
+                if hasattr(val, "get") and val.get("/BaseFont"):
+                    fonts.append((0, 0, 0, str(val["/BaseFont"])))
+                elif hasattr(val, "base_font"):
+                    fonts.append((0, 0, 0, str(val.base_font)))
+        except Exception:
+            pass
+        return fonts
+
+    def get_images(self, full=True):
+        try:
+            return list(self._page.images)
+        except Exception:
+            return []
+
+
+class _PyPdfDocAdapter:
+    def __init__(self, reader):
+        self._reader = reader
+        self.page_count = len(reader.pages)
+
+    def __iter__(self):
+        for p in self._reader.pages:
+            yield _PyPdfPageAdapter(p)
+
+    def close(self):
+        pass
+
+
+def open_pdf_document(pdf_path: Path | str):
+    if fitz is not None:
+        try:
+            return fitz.open(str(pdf_path))
+        except Exception:
+            if pypdf is not None:
+                reader = pypdf.PdfReader(str(pdf_path))
+                return _PyPdfDocAdapter(reader)
+            raise
+    if pypdf is not None:
+        reader = pypdf.PdfReader(str(pdf_path))
+        return _PyPdfDocAdapter(reader)
+    raise RuntimeError("Neither PyMuPDF (fitz) nor pypdf is available. Run: pip install pymupdf pypdf")
+
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -377,6 +450,17 @@ def check_mcqs(report: QAReport, text: str, min_mcq_count: int = MIN_MCQ_COUNT) 
                    count=dup_count)
 
 
+HTML_TAG_RE = re.compile(r"<(?:span|div|time|p|br|table|tr|td|b|i|font)\b[^>]*>", re.IGNORECASE)
+
+def check_html_leakage(report: QAReport, text: str) -> None:
+    """Detect raw HTML tags leaking into the PDF text layer."""
+    leaks = HTML_TAG_RE.findall(text)
+    if leaks:
+        report.add("error", "html_leakage",
+                   f"Raw HTML markup leaked into PDF text layer: {leaks[:5]}",
+                   samples=leaks[:5])
+
+
 def check_urls(report: QAReport, text: str) -> None:
     urls = URL_RE.findall(text)
     report.urls_found = len(urls)
@@ -435,10 +519,10 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
         return report
 
     try:
-        doc = fitz.open(str(pdf_path))
+        doc = open_pdf_document(pdf_path)
     except Exception as exc:
         report.add("error", "cannot_open",
-                   f"PyMuPDF cannot open PDF: {exc}")
+                   f"PDF reader cannot open PDF: {exc}")
         return report
 
     try:
@@ -447,6 +531,7 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
         check_images(report, doc)
         text = extract_text(doc)
         check_text_content(report, text)
+        check_html_leakage(report, text)
         check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)
         check_visual_overflow(report, doc)
@@ -457,9 +542,21 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
 
 
 def print_summary(report: QAReport) -> None:
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    pass_mark = "[PASSED]"
+    fail_mark = "[FAILED]"
+    try:
+        pass_mark = "✅ PASSED"
+        fail_mark = "❌ FAILED"
+    except Exception:
+        pass
     print()
     print("=" * 72)
-    print(f"PDF QA REPORT — {'✅ PASSED' if report.passed else '❌ FAILED'}")
+    print(f"PDF QA REPORT — {pass_mark if report.passed else fail_mark}")
     print("=" * 72)
     print(f"File:            {report.pdf_path}")
     print(f"Size:            {report.file_size_bytes // 1024} KB")
@@ -478,7 +575,7 @@ def print_summary(report: QAReport) -> None:
         print()
         print("--- Issues ---")
         for i in report.issues:
-            icon = {"error": "❌", "warning": "⚠️ ", "info": "ℹ️ "}.get(i.severity, "?")
+            icon = {"error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}.get(i.severity, "?")
             print(f"  {icon} [{i.code}] {i.message}")
     print("=" * 72)
     print()

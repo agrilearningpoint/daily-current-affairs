@@ -37,7 +37,7 @@ def test_mutable_outputs_rewind_to_first_producer(tmp_path):
     assert resume_after(tmp_path, job, entry, names) == names[-1]
     path.write_text("tampered")
     assert resume_after(tmp_path, job, entry, names) == "05_deduplication"
-    assert evidence[str(path.relative_to(tmp_path))]["stage"] == "06_news_importance"
+    assert evidence[path.relative_to(tmp_path).as_posix()]["stage"] == "06_news_importance"
 
 
 def test_resume_rejects_escaping_paths(tmp_path):

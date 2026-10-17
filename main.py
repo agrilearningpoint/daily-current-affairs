@@ -32,6 +32,20 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+def _load_dotenv(env_file: Path) -> None:
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip("'\"")
+            if k not in os.environ:
+                os.environ[k] = v
+
+_load_dotenv(ROOT / ".env")
+
 # ---------------------------------------------------------------------------
 from pipeline.persistence import file_lock, redact, write_json_atomic
 from pipeline.checkpoints import capture, resume_after
@@ -252,6 +266,8 @@ def run_stage(name: str, script_rel: str, critical: bool,
     env.update(extra_env)  # canonical ALP_JOB_* context reaches every stage
     env["ALP_STAGE_ID"] = name
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT), env.get("PYTHONPATH", "")]))
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
 
     attempts = MAX_RETRIES + 1
     last_err = ""
@@ -263,6 +279,8 @@ def run_stage(name: str, script_rel: str, critical: bool,
                 env=env,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=STAGE_TIMEOUT_SECONDS,
             )
             output = redact((result.stdout or "") + "\n" + (result.stderr or ""), env)

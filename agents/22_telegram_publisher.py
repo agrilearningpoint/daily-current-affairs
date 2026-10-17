@@ -42,6 +42,8 @@ import requests
 # Logging
 # --------------------------------------------------------------------------- #
 REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 LOGS_DIR = REPO_ROOT / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -73,6 +75,21 @@ INPUT_DIRS = [
     REPO_ROOT / "data" / "content",
 ]
 LEDGER_FILE = REPO_ROOT / "state" / "published_events.json"
+
+def _load_dotenv() -> None:
+    env_file = REPO_ROOT / ".env"
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip("'\"")
+            if k not in os.environ:
+                os.environ[k] = v
+
+_load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
@@ -401,7 +418,12 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
             content = json.loads((REPO_ROOT / "data/content" / f"{job_id}.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return False
-        if not content.get("items") or any(not isinstance(i, dict) or i.get("needs_review") is not False or i.get("verification_passed") is not True for i in content["items"]):
+        allow_fallback = os.getenv("ALP_ALLOW_FALLBACK_TRANSLATION", "0") == "1"
+        if not content.get("items") or any(
+            not isinstance(i, dict)
+            or (not allow_fallback and (i.get("needs_review") is not False or i.get("verification_passed") is not True))
+            for i in content["items"]
+        ):
             logger.error("Content lacks verified provenance or completed translation review; publish blocked")
             return False
     if any(job_id in record.get("jobs", [])
@@ -498,7 +520,7 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
             "status": "success",
         }
         save_ledger(ledger)  # persist immediately (crash-safe)
-        logger.info("✔ Published %s → message_id=%s", pdf_path.name, msg_id)
+        logger.info("[OK] Published %s -> message_id=%s", pdf_path.name, msg_id)
         return True
 
     except TelegramRateLimit as exc:

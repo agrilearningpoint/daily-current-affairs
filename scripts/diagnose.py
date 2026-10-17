@@ -22,6 +22,18 @@ from typing import List, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+
 class Report:
     def __init__(self):
         self.errors: List[str] = []
@@ -30,15 +42,15 @@ class Report:
 
     def err(self, msg: str):
         self.errors.append(msg)
-        print(f"  ❌ {msg}")
+        print(f"  [X] {msg}")
 
     def warn(self, msg: str):
         self.warnings.append(msg)
-        print(f"  ⚠️  {msg}")
+        print(f"  [!] {msg}")
 
     def ok(self, msg: str):
         self.passed.append(msg)
-        print(f"  ✅ {msg}")
+        print(f"  [OK] {msg}")
 
     def summary(self) -> int:
         print()
@@ -48,12 +60,12 @@ class Report:
         print(f"PASSED:   {len(self.passed)}")
         print("=" * 70)
         if self.errors:
-            print("\n🚨 Fix all ERRORS before pushing.\n")
+            print("\nFix all ERRORS before pushing.\n")
             return 1
         if self.warnings:
-            print("\n⚠️  Warnings present but no blockers.\n")
+            print("\nWarnings present but no blockers.\n")
             return 0
-        print("\n✅ All checks passed.\n")
+        print("\n[OK] All checks passed.\n")
         return 0
 
 
@@ -78,6 +90,7 @@ def check_critical_files(r: Report):
     print("\n[2] Critical files exist")
     files = [
         "main.py",
+        "pipeline/01_source_fetch.py",
         "pipeline/agent_context.py",
         "pipeline/state.py",
         "pipeline/store.py",

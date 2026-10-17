@@ -307,11 +307,17 @@ def test_killed_orchestrator_releases_lock_and_resumes_tail(publication_tail):
                     break
                 time.sleep(0.05)
             assert paused.exists(), (root / "logs/killed-orchestrator.log").read_text()
-            os.killpg(process.pid, signal.SIGTERM)
+            if hasattr(os, "killpg"):
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                process.terminate()
             process.wait(timeout=5)
         finally:
             if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
+                if hasattr(os, "killpg"):
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
                 process.wait(timeout=5)
     interrupted = main.load_jobs_state(strict=True)[JOB]
     assert interrupted["status"] == "running" and interrupted["last_success_stage"] == "19_pdf_qa"

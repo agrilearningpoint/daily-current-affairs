@@ -9,6 +9,24 @@
       "file_sha256": "b9257fb413fedc1be23905fb0418f9a4a659b774a92d19f87da984663b8f2aa3",
       "status": "verified",
       "verified_at": "2026-10-16T07:37:45.086161+00:00"
+    },
+    "7b95760fa36538596da09dde": {
+      "job_id": "daily_2026-10-16",
+      "chat_id": "-1004485392227",
+      "message_id": 47,
+      "pinned_message_id": 47,
+      "file_sha256": "1f50aaccaae54b316d4b4591975e47f0a1deeeaf8acdaf30408bdb253ce9f80d",
+      "status": "verified",
+      "verified_at": "2026-10-16T15:03:23.024628+00:00"
+    },
+    "5fb546bf04ffdad2a359806a": {
+      "job_id": "daily_2026-10-17",
+      "chat_id": "-1004485392227",
+      "message_id": 55,
+      "pinned_message_id": 55,
+      "file_sha256": "cdc246b877e3e017a9dd6b8099b3099445e51e7909a5a8cea526ad8f05394bf0",
+      "status": "verified",
+      "verified_at": "2026-10-17T05:39:28.351141+00:00"
     }
   }
 }

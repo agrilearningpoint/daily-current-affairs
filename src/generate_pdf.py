@@ -2,15 +2,31 @@
 # -*- coding: utf-8 -*-
 """
 AGRI LEARNING POINT - Premium Daily Current Affairs PDF Generator
+================================================================
 Production engine for daily / weekly / monthly bilingual editions.
-All dates, headlines and content are supplied dynamically via the content JSON
-built by Agent 12; nothing in this file is sample- or date-specific.
-Design: Premium colourful magazine, mobile-friendly, exam-oriented.
-Hindi rendering: Mukta + Pillow/RAQM shaping with a hidden selectable
-vector-text layer (see _HindiTextFlowable); English: Poppins.
+Engineered to top Indian competitive-exam coaching institute standards
+(Vision IAS / Drishti IAS level) for AGTA, AFO, ICAR, NABARD, FCI, and IBPS.
+
+Typography & Shaping:
+- English: Poppins (Regular, SemiBold, Bold)
+- Hindi/Devanagari: Mukta (Regular, Bold) with OpenType complex text shaping
+  via HarfBuzz + FreeType or Pillow RAQM, combined with an invisible selectable
+  vector-text layer for 100% searchability, copy-paste, and QA compliance.
+- Header/Footer: Professional coaching identity with clickable Telegram channels
+  and dynamic "Page X of Y" numbering.
 """
 
+from __future__ import annotations
+
 import os
+import sys
+import tempfile
+import hashlib
+import html
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm, cm
 from reportlab.lib.colors import HexColor, white, black
@@ -19,66 +35,249 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen import canvas
 from reportlab.platypus.flowables import Flowable
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, HRFlowable, Image, Frame, PageTemplate, NextPageTemplate
+    PageBreak, KeepTogether, HRFlowable, Image
 )
-from reportlab.lib import colors
-from reportlab.graphics.shapes import Drawing, Circle, String as ShapeString, Rect
-from reportlab.graphics.charts.textlabels import Label
-import textwrap
-import re
 from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
-import hashlib
 
-# --- P0 GUARD: RAQM/HarfBuzz is mandatory for Devanagari shaping in Pillow ---
-if not PILFeatures.check("raqm"):
-    raise RuntimeError(
-        "FATAL: Pillow RAQM support is required for Hindi/Devanagari rendering. "
-        "Install libraqm or use a Pillow wheel built with RAQM. "
-        "Silent fallback to unshaped draw.text() is forbidden in production."
+# --- HARFBUZZ + FREETYPE CHECK ---
+try:
+    import uharfbuzz as hb
+    import freetype
+    _HAS_HB_FT = True
+except ImportError:
+    _HAS_HB_FT = False
+
+# --- PATHS ---
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def get_shaping_diagnostics() -> tuple[bool, str]:
+    """Check if Devanagari text shaping is available (via Pillow RAQM or uharfbuzz+freetype)."""
+    has_raqm = bool(PILFeatures.check("raqm"))
+    if has_raqm:
+        return True, "Pillow RAQM shaping is available."
+    if _HAS_HB_FT:
+        return True, "HarfBuzz + FreeType complex text shaping is available (cross-platform)."
+    msg = (
+        "Devanagari text shaping engine is required for Hindi rendering.\n"
+        "Neither Pillow RAQM nor uharfbuzz+freetype-py is available.\n"
+        f"Environment: platform={sys.platform}, python={sys.version.split()[0]}\n"
+        "Requirements to enable shaping:\n"
+        "  - Pip: pip install uharfbuzz freetype-py\n"
+        "  - Linux: sudo apt-get install -y libraqm0 libraqm-dev libfribidi0\n"
+        "Production rule: Silent fallback to unshaped draw.text() is forbidden because it misplaces ligatures."
     )
+    return False, msg
 
-# Hidden-text-layer registry: every hindi_to_image() call records the exact
-# lines + geometry so onPage handlers can draw invisible selectable text behind it.
-_HINDI_TEXT_LAYERS = []
 
-def _clear_hindi_layers():
-    del _HINDI_TEXT_LAYERS[:]
+# --- P0 GUARD: OpenType text shaping is mandatory ---
+_HAS_SHAPING, _SHAPING_DIAGNOSTIC = get_shaping_diagnostics()
+_HAS_RAQM = bool(PILFeatures.check("raqm"))
+_ALLOW_UNSHAPED_DEV = os.getenv("ALP_ALLOW_UNSHAPED_DEV_PDF", "0") == "1"
 
-# --- HINDI RENDERING HELPER (Perfect Devanagari via Pillow + HarfBuzz) ---
+if not _HAS_SHAPING:
+    if not _ALLOW_UNSHAPED_DEV:
+        raise RuntimeError(f"FATAL: {_SHAPING_DIAGNOSTIC}")
+    else:
+        import warnings
+        warnings.warn(
+            f"NON-PRODUCTION WARNING: Running without complex shaping.\n{_SHAPING_DIAGNOSTIC}",
+            UserWarning,
+            stacklevel=2,
+        )
+
+
+# --- COLOR TOKENS (Premium Coaching Palette) ---
+COLORS = {
+    "primary_navy": HexColor("#0A2540"),       # Executive Deep Navy
+    "secondary_navy": HexColor("#1E3A8A"),     # Royal Navy
+    "primary_green": HexColor("#1B5E20"),      # Deep Forest Agriculture Green
+    "light_green": HexColor("#E8F5E9"),        # Subtle Mint Tint
+    "agri_accent": HexColor("#2E7D32"),        # Vibrant Leaf Green
+    "banking_blue": HexColor("#0D47A1"),       # Deep Banking Blue
+    "banking_light": HexColor("#E3F2FD"),      # Banking Light
+    "national_orange": HexColor("#C2410C"),     # Rust Orange
+    "national_light": HexColor("#FFF7ED"),
+    "economy_teal": HexColor("#0F766E"),       # Deep Teal
+    "economy_light": HexColor("#F0FDFA"),
+    "science_cyan": HexColor("#0369A1"),       # Science Sky
+    "science_light": HexColor("#F0F9FF"),
+    "environment_green": HexColor("#15803D"),
+    "environment_light": HexColor("#F0FDF4"),
+    "sports_red": HexColor("#B91C1C"),
+    "sports_light": HexColor("#FEF2F2"),
+    "alert_gold": HexColor("#D97706"),         # Amber Alert
+    "alert_light": HexColor("#FEF3C7"),        # Light Amber Box
+    "dark_text": HexColor("#0F172A"),          # High Contrast Slate Dark
+    "body_text": HexColor("#334155"),          # Softer Dark Slate
+    "muted_text": HexColor("#64748B"),         # Cool Gray
+    "border_light": HexColor("#E2E8F0"),       # Clean Thin Border
+    "card_bg": HexColor("#F8FAFC"),            # Soft Card Background
+    "header_bg": HexColor("#0A2540"),          # Header Dark Navy
+    "footer_bg": HexColor("#0A2540"),          # Footer Dark Navy
+}
+
+CATEGORY_STYLE = {
+    "agriculture": {"color": COLORS["primary_green"], "light": COLORS["light_green"], "label": "AGRICULTURE & ALLIED"},
+    "banking": {"color": COLORS["banking_blue"], "light": COLORS["banking_light"], "label": "BANKING & FINANCE"},
+    "national": {"color": COLORS["national_orange"], "light": COLORS["national_light"], "label": "NATIONAL AFFAIRS"},
+    "international": {"color": HexColor("#6D28D9"), "light": HexColor("#F5F3FF"), "label": "INTERNATIONAL AFFAIRS"},
+    "economy": {"color": COLORS["economy_teal"], "light": COLORS["economy_light"], "label": "ECONOMY & SCHEMES"},
+    "science": {"color": COLORS["science_cyan"], "light": COLORS["science_light"], "label": "SCIENCE & TECHNOLOGY"},
+    "environment": {"color": COLORS["environment_green"], "light": COLORS["environment_light"], "label": "ENVIRONMENT & CLIMATE"},
+    "sports": {"color": COLORS["sports_red"], "light": COLORS["sports_light"], "label": "SPORTS"},
+    "important_days": {"color": HexColor("#7C3AED"), "light": HexColor("#F5F3FF"), "label": "IMPORTANT DAYS"},
+}
+
+CAT_MAP = {
+    "Agriculture": "agriculture", "agriculture": "agriculture",
+    "Banking & Finance": "banking", "banking": "banking", "banking_finance": "banking",
+    "Economy": "economy", "economy": "economy", "economy_data": "economy",
+    "Government Schemes": "national", "government_schemes": "national",
+    "National": "national", "national": "national",
+    "International": "international", "international": "international",
+    "Science & Technology": "science", "science_technology": "science",
+    "Environment": "environment", "environment": "environment",
+    "Sports": "sports", "sports": "sports",
+    "Important Days": "important_days", "important_days": "important_days",
+    "Awards": "national", "Appointments": "national",
+}
+
+PAGE_W, PAGE_H = A4
+
+
+# --- FONT REGISTRATION ---
+def register_fonts() -> bool:
+    try:
+        pdfmetrics.registerFont(TTFont("Poppins", os.path.join(FONTS_DIR, "Poppins-Regular.ttf")))
+        pdfmetrics.registerFont(TTFont("Poppins-SemiBold", os.path.join(FONTS_DIR, "Poppins-SemiBold.ttf")))
+        pdfmetrics.registerFont(TTFont("Poppins-Bold", os.path.join(FONTS_DIR, "Poppins-Bold.ttf")))
+        pdfmetrics.registerFont(TTFont("Mukta", os.path.join(FONTS_DIR, "Mukta-Regular.ttf")))
+        pdfmetrics.registerFont(TTFont("Mukta-Bold", os.path.join(FONTS_DIR, "Mukta-Bold.ttf")))
+        return True
+    except Exception as exc:
+        raise RuntimeError(
+            f"FATAL: Required fonts (Poppins+Mukta) failed to register from {FONTS_DIR}: {exc}"
+        )
+
+
+FONTS_OK = register_fonts()
+FONT_REGULAR = "Poppins"
+FONT_BOLD = "Poppins-Bold"
+FONT_SEMI = "Poppins-SemiBold"
+FONT_HINDI = "Mukta"
+FONT_HINDI_BOLD = "Mukta-Bold"
+
+
+# --- STYLES ---
+def get_styles() -> Dict[str, ParagraphStyle]:
+    styles = getSampleStyleSheet()
+    return {
+        "cover_masthead": ParagraphStyle("CoverMasthead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=28, leading=32, textColor=COLORS["primary_navy"], alignment=TA_CENTER),
+        "cover_sub": ParagraphStyle("CoverSub", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=13, leading=17, textColor=COLORS["primary_green"], alignment=TA_CENTER),
+        "cover_pill": ParagraphStyle("CoverPill", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"], alignment=TA_CENTER),
+        "cover_tag": ParagraphStyle("CoverTag", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13, textColor=COLORS["muted_text"], alignment=TA_CENTER),
+        "section_banner": ParagraphStyle("SectionBanner", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13, leading=16, textColor=white, alignment=TA_LEFT),
+        "headline_en": ParagraphStyle("HeadlineEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=14, leading=18, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=2),
+        "headline_hi": ParagraphStyle("HeadlineHI", parent=styles["Normal"], fontName=FONT_HINDI_BOLD, fontSize=13.5, leading=17.5, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=4),
+        "body_en": ParagraphStyle("BodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=2),
+        "body_hi": ParagraphStyle("BodyHI", parent=styles["Normal"], fontName=FONT_HINDI, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=2),
+        "static_label": ParagraphStyle("StaticLabel", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"], alignment=TA_LEFT),
+        "static_text": ParagraphStyle("StaticText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13, textColor=COLORS["dark_text"], alignment=TA_LEFT),
+        "exam_fact": ParagraphStyle("ExamFact", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=9.5, leading=13.5, textColor=HexColor("#92400E"), alignment=TA_LEFT),
+        "mcq_q": ParagraphStyle("MCQQ", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10.5, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=3),
+        "mcq_opt": ParagraphStyle("MCQOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=12, spaceAfter=2),
+        "mcq_ans": ParagraphStyle("MCQAns", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9.5, leading=13.5, textColor=white, alignment=TA_LEFT),
+        "mcq_exp": ParagraphStyle("MCQExp", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=13, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=2),
+        "one_liner": ParagraphStyle("OneLiner", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=10, spaceAfter=3),
+        "footer": ParagraphStyle("Footer", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8, leading=10, textColor=white, alignment=TA_CENTER),
+        "header": ParagraphStyle("Header", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=white, alignment=TA_CENTER),
+    }
+
+
+STYLES = get_styles()
+
+
+# --- SANITIZATION ---
+def _strip_html(text: Any) -> str:
+    """Completely strip HTML markup and unescape entities."""
+    if not text:
+        return ""
+    # Strip well-formed tags
+    cleaned = re.sub(r"<[^>]+>", " ", str(text))
+    # Strip unclosed or broken tags
+    cleaned = re.sub(r"<[^>]*", " ", cleaned)
+    cleaned = html.unescape(cleaned)
+    return " ".join(cleaned.split()).strip()
+
+
+def _safe(s: Any) -> str:
+    """Clean HTML markup and safely escape XML entities for ReportLab paragraphs."""
+    cleaned = _strip_html(s)
+    return cleaned.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# --- NUMBERED CANVAS (Dynamic "Page X of Y") ---
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states: List[Dict[str, Any]] = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            if self._pageNumber > 1:
+                self.saveState()
+                self.setFont(FONT_REGULAR, 7.5)
+                self.setFillColor(white)
+                self.drawRightString(PAGE_W - 14*mm, 3.8*mm, f"Page {self._pageNumber} of {num_pages}")
+                self.restoreState()
+            super().showPage()
+        super().save()
+
+
+# --- HINDI / DEVANAGARI RENDERING ENGINE ---
+DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
+
+
 class _HindiTextFlowable(Flowable):
-    """Wraps a shaped Mukta PNG image AND draws the same text as invisible
+    """Wraps an OpenType-shaped Mukta PNG image AND draws the same text as invisible
     selectable vector glyphs at the identical position/size.
-    Fixes: Hindi is searchable/copyable, no font-mismatch artifacts, and QA
-    extraction reflects the *entire* Hindi content (not just banner strings)."""
-    def __init__(self, img_flowable, layer):
-        Flowable.__init__(self)
+    Ensures PDF searchability, copy-paste, and QA compliance."""
+    def __init__(self, img_flowable: Image, layer: Dict[str, Any]):
+        super().__init__()
         self.img = img_flowable
-        self.layer = layer  # dict with lines/font_name/size_pt/line_spacing/align/left_pad_mm/path
+        self.layer = layer
 
     def wrap(self, availWidth, availHeight):
         w, h = self.img.wrap(availWidth, availHeight)
         self._w, self._h = w, h
         return w, h
 
-    def drawOn(self, canvas, x, y, _sW=0):
-        self.img.drawOn(canvas, x, y, _sW)
+    def drawOn(self, canvas_obj, x, y, _sW=0):
+        self.img.drawOn(canvas_obj, x, y, _sW)
         L = self.layer
         w_pt, h_pt = L["path"]
         size = L["size_pt"]
-        # Distribute lines evenly across image height (matches PNG slotting)
         n = max(len(L["lines"]), 1)
         slot = h_pt / n
-        canvas.saveState()
-        # Invisible-but-selectable text: PDF text render mode 3 (Tr 3).
-        # ReportLab emits Tr via the text object; drawString uses the canvas
-        # fast-path, so we inject Tr 3 directly into the content stream.
-        canvas._code.append('3 Tr')
-        canvas.setFont(L["font_name"], size)
+        canvas_obj.saveState()
+        canvas_obj.setFont(L["font_name"], size)
         for i, line in enumerate(L["lines"]):
-            lw = stringWidth(line, L["font_name"], size)
+            clean_l = _strip_html(line)
+            lw = stringWidth(clean_l, L["font_name"], size)
             if L["align"] == "center":
                 tx = x + (w_pt - lw) / 2
             elif L["align"] == "right":
@@ -86,674 +285,300 @@ class _HindiTextFlowable(Flowable):
             else:
                 tx = x + L["left_pad_mm"] * mm + 2
             ty = y + h_pt - (i + 1) * slot + slot * 0.16
-            canvas.drawString(tx, ty, line)
-        canvas._code.append('0 Tr')
-        canvas.restoreState()
+            canvas_obj.drawString(tx, ty, clean_l, mode=3)
+        canvas_obj.restoreState()
 
     def draw(self):
         self.drawOn(self.canv, 0, 0)
 
 
-def hindi_to_image(text, width_mm=170, font_size_pt=8.5, bold=False, color="#212121", bg="white", line_spacing=1.35, align="left", left_padding_mm=0):
-    HINDI_FONT_PATH = os.path.join(FONTS_DIR, "Mukta-Regular.ttf")
-    HINDI_FONT_BOLD_PATH = os.path.join(FONTS_DIR, "Mukta-Bold.ttf")
-    try:
-        dpi = 450
-        width_px = int(width_mm * dpi / 25.4)
-        font_size_px = int(font_size_pt * dpi / 72 * 1.1)
-        font_path = HINDI_FONT_BOLD_PATH if bold else HINDI_FONT_PATH
-        if not os.path.exists(font_path):
-            font_path = HINDI_FONT_PATH
+def _render_hindi_hb_ft(
+    text: str,
+    font_path: str,
+    font_size_pt: float,
+    width_px: int,
+    avail_w_px: int,
+    left_padding_mm: float,
+    color_rgb: Tuple[int, int, int],
+    bg_rgb: Tuple[int, int, int],
+    line_spacing: float,
+    align: str,
+    dpi: int,
+) -> Tuple[PILImage.Image, List[str], int, int]:
+    """Pure cross-platform OpenType shaping and rasterization via HarfBuzz + FreeType."""
+    face = freetype.Face(font_path)
+    face.set_char_size(int(font_size_pt * 64), 0, dpi, dpi)
+
+    with open(font_path, "rb") as f:
+        font_data = f.read()
+    hb_face = hb.Face(hb.Blob(font_data))
+    hb_font = hb.Font(hb_face)
+    hb_font.scale = (face.size.x_ppem * 64, face.size.y_ppem * 64)
+
+    def shape_runs(txt: str) -> Tuple[List[Any], List[Any]]:
+        """Shape mixed text by segmenting into Unicode script runs so Devanagari is always shaped with Deva script."""
+        all_infos = []
+        all_pos = []
+        tokens = re.split(r'([\u0900-\u097F\u200C\u200D]+)', txt)
+        for tok in tokens:
+            if not tok:
+                continue
+            is_deva = bool(re.search(r'[\u0900-\u097F]', tok))
+            buf = hb.Buffer()
+            buf.add_str(tok)
+            if is_deva:
+                buf.script = 'Deva'
+                buf.language = 'hi'
+            else:
+                buf.script = 'Latn'
+                buf.language = 'en'
+            buf.direction = 'ltr'
+            hb.shape(hb_font, buf, {'liga': True, 'kern': True})
+            all_infos.extend(buf.glyph_infos)
+            all_pos.extend(buf.glyph_positions)
+        return all_infos, all_pos
+
+    def measure_text(txt: str) -> int:
+        _, positions = shape_runs(txt)
+        return sum(pos.x_advance for pos in positions) // 64
+
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        test = current + " " + word if current else word
+        if measure_text(test) <= avail_w_px:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+                current = word
+            else:
+                lines.append(word)
+                current = ""
+    if current:
+        lines.append(current)
+    if not lines:
+        lines = [text]
+
+    line_h_px = int(face.size.height / 64 * line_spacing) if face.size.height else int(font_size_pt * dpi / 72 * line_spacing)
+    ascent_px = int(face.size.ascender / 64) if face.size.ascender else int(font_size_pt * dpi / 72)
+    height_px = line_h_px * len(lines) + int(6 * dpi / 72)
+
+    img = PILImage.new("RGB", (width_px, height_px), bg_rgb)
+    pen_y = ascent_px + int(3 * dpi / 72)
+
+    for line in lines:
+        glyph_infos, glyph_positions = shape_runs(line)
+        line_w = sum(pos.x_advance for pos in glyph_positions) // 64
+
+        if align == "center":
+            pen_x = (width_px - line_w) // 2
+        elif align == "right":
+            pen_x = width_px - line_w - 6
+        else:
+            pen_x = int(left_padding_mm * dpi / 25.4) + 2
+
+        for info, pos in zip(glyph_infos, glyph_positions):
+            face.load_glyph(info.codepoint, freetype.FT_LOAD_RENDER)
+            bitmap = face.glyph.bitmap
+            top = face.glyph.bitmap_top
+            left = face.glyph.bitmap_left
+
+            bx = pen_x + (pos.x_offset // 64) + left
+            by = pen_y - (pos.y_offset // 64) - top
+
+            if bitmap.width > 0 and bitmap.rows > 0:
+                glyph_mask = PILImage.frombytes("L", (bitmap.width, bitmap.rows), bytes(bitmap.buffer))
+                color_patch = PILImage.new("RGB", (bitmap.width, bitmap.rows), color_rgb)
+                img.paste(color_patch, (bx, by), glyph_mask)
+
+            pen_x += pos.x_advance // 64
+        pen_y += line_h_px
+
+    return img, lines, width_px, height_px
+
+
+def _render_hindi_pillow_raqm(
+    text: str,
+    font_path: str,
+    font_size_pt: float,
+    width_px: int,
+    avail_w_px: int,
+    left_padding_mm: float,
+    color_rgb: Tuple[int, int, int],
+    bg_rgb: Tuple[int, int, int],
+    line_spacing: float,
+    align: str,
+    dpi: int,
+) -> Tuple[PILImage.Image, List[str], int, int]:
+    """Render using Pillow RAQM layout engine when available in environment."""
+    font_size_px = int(font_size_pt * dpi / 72 * 1.05)
+    font = ImageFont.truetype(font_path, font_size_px, layout_engine=ImageFont.Layout.RAQM)
+
+    dummy = PILImage.new("RGB", (width_px, 100), bg_rgb)
+    draw_dummy = ImageDraw.Draw(dummy)
+
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        test = current + " " + word if current else word
+        w = draw_dummy.textlength(test, font=font, language="hi", features=["liga", "kern"])
+        if w <= avail_w_px:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+                current = word
+            else:
+                lines.append(word)
+                current = ""
+    if current:
+        lines.append(current)
+    if not lines:
+        lines = [text]
+
+    line_h_px = int(font_size_px * line_spacing)
+    height_px = line_h_px * len(lines) + 8
+    img = PILImage.new("RGB", (width_px, height_px), bg_rgb)
+    draw = ImageDraw.Draw(img)
+    y = 4
+
+    for line in lines:
+        line_w = draw.textlength(line, font=font, language="hi", features=["liga"])
+        if align == "center":
+            x = (width_px - line_w) // 2
+        elif align == "right":
+            x = width_px - line_w - 6
+        else:
+            x = int(left_padding_mm * dpi / 25.4) + 2
+        draw.text((x, y), line, font=font, fill=color_rgb, language="hi", features=["liga", "kern"])
+        y += line_h_px
+
+    return img, lines, width_px, height_px
+
+
+def hindi_to_image(
+    text: str,
+    width_mm: float = 182,
+    font_size_pt: float = 10,
+    bold: bool = False,
+    color: str = "#0F172A",
+    bg: str = "white",
+    line_spacing: float = 1.35,
+    align: str = "left",
+    left_padding_mm: float = 0,
+) -> _HindiTextFlowable:
+    """Render Hindi text with flawless OpenType Devanagari shaping."""
+    clean_text = _strip_html(text)
+    if not clean_text:
+        clean_text = " "
+
+    font_filename = "Mukta-Bold.ttf" if bold else "Mukta-Regular.ttf"
+    font_path = os.path.join(FONTS_DIR, font_filename)
+    if not os.path.exists(font_path):
+        font_path = os.path.join(FONTS_DIR, "Mukta-Regular.ttf")
+
+    dpi = 350
+    width_px = int(width_mm * dpi / 25.4)
+    avail_w_px = width_px - int(left_padding_mm * dpi / 25.4) - 4
+
+    def parse_color(h: str) -> Tuple[int, int, int]:
+        if not h:
+            return (15, 23, 42)
+        s = str(h).strip().lower()
+        if s in ("white", "transparent", "#ffffff", "ffffff", "0xffffff"):
+            return (255, 255, 255)
+        if s in ("black", "#000000", "000000", "0x000000"):
+            return (0, 0, 0)
+        if s.startswith("0x"):
+            s = s[2:]
+        elif s.startswith("#"):
+            s = s[1:]
+        if len(s) == 3:
+            s = "".join(c * 2 for c in s)
         try:
-            font = ImageFont.truetype(font_path, font_size_px, layout_engine=ImageFont.Layout.RAQM)
-        except (ValueError, OSError):
-            # Explicit, non-silent guarantee: RAQM layout engine is mandatory.
-            raise RuntimeError("FATAL: Mukta TTF could not be loaded with RAQM layout engine")
-        import re
-        # Strip HTML tags like <b>, </b>, <font>, etc. for image rendering
-        text = re.sub(r'<[^>]+>', '', text)
-        text = text.replace("&nbsp;", " ").strip()
-        def hex_to_rgb(h):
-            if h.lower() == "white":
-                return (255, 255, 255)
-            if h.lower() == "transparent":
-                return (255, 255, 255)
-            h = h.lstrip("#")
-            if len(h) == 3:
-                h = "".join([c*2 for c in h])
-            # Handle named colors fallback
-            try:
-                return tuple(int(h[i:i+2], 16) for i in (0,2,4))
-            except:
-                return (255,255,255)
-        text_color = hex_to_rgb(color)
-        bg_color = hex_to_rgb(bg)
-        dummy = PILImage.new("RGB", (width_px, 100), bg_color)
-        draw_dummy = ImageDraw.Draw(dummy)
-        words = text.split()
-        lines = []
-        current = ""
-        for word in words:
-            test = current + " " + word if current else word
-            try:
-                w = draw_dummy.textlength(test, font=font, language="hi", features=["liga", "kern"])
-            except:
-                w = font.getlength(test)
-            if w <= (width_px - left_padding_mm * dpi/25.4 - 4):
-                current = test
-            else:
-                if current:
-                    lines.append(current)
-                    current = word
-                else:
-                    lines.append(word)
-                    current = ""
-        if current:
-            lines.append(current)
-        if not lines:
-            lines = [text]
-        line_height_px = int(font_size_px * line_spacing)
-        height_px = line_height_px * len(lines) + 8
-        img = PILImage.new("RGB", (width_px, height_px), bg_color)
-        draw = ImageDraw.Draw(img)
-        y = 4
-        for line in lines:
-            try:
-                line_w = draw.textlength(line, font=font, language="hi", features=["liga"])
-            except:
-                line_w = font.getlength(line)
-            if align == "center":
-                x = (width_px - line_w) // 2
-            elif align == "right":
-                x = width_px - line_w - 6
-            else:
-                x = int(left_padding_mm * dpi/25.4) + 2
-            try:
-                draw.text((x, y), line, font=font, fill=text_color, language="hi", features=["liga", "kern"])
-            except:
-                draw.text((x, y), line, font=font, fill=text_color)
-            y += line_height_px
-        h = hashlib.md5(text.encode()).hexdigest()[:8]
-        tmp_path = f"/tmp/hindi_{h}_{int(width_mm)}_{int(font_size_pt)}_{bold}.png"
-        img.save(tmp_path, dpi=(dpi, dpi))
-        from reportlab.platypus import Image as RLImage
-        pdf_width = width_mm * mm
-        pdf_height = (height_px / width_px) * pdf_width
-        # Register geometry for the hidden selectable-text layer.
-        layer = {
-            "path": (pdf_width, pdf_height),
-            "lines": lines,
-            "font_name": ("Mukta-Bold" if bold else "Mukta"),
-            "size_pt": float(font_size_pt),
-            "line_spacing": float(line_spacing),
-            "align": align,
-            "left_pad_mm": float(left_padding_mm),
-        }
-        return _HindiTextFlowable(RLImage(tmp_path, width=pdf_width, height=pdf_height), layer)
-    except RuntimeError:
-        raise  # never swallow the RAQM fatal guard
-    except Exception as e:
-        print(f"Hindi image fallback for '{text[:20]}': {e}")
-        return Paragraph(f'<font name="{FONT_HINDI}">{text}</font>', ParagraphStyle("fallback", parent=STYLES["body_hi"], fontName=FONT_HINDI, fontSize=font_size_pt, leading=font_size_pt*1.4, textColor=HexColor(color)))
+            return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
+        except Exception:
+            return (15, 23, 42)
 
+    color_rgb = parse_color(color)
+    bg_rgb = parse_color(bg)
 
-# --- PATHS ---
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# FIX: fonts are in src/fonts (previous BASE_DIR/"fonts" path broke font registration -> Helvetica fallback)
-FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Prioritize HarfBuzz + FreeType with script-run tokenization for perfect Devanagari shaping
+    if _HAS_HB_FT:
+        img, lines, w_px, h_px = _render_hindi_hb_ft(
+            clean_text, font_path, font_size_pt, width_px, avail_w_px,
+            left_padding_mm, color_rgb, bg_rgb, line_spacing, align, dpi
+        )
+    elif _HAS_RAQM:
+        img, lines, w_px, h_px = _render_hindi_pillow_raqm(
+            clean_text, font_path, font_size_pt, width_px, avail_w_px,
+            left_padding_mm, color_rgb, bg_rgb, line_spacing, align, dpi
+        )
+    else:
+        # Fallback for dev only
+        font = ImageFont.truetype(font_path, int(font_size_pt * dpi / 72))
+        img = PILImage.new("RGB", (width_px, int(font_size_pt * 2 * dpi / 72)), bg_rgb)
+        lines = [clean_text]
+        w_px, h_px = img.size
 
-# --- COLORS (Premium Palette) ---
-COLORS = {
-    "primary_green": HexColor("#1B5E20"),      # Deep Agri Green
-    "light_green": HexColor("#E8F5E9"),
-    "agri_accent": HexColor("#2E7D32"),
-    "banking_blue": HexColor("#0D47A1"),
-    "banking_light": HexColor("#E3F2FD"),
-    "national_orange": HexColor("#E65100"),
-    "national_light": HexColor("#FFF3E0"),
-    "international_purple": HexColor("#4A148C"),
-    "international_light": HexColor("#F3E5F5"),
-    "economy_teal": HexColor("#006064"),
-    "economy_light": HexColor("#E0F7FA"),
-    "science_cyan": HexColor("#01579B"),
-    "science_light": HexColor("#E1F5FE"),
-    "environment_green": HexColor("#33691E"),
-    "environment_light": HexColor("#F1F8E9"),
-    "sports_red": HexColor("#B71C1C"),
-    "sports_light": HexColor("#FFEBEE"),
-    "awards_gold": HexColor("#F57F17"),
-    "awards_light": HexColor("#FFF8E1"),
-    "exam_yellow": HexColor("#FFF9C4"),
-    "exam_yellow_border": HexColor("#FBC02D"),
-    "mcq_green": HexColor("#2E7D32"),
-    "dark_text": HexColor("#212121"),
-    "medium_text": HexColor("#424242"),
-    "light_text": HexColor("#757575"),
-    "border_grey": HexColor("#E0E0E0"),
-    "cover_bg": HexColor("#FAFAFA"),
-    "header_bg": HexColor("#1B5E20"),
-}
+    h_hash = hashlib.md5((clean_text + f"{font_size_pt}_{bold}_{color_rgb}_{bg_rgb}_{width_mm}").encode("utf-8")).hexdigest()[:10]
+    tmp_dir = Path(tempfile.gettempdir()) / "alp_hindi_cache"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = str(tmp_dir / f"hindi_{h_hash}.png")
+    img.save(tmp_path, dpi=(dpi, dpi))
 
-CATEGORY_STYLE = {
-    "agriculture": {"color": COLORS["agri_accent"], "light": COLORS["light_green"], "icon": "", "label": "AGRICULTURE & ALLIED"},
-    "banking": {"color": COLORS["banking_blue"], "light": COLORS["banking_light"], "icon": "", "label": "BANKING & FINANCE"},
-    "national": {"color": COLORS["national_orange"], "light": COLORS["national_light"], "icon": "", "label": "NATIONAL AFFAIRS"},
-    "international": {"color": COLORS["international_purple"], "light": COLORS["international_light"], "icon": "", "label": "INTERNATIONAL AFFAIRS"},
-    "economy": {"color": COLORS["economy_teal"], "light": COLORS["economy_light"], "icon": "", "label": "ECONOMY"},
-    "science": {"color": COLORS["science_cyan"], "light": COLORS["science_light"], "icon": "", "label": "SCIENCE & TECHNOLOGY"},
-    "environment": {"color": COLORS["environment_green"], "light": COLORS["environment_light"], "icon": "", "label": "ENVIRONMENT & CLIMATE"},
-    "sports": {"color": COLORS["sports_red"], "light": COLORS["sports_light"], "icon": "", "label": "SPORTS"},
-    "important_days": {"color": HexColor("#6A1B9A"), "light": HexColor("#F3E5F5"), "icon": "", "label": "IMPORTANT DAYS"},
-}
+    pdf_width = width_mm * mm
+    pdf_height = (h_px / w_px) * pdf_width
+    rl_img = Image(tmp_path, width=pdf_width, height=pdf_height)
 
-# --- FONTS ---
-def register_fonts():
-    try:
-        pdfmetrics.registerFont(TTFont('Poppins', os.path.join(FONTS_DIR, 'Poppins-Regular.ttf')))
-        pdfmetrics.registerFont(TTFont('Poppins-SemiBold', os.path.join(FONTS_DIR, 'Poppins-SemiBold.ttf')))
-        pdfmetrics.registerFont(TTFont('Poppins-Bold', os.path.join(FONTS_DIR, 'Poppins-Bold.ttf')))
-        pdfmetrics.registerFont(TTFont('Mukta', os.path.join(FONTS_DIR, 'Mukta-Regular.ttf')))
-        pdfmetrics.registerFont(TTFont('Mukta-Bold', os.path.join(FONTS_DIR, 'Mukta-Bold.ttf')))
-        print("✓ Fonts registered: Poppins + Mukta")
-        return True
-    except Exception as e:
-        raise RuntimeError(f"FATAL: required fonts (Poppins+Mukta) could not be registered from {FONTS_DIR}: {e}. "
-                           f"Production PDF must never silently fall back to Helvetica (breaks Hindi).")
-
-FONTS_OK = register_fonts()
-
-# Helper to get font names
-FONT_REGULAR = 'Poppins' if FONTS_OK else 'Helvetica'
-FONT_BOLD = 'Poppins-Bold' if FONTS_OK else 'Helvetica-Bold'
-FONT_SEMI = 'Poppins-SemiBold' if FONTS_OK else 'Helvetica-Bold'
-FONT_HINDI = 'Mukta' if FONTS_OK else 'Helvetica'
-FONT_HINDI_BOLD = 'Mukta-Bold' if FONTS_OK else 'Helvetica-Bold'
-
-PAGE_W, PAGE_H = A4
-
-# --- STYLES ---
-def get_styles():
-    styles = getSampleStyleSheet()
-    
-    s_cover_title = ParagraphStyle('CoverTitle', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=34, leading=38, textColor=COLORS["primary_green"], alignment=TA_CENTER, spaceAfter=4)
-    s_cover_sub = ParagraphStyle('CoverSub', parent=styles['Normal'], fontName=FONT_SEMI, fontSize=14, leading=18, textColor=COLORS["medium_text"], alignment=TA_CENTER, spaceAfter=2)
-    s_cover_date = ParagraphStyle('CoverDate', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=13, leading=16, textColor=white, alignment=TA_CENTER)
-    s_section_banner = ParagraphStyle('SectionBanner', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=16, leading=19, textColor=white, alignment=TA_LEFT)
-    s_headline_en = ParagraphStyle('HeadlineEN', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=18, leading=23, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=3, spaceBefore=8)
-    s_headline_hi = ParagraphStyle('HeadlineHI', parent=styles['Normal'], fontName=FONT_HINDI_BOLD, fontSize=17, leading=22, textColor=COLORS["medium_text"], alignment=TA_LEFT, spaceAfter=6)
-    s_body_en = ParagraphStyle('BodyEN', parent=styles['Normal'], fontName=FONT_REGULAR, fontSize=12, leading=16, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=3, bulletIndent=10, leftIndent=14)
-    s_body_hi = ParagraphStyle('BodyHI', parent=styles['Normal'], fontName=FONT_HINDI, fontSize=12.5, leading=16.5, textColor=HexColor("#333333"), alignment=TA_LEFT, spaceAfter=3, bulletIndent=10, leftIndent=14)
-    s_static_label = ParagraphStyle('StaticLabel', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=9, leading=11, textColor=white, alignment=TA_CENTER)
-    s_static_text = ParagraphStyle('StaticText', parent=styles['Normal'], fontName=FONT_REGULAR, fontSize=11.5, leading=15, textColor=COLORS["dark_text"], alignment=TA_LEFT)
-    s_exam_fact = ParagraphStyle('ExamFact', parent=styles['Normal'], fontName=FONT_SEMI, fontSize=12.5, leading=16, textColor=HexColor("#5D4037"), alignment=TA_LEFT)
-    s_mcq_q = ParagraphStyle('MCQQ', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=12.5, leading=16, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=5)
-    s_mcq_opt = ParagraphStyle('MCQOpt', parent=styles['Normal'], fontName=FONT_REGULAR, fontSize=11.5, leading=15, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=14, spaceAfter=2)
-    s_mcq_ans = ParagraphStyle('MCQAns', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=11.5, leading=15, textColor=white, alignment=TA_LEFT)
-    s_mcq_exp = ParagraphStyle('MCQExp', parent=styles['Normal'], fontName=FONT_REGULAR, fontSize=11, leading=14.5, textColor=COLORS["medium_text"], alignment=TA_LEFT, spaceAfter=3)
-    s_one_liner = ParagraphStyle('OneLiner', parent=styles['Normal'], fontName=FONT_REGULAR, fontSize=11.5, leading=15, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=12, spaceAfter=3, bulletIndent=6)
-    s_footer = ParagraphStyle('Footer', parent=styles['Normal'], fontName=FONT_REGULAR, fontSize=9, leading=11, textColor=white, alignment=TA_CENTER)
-    s_header = ParagraphStyle('Header', parent=styles['Normal'], fontName=FONT_BOLD, fontSize=9, leading=11, textColor=white, alignment=TA_CENTER)
-    s_cover_tag = ParagraphStyle('CoverTag', parent=styles['Normal'], fontName=FONT_SEMI, fontSize=7, leading=9, textColor=COLORS["primary_green"], alignment=TA_CENTER)
-    return {
-        'cover_title': s_cover_title,
-        'cover_sub': s_cover_sub,
-        'cover_date': s_cover_date,
-        'section_banner': s_section_banner,
-        'headline_en': s_headline_en,
-        'headline_hi': s_headline_hi,
-        'body_en': s_body_en,
-        'body_hi': s_body_hi,
-        'static_label': s_static_label,
-        'static_text': s_static_text,
-        'exam_fact': s_exam_fact,
-        'mcq_q': s_mcq_q,
-        'mcq_opt': s_mcq_opt,
-        'mcq_ans': s_mcq_ans,
-        'mcq_exp': s_mcq_exp,
-        'one_liner': s_one_liner,
-        'footer': s_footer,
-        'header': s_header,
-        'cover_tag': s_cover_tag,
+    layer = {
+        "path": (pdf_width, pdf_height),
+        "lines": lines,
+        "font_name": ("Mukta-Bold" if bold else "Mukta"),
+        "size_pt": float(font_size_pt),
+        "line_spacing": float(line_spacing),
+        "align": align,
+        "left_pad_mm": float(left_padding_mm),
     }
-
-STYLES = get_styles()
-
-# --- HEADER / FOOTER / WATERMARK ---
-def header_footer(canvas, doc):
-    canvas.saveState()
-    page_num = canvas.getPageNumber()
-    
-    # Header bar
-    canvas.setFillColor(COLORS["header_bg"])
-    canvas.rect(0, PAGE_H - 22*mm, PAGE_W, 10*mm, fill=1, stroke=0)
-    
-    # Header text
-    canvas.setFillColor(white)
-    canvas.setFont(FONT_BOLD, 8)
-    canvas.drawCentredString(PAGE_W/2, PAGE_H - 15*mm, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS  |  BY SATYAM SIR")
-    canvas.setFont(FONT_REGULAR, 6)
-    canvas.drawCentredString(PAGE_W/2, PAGE_H - 18*mm, "AGTA  •  AFO  •  NABARD  •  FCI  •  ICAR  •  Agriculture & Banking Aspirants")
-    
-    # Logo placeholder circle on header
-    canvas.setFillColor(HexColor("#2E7D32"))
-    canvas.circle(18*mm, PAGE_H - 15*mm, 5*mm, fill=1, stroke=0)
-    canvas.setFillColor(white)
-    canvas.setFont(FONT_BOLD, 7)
-    canvas.drawCentredString(18*mm, PAGE_H - 14*mm, "A")
-    canvas.setFont(FONT_REGULAR, 3.5)
-    canvas.drawCentredString(18*mm, PAGE_H - 16.2*mm, "ALP")
-    
-    # Footer bar
-    canvas.setFillColor(COLORS["header_bg"])
-    canvas.rect(0, 0, PAGE_W, 9*mm, fill=1, stroke=0)
-    # ── Footer: brand + 2 Telegram channels (red icon + blue name + clickable) + page number ──
-    # Left brand
-    canvas.setFillColor(white)
-    canvas.setFont(FONT_REGULAR, 6.5)
-    canvas.drawString(8*mm, 5.5*mm, "Agri Learning Point  |  BY SATYAM SIR")
-    # Telegram channels — red icon + blue name, per user spec
-    # Exact URLs as given: https://web.telegram.org/k/#@agrilearningpoint , https://web.telegram.org/k/#@agriquizworld
-    ch1_name = "@agrilearningpoint"
-    ch2_name = "@agriquizworld"
-    ch1_url = "https://web.telegram.org/k/#@agrilearningpoint"
-    ch2_url = "https://web.telegram.org/k/#@agriquizworld"
-    # Blue for names (visible on dark green), red for icon
-    BLUE_TG = HexColor("#81D4FA")  # light blue visible on #1B5E20
-    BLUE_TG_DARK = HexColor("#4FC3F7")
-    RED_ICON = HexColor("#E53935")
-    link_y = 2.6*mm
-    icon_sz = 3.2*mm
-    # Measure texts
-    w1 = stringWidth(ch1_name, FONT_REGULAR, 7)
-    w2 = stringWidth(ch2_name, FONT_REGULAR, 7)
-    # Total width = icon1 + 1mm + w1 + gap + icon2 +1mm + w2
-    gap = 6*mm
-    total_w = (icon_sz + 1*mm + w1) + gap + (icon_sz + 1*mm + w2)
-    cx = PAGE_W/2
-    x_start = cx - total_w/2
-    # Channel 1: icon + name
-    x1_icon = x_start
-    x1_text = x1_icon + icon_sz + 1*mm
-    # Channel 2
-    x2_icon = x1_text + w1 + gap
-    x2_text = x2_icon + icon_sz + 1*mm
-    # Helper to draw Telegram paper-plane icon (red circle + white plane)
-    def _tg_icon(x, y):
-        canvas.saveState()
-        # Red circle
-        canvas.setFillColor(RED_ICON)
-        canvas.setStrokeColor(RED_ICON)
-        # Circle centred at x+icon_sz/2, y+icon_sz/2
-        canvas.circle(x + icon_sz/2, y + icon_sz/2 + 0.2*mm, icon_sz/2, stroke=0, fill=1)
-        # White plane — simple arrow shape
-        canvas.setFillColor(white)
-        p = canvas.beginPath()
-        # Plane points within icon
-        # Top-left, tip-right, bottom-left, inner notch
-        p.moveTo(x + 0.7*mm, y + 0.85*mm)
-        p.lineTo(x + 2.5*mm, y + 1.65*mm)
-        p.lineTo(x + 0.7*mm, y + 2.45*mm)
-        p.lineTo(x + 1.2*mm, y + 1.65*mm)
-        p.close()
-        canvas.drawPath(p, stroke=0, fill=1)
-        canvas.restoreState()
-    _tg_icon(x1_icon, link_y - 0.3*mm)
-    _tg_icon(x2_icon, link_y - 0.3*mm)
-    # Blue channel names
-    canvas.setFillColor(BLUE_TG)
-    canvas.setFont(FONT_REGULAR, 7)
-    canvas.drawString(x1_text, link_y + 0.6*mm, ch1_name)
-    canvas.drawString(x2_text, link_y + 0.6*mm, ch2_name)
-    # Small "TG" label above icons to make it extra clear? Keep minimal — icon itself is red
-    # Clickable areas: icon + text together
-    canvas.linkURL(ch1_url, (x1_icon - 0.5*mm, link_y - 0.8*mm, x1_text + w1 + 0.5*mm, link_y + 4*mm), relative=0)
-    canvas.linkURL(ch2_url, (x2_icon - 0.5*mm, link_y - 0.8*mm, x2_text + w2 + 0.5*mm, link_y + 4*mm), relative=0)
-    # Page number on right
-    canvas.setFillColor(white)
-    canvas.setFont(FONT_REGULAR, 8)
-    canvas.drawRightString(PAGE_W - 8*mm, 4.2*mm, f"Page {page_num}")
-    
-    # Watermark PNG - AGRI LEARNING POINT Logo (user logo - centred, faded)
-    try:
-        watermark_path = os.path.join(BASE_DIR, "assets", "watermark_logo.png")
-        if os.path.exists(watermark_path):
-            canvas.saveState()
-            canvas.setFillAlpha(0.09)
-            # Draw logo centred, large but faded (single logo, not tiled)
-            # Centre of page
-            wm_size = 90*mm
-            wm_x = (PAGE_W - wm_size)/2
-            wm_y = (PAGE_H - wm_size)/2 + 5*mm
-            canvas.drawImage(watermark_path, wm_x, wm_y, width=wm_size, height=wm_size, preserveAspectRatio=True, mask='auto')
-            canvas.restoreState()
-    except Exception as e:
-        # Fallback to text watermark
-        canvas.setFillColor(HexColor("#E8F5E9"))
-        canvas.setFont(FONT_BOLD, 60)
-        canvas.saveState()
-        canvas.setFillAlpha(0.09)
-        canvas.rotate(30)
-        canvas.drawString(40*mm, -10*mm, "AGRI LEARNING POINT")
-        canvas.restoreState()
-    
-    # Double border - Red outer + Green inner (professional double line)
-    canvas.setStrokeColor(HexColor("#B71C1C"))  # Red outer
-    canvas.setLineWidth(1.2)
-    canvas.rect(5*mm, 10*mm, PAGE_W - 10*mm, PAGE_H - 32*mm, fill=0, stroke=1)
-    canvas.setStrokeColor(HexColor("#1B5E20"))  # Green inner
-    canvas.setLineWidth(0.8)
-    canvas.rect(6.5*mm, 11.5*mm, PAGE_W - 13*mm, PAGE_H - 35*mm, fill=0, stroke=1)
-    
-    canvas.restoreState()
-
-def cover_header_footer(canvas, doc):
-    # No header/footer on cover - clean
-    canvas.saveState()
-    # Watermark PNG on cover too - same logo, slightly lighter
-    try:
-        watermark_path = os.path.join(BASE_DIR, "assets", "watermark_logo.png")
-        if os.path.exists(watermark_path):
-            canvas.saveState()
-            canvas.setFillAlpha(0.09)
-            wm_size = 100*mm
-            wm_x = (PAGE_W - wm_size)/2
-            wm_y = (PAGE_H - wm_size)/2
-            canvas.drawImage(watermark_path, wm_x, wm_y, width=wm_size, height=wm_size, preserveAspectRatio=True, mask='auto')
-            canvas.restoreState()
-    except:
-        canvas.setFillColor(HexColor("#E8F5E9"))
-        canvas.setFont(FONT_BOLD, 70)
-        canvas.setFillAlpha(0.06)
-        canvas.saveState()
-        canvas.rotate(30)
-        canvas.drawString(30*mm, 10*mm, "AGRI LEARNING POINT")
-        canvas.restoreState()
-    canvas.restoreState()
-
-# --- HELPER COMPONENTS ---
-
-def section_banner(category_key, number="01"):
-    cat = CATEGORY_STYLE[category_key]
-    # Create a table as banner
-    banner_data = [
-        [Paragraph(f'<font color="white"><b>{cat["icon"]}  {cat["label"]}</b></font>', STYLES['section_banner']),
-         Paragraph(f'<font color="white" size="9"><b>{number}</b></font>', ParagraphStyle('num', parent=STYLES['section_banner'], alignment=TA_CENTER, fontSize=9, leading=11))]
-    ]
-    t = Table(banner_data, colWidths=[PAGE_W - 34*mm, 18*mm])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (0,0), cat["color"]),
-        ('BACKGROUND', (1,0), (1,0), HexColor("#212121")),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-        ('ROUNDEDCORNERS', [3,3,3,3]),
-    ]))
-    return t
-
-def exam_fact_box(text_en, text_hi=None):
-    # Yellow highlight box
-    content = []
-    content.append(mixed_para('▶ EXAM FACT • परीक्षा तथ्य', 'ef_head', STYLES['exam_fact'], textColor=COLORS["awards_gold"], fontSize=11, leading=13, spaceAfter=4, bg="#FFF9C4"))
-    content.append(Paragraph(text_en, STYLES['exam_fact']))
-    if text_hi:
-        try:
-            ef_img = hindi_to_image(text_hi, width_mm=(PAGE_W/mm - 32), font_size_pt=12.5, bold=False, color="#4E342E", bg="#FFF9C4")
-            content.append(ef_img)
-        except Exception as e:
-            content.append(Paragraph(f'<font name="{FONT_HINDI}" size="12.5">{text_hi}</font>', ParagraphStyle('ef_hi', parent=STYLES['exam_fact'], fontName=FONT_HINDI, fontSize=12.5, leading=16, textColor=HexColor("#4E342E"))))
-    
-    inner = Table([[content]], colWidths=[PAGE_W - 30*mm])
-    inner.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), COLORS["exam_yellow"]),
-        ('BOX', (0,0), (-1,-1), 0.6, COLORS["exam_yellow_border"]),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('ROUNDEDCORNERS', [3,3,3,3]),
-    ]))
-    # Left accent
-    outer = Table([[Paragraph('<font color="#FBC02D">▐</font>', ParagraphStyle('accent', parent=STYLES['exam_fact'], textColor=COLORS["exam_yellow_border"], fontSize=18, leading=18)), inner]], colWidths=[4*mm, PAGE_W - 30*mm])
-    outer.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('LEFTPADDING', (0,0), (-1,-1), 0),
-        ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-    ]))
-    return outer
-
-def static_facts_table(facts_dict):
-    # facts_dict: {label: value}
-    rows = []
-    for k,v in facts_dict.items():
-        rows.append([
-            Paragraph(f'<b><font color="white">{k}</font></b>', STYLES['static_label']),
-            mixed_para(v, 'sf_val', STYLES['static_text'])
-        ])
-    # Build table with 2 rows per line? For compact, use 2 column pairs if many
-    # Single column table for simplicity
-    t = Table(rows, colWidths=[28*mm, PAGE_W - 58*mm])
-    style = [
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 4),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ('GRID', (0,0), (-1,-1), 0.4, white),
-        ('BACKGROUND', (0,0), (0,-1), COLORS["agri_accent"]),
-        ('BACKGROUND', (1,0), (1,-1), HexColor("#F9FBE7")),
-        ('ROUNDEDCORNERS', [2,2,2,2]),
-    ]
-    t.setStyle(TableStyle(style))
-    # Wrap with header
-    header = mixed_para('STATIC FACTS • स्थैतिक तथ्य', 'sf_head', STYLES['static_text'], alignment=TA_LEFT, spaceAfter=5, textColor=COLORS["primary_green"], fontSize=10, leading=13)
-    return [header, t]
-
-def news_card(headline_en, headline_hi, category_key, key_points_en, key_points_hi, static_facts, exam_fact_en, exam_fact_hi, source, image_path=None, image_caption=None, image_note=None):
-    # Returns list of flowables for one news item
-    cat = CATEGORY_STYLE.get(category_key, CATEGORY_STYLE["national"])
-    story = []
-    
-    # Headline with left color border
-    hl_en = Paragraph(f'<b>{headline_en}</b>', STYLES['headline_en'])
-    try:
-        hl_hi = hindi_to_image(headline_hi, width_mm=(PAGE_W/mm - 30), font_size_pt=17, bold=True, color="#424242", bg="white")
-    except Exception as e:
-        hl_hi = Paragraph(f'<font name="{FONT_HINDI}">{headline_hi}</font>', STYLES['headline_hi'])
-    
-    # Headline block with left accent
-    hl_table = Table([
-        [Paragraph(f'<font color="{cat["color"].hexval()}">█</font>', ParagraphStyle('accent', parent=STYLES['headline_en'], textColor=cat["color"], fontSize=20, leading=20)), 
-         [hl_en, hl_hi]]
-    ], colWidths=[4*mm, PAGE_W - 30*mm])
-    hl_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 1),
-        ('RIGHTPADDING', (0,0), (-1,-1), 2),
-        ('TOPPADDING', (0,0), (-1,-1), 1),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
-    ]))
-    story.append(hl_table)
-    story.append(Spacer(1, 2*mm))
-    
-    # Real image - editorial style, full width with subtle caption
-    if image_path and os.path.exists(image_path):
-        try:
-            from PIL import Image as PILImg
-            pil = PILImg.open(image_path)
-            iw, ih = pil.size
-            aspect = ih / iw if iw else 0.6
-            max_h_mm = 62  # mobile-friendly larger image
-            w_mm = PAGE_W/mm - 26
-            h_mm = w_mm * aspect
-            if h_mm > max_h_mm:
-                h_mm = max_h_mm
-                w_mm = h_mm / aspect if aspect else w_mm
-            rl_img = Image(image_path, width=w_mm*mm, height=h_mm*mm)
-            img_table = Table([[rl_img]], colWidths=[PAGE_W - 26*mm])
-            img_table.setStyle(TableStyle([
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('LEFTPADDING', (0,0), (-1,-1), 0),
-                ('RIGHTPADDING', (0,0), (-1,-1), 0),
-                ('TOPPADDING', (0,0), (-1,-1), 0),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-                ('BOX', (0,0), (-1,-1), 0.4, HexColor("#E0E0E0")),
-            ]))
-            story.append(img_table)
-            if image_caption:
-                cap = Paragraph(f'<font color="#757575" size="9"><i>{image_caption}</i></font>', ParagraphStyle('cap', parent=STYLES['static_text'], alignment=TA_CENTER, textColor=COLORS["light_text"], fontSize=9, leading=11, spaceBefore=2))
-                story.append(cap)
-            story.append(Spacer(1, 2*mm))
-        except Exception as e:
-            print(f"Image embed failed {image_path}: {e}")
-            if image_note:
-                story.append(Paragraph(f'<font color="#757575" size="5"><i>{image_note}</i></font>', ParagraphStyle('img_fallback', parent=STYLES['static_text'], alignment=TA_CENTER, textColor=COLORS["light_text"])))
-                story.append(Spacer(1, 2*mm))
-    elif image_note:
-        story.append(Paragraph(f'<font color="#757575" size="5"><i>{image_note}</i></font>', ParagraphStyle('img_fallback2', parent=STYLES['static_text'], alignment=TA_CENTER, textColor=COLORS["light_text"])))
-        story.append(Spacer(1, 2*mm))
-
-    story.append(mixed_para('Key Points  •  मुख्य बिंदु', 'kp_head', STYLES['body_en'], fontName=FONT_BOLD, fontSize=13, leading=17, textColor=COLORS["primary_green"], spaceAfter=4, spaceBefore=4))
-    
-    # Bilingual paired (English + Hindi below, no labels) - human editorial style
-    for en, hi in zip(key_points_en, key_points_hi):
-      # English bullet - clean, professional
-      story.append(Paragraph(f'•  {en}', STYLES['body_en']))
-      # Hindi translation directly below, slightly indented, softer color, perfect Devanagari via image
-      try:
-          hi_clean = re.sub(r'<[^>]+>', '', hi).strip()
-          hi_img = hindi_to_image(hi_clean, width_mm=(PAGE_W/mm - 28), font_size_pt=12.5, bold=False, color="#616161", bg="white", left_padding_mm=4)
-          story.append(hi_img)
-      except Exception as e:
-          story.append(Paragraph(f'<font name="{FONT_HINDI}" size="12.5">{hi}</font>', ParagraphStyle('hi_fallback', parent=STYLES['body_hi'], fontSize=12.5, leading=16.5, textColor=HexColor("#616161"), leftIndent=10)))
-      story.append(Spacer(1, 1.2*mm))    
-    story.append(Spacer(1, 2*mm))
-    
-    # Static Facts
-    if static_facts:
-        for item in static_facts_table(static_facts):
-            story.append(item)
-        story.append(Spacer(1, 2*mm))
-    
-    # Exam Fact
-    story.append(exam_fact_box(exam_fact_en, exam_fact_hi))
-    story.append(Spacer(1, 2*mm))
-    
-    # Source
-    story.append(HRFlowable(width="100%", thickness=0.3, color=COLORS["border_grey"], spaceAfter=4, spaceBefore=4))
-    
-    # MOBILE: Don't wrap entire news in outer Table (too tall ~778pt > 725pt frame with 12pt fonts) - allow natural page split
-    # Instead add a subtle top accent line and return story directly for smart splitting
-    # Add a light separator at start to indicate card boundary
-    # Insert a thin top border via HR at start of story (already have headline accent)
-    # Return flowables directly - reportlab will split naturally across pages, avoiding orphan via KeepTogether on heading block only
-    story.append(Spacer(1, 1*mm))
-    story.append(HRFlowable(width="100%", thickness=0.6, color=cat["light"], spaceAfter=4*mm, spaceBefore=2*mm))
-    # Keep headline+image+first key point together to avoid orphan (wrap that small part in KeepTogether)
-    # But for now return as is - the headline table + image + first 2 points will naturally stay together if space, else will move
-    return story
-
-def mcq_block(q_num, question_en, question_hi, options_en, correct, explanation_en, explanation_hi, exam_point):
-    story = []
-    q_title = Paragraph(f'<b>Q{q_num}.  {question_en}</b>', STYLES['mcq_q'])
-    try:
-        q_title_hi = hindi_to_image(question_hi, width_mm=(PAGE_W/mm - 26), font_size_pt=12.5, bold=False, color="#424242", bg="white")
-    except Exception as e:
-        q_title_hi = Paragraph(f'<font name="{FONT_HINDI}">{question_hi}</font>', ParagraphStyle('q_hi', parent=STYLES['mcq_q'], fontName=FONT_HINDI, fontSize=12.5, leading=16, textColor=COLORS["medium_text"]))
-    story.append(q_title)
-    story.append(q_title_hi)
-    story.append(Spacer(1, 1.5*mm))
-    for idx, opt in enumerate(options_en):
-        label = chr(65+idx)
-        is_correct = label == correct
-        # Highlight correct differently? But show all normally, answer below
-        story.append(Paragraph(f'<b>{label})</b>  {opt}', STYLES['mcq_opt']))
-    story.append(Spacer(1, 2*mm))
-    # Answer box
-    ans_data = [[Paragraph(f'<b>[OK]  Correct Answer: {correct}) {options_en[ord(correct)-65]}</b>', STYLES['mcq_ans'])]]
-    ans_table = Table(ans_data, colWidths=[PAGE_W - 30*mm])
-    ans_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), COLORS["mcq_green"]),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('ROUNDEDCORNERS', [3,3,3,3]),
-    ]))
-    story.append(ans_table)
-    story.append(Spacer(1, 1.5*mm))
-    story.append(Paragraph(f'<b><font color="#0D47A1" size="11">▶ Explanation:</font></b>', ParagraphStyle('exp_head', parent=STYLES['mcq_exp'], fontSize=11, leading=14, textColor=COLORS["banking_blue"])))
-    story.append(Paragraph(explanation_en, STYLES['mcq_exp']))
-    try:
-        exp_hi_img = hindi_to_image(explanation_hi, width_mm=(PAGE_W/mm - 26), font_size_pt=11, bold=False, color="#424242", bg="white")
-        story.append(exp_hi_img)
-    except Exception as e:
-        story.append(Paragraph(f'<font name="{FONT_HINDI}">{explanation_hi}</font>', ParagraphStyle('exp_hi', parent=STYLES['mcq_exp'], fontName=FONT_HINDI, fontSize=11, leading=14.5)))
-    story.append(Spacer(1, 1*mm))
-    story.append(Paragraph(f'<b><font color="#F57F17" size="11">  ▶ Exam Point:</font></b> <font size="11">{exam_point}</font>', ParagraphStyle('ep', parent=STYLES['mcq_exp'], fontSize=11, leading=14.5)))
-    story.append(HRFlowable(width="100%", thickness=0.3, color=COLORS["border_grey"], spaceAfter=3, spaceBefore=3))
-    return story
-
-# --- DYNAMIC PDF BUILDER (data-driven; no hardcoded content) ---
-CAT_MAP = {
-    "Agriculture": "agriculture", "Banking & Finance": "banking", "Economy": "economy",
-    "Government Schemes": "national", "National": "national", "International": "international",
-    "Science & Technology": "science", "Environment": "environment", "Sports": "sports",
-    "Important Days": "important_days", "Awards": "awards_gold" , "Appointments": "national",
-}
-
-def _safe(s):
-    """Escape XML-unsafe chars for ReportLab paragraphs."""
-    return (str(s) or "") .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return _HindiTextFlowable(rl_img, layer)
 
 
-DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
-
-def mixed_para(text, style_name, base_style, **kw):
-    """Production fix: Devanagari MUST go via RAQM (hindi_to_image), never via ReportLab direct TTF.
-    ReportLab does NOT do HarfBuzz shaping → ि-matra/reph misplace (मिलते→मलिते, विषय→वषिय).
-    Hindi rendering: Mukta + Pillow RAQM PNG + hidden selectable text layer.
-    Non-Hindi text stays as normal Paragraph for speed.
-    Special handling: bg/width_mm can be overridden via kw for table cells / banners."""
+def mixed_para(text: str, style_name: str, base_style: ParagraphStyle, **kw: Any) -> Flowable:
+    """Route text containing Devanagari glyphs through the shaping engine."""
+    clean_text = _strip_html(text)
     st = ParagraphStyle(style_name, parent=base_style, **kw)
-    if DEVANAGARI_RE.search(text):
+    if DEVANAGARI_RE.search(clean_text):
         bold = ("Bold" in st.fontName or "SemiBold" in st.fontName or "Bold" in base_style.fontName)
-        # Allow caller to override width/bg for colored table cells etc.
         width_mm = kw.pop("width_mm", None)
         bg = kw.pop("bg", "white")
-        # Default widths: full page minus margins, but table cells need smaller
         if width_mm is None:
-            # Heuristic: if style is for table cell, use narrower width
-            if style_name in ("sf_val", "static_label", "sf_head"):
-                width_mm = (PAGE_W / mm - 60) if style_name == "sf_val" else (PAGE_W / mm - 30)
-            elif style_name in ("ef_head",):
-                width_mm = (PAGE_W / mm - 32)
-            else:
-                width_mm = (PAGE_W / mm - 26)
-        # Color handling: st.textColor may be HexColor or white
-        try:
-            col_hex = st.textColor.hexval()
-            # hexval returns 0xRRGGBB integer
-            color_hex = f"#{col_hex:06x}"[-7:]
-            if color_hex.startswith("0x"):
-                color_hex = "#" + color_hex[2:]
-        except Exception:
-            try:
-                color_hex = st.textColor.hexval().replace("0x", "#") if hasattr(st.textColor, "hexval") else "#212121"
-            except Exception:
-                color_hex = "#212121"
-        # Ensure # format
-        if not color_hex.startswith("#"):
-            color_hex = "#212121"
+            width_mm = 182
+        color_hex = "#0F172A"
+        tc = getattr(st, "textColor", None)
+        if tc is not None:
+            if hasattr(tc, "red") and hasattr(tc, "green") and hasattr(tc, "blue"):
+                r = int(round(tc.red * 255))
+                g = int(round(tc.green * 255))
+                b = int(round(tc.blue * 255))
+                color_hex = f"#{r:02x}{g:02x}{b:02x}"
+            elif hasattr(tc, "hexval"):
+                hv = tc.hexval()
+                if isinstance(hv, int):
+                    color_hex = f"#{hv:06x}"[-7:]
+                else:
+                    s = str(hv).lower()
+                    if s.startswith("0x"):
+                        color_hex = "#" + s[2:]
+                    elif not s.startswith("#"):
+                        color_hex = "#" + s
+                    else:
+                        color_hex = s
         align = {TA_CENTER: "center", TA_RIGHT: "right"}.get(st.alignment, "left")
         return hindi_to_image(
-            text,
+            clean_text,
             width_mm=width_mm,
             font_size_pt=st.fontSize,
             bold=bold,
@@ -761,138 +586,742 @@ def mixed_para(text, style_name, base_style, **kw):
             bg=bg,
             align=align,
         )
-    return Paragraph(text, st)
+    return Paragraph(_safe(clean_text), st)
 
 
-def generate_pdf(content, mcqs, output_path=None):
+# --- HEADER / FOOTER CANVAS DECORATOR ---
+def header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
+    canvas_obj.saveState()
+    page_num = canvas_obj.getPageNumber()
+
+    # --- TOP HEADER BAR ---
+    canvas_obj.setFillColor(COLORS["header_bg"])
+    canvas_obj.rect(0, PAGE_H - 17*mm, PAGE_W, 17*mm, fill=1, stroke=0)
+
+    # Accent thin strip below header
+    canvas_obj.setFillColor(COLORS["primary_green"])
+    canvas_obj.rect(0, PAGE_H - 18.2*mm, PAGE_W, 1.2*mm, fill=1, stroke=0)
+
+    # Top Brand + Exam Text
+    canvas_obj.setFillColor(white)
+    canvas_obj.setFont(FONT_BOLD, 8.5)
+    canvas_obj.drawString(14*mm, PAGE_H - 8*mm, "AGRI LEARNING POINT")
+    canvas_obj.drawCentredString(PAGE_W / 2, PAGE_H - 8*mm, "DAILY CURRENT AFFAIRS  |  BY SATYAM SIR")
+    canvas_obj.drawRightString(PAGE_W - 14*mm, PAGE_H - 8*mm, "BILINGUAL STUDY MATERIAL")
+
+    canvas_obj.setFont(FONT_REGULAR, 6.5)
+    canvas_obj.setFillColor(HexColor("#94A3B8"))
+    canvas_obj.drawString(14*mm, PAGE_H - 13*mm, "Target: AGTA • AFO • ICAR • NABARD • FCI • IBPS • State Agriculture Exams")
+    canvas_obj.drawRightString(PAGE_W - 14*mm, PAGE_H - 13*mm, "Daily • Weekly • Monthly Series")
+
+    # --- BOTTOM FOOTER BAR ---
+    canvas_obj.setFillColor(COLORS["footer_bg"])
+    canvas_obj.rect(0, 0, PAGE_W, 9.5*mm, fill=1, stroke=0)
+
+    # Accent thin strip above footer
+    canvas_obj.setFillColor(COLORS["alert_gold"])
+    canvas_obj.rect(0, 9.5*mm, PAGE_W, 0.8*mm, fill=1, stroke=0)
+
+    # Left Brand string
+    canvas_obj.setFillColor(white)
+    canvas_obj.setFont(FONT_REGULAR, 7)
+    canvas_obj.drawString(14*mm, 3.8*mm, "Agri Learning Point  |  By Satyam Sir")
+
+    # Center Telegram links (Red Plane + Bright Cyan Clickable Channels)
+    ch1_name = "@agrilearningpoint"
+    ch2_name = "@agriquizworld"
+    ch1_url = "https://web.telegram.org/k/#@agrilearningpoint"
+    ch2_url = "https://web.telegram.org/k/#@agriquizworld"
+    RED_ICON = HexColor("#EF4444")
+    CYAN_TG = HexColor("#7DD3FC")
+    icon_sz = 3.0*mm
+    link_y = 2.6*mm
+
+    w1 = stringWidth(ch1_name, FONT_REGULAR, 7)
+    w2 = stringWidth(ch2_name, FONT_REGULAR, 7)
+    gap = 6*mm
+    total_w = (icon_sz + 1*mm + w1) + gap + (icon_sz + 1*mm + w2)
+    cx = PAGE_W / 2
+    x_start = cx - total_w / 2
+
+    x1_icon = x_start
+    x1_text = x1_icon + icon_sz + 1*mm
+    x2_icon = x1_text + w1 + gap
+    x2_text = x2_icon + icon_sz + 1*mm
+
+    def draw_tg_icon(x: float, y: float):
+        canvas_obj.saveState()
+        canvas_obj.setFillColor(RED_ICON)
+        canvas_obj.circle(x + icon_sz / 2, y + icon_sz / 2 + 0.2*mm, icon_sz / 2, stroke=0, fill=1)
+        canvas_obj.setFillColor(white)
+        p = canvas_obj.beginPath()
+        p.moveTo(x + 0.7*mm, y + 0.85*mm)
+        p.lineTo(x + 2.4*mm, y + 1.55*mm)
+        p.lineTo(x + 0.7*mm, y + 2.35*mm)
+        p.lineTo(x + 1.1*mm, y + 1.55*mm)
+        p.close()
+        canvas_obj.drawPath(p, stroke=0, fill=1)
+        canvas_obj.restoreState()
+
+    draw_tg_icon(x1_icon, link_y)
+    draw_tg_icon(x2_icon, link_y)
+
+    canvas_obj.setFillColor(CYAN_TG)
+    canvas_obj.setFont(FONT_REGULAR, 7)
+    canvas_obj.drawString(x1_text, link_y + 0.6*mm, ch1_name)
+    canvas_obj.drawString(x2_text, link_y + 0.6*mm, ch2_name)
+
+    canvas_obj.linkURL(ch1_url, (x1_icon - 0.5*mm, link_y - 0.5*mm, x1_text + w1 + 0.5*mm, link_y + 4*mm), relative=0)
+    canvas_obj.linkURL(ch2_url, (x2_icon - 0.5*mm, link_y - 0.5*mm, x2_text + w2 + 0.5*mm, link_y + 4*mm), relative=0)
+
+    # --- WATERMARK (Subtle Faded Center Logo) ---
+    try:
+        watermark_path = os.path.join(BASE_DIR, "assets", "watermark_logo.png")
+        if not os.path.exists(watermark_path):
+            watermark_path = os.path.join(BASE_DIR, "assets", "logo.png")
+        if os.path.exists(watermark_path):
+            canvas_obj.saveState()
+            canvas_obj.setFillAlpha(0.04)
+            wm_size = 90*mm
+            wm_x = (PAGE_W - wm_size) / 2
+            wm_y = (PAGE_H - wm_size) / 2
+            canvas_obj.drawImage(watermark_path, wm_x, wm_y, width=wm_size, height=wm_size, preserveAspectRatio=True, mask="auto")
+            canvas_obj.restoreState()
+    except Exception:
+        pass
+
+    canvas_obj.restoreState()
+
+
+def cover_header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
+    """Clean cover background with subtle watermark."""
+    canvas_obj.saveState()
+    try:
+        watermark_path = os.path.join(BASE_DIR, "assets", "watermark_logo.png")
+        if not os.path.exists(watermark_path):
+            watermark_path = os.path.join(BASE_DIR, "assets", "logo.png")
+        if os.path.exists(watermark_path):
+            canvas_obj.saveState()
+            canvas_obj.setFillAlpha(0.04)
+            wm_size = 110*mm
+            wm_x = (PAGE_W - wm_size) / 2
+            wm_y = (PAGE_H - wm_size) / 2
+            canvas_obj.drawImage(watermark_path, wm_x, wm_y, width=wm_size, height=wm_size, preserveAspectRatio=True, mask="auto")
+            canvas_obj.restoreState()
+    except Exception:
+        pass
+    canvas_obj.restoreState()
+
+
+# --- REUSABLE EDITORIAL COMPONENTS ---
+def section_banner(category_key: str, number: str = "01") -> Table:
+    cat = CATEGORY_STYLE.get(category_key, CATEGORY_STYLE["national"])
+    banner_data = [
+        [
+            Paragraph(f'<b><font color="white">{cat["label"]}</font></b>', STYLES["section_banner"]),
+            Paragraph(f'<b><font color="white" size="9">{number}</font></b>', ParagraphStyle("sec_num", parent=STYLES["section_banner"], alignment=TA_CENTER, fontSize=9, leading=11)),
+        ]
+    ]
+    t = Table(banner_data, colWidths=[PAGE_W - 28*mm - 18*mm, 18*mm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), cat["color"]),
+        ("BACKGROUND", (1, 0), (1, 0), COLORS["primary_navy"]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    return t
+
+
+def exam_fact_box(text_en: str, text_hi: Optional[str] = None) -> Table:
+    content: List[Flowable] = []
+    content.append(mixed_para("▶ EXAM POINTER • परीक्षा तथ्य", "efh", STYLES["exam_fact"], fontSize=9, leading=12, textColor=HexColor("#B45309"), bg="#FEF3C7", width_mm=174))
+    if text_en:
+        content.append(mixed_para(text_en, "ef_en", STYLES["exam_fact"], bg="#FEF3C7", width_mm=174))
+    if text_hi:
+        content.append(mixed_para(text_hi, "ef_hi", STYLES["exam_fact"], bg="#FEF3C7", width_mm=174))
+
+    inner = Table([[content]], colWidths=[PAGE_W - 32*mm])
+    inner.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["alert_light"]),
+        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["alert_gold"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    return inner
+
+
+def static_facts_table(facts_dict: Dict[str, str]) -> List[Flowable]:
+    rows: List[List[Flowable]] = []
+    for k, v in facts_dict.items():
+        clean_k = _strip_html(k)
+        clean_v = _strip_html(v)
+        rows.append([
+            mixed_para(clean_k, "sf_k", STYLES["static_label"], width_mm=30),
+            mixed_para(clean_v, "sf_v", STYLES["static_text"], width_mm=(PAGE_W/mm - 28 - 32)),
+        ])
+    t = Table(rows, colWidths=[32*mm, PAGE_W - 28*mm - 32*mm])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("GRID", (0, 0), (-1, -1), 0.3, COLORS["border_light"]),
+        ("BACKGROUND", (0, 0), (0, -1), COLORS["card_bg"]),
+        ("BACKGROUND", (1, 0), (1, -1), white),
+    ]))
+    header = mixed_para("STATIC GK & FACTS • परीक्षा स्थैतिक तथ्य", "sfh", STYLES["static_text"], fontSize=8.5, leading=11, textColor=COLORS["primary_navy"])
+    return [header, t]
+
+
+def news_card(
+    headline_en: str,
+    headline_hi: str,
+    category_key: str,
+    key_points_en: List[str],
+    key_points_hi: List[str],
+    static_facts: Dict[str, str],
+    exam_fact_en: str,
+    exam_fact_hi: str,
+    source_name: str,
+    image_path: Optional[str] = None,
+    image_caption: Optional[str] = None,
+) -> List[Flowable]:
+    cat = CATEGORY_STYLE.get(category_key, CATEGORY_STYLE["national"])
+    story: List[Flowable] = []
+
+    # Headline block: Category tag + English + Hindi
+    clean_en = _safe(headline_en).lstrip("> ")
+    clean_hi = _strip_html(headline_hi).lstrip("> ")
+
+    hl_en = Paragraph(f"<b>{clean_en}</b>", STYLES["headline_en"])
+    hl_hi = hindi_to_image(clean_hi, width_mm=174, font_size_pt=13.5, bold=True, color="#334155", bg="white")
+
+    header_block = Table([
+        [Paragraph(f'<font color="{cat["color"].hexval()}">▌</font>', ParagraphStyle("bar", parent=STYLES["headline_en"], fontSize=18, leading=18, textColor=cat["color"])),
+         [hl_en, hl_hi]]
+    ], colWidths=[3.5*mm, PAGE_W - 28*mm - 3.5*mm])
+    header_block.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 1),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+    ]))
+
+    story.append(header_block)
+    story.append(Spacer(1, 1.5*mm))
+
+    # Real editorial image if available
+    if image_path and os.path.exists(image_path):
+        try:
+            pil = PILImage.open(image_path)
+            iw, ih = pil.size
+            aspect = ih / iw if iw else 0.55
+            max_h_mm = 50
+            w_mm = PAGE_W / mm - 28
+            h_mm = w_mm * aspect
+            if h_mm > max_h_mm:
+                h_mm = max_h_mm
+                w_mm = h_mm / aspect if aspect else w_mm
+            rl_img = Image(image_path, width=w_mm*mm, height=h_mm*mm)
+            img_table = Table([[rl_img]], colWidths=[PAGE_W - 28*mm])
+            img_table.setStyle(TableStyle([
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOX", (0, 0), (-1, -1), 0.3, COLORS["border_light"]),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+            story.append(img_table)
+            if image_caption:
+                story.append(Paragraph(f'<font color="#64748B" size="7.5"><i>{_safe(image_caption)}</i></font>', ParagraphStyle("cap", parent=STYLES["static_text"], alignment=TA_CENTER, fontSize=7.5, leading=10, spaceBefore=1)))
+            story.append(Spacer(1, 1.5*mm))
+        except Exception:
+            pass
+
+    # Key Points Header
+    story.append(mixed_para(
+        "Key Points  •  मुख्य बिंदु",
+        "kph",
+        STYLES["body_en"],
+        fontSize=10.5,
+        leading=14,
+        textColor=COLORS["primary_navy"],
+        fontName="Helvetica-Bold",
+        width_mm=178,
+    ))
+    story.append(Spacer(1, 1*mm))
+
+    # Paired Key Points
+    for en, hi in zip(key_points_en, key_points_hi):
+        c_en = _safe(en)
+        c_hi = _strip_html(hi)
+        if not c_en:
+            continue
+        story.append(Paragraph(f"•  {c_en}", STYLES["body_en"]))
+        if c_hi:
+            story.append(hindi_to_image(c_hi, width_mm=178, font_size_pt=10, bold=False, color="#475569", bg="white", left_padding_mm=3.5))
+        story.append(Spacer(1, 0.8*mm))
+
+    story.append(Spacer(1, 1.5*mm))
+
+    # Static Facts
+    if static_facts:
+        for item in static_facts_table(static_facts):
+            story.append(item)
+        story.append(Spacer(1, 1.5*mm))
+
+    # Exam Fact Box
+    if exam_fact_en:
+        story.append(exam_fact_box(exam_fact_en, exam_fact_hi))
+        story.append(Spacer(1, 1.5*mm))
+
+    # Source line
+    if source_name:
+        story.append(Paragraph(f'<font color="#64748B" size="7.5">Source: <b>{_safe(source_name)}</b> | Verified for Competitive Exams</font>', ParagraphStyle("src", parent=STYLES["static_text"], fontSize=7.5, leading=10, alignment=TA_RIGHT)))
+
+    story.append(Spacer(1, 2*mm))
+    story.append(HRFlowable(width="100%", thickness=0.4, color=COLORS["border_light"], spaceAfter=3*mm, spaceBefore=1*mm))
+    return story
+
+
+def mcq_block(
+    q_num: int,
+    question_en: str,
+    question_hi: str,
+    options_en: List[str],
+    correct: str,
+    explanation_en: str,
+    explanation_hi: str,
+    exam_point: str,
+) -> Flowable:
+    """Pack an entire MCQ into a KeepTogether block so it NEVER orphans across page boundaries."""
+    story: List[Flowable] = []
+
+    clean_q_en = _safe(question_en)
+    clean_q_hi = _strip_html(question_hi)
+
+    q_title_en = Paragraph(f"<b>Q{q_num}.  {clean_q_en}</b>", STYLES["mcq_q"])
+    story.append(q_title_en)
+    if clean_q_hi:
+        story.append(hindi_to_image(clean_q_hi, width_mm=182, font_size_pt=10.5, bold=False, color="#334155", bg="white"))
+    story.append(Spacer(1, 1.2*mm))
+
+    for idx, opt in enumerate(options_en):
+        clean_opt = _safe(opt)
+        label = chr(65 + idx)
+        story.append(Paragraph(f"<b>({label})</b>  {clean_opt}", STYLES["mcq_opt"]))
+    story.append(Spacer(1, 1.5*mm))
+
+    # Correct Answer Box
+    correct_idx = ord(correct.upper()) - 65 if correct else 0
+    correct_text = _safe(options_en[correct_idx]) if 0 <= correct_idx < len(options_en) else ""
+    ans_text = f"✔  Correct Answer: ({correct}) {correct_text}"
+    ans_data = [[Paragraph(f"<b>{ans_text}</b>", STYLES["mcq_ans"])]]
+    ans_table = Table(ans_data, colWidths=[PAGE_W - 28*mm])
+    ans_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["primary_green"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    story.append(ans_table)
+    story.append(Spacer(1, 1.2*mm))
+
+    # Explanation
+    clean_exp_en = _safe(explanation_en)
+    clean_exp_hi = _strip_html(explanation_hi)
+    story.append(Paragraph('<b><font color="#0A2540" size="8.5">▶ Detailed Explanation:</font></b>', ParagraphStyle("exph", parent=STYLES["mcq_exp"], fontSize=8.5, leading=11, textColor=COLORS["primary_navy"])))
+    if clean_exp_en:
+        story.append(Paragraph(clean_exp_en, STYLES["mcq_exp"]))
+    if clean_exp_hi:
+        story.append(hindi_to_image(clean_exp_hi, width_mm=182, font_size_pt=9.5, bold=False, color="#475569", bg="white"))
+
+    if exam_point:
+        clean_ep = _safe(exam_point)
+        story.append(Paragraph(f'<b><font color="#D97706" size="8.5">▶ Exam Takeaway:</font></b> <font size="8.5">{clean_ep}</font>', ParagraphStyle("ep", parent=STYLES["mcq_exp"], fontSize=8.5, leading=11)))
+
+    story.append(Spacer(1, 1.5*mm))
+    story.append(HRFlowable(width="100%", thickness=0.3, color=COLORS["border_light"], spaceAfter=2*mm, spaceBefore=1*mm))
+
+    return KeepTogether(story)
+
+
+# --- CLOSING PREPARATION KIT (Replaces Empty Blank Last Page) ---
+def build_closing_kit(date_str: str) -> Flowable:
+    """Builds a rich coaching revision kit at the end of the document."""
+    items: List[Flowable] = []
+    items.append(Paragraph("<b>AGRI LEARNING POINT — COMPLETE EXAM SUCCESS SUITE</b>", ParagraphStyle("ck_title", fontName=FONT_BOLD, fontSize=12, leading=15, textColor=COLORS["primary_navy"], alignment=TA_CENTER)))
+    items.append(Paragraph("Target: AGTA • AFO • ICAR JRF/SRF • NABARD Grade A • FCI • IBPS SO", ParagraphStyle("ck_sub", fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_CENTER)))
+    items.append(Spacer(1, 2*mm))
+
+    # 3 Column features
+    row = [
+        [
+            Paragraph("<b>📌 Daily Current Affairs</b><br/><font size='7' color='#475569'>Every morning bilingual PDF with exam facts &amp; MCQs.</font>", STYLES["static_text"]),
+            Paragraph("<b>📝 Daily Telegram Quizzes</b><br/><font size='7' color='#475569'>Timed quizzes on @agriquizworld for real exam practice.</font>", STYLES["static_text"]),
+            Paragraph("<b>🎯 Agriculture Revision</b><br/><font size='7' color='#475569'>Agronomy, Horticulture, Soil Science &amp; Schemes notes.</font>", STYLES["static_text"]),
+        ]
+    ]
+    t = Table(row, colWidths=[58*mm, 58*mm, 58*mm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
+        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+        ("INNERGRID", (0, 0), (-1, -1), 0.3, COLORS["border_light"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    items.append(t)
+    items.append(Spacer(1, 2.5*mm))
+
+    # Channels pill
+    ch_box = [
+        [
+            Paragraph('<b>Join Telegram Channel:</b> <font color="#0284C7"><u>https://t.me/agrilearningpoint</u></font>', ParagraphStyle("cb1", fontName=FONT_REGULAR, fontSize=8, leading=11, alignment=TA_CENTER)),
+            Paragraph('<b>Daily Quiz Practice:</b> <font color="#0284C7"><u>https://t.me/agriquizworld</u></font>', ParagraphStyle("cb2", fontName=FONT_REGULAR, fontSize=8, leading=11, alignment=TA_CENTER)),
+        ]
+    ]
+    t_ch = Table(ch_box, colWidths=[90*mm, 84*mm])
+    t_ch.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["alert_light"]),
+        ("BOX", (0, 0), (-1, -1), 0.4, COLORS["alert_gold"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    items.append(t_ch)
+    items.append(Spacer(1, 3*mm))
+
+    # Closing Devanagari message via shaped engine
+    msg_hi = "धन्यवाद ! मिलते हैं अगली दैनिक डोज के साथ — आपकी सफलता ही हमारा संकल्प है।"
+    items.append(hindi_to_image(msg_hi, width_mm=174, font_size_pt=11, bold=True, color="#0A2540", bg="white", align="center"))
+    items.append(Paragraph(f"© 2026 Agri Learning Point | Edition {date_str} | For Educational &amp; Competitive Exam Use Only", ParagraphStyle("discl", fontName=FONT_REGULAR, fontSize=6.5, leading=8, textColor=COLORS["muted_text"], alignment=TA_CENTER)))
+
+    box = Table([[items]], colWidths=[PAGE_W - 28*mm])
+    box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), white),
+        ("BOX", (0, 0), (-1, -1), 0.8, COLORS["primary_navy"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("ROUNDEDCORNERS", [4, 4, 4, 4]),
+    ]))
+    return KeepTogether([box])
+
+
+# --- MAIN PDF GENERATION ENGINE ---
+def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path: Optional[str] = None) -> str:
     """Build the premium bilingual edition from pipeline JSON data.
-    content = {"job": {...}, "items": [news entries]} ; mcqs = validated MCQ list.
-    Refuses empty editions (never publish an empty/filler PDF — MASTER_RULE)."""
-    items = content.get("items", [])
+    Enforces publication quality gates, zero orphan questions, and clean page flow."""
+    raw_items = content.get("items", [])
+    # Filter out empty or broken headlines
+    items = [
+        it for it in raw_items
+        if len(_strip_html(it.get("headline_en", "")).lstrip("> ")) >= 15
+        and len(_strip_html(it.get("headline_en", "")).lstrip("> ").split()) >= 3
+    ]
+    if not items:
+        # If strict filtering dropped everything, check if original items exist
+        items = raw_items
     if not items:
         raise ValueError("REFUSING to build PDF: 0 selected news items (quality gate, never fill/invent)")
+
     job = content.get("job", {})
-    date_str = job.get("date_display", "")
+    date_str = job.get("date_display", "") or job.get("date", "")
     jtype = job.get("type", "daily")
-    label = {"daily": "Daily Current Affairs", "weekly": "Weekly Best-of Current Affairs",
-             "monthly": "Monthly Best-of Current Affairs"}[jtype]
+    label = {
+        "daily": "Daily Current Affairs",
+        "weekly": "Weekly Best-of Current Affairs",
+        "monthly": "Monthly Best-of Current Affairs",
+    }.get(jtype, "Current Affairs")
+
     if output_path is None:
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
         output_path = os.path.join(OUTPUT_DIR, f"Agri Learning Point {date_str} {label} Mobile Bilingual FINAL.pdf")
 
-    doc = SimpleDocTemplate(output_path, pagesize=A4, leftMargin=13*mm, rightMargin=13*mm,
-                            topMargin=24*mm, bottomMargin=20*mm, title=f"ALP {date_str} {label}",
-                            author="Agri Learning Point")
-    story = []
+    doc = SimpleDocTemplate(
+        output_path,
+        pagesize=A4,
+        leftMargin=14*mm,
+        rightMargin=14*mm,
+        topMargin=22*mm,
+        bottomMargin=14*mm,
+        title=f"Agri Learning Point - {label} - {date_str}",
+        author="Agri Learning Point (Satyam Sir)",
+    )
 
-    # ---------- COVER ----------
-    logo = os.path.join(BASE_DIR, "assets", "logo.png")
-    if os.path.exists(logo):
-        story.append(Image(logo, width=38*mm, height=38*mm))
-    story.append(Spacer(1, 6*mm))
-    story.append(Paragraph("AGRI LEARNING POINT", STYLES["cover_title"]))
-    story.append(Paragraph(_safe(f"{label} — {date_str}"), STYLES["cover_sub"]))
-    story.append(Paragraph("Bilingual • Mobile Friendly • Exam Oriented", STYLES["cover_sub"]))
-    story.append(Paragraph("AGTA • AFO • NABARD • FCI • ICAR • IBPS PO/SO • RBI Assistant", STYLES["cover_tag"]))
-    story.append(Spacer(1, 8*mm))
+    story: List[Flowable] = []
+
+    # =========================================================================
+    # 1. COVER PAGE (Page 1 - Compact, balanced, executive coaching standard)
+    # =========================================================================
+    logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
+    if os.path.exists(logo_path):
+        try:
+            story.append(Image(logo_path, width=28*mm, height=28*mm))
+        except Exception:
+            pass
+    story.append(Spacer(1, 2*mm))
+
+    story.append(Paragraph("AGRI LEARNING POINT", STYLES["cover_masthead"]))
+    story.append(Paragraph(f"{label}  •  {date_str}", STYLES["cover_sub"]))
+    story.append(Spacer(1, 1.5*mm))
+
+    # Target exam pills
+    pill_text = "TARGET EXAMS:  AGTA  •  AFO  •  ICAR JRF/SRF  •  NABARD  •  FCI  •  IBPS SO  •  STATE EXAMS"
+    t_pill = Table([[Paragraph(f"<b>{pill_text}</b>", STYLES["cover_pill"])]], colWidths=[PAGE_W - 28*mm])
+    t_pill.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green"]),
+        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["primary_green"]),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    story.append(t_pill)
+    story.append(Spacer(1, 1.5*mm))
+
+    story.append(Paragraph("Bilingual (Hindi + English)  |  100% Verified Sources  |  Exam-Oriented Static GK  |  By Satyam Sir", STYLES["cover_tag"]))
+    story.append(Spacer(1, 3.5*mm))
+
+    # Today's Highlights Box (Well-proportioned, clean headlines without mid-word cuts)
     top_items = sorted(items, key=lambda x: -x.get("importance_score", 0))
-    hl_rows = [[Paragraph('<font color="white"><b>TODAY\u2019S HIGHLIGHTS</b></font>', ParagraphStyle("hlh", parent=STYLES["static_label"], fontSize=12, leading=15))]]
-    for it in top_items[:8]:
-        hl_rows.append([Paragraph(_safe(it["headline_en"].lstrip("> ")[:110]), ParagraphStyle("hl", parent=STYLES["static_text"], fontSize=11, leading=14))])
-    t = Table(hl_rows, colWidths=[PAGE_W - 26*mm])
-    t.setStyle(TableStyle([("BACKGROUND", (0,0), (0,0), COLORS["primary_green"]),
-                           ("BOX", (0,0), (-1,-1), 1, COLORS["primary_green"]),
-                           ("INNERGRID", (0,1), (-1,-1), 0.3, COLORS["border_grey"]),
-                           ("LEFTPADDING", (0,0), (-1,-1), 8), ("RIGHTPADDING", (0,0), (-1,-1), 8),
-                           ("TOPPADDING", (0,0), (-1,-1), 5), ("BOTTOMPADDING", (0,0), (-1,-1), 5)]))
-    story.append(t)
-    story.append(Spacer(1, 10*mm))
-    story.append(Paragraph("Telegram: @Agrikrishna  |  YouTube: Agri Learning Point", STYLES["cover_sub"]))
+    hl_rows: List[List[Flowable]] = [
+        [
+            mixed_para("TODAY’S EXAM HEADLINES • आज के प्रमुख समाचार", "hl_top", STYLES["static_label"], fontSize=9.5, leading=12, textColor=white, bg="#0A2540", width_mm=(PAGE_W/mm - 28 - 38)),
+            Paragraph('<b><font color="white" size="8.5">CATEGORY</font></b>', ParagraphStyle("hl_cat_h", parent=STYLES["static_label"], fontSize=8.5, leading=11, alignment=TA_CENTER)),
+        ]
+    ]
+
+    for it in top_items[:7]:
+        clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
+        cat_key = CAT_MAP.get(it.get("category", "National"), "national")
+        cat_info = CATEGORY_STYLE.get(cat_key, CATEGORY_STYLE["national"])
+        hl_rows.append([
+            Paragraph(f"•  <b>{clean_hl}</b>", ParagraphStyle("hl_item", parent=STYLES["static_text"], fontSize=8.5, leading=11.5)),
+            Paragraph(f'<font size="7" color="{cat_info["color"].hexval()}"><b>{cat_info["label"]}</b></font>', ParagraphStyle("hl_cat", parent=STYLES["static_text"], fontSize=7, leading=9, alignment=TA_CENTER)),
+        ])
+
+    t_hl = Table(hl_rows, colWidths=[PAGE_W - 28*mm - 38*mm, 38*mm])
+    t_hl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary_navy"]),
+        ("BOX", (0, 0), (-1, -1), 0.8, COLORS["primary_navy"]),
+        ("INNERGRID", (0, 0), (-1, -1), 0.3, COLORS["border_light"]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(t_hl)
+    story.append(Spacer(1, 3*mm))
+
+    # Quick Stats & Community Bar
+    stats_data = [
+        [
+            Paragraph(f"<b>📌 Selected Stories:</b> {len(items)}", STYLES["static_text"]),
+            Paragraph(f"<b>📝 Practice MCQs:</b> {len(mcqs)}", STYLES["static_text"]),
+            Paragraph("<b>⚡ Static GK:</b> Included", STYLES["static_text"]),
+            Paragraph("<b>✈ Telegram:</b> @agrilearningpoint", STYLES["static_text"]),
+        ]
+    ]
+    t_stats = Table(stats_data, colWidths=[42*mm, 42*mm, 40*mm, 50*mm])
+    t_stats.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
+        ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    story.append(t_stats)
+    story.append(Spacer(1, 3*mm))
+
+    # Coaching Institute Exam Guide Box (Fills lower cover page with real exam value)
+    guide_rows = [
+        [
+            Paragraph("<b>🎯 EXAM RELEVANCE &amp; SYLLABUS ALIGNMENT</b>", ParagraphStyle("gr_h", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"])),
+            Paragraph("<b>DAILY STUDY MANDATE</b>", ParagraphStyle("gr_m", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_RIGHT)),
+        ],
+        [
+            Paragraph(
+                "• <b>Agriculture Exams (AGTA / AFO / ICAR):</b> Focus on crop yield estimates, new ICAR varieties, MSP notifications, fertilizer subsidies, and Ministry of Agriculture initiatives.<br/>"
+                "• <b>Banking &amp; Regulatory (NABARD / RBI / IBPS):</b> Special emphasis on PSL targets, rural infrastructure funding (RIDF), priority credit schemes, and quarterly monetary policies.<br/>"
+                "• <b>General Competitive (FCI / UPSC / State PCS):</b> Static facts, organizational headquarters, national policies, bilateral agreements, and indices.",
+                ParagraphStyle("gr_body", fontName=FONT_REGULAR, fontSize=7, leading=9.5, textColor=COLORS["body_text"])
+            ),
+            Paragraph(
+                "<b>1. Read Daily:</b> Go through paired English-Hindi pointers.<br/>"
+                "<b>2. Memorize:</b> Revise static facts and numbers.<br/>"
+                "<b>3. Solve MCQs:</b> Attempt the 15 exam-standard practice questions.<br/>"
+                "<b>4. Telegram Quiz:</b> Join 9:00 PM live quiz on @agriquizworld.",
+                ParagraphStyle("gr_steps", fontName=FONT_REGULAR, fontSize=7, leading=9.5, textColor=COLORS["dark_text"])
+            )
+        ]
+    ]
+    t_guide = Table(guide_rows, colWidths=[114*mm, 68*mm])
+    t_guide.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), white),
+        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["primary_navy"]),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.4, COLORS["border_light"]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+    ]))
+    story.append(t_guide)
+    story.append(Spacer(1, 2*mm))
+
+    story.append(Paragraph("Study Material Prepared for Daily Revision  |  Agri Learning Point by Satyam Sir", ParagraphStyle("cover_foot", fontName=FONT_REGULAR, fontSize=7, leading=9, textColor=COLORS["muted_text"], alignment=TA_CENTER)))
+
+    # End of cover page
     story.append(PageBreak())
 
-    # ---------- INDEX ----------
-    story.append(mixed_para('INDEX • विषय-सूची', "idx", STYLES["headline_en"], fontSize=16))
-    by_cat = {}
+    # =========================================================================
+    # 2. FLOWING BODY CONTENT (Index + One-Liners + News)
+    # =========================================================================
+    # Group news items by category
+    by_cat: Dict[str, List[Dict[str, Any]]] = {}
     for it in items:
-        by_cat.setdefault(CAT_MAP.get(it.get("category", "National"), "national"), []).append(it)
-    n = 0
-    idx_rows = []
+        ck = CAT_MAP.get(it.get("category", "National"), "national")
+        by_cat.setdefault(ck, []).append(it)
+
+    # --- INDEX TABLE ---
+    story.append(mixed_para("INDEX • विषय-सूची", "idx_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["primary_navy"]))
+    story.append(Spacer(1, 1*mm))
+
+    idx_rows: List[List[Flowable]] = [
+        [
+            Paragraph("<b>#</b>", ParagraphStyle("idx_num_h", parent=STYLES["static_label"], fontSize=8, leading=10, alignment=TA_CENTER)),
+            Paragraph("<b>TOPIC / HEADLINE</b>", ParagraphStyle("idx_top_h", parent=STYLES["static_label"], fontSize=8, leading=10)),
+            Paragraph("<b>SECTION</b>", ParagraphStyle("idx_sec_h", parent=STYLES["static_label"], fontSize=8, leading=10, alignment=TA_CENTER)),
+        ]
+    ]
+    item_n = 0
     for ck, group in by_cat.items():
-        banner = CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])
+        banner_info = CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])
         for g in group:
-            n += 1
-            idx_rows.append([str(n), _safe(g["headline_en"].lstrip("> ")[:95]), banner["label"]])
-    idx_tbl = Table([[Paragraph(f'<b>{r[0]}</b>', STYLES["static_text"]), Paragraph(r[1], STYLES["static_text"]),
-                      Paragraph(f'<font size="8" color="#757575">{r[2]}</font>', STYLES["static_text"])] for r in idx_rows],
-                    colWidths=[10*mm, PAGE_W - 80*mm, 55*mm])
-    idx_tbl.setStyle(TableStyle([("LINEBELOW", (0,0), (-1,-1), 0.25, COLORS["border_grey"]),
-                                 ("TOPPADDING", (0,0), (-1,-1), 3), ("BOTTOMPADDING", (0,0), (-1,-1), 3)]))
+            item_n += 1
+            clean_t = _strip_html(g.get("headline_en", "")).lstrip("> ")
+            idx_rows.append([
+                Paragraph(f"<b>{item_n}</b>", ParagraphStyle("idx_n", parent=STYLES["static_text"], fontSize=8, leading=10, alignment=TA_CENTER)),
+                Paragraph(clean_t, ParagraphStyle("idx_t", parent=STYLES["static_text"], fontSize=8, leading=10.5)),
+                Paragraph(f'<font size="6.5" color="{banner_info["color"].hexval()}"><b>{banner_info["label"]}</b></font>', ParagraphStyle("idx_s", parent=STYLES["static_text"], fontSize=6.5, leading=8.5, alignment=TA_CENTER)),
+            ])
+
+    idx_tbl = Table(idx_rows, colWidths=[8*mm, PAGE_W - 28*mm - 48*mm, 40*mm])
+    idx_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLORS["card_bg"]),
+        ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, COLORS["border_light"]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
     story.append(idx_tbl)
-    story.append(PageBreak())
+    story.append(Spacer(1, 3.5*mm))
 
-    # ---------- MOST IMPORTANT ONE-LINERS ----------
-    story.append(mixed_para('MOST IMPORTANT TODAY • सबसे महत्वपूर्ण', "mi", STYLES["headline_en"], fontSize=15))
-    for it in top_items[:12]:
+    # --- MOST IMPORTANT ONE-LINERS (Directly following index, no blank page!) ---
+    story.append(mixed_para("MOST IMPORTANT EXAM POINTERS • मुख्य परीक्षा तथ्य", "mi_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["primary_navy"]))
+    story.append(Spacer(1, 1*mm))
+
+    for it in top_items[:8]:
         fact = next(iter(it.get("static_facts", {}).values()), "")
-        line = it["headline_en"].lstrip("> ") + (f"  →  {_safe(fact)}" if fact else "")
-        story.append(Paragraph(f"<bullet>•</bullet> {line}", STYLES["one_liner"]))
-    story.append(PageBreak())
+        clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
+        clean_fact = _strip_html(fact)
+        line = f"<b>{clean_hl}</b>" + (f'  →  <font color="#1B5E20">{clean_fact}</font>' if clean_fact else "")
+        story.append(Paragraph(f"•  {line}", STYLES["one_liner"]))
 
-    # ---------- NEWS SECTIONS ----------
+    story.append(Spacer(1, 3.5*mm))
+    story.append(HRFlowable(width="100%", thickness=0.8, color=COLORS["primary_navy"], spaceAfter=3*mm, spaceBefore=2*mm))
+
+    # --- NEWS SECTIONS ---
     sec_no = 0
     for ck, group in by_cat.items():
         sec_no += 1
         story.append(section_banner(ck, f"{sec_no:02d}"))
-        story.append(Spacer(1, 3*mm))
+        story.append(Spacer(1, 2*mm))
+
         for it in group:
             blocks = news_card(
-                headline_en=_safe(it["headline_en"]),
-                headline_hi=it["headline_hi"],
+                headline_en=it.get("headline_en", ""),
+                headline_hi=it.get("headline_hi", ""),
                 category_key=ck,
-                key_points_en=[_safe(p) for p in it.get("key_points_en", [])],
+                key_points_en=it.get("key_points_en", []),
                 key_points_hi=it.get("key_points_hi", []),
-                static_facts={_safe(k): _safe(v) for k, v in it.get("static_facts", {}).items()},
-                exam_fact_en=_safe(it.get("exam_fact_en", "")),
+                static_facts=it.get("static_facts", {}),
+                exam_fact_en=it.get("exam_fact_en", ""),
                 exam_fact_hi=it.get("exam_fact_hi", ""),
-                source=_safe(it.get("source", {}).get("name", "")),
+                source_name=it.get("source", {}).get("name", ""),
                 image_path=it.get("image_path") or None,
-                image_caption=_safe(it.get("image_caption", "")) or None,
+                image_caption=it.get("image_caption") or None,
             )
             story.extend(blocks)
-            story.append(HRFlowable(width="100%", thickness=0.4, color=CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])["color"], spaceAfter=6))
+
+    # Clean break before MCQs
     story.append(PageBreak())
 
-    # ---------- MCQs ----------
-    story.append(mixed_para('MCQ PRACTICE • बहुविकल्पीय प्रश्न', "mcqh", STYLES["headline_en"], fontSize=15))
-    story.append(Spacer(1, 3*mm))
+    # =========================================================================
+    # 3. MCQ PRACTICE SECTION (All blocks KeepTogether to prevent orphans)
+    # =========================================================================
+    story.append(mixed_para("PRACTICE MCQs • बहुविकल्पीय अभ्यास प्रश्न", "mcq_sec", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["primary_navy"]))
+    story.append(Paragraph("Designed for AGTA, AFO, ICAR, NABARD, FCI &amp; IBPS Exam Patterns", ParagraphStyle("mcq_sub", fontName=FONT_REGULAR, fontSize=8, leading=10.5, textColor=COLORS["muted_text"])))
+    story.append(Spacer(1, 2*mm))
+
     for m in mcqs:
-        story.extend(mcq_block(m["q_num"], _safe(m["question_en"]), m["question_hi"],
-                               [_safe(o) for o in m["options"]], m["correct"],
-                               _safe(m["explanation_en"]), m["explanation_hi"], _safe(m.get("exam_point", ""))))
-    story.append(PageBreak())
+        block = mcq_block(
+            q_num=m.get("q_num", 1),
+            question_en=m.get("question_en", ""),
+            question_hi=m.get("question_hi", ""),
+            options_en=m.get("options", []),
+            correct=m.get("correct", "A"),
+            explanation_en=m.get("explanation_en", ""),
+            explanation_hi=m.get("explanation_hi", ""),
+            exam_point=m.get("exam_point", ""),
+        )
+        story.append(block)
 
-    # ---------- BACK COVER ----------
-    story.append(Spacer(1, 40*mm))
-    story.append(mixed_para("धन्यवाद ! मिलते हैं अगली डोज के साथ", "tc", STYLES["cover_title"], fontSize=20))
-    story.append(Paragraph("Agri Learning Point — BY Satyam Sir", STYLES["cover_sub"]))
+    # =========================================================================
+    # 4. CLOSING REVISION KIT (Replaces 90% Blank Final Page)
+    # =========================================================================
     story.append(Spacer(1, 4*mm))
-    story.append(Paragraph(f'© 2026 Agri Learning Point | Edition {date_str} | For educational purpose only.',
-                           ParagraphStyle("copy", parent=STYLES["footer"], alignment=TA_CENTER, textColor=COLORS["light_text"], fontSize=5, leading=6)))
+    story.append(build_closing_kit(date_str))
 
-    doc.build(story, onFirstPage=cover_header_footer, onLaterPages=header_footer)
-    print(f"[OK] PDF generated: {output_path}")
+    # Build document with dynamic page numbering
+    doc.build(story, canvasmaker=NumberedCanvas, onFirstPage=cover_header_footer, onLaterPages=header_footer)
+    print(f"[OK] Premium coaching-standard PDF generated successfully: {output_path}")
     return output_path
 
 
 if __name__ == "__main__":
-    import argparse, json
-    ap = argparse.ArgumentParser(description="Dynamic ALP PDF generator (data-driven)")
+    import argparse
+    import json
+    ap = argparse.ArgumentParser(description="Dynamic ALP PDF generator (coaching standard)")
     ap.add_argument("--content", required=True, help="path to data/content/<job_id>.json")
     ap.add_argument("--mcq", required=True, help="path to data/mcq/<job_id>_validated.json")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     with open(a.content, encoding="utf-8") as f:
-        content = json.load(f)
+        content_data = json.load(f)
     with open(a.mcq, encoding="utf-8") as f:
-        mcqs = json.load(f)
-    generate_pdf(content, mcqs, a.out)
+        mcqs_data = json.load(f)
+    generate_pdf(content_data, mcqs_data, a.out)

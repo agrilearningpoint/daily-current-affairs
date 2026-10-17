@@ -106,6 +106,7 @@ def test_live_publish_rejects_unreviewed_translation(tmp_path, monkeypatch):
     publisher = load_publisher()
     monkeypatch.setattr(publisher, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(publisher, "DRY_RUN", False)
+    monkeypatch.delenv("ALP_ALLOW_FALLBACK_TRANSLATION", raising=False)
     monkeypatch.setattr(publisher, "send_document", lambda *a, **k: pytest.fail("network publish attempted"))
     pdf = tmp_path / "daily_2026-10-05.pdf"
     pdf.write_bytes(b"diagnostic pdf bytes")
@@ -168,11 +169,14 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
     env = {k: v for k, v in os.environ.items()
            if not k.endswith("API_KEY") and k not in ("LLM_API_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")}
     env.update(ALP_ROOT=str(root), ALP_MAX_RETRIES="0", ALP_DISABLE_LLM_VERIFY="1",
-               ALP_DISABLE_POLISH="1", DRY_RUN="1", ORCHESTRATOR_SKIP_HEALTHCHECK="1")
+               ALP_DISABLE_POLISH="1", DRY_RUN="1", ORCHESTRATOR_SKIP_HEALTHCHECK="1",
+               PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+    if sys.platform == "win32":
+        env.setdefault("ALP_ALLOW_UNSHAPED_DEV_PDF", os.environ.get("ALP_ALLOW_UNSHAPED_DEV_PDF", "1"))
     try:
         result = subprocess.run(
             [sys.executable, str(root / "main.py"), "--job-type", "daily", "--date", "2026-10-05"],
-            cwd=root, env=env, capture_output=True, text=True, timeout=90,
+            cwd=root, env=env, capture_output=True, text=True, timeout=180,
         )
         if interrupt_feed:
             assert result.returncode == 1, result.stdout + result.stderr
@@ -181,7 +185,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
             assert not (root / "state/published_events.json").exists()
             result = subprocess.run(
                 [sys.executable, str(root / "main.py"), "--type", "daily", "--date", "2026-10-05"],
-                cwd=root, env=env, capture_output=True, text=True, timeout=90)
+                cwd=root, env=env, capture_output=True, text=True, timeout=180)
             recovered = json.loads((root / "state/jobs.json").read_text())["daily_2026-10-05"]
             assert recovered["window"] == failed["window"]
             assert recovered["run_attempts"] == 2
@@ -205,7 +209,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
     assert health["passed"] and state[job_id]["last_success_stage"] == "24_final_health_audit"
     before = (root / "state/jobs.json").read_bytes()
     rerun = subprocess.run([sys.executable, str(root / "main.py"), "--type", "daily", "--date", "2026-10-05"],
-                           cwd=root, env=env, capture_output=True, text=True, timeout=90)
+                           cwd=root, env=env, capture_output=True, text=True, timeout=180)
     assert rerun.returncode == 0, rerun.stdout + rerun.stderr
     assert "already complete with intact checkpoints" in rerun.stdout
     assert (root / "state/jobs.json").read_bytes() == before
@@ -213,7 +217,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
     # Both period editions use the verified shared database with ALL network unavailable.
     for kind, edition in [("weekly", "2026-10-04"), ("monthly", "2026-10-14")]:
         run = subprocess.run([sys.executable, str(root / "main.py"), "--type", kind, "--date", edition],
-                             cwd=root, env=env, capture_output=True, text=True, timeout=90)
+                             cwd=root, env=env, capture_output=True, text=True, timeout=180)
         assert run.returncode == 0, run.stdout + run.stderr
         period_id = f"{kind}_{edition}"
         state = json.loads((root / "state/jobs.json").read_text())

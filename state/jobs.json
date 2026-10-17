@@ -15,15 +15,63 @@
   "daily_2026-10-05": {
     "job_id": "daily_2026-10-05",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "success",
     "created_at": "2026-10-14T06:57:23.793421+00:00",
-    "updated_at": "2026-10-13T07:09:08.684156+05:30",
-    "last_success_stage": "21_monthly_editor",
-    "failed_stage": "12_content_editor",
+    "updated_at": "2026-10-16T14:39:57.167364+00:00",
     "attempts": 0,
     "error": "invalid syntax (content.py, line 87)",
-    "job_date": null,
-    "stage_history": []
+    "job_date": "2026-10-05",
+    "stage_history": [],
+    "started_at": "2026-10-16T14:38:26.145773+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-05.json": {
+        "stage": "01_source_fetch",
+        "sha256": "6ac7731372320f4002baa3bb4dbbfe3eb8987159c99e8bc76f773da281f668d5"
+      },
+      "data/verified/daily_2026-10-05.json": {
+        "stage": "04_fact_verification",
+        "sha256": "81b314a6bde4a8d1023a80c3d300e23f592e4cbfd255c1088295b4b2a5380489"
+      },
+      "data/dedup/daily_2026-10-05.json": {
+        "stage": "05_deduplication",
+        "sha256": "38bbb23afca507bfc9d23888fdb56d1d9441eda23a92a2759ec2a6c6920ff714"
+      },
+      "data/scored/daily_2026-10-05.json": {
+        "stage": "06_news_importance",
+        "sha256": "7b70dc922078bd575992d44e686eb22bf00d5412fe8013faf3d022aee6dddf11"
+      },
+      "data/selected/daily_2026-10-05.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "739278cbb7f921acd7d7e5a4c359a9a80f7719ddf5286e842e89a316bd95b4ea"
+      },
+      "data/content/daily_2026-10-05.json": {
+        "stage": "12_content_editor",
+        "sha256": "40dea449ace0f4b010d640c79bd05a3db986340ecbbec329753fedf47ad1345e"
+      },
+      "data/mcq/daily_2026-10-05.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "dc4f477322ff91539398a44c21553a0e9fb4256dc9ae8f3e4fb2185a55723268"
+      },
+      "output/daily_2026-10-05.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "8690f21c1a7e4173cb88696518e8c8cd0e367ca9807b8c5e0d52dad0e6f60209"
+      },
+      "logs/qa/daily_2026-10-05_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "e5eea7d7e1bcceba76ce6fadb5b135cdcadba8e17613a6b39f09301fad108e43"
+      },
+      "logs/qa/daily_2026-10-05_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "1d8f84de83c1ea6564639154e5b7000ee99978f22fdb1a34f1b4290b191e6672"
+      }
+    },
+    "run_attempts": 1,
+    "dry_run": true,
+    "window": {
+      "start": "2026-10-04T00:00:00+05:30",
+      "end": "2026-10-04T23:59:59.999999+05:30"
+    },
+    "last_success_stage": "24_final_health_audit"
   },
   "daily_2026-10-06": {
     "job_id": "daily_2026-10-06",
