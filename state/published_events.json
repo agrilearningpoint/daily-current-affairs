@@ -8,6 +8,16 @@
       "file": "daily_2026-10-05.pdf",
       "status": "sending",
       "published_at": "2026-10-17T09:14:56.090640+00:00"
+    },
+    "d61f668a4688390ebe3e6166": {
+      "job_id": "daily_2026-10-16",
+      "chat_id": "-1004485392227",
+      "message_id": 60,
+      "file_hash": "db9e97f1998f7216",
+      "file_sha256": "db9e97f1998f72163a4b94a4ee7b4aae54b5c85574ce60305151ed584f9726fa",
+      "file": "daily_2026-10-16.pdf",
+      "published_at": "2026-10-17T10:08:11.284864+00:00",
+      "status": "success"
     }
   }
 }

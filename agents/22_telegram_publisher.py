@@ -30,6 +30,7 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -46,6 +47,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 LOGS_DIR = REPO_ROOT / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -197,12 +204,20 @@ def escape_html(text: str) -> str:
 def build_caption(title: str, summary: str = "", link: str = "", source: str = "") -> str:
     """Build HTML caption (≤1024 chars)."""
     parts: List[str] = []
-    if title:
-        parts.append(f"<b>{escape_html(title)}</b>")
+    clean_title = re.sub(r"^>+\s*", "", title).strip()
+    if clean_title:
+        parts.append(f"📚 <b>{escape_html(clean_title)}</b>")
     if summary:
-        short = summary[:600]
-        parts.append("")
-        parts.append(escape_html(short))
+        clean_summary = re.sub(r'<[^>]*>?', '', summary)
+        clean_lines = []
+        for line in clean_summary.splitlines():
+            line_str = re.sub(r'https?://\S+', '', line).strip()
+            if line_str and line_str != "•":
+                clean_lines.append(line_str)
+        if clean_lines:
+            short = "\n".join(clean_lines)[:500]
+            parts.append("")
+            parts.append(escape_html(short))
     if source:
         parts.append("")
         parts.append(f"<i>Source: {escape_html(source[:80])}</i>")
@@ -339,6 +354,11 @@ def find_pdfs() -> List[Path]:
     if job_id:
         path = REPO_ROOT / "output" / f"{job_id}.pdf"
         return [path] if path.is_file() else []
+    job_date = os.getenv("ALP_JOB_DATE")
+    if job_date:
+        path = REPO_ROOT / "output" / f"daily_{job_date}.pdf"
+        if path.is_file():
+            return [path]
     candidates: List[Path] = []
     for d in INPUT_DIRS:
         if not d.exists():
@@ -367,17 +387,21 @@ def find_meta_for_pdf(pdf_path: Path) -> Dict[str, Any]:
                 items = data.get("items") or data.get("articles") or []
                 if isinstance(items, list) and items:
                     first = items[0]
+                    job_info = data.get("job", {})
+                    date_display = job_info.get("date_display", "")
+                    title = f"Agri Learning Point — Daily Current Affairs ({date_display})" if date_display else (first.get("headline_en", "") or first.get("title", ""))
+                    headlines = []
+                    for it in items:
+                        hl = re.sub(r"^>+\s*", "", it.get("headline_en", "") or it.get("title", "")).strip()
+                        hl = re.sub(r"<[^>]+>", "", hl).strip()
+                        if hl and hl.lower() != "estic" and not hl.startswith("http") and not hl.startswith("Untitled"):
+                            headlines.append(f"• {hl}")
+                    summary = "📰 Today's Key Exam Headlines:\n" + "\n".join(headlines[:5])
                     return {
-                        "title": first.get("headline_en", "") or first.get("title", ""),
-                        "summary": first.get("key_points_en", [""])[0]
-                                   if isinstance(first.get("key_points_en"), list)
-                                   else first.get("summary", ""),
-                        "source": first.get("source", {}).get("name", "")
-                                   if isinstance(first.get("source"), dict)
-                                   else "",
-                        "link": first.get("source", {}).get("url", "")
-                                if isinstance(first.get("source"), dict)
-                                else "",
+                        "title": title,
+                        "summary": summary,
+                        "source": "Agri Learning Point | 100% Verified Sources",
+                        "link": "https://t.me/agrilearningpoint",
                     }
             if isinstance(data, list) and data:
                 first = data[0]
