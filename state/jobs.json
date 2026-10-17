@@ -258,7 +258,7 @@
     "checkpoint_run_id": "38980682993"
   },
   "daily_2026-10-17": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "daily_2026-10-17",
     "job_type": "daily",
     "job_date": "2026-10-17",
@@ -268,7 +268,34 @@
       "end": "2026-10-17T11:56:29.174508+05:30"
     },
     "github_run_id": "39009896533",
-    "status": "running",
-    "updated_at": "2026-10-17T06:26:29.174899+00:00"
+    "status": "failed",
+    "updated_at": "2026-10-17T06:29:14.195175+00:00",
+    "started_at": "2026-10-17T06:26:30.459481+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-17.json": {
+        "stage": "01_source_fetch",
+        "sha256": "88be2334e69146dc9873211e7c8242965c0d8d87456e4948a766b887d3bde93b"
+      },
+      "data/verified/daily_2026-10-17.json": {
+        "stage": "04_fact_verification",
+        "sha256": "d80e8442e3d717b8d8c8259033bbc02cdc97602c80b26ae3b0f144f8234fe13b"
+      },
+      "data/dedup/daily_2026-10-17.json": {
+        "stage": "05_deduplication",
+        "sha256": "978b986eb34dda8731b1053cb6480470ff29bd4bfdd4d32f45ad528d3e78e782"
+      },
+      "data/scored/daily_2026-10-17.json": {
+        "stage": "06_news_importance",
+        "sha256": "885e05cf8000ae2cb9e00b4381e1584524ec51e94d23160cffe14b8ae2506827"
+      },
+      "data/selected/daily_2026-10-17.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "a1945d888ac9b12ebe3b39f45e73fa43f099ae4c29554bdfacbc30b1985ba397"
+      }
+    },
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s):  check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-a\n2026-10-17 06:29:10 | WARNING  | pipeline.ai_router | [Router] Provider gemini disabled for 120s: rate limited\n2026-10-17 06:29:11 | INFO     | pipeline.ai_router | [Router] ✔ groq responded (task=polish, 5 chars)\n2026-10-17 06:29:11 | INFO     | pipeline.ai_router | [Router] ✔ groq responded (task=polish, 219 chars)\n2026-10-17 06:29:11 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=1 fallback=0 untranslated=2 (AI success 33.3%)\n2026-10-17 06:29:11 | WARNING  | pipeline.content | [Content Builder] 2 translations need review (AI did not pass)\n2026-10-17 06:29:11 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "39009896533"
   }
 }
