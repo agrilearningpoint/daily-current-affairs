@@ -260,6 +260,28 @@ def test_completed_job_with_lost_publication_evidence_is_not_replayed(publicatio
     assert remote["calls"] == before
 
 
+def test_completed_edition_with_missing_pdf_fails_closed(tmp_path, monkeypatch):
+    """A complete edition whose PDF is gone must fail closed, not crash on read.
+
+    The guard is only reached when resume_after() still reports the edition
+    complete (no recorded PDF artifact to rewind to), so it is exercised here
+    directly rather than through the publication_tail fixture.
+    """
+    monkeypatch.setattr(main, "ROOT", tmp_path)
+    monkeypatch.setattr(main, "JOBS_STATE_PATH", tmp_path / "state/jobs.json")
+    monkeypatch.setenv("DRY_RUN", "0")
+    names = [name for name, _, _ in main.DAILY_STAGES]
+    write_json_atomic(main.JOBS_STATE_PATH, {JOB: {
+        "status": "success", "dry_run": False,
+        "last_success_stage": names[-1], "artifacts": {}}})
+    monkeypatch.setattr(main, "resume_after", lambda *a, **k: names[-1])
+
+    assert main.execute_job("daily", "2026-10-05") == 1
+    state = main.load_jobs_state(strict=True)[JOB]
+    assert state["status"] == "failed"
+    assert state["recovery_blocked"]
+
+
 def test_revision_of_already_published_edition_requires_reconciliation(publication_tail):
     publisher, _, _, remote, _, root = publication_tail
     assert main.execute_job("daily", "2026-10-05") == 0

@@ -81,15 +81,29 @@ DAILY_STAGES: list[tuple[str, str, bool]] = [
     ("24_final_health_audit",          "agents/24_final_health_audit.py",          True),
 ]
 
+# Weekly/monthly reuse the daily content→publish tail. Select those stages BY
+# NAME (order preserved from DAILY_STAGES) so re-ordering or inserting a daily
+# stage can never silently change which stages weekly/monthly run.
+_TAIL_STAGE_NAMES = (
+    "12_content_editor", "16_mcq_generator", "17_mcq_validator", "18_pdf_design",
+    "19_pdf_qa", "22_telegram_publisher", "23_telegram_pin_verifier",
+    "24_final_health_audit",
+)
+_POST_SELECTION_STAGES: list[tuple[str, str, bool]] = [
+    stage for stage in DAILY_STAGES if stage[0] in _TAIL_STAGE_NAMES
+]
+
 WEEKLY_STAGES: list[tuple[str, str, bool]] = [
     DAILY_STAGES[0],
     ("20_weekly_editor", "agents/20_weekly_editor.py", True),
-] + DAILY_STAGES[8:]
+    *_POST_SELECTION_STAGES,
+]
 
 MONTHLY_STAGES: list[tuple[str, str, bool]] = [
     DAILY_STAGES[0],
     ("21_monthly_editor", "agents/21_monthly_editor.py", True),
-] + DAILY_STAGES[8:]
+    *_POST_SELECTION_STAGES,
+]
 
 STAGES_BY_TYPE = {
     "daily": DAILY_STAGES,
@@ -97,12 +111,78 @@ STAGES_BY_TYPE = {
     "monthly": MONTHLY_STAGES,
 }
 
-# Tunables (env-overridable so workflows can adjust without code change)
-STAGE_TIMEOUT_SECONDS = int(os.environ.get("ALP_STAGE_TIMEOUT", "900"))
-MAX_RETRIES = int(os.environ.get("ALP_MAX_RETRIES", "2"))
-RETRY_BASE_DELAY = int(os.environ.get("ALP_RETRY_BASE_DELAY", "5"))
-RUNNING_STUCK_HOURS = float(os.environ.get("ALP_RUNNING_STUCK_HOURS", "6"))
-FAILED_LOOKBACK_HOURS = float(os.environ.get("ALP_FAILED_LOOKBACK_HOURS", "72"))
+# Tunables (env-overridable so workflows can adjust without code change).
+# Each accepts its legacy un-prefixed name as a documented backward-compatible
+# alias (older .env files used STAGE_TIMEOUT_SECONDS / MAX_STAGE_RETRIES /
+# WATCHDOG_STUCK_HOURS); the ALP_-prefixed name always wins.
+def _fatal(msg: str) -> None:
+    """Print a fatal configuration error and exit with the documented code 2."""
+    print(f"FATAL: {msg}", file=sys.stderr, flush=True)
+    raise SystemExit(2)
+
+
+def _int_env(primary: str, legacy: str, default: int) -> int:
+    for key in (primary, legacy):
+        raw = os.environ.get(key)
+        if raw is not None and raw.strip():
+            try:
+                return int(raw)
+            except ValueError:
+                _fatal(f"invalid {key}={raw!r}; expected an integer")
+    return default
+
+
+def _float_env(primary: str, legacy: str, default: float) -> float:
+    for key in (primary, legacy):
+        raw = os.environ.get(key)
+        if raw is not None and raw.strip():
+            try:
+                return float(raw)
+            except ValueError:
+                _fatal(f"invalid {key}={raw!r}; expected a number")
+    return default
+
+
+STAGE_TIMEOUT_SECONDS = _int_env("ALP_STAGE_TIMEOUT", "STAGE_TIMEOUT_SECONDS", 900)
+MAX_RETRIES = _int_env("ALP_MAX_RETRIES", "MAX_STAGE_RETRIES", 2)
+RETRY_BASE_DELAY = _int_env("ALP_RETRY_BASE_DELAY", "RETRY_BASE_DELAY", 5)
+RUNNING_STUCK_HOURS = _float_env("ALP_RUNNING_STUCK_HOURS", "WATCHDOG_STUCK_HOURS", 6)
+FAILED_LOOKBACK_HOURS = _float_env("ALP_FAILED_LOOKBACK_HOURS", "FAILED_LOOKBACK_HOURS", 72)
+
+_PUBLISH_STAGES = {"22_telegram_publisher", "23_telegram_pin_verifier"}
+
+
+def validate_settings(job_type: str) -> None:
+    """Fail fast (exit code 2) on unusable numeric/behavioral settings.
+
+    Runs before any expensive stage so misconfiguration surfaces immediately
+    instead of after collection/PDF work.
+    """
+    if STAGE_TIMEOUT_SECONDS < 1:
+        _fatal("ALP_STAGE_TIMEOUT/STAGE_TIMEOUT_SECONDS must be >= 1 second")
+    if MAX_RETRIES < 0:
+        _fatal("ALP_MAX_RETRIES/MAX_STAGE_RETRIES must be >= 0")
+    if RUNNING_STUCK_HOURS <= 0:
+        _fatal("ALP_RUNNING_STUCK_HOURS/WATCHDOG_STUCK_HOURS must be > 0")
+
+
+def warn_missing_publish_credentials(job_type: str) -> list[str]:
+    """Return (and log) missing Telegram credentials for a real publish run.
+
+    Surfaced immediately at startup so misconfiguration is obvious in logs,
+    while the enforcing failure stays in the publish stage (which fails the
+    critical stage closed). Kept non-fatal so library/test callers that stub
+    the publisher keep their execute_job() contract.
+    """
+    stages = {name for name, _, _ in STAGES_BY_TYPE.get(job_type, [])}
+    if not (stages & _PUBLISH_STAGES) or os.getenv("DRY_RUN", "0") == "1":
+        return []
+    missing = [k for k in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
+               if not os.getenv(k, "").strip()]
+    if missing:
+        log_err(f"missing required publish settings ({', '.join(missing)}); "
+                f"the publish stage will fail — set them as secrets or use DRY_RUN=1")
+    return missing
 
 
 def log(msg: str) -> None:
@@ -330,6 +410,7 @@ def resolve_resume_stage(job_id: str, stages: list[tuple[str, str, bool]]) -> st
 # ---------------------------------------------------------------------------
 
 def execute_job(job_type: str, date_str: str | None) -> int:
+    validate_settings(job_type)
     ctx = job_context_env(job_type, date_str)
     job_id = ctx["ALP_JOB_ID"]
     stages = STAGES_BY_TYPE[job_type]
@@ -341,7 +422,24 @@ def execute_job(job_type: str, date_str: str | None) -> int:
         if not previous.get("dry_run"):
             import hashlib
             from pipeline.publication import publication_issues
-            digest = hashlib.sha256((ROOT / f"output/{job_id}.pdf").read_bytes()).hexdigest()
+            pdf_path = ROOT / "output" / f"{job_id}.pdf"
+            # A "success" job whose PDF is missing/unreadable cannot be proven
+            # published — fail closed instead of crashing on read_bytes().
+            if not pdf_path.is_file():
+                update_job(job_id, status="failed",
+                           error="completed edition PDF missing; manual reconciliation required")
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state[job_id]["recovery_blocked"] = "completed edition PDF missing"
+                    save_jobs_state(state)
+                log_err(f"Completed edition '{job_id}' has no PDF at {pdf_path}; refusing replay")
+                return 1
+            try:
+                digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+            except OSError as exc:
+                update_job(job_id, status="failed", error=f"cannot read edition PDF: {exc}")
+                log_err(f"Completed edition '{job_id}' PDF unreadable: {exc}")
+                return 1
             issues = publication_issues(ROOT, job_id, digest, os.getenv("TELEGRAM_CHAT_ID"))
             if issues:
                 update_job(job_id, status="failed", error="publication evidence missing; manual reconciliation required")
@@ -514,6 +612,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.watchdog:
         return watchdog(args.stuck_hours)
+    warn_missing_publish_credentials(args.type)
     try:
         with file_lock(JOBS_STATE_PATH.parent / "locks" / "pipeline.lock", blocking=False):
             if args.reset:

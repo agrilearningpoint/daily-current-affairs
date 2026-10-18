@@ -29,7 +29,6 @@ ACRONYM_MAP = {
 def _expand_acronyms(text):
     low = text.lower()
     for ac, exp in ACRONYM_MAP.items():
-        import re
         low = re.sub(rf'\b{ac}\b', exp, low)
     return low
 
@@ -179,17 +178,22 @@ def _date_proximity(a_pub, b_pub):
         da = _dtp.parse(a_pub)
         db = _dtp.parse(b_pub)
         delta_h = abs((da - db).total_seconds())/3600
-        if delta_h <= 24: return 1.0
-        if delta_h <= 48: return 0.6
-        if delta_h <= 72: return 0.3
+        if delta_h <= 24:
+            return 1.0
+        if delta_h <= 48:
+            return 0.6
+        if delta_h <= 72:
+            return 0.3
         return 0.0
     except Exception:
         return 0.5
 
 def _semantic_similarity(a, b, fp_a=None, fp_b=None):
     # Combined fingerprint similarity for Level 3
-    if fp_a is None: fp_a = _event_fingerprint(a)
-    if fp_b is None: fp_b = _event_fingerprint(b)
+    if fp_a is None:
+        fp_a = _event_fingerprint(a)
+    if fp_b is None:
+        fp_b = _event_fingerprint(b)
     # Headline Jaccard (bigrams)
     ha, hb = _bigrams(a["headline_en"]), _bigrams(b["headline_en"])
     head_sim = (len(ha & hb) / len(ha | hb)) if ha and hb else 0.0
@@ -322,7 +326,7 @@ def deduplicate(items, threshold=0.85):
 FACTOR_KEYWORDS = {
     "national_impact": ["india", "nation", "country", "all states", "pan-india", "parliament", "cabinet",
                         "president", "prime minister", "supreme court", "election", "constitution", "republic"],
-    "govt_policy": ["scheme", "policy", "y ojana", "yojana", "mission", "gazette", "notification", "ordinance",
+    "govt_policy": ["scheme", "policy", "yojana", "mission", "gazette", "notification", "ordinance",
                     "approved", "cabinet", "launched", "amendment", "guidelines", "circular"],
     "economy": ["gdp", "inflation", "budget", "trade", "export", "economic", "growth", "forex", "gst",
                 "fiscal", "current account", "investment", "fdi", "survey"],

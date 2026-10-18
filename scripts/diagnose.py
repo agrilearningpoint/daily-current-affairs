@@ -234,8 +234,8 @@ def check_config_registry(r: Report):
     p = REPO_ROOT / "config" / "registry.py"
     if not p.exists():
         r.err("config/registry.py missing (required for source unification)")
-        return
-    r.ok("config/registry.py exists")
+    else:
+        r.ok("config/registry.py exists")
     # Try to import
     sys.path.insert(0, str(REPO_ROOT))
     try:
@@ -247,6 +247,19 @@ def check_config_registry(r: Report):
             r.err("Registry returned 0 feeds — sources config broken")
     except Exception as exc:
         r.err(f"Registry import failed: {exc}")
+
+    # Canonical runtime registry (what the production collector actually loads).
+    try:
+        from pipeline.source_registry import load_sources  # type: ignore
+        specs = load_sources()
+        rss_urls = [s.rss_url for s in specs]
+        dupes = sorted({u for u in rss_urls if rss_urls.count(u) > 1})
+        if dupes:
+            r.err(f"Canonical registry duplicate RSS URLs: {dupes[:5]}")
+        else:
+            r.ok(f"Canonical registry: {len(specs)} enabled sources, no duplicate URLs")
+    except Exception as exc:
+        r.err(f"Canonical source registry failed to load: {exc}")
 
 
 def check_requirements(r: Report):

@@ -26,8 +26,11 @@ on:
         type: boolean
         default: false
 
+# One repo-wide group: daily/weekly/monthly/watchdog all commit to the same
+# git-tracked state files (state/jobs.json, ledgers), so they must not run
+# concurrently and race on those commits.
 concurrency:
-  group: daily-pipeline
+  group: current-affairs-pipeline
   cancel-in-progress: false
 
 permissions:

@@ -42,7 +42,6 @@ if str(ROOT) not in sys.path:
 
 from pipeline.source_registry import SourceSpec, SourceConfigError, load_sources
 
-ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 
 
@@ -174,8 +173,11 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
     collected: List[Dict[str, Any]] = []
     malformed = 0
     try:
+        # ALP_FEED_TIMEOUT is canonical; REQUEST_TIMEOUT is the legacy alias
+        # documented in older .env files.
+        timeout = int(os.getenv("ALP_FEED_TIMEOUT") or os.getenv("REQUEST_TIMEOUT") or "20")
         response = requests.get(spec.rss_url, headers={"User-Agent": "alp-collector/1.0"},
-                                timeout=int(os.getenv("ALP_FEED_TIMEOUT", "20")))
+                                timeout=timeout)
         response.raise_for_status()
         parsed = feedparser.parse(response.content)
     except Exception as exc:  # network/disk level failure

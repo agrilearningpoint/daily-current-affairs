@@ -456,6 +456,28 @@ def check_mcqs(report: QAReport, text: str, min_mcq_count: int = MIN_MCQ_COUNT) 
 
 HTML_TAG_RE = re.compile(r"<(?:span|div|time|p|br|table|tr|td|b|i|font)\b[^>]*>", re.IGNORECASE)
 
+# Glyph-integrity checks: characters that indicate a missing/unmappable glyph
+# in the PDF text layer. src/generate_pdf.py sanitises these at generation
+# time; if they still appear, the glyph guard has regressed.
+REPLACEMENT_CHAR_RE = re.compile(r"[\uFFFD\u25A1]")
+UNSUPPORTED_SYMBOL_RE = re.compile(r"[▶✔✒✖▌→✓★●■☆▪➔✔️]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]")
+
+
+def check_glyph_integrity(report: QAReport, text: str) -> None:
+    """Fail on replacement characters or symbols the bundled fonts cannot draw."""
+    replacements = REPLACEMENT_CHAR_RE.findall(text)
+    if replacements:
+        report.add("error", "replacement_chars",
+                   f"{len(replacements)} replacement/notdef character(s) in PDF text",
+                   samples=replacements[:5])
+    unsupported = sorted(set(UNSUPPORTED_SYMBOL_RE.findall(text)))
+    if unsupported:
+        report.add("error", "unsupported_symbols",
+                   "Symbols not covered by the bundled fonts leaked into the PDF: "
+                   f"{unsupported}",
+                   samples=unsupported)
+
+
 def check_html_leakage(report: QAReport, text: str) -> None:
     """Detect raw HTML tags leaking into the PDF text layer."""
     leaks = HTML_TAG_RE.findall(text)
@@ -535,6 +557,7 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
         check_images(report, doc)
         text = extract_text(doc)
         check_text_content(report, text)
+        check_glyph_integrity(report, text)
         check_html_leakage(report, text)
         check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)
