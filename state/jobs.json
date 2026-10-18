@@ -372,7 +372,7 @@
     "checkpoint_run_id": "39105485082"
   },
   "weekly_2026-10-18": {
-    "run_attempts": 3,
+    "run_attempts": 4,
     "job_id": "weekly_2026-10-18",
     "job_type": "weekly",
     "job_date": "2026-10-18",
@@ -382,12 +382,22 @@
       "end": "2026-10-18T23:59:59.999999+05:30"
     },
     "github_run_id": "39132817951",
-    "status": "running",
-    "updated_at": "2026-10-18T13:44:18.420182+00:00",
-    "started_at": "2026-10-18T09:55:28.607183+00:00",
-    "artifacts": {},
-    "last_success_stage": "00_model_orchestrator",
-    "last_error": "20_weekly_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 239, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 235, in main\n    return prepare(get_context())\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_editor.py\", line 48, in prepare\n    raise ValueError(f\"only {len(scored)} verified {ctx.job_type} events in requested period (min {minimum})\")\nValueError: only 4 verified weekly events in requested period (min 5)",
-    "failed_stage": "20_weekly_editor"
+    "status": "failed",
+    "updated_at": "2026-10-18T13:44:40.427198+00:00",
+    "started_at": "2026-10-18T13:44:19.816955+00:00",
+    "artifacts": {
+      "data/selected/weekly_2026-10-18.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "a3949da21dd600a87f456f5982a5566ebbda22093cbf74dc111f03a4f6ade89c"
+      },
+      "data/scored/weekly_2026-10-18.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "58d7482276da402164f6b698ade90003e8838aa306a42a0a265d2047a767ec17"
+      }
+    },
+    "last_success_stage": "20_weekly_editor",
+    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "39132817951"
   }
 }
