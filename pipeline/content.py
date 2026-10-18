@@ -876,15 +876,20 @@ def _build_item_candidates(ci, pools, all_items):
     return cands
 
 
-def generate_mcqs(content_items, target=(12, 15)):
+def generate_mcqs(content_items, target=None):
     """
     Round-robin over items so the day's MCQs are spread across all news
     (1st MCQ of every item, then the 2nd of every item ...) until `target[1]`.
     """
-    min_t, max_t = target
     content_items = [c for c in (content_items or []) if isinstance(c, dict)]
     if not content_items:
         return []
+    if target is None:
+        n = len(content_items)
+        min_t = min(10, n)
+        max_t = min(20, max(15, n))
+    else:
+        min_t, max_t = target
     pools = _build_pools(content_items)
     per_item = []
     for ci in content_items:

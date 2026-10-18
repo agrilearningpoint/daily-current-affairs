@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """FINAL NEWS SELECTION AGENT v2 — 25-30 items for 15+ pages"""
 import logging
+import os
 
 COMMAND = "Select top 25-30 news items with category diversity."
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
@@ -20,7 +21,10 @@ class Agent:
             self.context["stage_failed"] = "no scored items"
             raise RuntimeError(self.context["stage_failed"])
         target = {"daily": 28, "weekly": 35, "monthly": 40}.get(self.job_type, 28)
-        scored.sort(key=lambda x: x.get("importance_score", x.get("student_relevance", 0)), reverse=True)
+        env_target = os.getenv("ALP_TARGET_NEWS_COUNT")
+        if env_target and env_target.isdigit():
+            target = int(env_target)
+        scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
         selected = self._diverse_selection(scored, target)
         logging.info(f"[{self.name}] selected {len(selected)} items (target={target})")
         cats = {}
@@ -45,8 +49,11 @@ class Agent:
         for item in scored:
             cat = item.get("category", "Other")
             by_category.setdefault(cat, []).append(item)
-        priority_cats = ["Agriculture", "Banking & Finance", "Economy", "Government Schemes",
-                         "National", "International", "Science & Technology", "Environment"]
+        priority_cats = [
+            "Agriculture", "Banking & Finance", "Economy", "Government Schemes",
+            "National", "International", "Science & Technology", "Environment",
+            "Sports", "Awards & Honours", "Appointments", "Defence", "Education"
+        ]
         cat_idx = {cat: 0 for cat in priority_cats}
         while len(selected) < target:
             added = False

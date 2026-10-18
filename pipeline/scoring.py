@@ -329,18 +329,20 @@ FACTOR_KEYWORDS = {
     "govt_policy": ["scheme", "policy", "yojana", "mission", "gazette", "notification", "ordinance",
                     "approved", "cabinet", "launched", "amendment", "guidelines", "circular"],
     "economy": ["gdp", "inflation", "budget", "trade", "export", "economic", "growth", "forex", "gst",
-                "fiscal", "current account", "investment", "fdi", "survey"],
+                "fiscal", "current account", "investment", "fdi", "survey", "capex", "revenue"],
     "agriculture": ["farm", "agri", "crop", "msp", "icar", "horticulture", "fisheries", "dairy", "monsoon",
-                    "food processing", "apeda", "nhb", "irrigation", "seed", "soil", "livestock", "shrimp"],
+                    "food processing", "apeda", "nhb", "irrigation", "seed", "soil", "livestock", "shrimp",
+                    "kisan", "fao", "fertilizer", "carbon credit"],
     "banking": ["rbi", "bank", "nabard", "sebi", "upi", "insurance", "monetary", "repo", "credit",
-                "loan", "nbfc", "payment", "irdai", "pfrda"],
+                "loan", "nbfc", "payment", "irdai", "pfrda", "bfsi", "capital", "fintech"],
     "exam_relevance": ["report", "index", "ranking", "award", "appointment", "mou", "summit", "conference",
                        "committee", "un ", "world bank", "imf", "wto", "fao", "who", "unesco", "day",
-                       "established", "headquartered", "launched"],
+                       "established", "headquartered", "launched", "president", "director", "chairperson",
+                       "nobel", "prize", "scientist", "medal", "trophy", "championship", "agreement", "pact"],
     "future_importance": ["2027", "2028", "2030", "target", "roadmap", "phase", "expansion", "next",
-                          "deadline", "mission", "long-term"],
+                          "deadline", "mission", "long-term", "fy27", "vision"],
     "static_fact_value": ["rs", "crore", "lakh crore", "percent", "%", "billion", "bn", "rank", "first",
-                     "highest", "largest", "number", "total", "outlay", "beneficiary"],
+                          "highest", "largest", "number", "total", "outlay", "beneficiary", "trillion"],
 }
 
 FACTOR_WEIGHTS = {"national_impact": 20, "govt_policy": 15, "economy": 15, "agriculture": 15,
@@ -360,8 +362,12 @@ def score_item(item, source_score_map=None):
     cat = item.get("category", "")
     if cat == "Agriculture":
         factors["agriculture"] = FACTOR_WEIGHTS["agriculture"]
-    if cat == "Banking & Finance":
+    elif cat == "Banking & Finance":
         factors["banking"] = FACTOR_WEIGHTS["banking"]
+    elif cat == "Government Schemes":
+        factors["govt_policy"] = max(factors["govt_policy"], 10)
+    elif cat in ("Science & Technology", "Environment", "International"):
+        factors["exam_relevance"] = max(factors["exam_relevance"], 6)
     factors["uniqueness"] = FACTOR_WEIGHTS["uniqueness"] if item.get("duplicate_count", 1) <= 2 else 2
     raw_total = sum(factors.values())  # max 100
     # source reliability multiplier — LEVEL-based (0-5) with fallback to tier map

@@ -25,7 +25,10 @@ def collect_window(job_type: str, job_date: str) -> tuple[datetime, datetime]:
     if job_type == "daily":
         if edition_day == now.date():
             end = now
-            start = end - timedelta(hours=24)
+            # Include from start of yesterday (00:00:00 IST) up to now (24-36 hrs),
+            # ensuring early-morning releases and UTC midnight items from yesterday
+            # are captured for complete 24-hour current affairs coverage.
+            start = datetime.combine(edition_day - timedelta(days=1), dt_time.min, tzinfo=IST)
         else:
             end_day = edition_day - timedelta(days=1)
             start = datetime.combine(end_day, dt_time.min, tzinfo=IST)

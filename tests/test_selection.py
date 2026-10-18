@@ -96,3 +96,43 @@ def test_pdf_qa_enforces_the_scaled_mcq_minimum():
     qa.check_mcqs(report, text, min_mcq_count=5)
     issue = next(issue for issue in report.issues if issue.code == "insufficient_mcqs")
     assert issue.details == {"count": 4, "min": 5}
+
+
+def test_daily_domain_relevance_retains_full_coverage(tmp_path, monkeypatch):
+    """Ensure stage 07 does NOT cap output to 6 items when ~25-28 relevant news exist."""
+    from pipeline import state
+
+    job_id = "daily_2026-10-17"
+    scored_dir = tmp_path / "scored"
+    monkeypatch.setattr(state, "SCORED_DIR", scored_dir)
+
+    # 25 verified articles across diverse categories
+    categories = ["Agriculture", "Banking & Finance", "Economy", "Government Schemes", "National"] * 5
+    items = [
+        {
+            "event_id": f"evt_{i}",
+            "headline_en": f"Important Exam News Headline Event {i} regarding national development",
+            "raw_facts": f"Government announced policy measure number {i} for farmers and economy.",
+            "importance_score": 30 + (i % 20),
+            "category": categories[i],
+        }
+        for i in range(25)
+    ]
+    state.write_json_atomic(state.data_path(scored_dir, job_id), {"items": items})
+
+    agent = load_agent("07").Agent(job_id, "daily", {})
+    agent.run()
+
+    saved = json.loads(state.data_path(scored_dir, job_id).read_text())["items"]
+    assert len(saved) == 25
+    assert all(it.get("student_relevance", 0) >= 15 for it in saved)
+
+
+def test_deduplication_keeps_distinct_numerical_events():
+    """Ensure 05_deduplication does NOT merge different policies that share keywords but have distinct numbers."""
+    dedup = load_agent("05")
+    a = {"title": "Cabinet Approves Agriculture Mission with Rs 5000 Crore Outlay", "confidence_score": 0.9}
+    b = {"title": "Cabinet Approves Agriculture Mission with Rs 10000 Crore Outlay", "confidence_score": 0.85}
+    assert dedup.distinct_event_check(a, b) is True
+    clustered = dedup.dedup_similarity([a, b])
+    assert len(clustered) == 2

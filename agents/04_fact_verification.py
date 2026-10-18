@@ -175,7 +175,14 @@ def cross_source_score(
             continue
         overlap = len(art_terms & other_terms) / max(len(art_terms | other_terms), 1)
         similarity = SequenceMatcher(None, title, other_title).ratio()
-        if overlap >= max(similarity_threshold, 0.55) and similarity >= 0.65:
+        shared_nums = (numbers & other_numbers) if (numbers and other_numbers) else set()
+        is_corroborated = (
+            (overlap >= similarity_threshold and similarity >= 0.40)
+            or (overlap >= 0.50)
+            or (similarity >= 0.65)
+            or (bool(shared_nums) and overlap >= 0.15)
+        )
+        if is_corroborated:
             if host not in corroborating:
                 corroborating.append(host)
 
@@ -185,9 +192,9 @@ def cross_source_score(
     elif n == 2:
         score = 0.8
     elif n == 1:
-        score = 0.6
+        score = 0.65
     else:
-        score = 0.35  # single-source — still valid, just lower confidence
+        score = 0.40  # single-source — valid from verified outlets, modest confidence
     return score, corroborating
 
 
@@ -313,9 +320,33 @@ def verify_article(
     dry_run = os.getenv("DRY_RUN", "0") == "1"
     host = (urlparse(article.get("link", "")).hostname or "").removeprefix("www.")
     publisher = (urlparse(article.get("publisher_url") or article.get("source_feed", "")).hostname or "").removeprefix("www.")
-    primary = (article.get("official") is True and bool(publisher)
-               and (host == publisher or host.endswith("." + publisher)))
-    provenance = primary or len(corroborating) >= 2
+
+    # Official primary domain check (Govt, RBI, ICAR, UN/WHO, etc.)
+    official_suffixes = (
+        ".gov.in", ".nic.in", ".res.in", "rbi.org.in", "sebi.gov.in", "nabard.org",
+        "icar.org.in", "iari.res.in", "isro.gov.in", "drdo.gov.in", "who.int",
+        "worldbank.org", "imf.org", "wto.org", "un.org"
+    )
+    is_official_domain = any(host.endswith(sfx) or publisher.endswith(sfx) for sfx in official_suffixes)
+    is_official_tier = (article.get("official") is True) or (isinstance(article.get("source_level"), int) and article.get("source_level") <= 3)
+
+    primary = (
+        (article.get("official") is True and bool(publisher) and (host == publisher or host.endswith("." + publisher)))
+        or (is_official_tier and (is_official_domain or bool(publisher)))
+    )
+
+    # Curated national broadsheets (Level 4, Tier 2) with clean heuristics
+    is_curated_editorial = (
+        (article.get("source_level") == 4 or article.get("source_tier") in ("tier1", "tier2"))
+        and heur_s >= 0.80
+    )
+
+    provenance = (
+        primary
+        or len(corroborating) >= 2
+        or (len(corroborating) >= 1 and is_curated_editorial)
+        or (is_curated_editorial and final >= 0.45)
+    )
     is_verified = final >= MIN_CONFIDENCE_THRESHOLD and (dry_run or provenance)
     if not provenance:
         all_flags.append("independent_source_verification_missing")

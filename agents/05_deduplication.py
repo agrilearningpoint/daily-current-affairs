@@ -113,6 +113,28 @@ def similarity(a: str, b: str) -> float:
     return max(seq, jacc)
 
 
+def extract_numbers(text: str) -> set[float]:
+    return {float(v) for v in re.findall(r"\b\d+(?:\.\d+)?\b", text or "")}
+
+
+def distinct_event_check(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """Return True if a and b definitely refer to different events and should NOT be merged."""
+    t1 = a.get("title", "")
+    t2 = b.get("title", "")
+    # Check distinct numbers (e.g. Rs 5,000 crore vs Rs 10,000 crore, or 24th vs 25th)
+    n1 = extract_numbers(t1)
+    n2 = extract_numbers(t2)
+    if n1 and n2 and len(n1 & n2) == 0:
+        return True
+    # Check contrastive verbs
+    l1 = t1.lower()
+    l2 = t2.lower()
+    for w1, w2 in [("hikes", "cuts"), ("increases", "decreases"), ("wins", "loses"), ("rises", "falls")]:
+        if (w1 in l1 and w2 in l2) or (w2 in l1 and w1 in l2):
+            return True
+    return False
+
+
 # --------------------------------------------------------------------------- #
 def load_latest() -> Tuple[List[Dict[str, Any]], Path]:
     from pipeline.agent_context import get_context
@@ -166,6 +188,8 @@ def dedup_similarity(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         title = a.get("title", "")
         merged = False
         for c in clusters:
+            if distinct_event_check(a, c):
+                continue
             if similarity(title, c.get("title", "")) > SIMILARITY_THRESHOLD:
                 # Same event — keep higher confidence
                 if a.get("confidence_score", 0) > c.get("confidence_score", 0):

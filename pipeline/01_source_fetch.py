@@ -16,6 +16,7 @@ Contract:
 
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import html
 import json
@@ -79,13 +80,32 @@ def job_context() -> Tuple[str, str, datetime]:
 
 def _parse_entry_time(entry: Any) -> datetime | None:
     """Timezone-aware publication datetime from a feedparser entry, or None."""
-    for key in ("published_parsed", "updated_parsed"):
+    for key in ("published_parsed", "updated_parsed", "created_parsed"):
         t = getattr(entry, key, None)
         if t:
             try:
                 return datetime.fromtimestamp(calendar_time_to_epoch(t), tz=timezone.utc)
             except Exception:
                 continue
+    # Robust fallback: parse string representations if struct_time is unavailable
+    for key in ("published", "updated", "pubDate", "created", "dc_date"):
+        val = getattr(entry, key, None)
+        if val and isinstance(val, str):
+            try:
+                from email.utils import parsedate_to_datetime
+                dt = parsedate_to_datetime(val)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+            except Exception:
+                pass
+            try:
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+            except Exception:
+                pass
     return None
 
 
@@ -109,7 +129,12 @@ QUALITY_PUBLISHERS = {
     "forbes": "Forbes", "financialexpress": "Financial Express", "cnbctv18": "CNBC TV18",
     "pib": "PIB", "ani": "ANI", "pti": "PTI", "ddnews": "DD News",
     "news18": "News18", "indiatoday": "India Today", "thequint": "The Quint",
+    "business-standard": "Business Standard", "livemint": "Mint",
+    "economictimes": "Economic Times", "businessline": "BusinessLine",
     "icar": "ICAR", "iari": "IARI", "rbi": "RBI", "nabard": "NABARD", "niti": "NITI Aayog",
+    "sebi": "SEBI", "pfrda": "PFRDA", "irdai": "IRDAI", "npci": "NPCI",
+    "isro": "ISRO", "drdo": "DRDO", "fao": "FAO", "who": "WHO",
+    "worldbank": "World Bank", "imf": "IMF", "wto": "WTO",
 }
 
 
@@ -165,11 +190,13 @@ def sanitize_feed_text(text: str) -> str:
 # --------------------------------------------------------------------------
 
 def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
-               seen_hashes: set) -> Tuple[List[Dict[str, Any]], int, int, str | None]:
+               seen_hashes: set | None = None) -> Tuple[List[Dict[str, Any]], int, int, str | None]:
     """Fetch one feed. Returns (articles, total_entries, skipped_malformed, error).
 
     Errors are reported per feed; they never discard results from other feeds.
     """
+    if seen_hashes is None:
+        seen_hashes = set()
     collected: List[Dict[str, Any]] = []
     malformed = 0
     try:
@@ -257,19 +284,34 @@ def main() -> int:
     feed_failures: List[Dict[str, str]] = []
     ok_feeds = 0
 
-    for spec in specs:
-        arts, total, malformed, error = fetch_spec(
-            spec, window_start, window_end, seen_hashes)
-        if error:
-            feed_failures.append({"source_id": spec.source_id,
-                                  "url": spec.rss_url, "error": error})
-            print(f"[01_source_fetch] WARN feed failed: {spec.name} -> {error}",
-                  file=sys.stderr)
-            continue
-        ok_feeds += 1
-        all_articles.extend(arts)
-        print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
-              f"(of {total} entries, {malformed} malformed skipped)")
+    # Fetch feeds in parallel to reliably collect all 56 sources without timeouts
+    max_workers = min(10, max(1, len(specs)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_spec = {
+            executor.submit(fetch_spec, spec, window_start, window_end, None): spec
+            for spec in specs
+        }
+        for future in concurrent.futures.as_completed(future_to_spec):
+            spec = future_to_spec[future]
+            try:
+                arts, total, malformed, error = future.result()
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                arts, total, malformed = [], 0, 0
+            if error:
+                feed_failures.append({"source_id": spec.source_id,
+                                      "url": spec.rss_url, "error": error})
+                print(f"[01_source_fetch] WARN feed failed: {spec.name} -> {error}",
+                      file=sys.stderr)
+                continue
+            ok_feeds += 1
+            for art in arts:
+                h = art.get("content_hash") or content_hash(art.get("title", ""), art.get("link", ""))
+                if h not in seen_hashes:
+                    seen_hashes.add(h)
+                    all_articles.append(art)
+            print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
+                  f"(of {total} entries, {malformed} malformed skipped)")
 
     edition = {
         "schema_version": "1.0",

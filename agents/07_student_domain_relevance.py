@@ -28,7 +28,7 @@ class Agent:
         self.name = "STUDENT & DOMAIN RELEVANCE AGENT"
 
     def run(self):
-        import logging, re
+        import logging, os, re
         from pipeline.state import SCORED_DIR, data_path, read_json, write_json_atomic
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
         BOOST = {"Agriculture": 25, "Banking & Finance": 25, "Government Schemes": 20, "Economy": 15,
@@ -45,23 +45,31 @@ class Agent:
             if it.get("category") == "Banking & Finance":
                 it["banking_focus"] = True
         items.sort(key=lambda x: -x["student_relevance"])
-        keep = [i for i in items if i["student_relevance"] >= 30]
-        # SPARSE DAILY TOP-UP: 1-3 relevant items = thin edition; fill to 4 with next-best
-        # verified items (still real verified news, ranked by relevance — never invented)
-        if self.job_type == "daily" and 0 < len(keep) < 6 and len(items) > len(keep):
+
+        target_count = {"daily": 28, "weekly": 35, "monthly": 40}.get(self.job_type, 28)
+        env_target = os.getenv("ALP_TARGET_NEWS_COUNT")
+        if env_target and env_target.isdigit():
+            target_count = int(env_target)
+
+        # Retain all clean, student-relevant events (score >= 15 after domain boosts)
+        keep = [i for i in items if i["student_relevance"] >= 15]
+
+        # Top up to target using all clean verified items so comprehensive 24h news is not lost
+        if len(keep) < target_count and len(items) > len(keep):
             kept_ids = {i.get("event_id") for i in keep}
             rest = sorted([i for i in items if i.get("event_id") not in kept_ids],
                           key=lambda x: -x["student_relevance"])
-            keep += rest[:6 - len(keep)]
+            keep += rest[:target_count - len(keep)]
             keep.sort(key=lambda x: -x["student_relevance"])
-            logging.warning(f"[{self.name}] sparse daily top-up: keep={len(keep)} (filled from next-best verified)")
+            logging.info(f"[{self.name}] daily coverage fill: keep={len(keep)} (up to {target_count})")
+
         agri_n = sum(1 for i in keep if i.get("agri_focus"))
         bank_n = sum(1 for i in keep if i.get("banking_focus"))
         logging.info(f"[{self.name}] relevant={len(keep)}/{len(items)} agri={agri_n} banking={bank_n}")
-        # Sparse daily: allow 1-item even if below 30 (user: gates <1 allow 1-item sparse daily)
+
+        # Sparse daily: allow 1-item even if below 15 (user: gates <1 allow 1-item sparse daily)
         if not keep and items:
-            # No item met 30, but we have verified items — keep top 1-4 for sparse edition
-            keep = sorted(items, key=lambda x: -x["student_relevance"])[:4]
+            keep = sorted(items, key=lambda x: -x["student_relevance"])[:target_count]
             logging.warning(f"[{self.name}] sparse daily: keeping top {len(keep)} below threshold (best {keep[0]['student_relevance']})")
             agri_n = sum(1 for i in keep if i.get("agri_focus"))
             bank_n = sum(1 for i in keep if i.get("banking_focus"))
