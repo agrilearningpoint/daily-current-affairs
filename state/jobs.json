@@ -347,7 +347,7 @@
     "checkpoint_run_id": "39123271528"
   },
   "daily_2026-10-18": {
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "daily_2026-10-18",
     "job_type": "daily",
     "job_date": "2026-10-18",
@@ -357,19 +357,35 @@
       "end": "2026-10-18T10:10:51.327174+05:30"
     },
     "github_run_id": "39168683458",
-    "status": "running",
-    "updated_at": "2026-10-18T21:38:28.423566+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-18T21:39:55.554328+00:00",
     "started_at": "2026-10-18T04:40:53.228422+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-18.json": {
         "stage": "01_source_fetch",
         "sha256": "bdbfd0d6148ac1f60552e23764de31425aadf7ece423275c1b0449728bcb8f03"
+      },
+      "data/verified/daily_2026-10-18.json": {
+        "stage": "04_fact_verification",
+        "sha256": "8e4c6c35134e7865f098cd7b45bc8bca09c3e5274ad8c01a19bb3a301ce12219"
+      },
+      "data/dedup/daily_2026-10-18.json": {
+        "stage": "05_deduplication",
+        "sha256": "8733575c356bccc71a56396375af93244f8cbccc29b4e80e2b0ec7789177206e"
+      },
+      "data/scored/daily_2026-10-18.json": {
+        "stage": "06_news_importance",
+        "sha256": "d7cb1581e8075052aa7559d03d3e10e2dd10a2c55fbb4994539a6a88893f1453"
+      },
+      "data/selected/daily_2026-10-18.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "64ac98dc1fa8be2dd7447a2b86387e2c15b42e0991fa6046b156c48ca40b9011"
       }
     },
-    "last_success_stage": "01_source_fetch",
-    "last_error": "04_fact_verification: failed after 3 attempt(s):  [Router] All providers failed. Last error: None\n2026-10-18 06:54:08 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-18 06:54:08 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-18 06:54:08 | INFO     | agent.04_fact_verification | Verification complete in 57.8s | 438 total | 0 passed | 438 rejected | 0 crashed\n2026-10-18 06:54:08 | INFO     | agent.04_fact_verification | Avg confidence: 0.543\n2026-10-18 06:54:08 | INFO     | agent.04_fact_verification | Methods: {'combined': 18, 'heuristic+cross_source': 420}\n2026-10-18 06:54:08 | ERROR    | agent.04_fact_verification | Only 0 verified items (min 1 required). Tuning tips: lower MIN_CONFIDENCE_THRESHOLD (current=0.30), check input quality, enable LLM verify.",
-    "failed_stage": "04_fact_verification",
-    "checkpoint_run_id": "39105485082"
+    "last_success_stage": "11_importance_memory",
+    "checkpoint_run_id": "39168683458",
+    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
+    "failed_stage": "12_content_editor"
   },
   "weekly_2026-10-18": {
     "run_attempts": 6,
