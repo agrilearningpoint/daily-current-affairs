@@ -110,9 +110,15 @@ ACTION_WORDS = {
 TRAILING_DROP = {"asian", "african", "european", "american", "chinese", "indian"}
 ACRONYM_STOP = {"IST", "THE", "AND", "FOR", "NEW", "ALL", "OF", "TO", "IN", "ON", "AT", "BY"}
 
-DOMAIN_ORGS = ["NABARD", "Reserve Bank of India", "ICAR", "Food Corporation of India",
-               "SEBI", "NITI Aayog", "World Bank", "Ministry of Finance",
-               "Ministry of Agriculture", "National Bank for Agriculture and Rural Development"]
+DOMAIN_ORGS = [
+    "NABARD", "Reserve Bank of India", "ICAR", "Food Corporation of India",
+    "SEBI", "NITI Aayog", "World Bank", "Ministry of Finance",
+    "Ministry of Agriculture", "National Bank for Agriculture and Rural Development",
+    "ISRO", "DRDO", "FSSAI", "APEDA", "IMD", "MoSPI", "Ministry of External Affairs",
+    "Ministry of Rural Development", "Department of Fisheries", "National Horticulture Board",
+    "Department of Animal Husbandry and Dairying", "IMF", "FAO", "WHO", "WTO",
+    "IRDAI", "PFRDA", "NPCI", "CSIR", "NHAI", "UPSC", "State Bank of India",
+]
 
 # --------------------------------------------------------------------------- #
 # Hindi text blocks (ASCII-escaped on purpose: safe to paste through PowerShell)
@@ -544,6 +550,60 @@ def _translate_tracked(text, task, stats, flags):
     return hindi
 
 
+def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:
+    """Build a factual, non-fabricated explanation strictly from sourced material.
+
+    The explanation is assembled only from the item's own headline, summary text
+    (``raw_facts``) and extracted key points. No generic filler sentences or
+    invented facts are added: if the source only supports a short account, the
+    explanation stays short rather than being padded (master rule 9 and 6).
+    """
+    facts = _norm_ws(raw_facts)
+    sentences = [s.strip() for s in split_sentences(facts) if len(s.strip()) > 20]
+
+    used: List[str] = []
+
+    def _add(sentence: str) -> None:
+        sentence = _norm_ws(sentence).strip(" .")
+        if not sentence or len(sentence) < 20:
+            return
+        if any(_similar(sentence, u) > 0.75 for u in used):
+            return
+        used.append(sentence)
+
+    for s in sentences:
+        _add(s)
+
+    # Fall back to the key points when the source summary is thin, then to the
+    # headline itself so a story always has at least one factual sentence.
+    for kp in kps_en or []:
+        _add(kp)
+
+    if not used:
+        _add(title_en)
+
+    text = ". ".join(used)
+    return (text + ".") if text and not text.endswith(".") else text
+
+
+def _build_category_one_liners(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build bilingual category-wise one-liners for quick exam revision."""
+    one_liners = []
+    for it in items:
+        en = _plain_headline(it.get("headline_en", ""))
+        hi = _plain_headline(it.get("headline_hi", ""))
+        cat = it.get("category") or "National"
+        fact = next(iter((it.get("static_facts") or {}).values()), "")
+        if en and hi:
+            one_liners.append({
+                "category": cat,
+                "text_en": en + (f" (Key: {fact})" if fact else ""),
+                "text_hi": hi,
+                "event_id": it.get("event_id", ""),
+            })
+    return one_liners
+
+
 def _build_entry(it, stats):
     if not isinstance(it, dict):
         return None
@@ -569,16 +629,30 @@ def _build_entry(it, stats):
     title_en = polish_with_ai(title, raw_facts)
     kps_en = [polish_with_ai(p, raw_facts) for p in kps]
 
+    # Detailed explanation (bilingual)
+    det_en = it.get("detailed_explanation_en") or _build_detailed_explanation(title_en, raw_facts, kps_en, sf, ef)
+    det_hi = it.get("detailed_explanation_hi") or _translate_tracked(det_en, "general", stats, flags)
+
+    # Entities and numbers
+    orgs = [e for e in _extract_entities(raw_facts + " " + title_en) if len(e) > 3][:4]
+    nums = _clean_nums(raw_facts + " " + title_en)[:5]
+
     return {
         "event_id": event_id,
         "category": it.get("category") or "National",
         "headline_en": HEADLINE_PREFIX + title_en,
         "headline_hi": HEADLINE_PREFIX + headline_hi,
+        "summary_en": kps_en[0] if kps_en else title_en,
+        "summary_hi": key_points_hi[0] if key_points_hi else headline_hi,
+        "detailed_explanation_en": det_en,
+        "detailed_explanation_hi": det_hi,
         "key_points_en": kps_en,
         "key_points_hi": key_points_hi,
         "static_facts": sf,
         "exam_fact_en": ef,
         "exam_fact_hi": exam_fact_hi,
+        "organizations": orgs,
+        "important_numbers": nums,
         "source": {"name": it.get("source_name", ""), "url": it.get("source_url", ""),
                    "tier": it.get("source_tier", ""), "date": it.get("pub_time_ist")},
         "importance_score": it.get("importance_score", 0),
@@ -616,10 +690,24 @@ def build_content(items, job_meta):
         logger.warning("[Content Builder] %d items skipped", stats["skipped_items"])
 
     meta = job_meta if isinstance(job_meta, dict) else {}
-    return {"job": job_meta,
-            "edition_title": meta.get("edition_title") or "Current Affairs",
-            "items": out,
-            "translation_stats": stats}
+    one_liners = _build_category_one_liners(out)
+    content = {
+        "job": job_meta,
+        "edition_title": meta.get("edition_title") or "Current Affairs",
+        "items": out,
+        "one_liners": one_liners,
+        "translation_stats": stats,
+    }
+    try:
+        from pipeline.completeness import validate_content_completeness
+        comp_report = validate_content_completeness(content)
+        content["completeness_report"] = comp_report.to_dict()
+        logger.info("[Content Builder] Completeness: %d/%d items complete (avg words EN: %.1f, HI: %.1f)",
+                    comp_report.complete_items, comp_report.total_items,
+                    comp_report.average_words_en, comp_report.average_words_hi)
+    except Exception as exc:
+        logger.warning("[Content Builder] Completeness check skipped: %s", exc)
+    return content
 
 
 # --------------------------------------------------------------------------- #
@@ -710,7 +798,7 @@ def _format_like(raw, value):
 
 
 def _num_variants(s):
-    """Plausible wrong numbers in the SAME format/unit as s (x2, x0.5, x3, x1.5)."""
+    """Plausible wrong numbers in the SAME format/unit as s for 5-option MCQs."""
     m = _NUM_RE.search(s or "")
     if not m:
         return []
@@ -720,7 +808,7 @@ def _num_variants(s):
     except ValueError:
         return []
     out = []
-    for factor in (2, 0.5, 3, 1.5):
+    for factor in (1.5, 0.5, 2.0, 1.25, 0.75, 2.5, 3.0, 0.8):
         y = x * factor
         if y <= 0:
             continue

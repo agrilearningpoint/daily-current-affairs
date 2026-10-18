@@ -3,7 +3,7 @@
 Production-grade pipeline that collects, verifies, and publishes daily/weekly/monthly current-affairs content for competitive exam students (AGTA, AFO, ICAR, IBPS, NABARD).
 
 **What it does:**
-1. Fetches news from RSS feeds + APIs (previous 24h window)
+1. Fetches news from RSS feeds + APIs (rolling 24–36h window, 00:00 IST previous day onwards)
 2. Fact-checks claims via cross-source corroboration + heuristic + optional LLM
 3. Deduplicates + ranks by importance
 4. Builds bilingual (English + Hindi) content
@@ -317,7 +317,8 @@ Telegram and never write pipeline state.
 | [`docs/production-audit.md`](docs/production-audit.md) | Every audited defect, with file/line evidence and the regression test that covers it |
 | [`docs/production-readiness.md`](docs/production-readiness.md) | Go-live gates and the operator pilot checklist |
 | [`docs/source-registry.md`](docs/source-registry.md) | Canonical source registry, `official` semantics, how to add/retire a source |
-| [`docs/pdf-design.md`](docs/pdf-design.md) | PDF palette, typography, Devanagari pipeline, glyph guard, QA gate |
+| [`docs/pdf-design.md`](docs/pdf-design.md) | PDF palette, typography, Devanagari pipeline, glyph guard, content-aware QA gate |
+| [`docs/content-quality-audit.md`](docs/content-quality-audit.md) | Stage-by-stage audit of the earlier 5-page output and the fixes that raise a daily edition to 15–25 substantive pages |
 | [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Day-2 operations and recovery |
 
 ---
@@ -536,7 +537,9 @@ pytest tests/ -v -m "not slow"
 | `test_state_machine.py` | State transitions |
 | `test_pipeline_offline.py` | End-to-end offline (incl. real generate→QA PDF path) |
 | `test_pdf_hindi.py` | Devanagari shaping + extractable Unicode forms |
-| `test_pdf_sample_qa.py` | Real PDF generation + real QA gate on the bilingual fixture |
+| `test_pdf_sample_qa.py` | Real PDF generation + real QA gate on the bilingual fixture, incl. the 15-page daily target |
+| `test_content_completeness.py` | Bilingual story completeness validator (required fields, Devanagari, numeric drift) |
+| `test_selection.py` | Stage 07/10 coverage, dedup numeric guards, QA MCQ + substantive-page floors |
 | `test_source_registry.py` | Canonical registry: duplicate URLs, tiers, coverage |
 | `test_module_consolidation.py` | Locks the removal of duplicate modules |
 | `test_publication_safety.py` | Publish guards (missing PDF, dry-run, ledger) |

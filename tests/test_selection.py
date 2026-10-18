@@ -128,6 +128,36 @@ def test_daily_domain_relevance_retains_full_coverage(tmp_path, monkeypatch):
     assert all(it.get("student_relevance", 0) >= 15 for it in saved)
 
 
+@pytest.mark.parametrize(("item_count", "expected"), [(0, 2), (1, 2), (3, 3), (12, 12), (30, 15)])
+def test_pdf_qa_scales_substantive_page_floor(item_count, expected):
+    """A sparse day must not be failed, but content loss below the story count must."""
+    assert load_agent("19").minimum_substantive_pages(item_count) == expected
+
+
+def test_pdf_qa_flags_content_loss_but_only_warns_on_sparse_day():
+    qa = load_agent("19")
+
+    # 12 stories but only 4 substantive pages -> clear content loss (error).
+    report = qa.QAReport(pdf_path="fixture.pdf")
+    report.substantive_pages = 4
+    qa.check_page_target(report, 12)
+    assert any(i.code == "insufficient_substantive_pages" and i.severity == "error"
+               for i in report.issues)
+
+    # 4 stories and 4 substantive pages -> below target but honest (warning only).
+    report = qa.QAReport(pdf_path="fixture.pdf")
+    report.substantive_pages = 4
+    qa.check_page_target(report, 4)
+    assert not any(i.severity == "error" for i in report.issues)
+    assert any(i.code == "below_page_target" for i in report.issues)
+
+    # A full edition clears both gates.
+    report = qa.QAReport(pdf_path="fixture.pdf")
+    report.substantive_pages = 20
+    qa.check_page_target(report, 18)
+    assert not report.issues
+
+
 def test_deduplication_keeps_distinct_numerical_events():
     """Ensure 05_deduplication does NOT merge different policies that share keywords but have distinct numbers."""
     dedup = load_agent("05")

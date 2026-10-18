@@ -139,19 +139,24 @@ guard is not silently dead code).
 
 1. **Cover** — masthead, date, edition label, headline strip, edition stats.
 2. **Table of contents / index** — categories with story counts.
-3. **Category sections** — teal section banner, then per story:
+3. **Category-wise one-liners** — grouped bilingual revision pointers, one
+   section heading per category that actually has news (no empty headings).
+4. **Category sections** — teal section banner, then per story:
    * bilingual headline (EN paragraph + HI raster),
+   * **Detailed Analysis** panel (bilingual factual prose) — rendered only when
+     it adds content beyond the key points, so a fact is not printed twice,
    * key points (EN + HI),
    * optional image with centred caption,
    * **Static GK & Facts** panel,
    * **Exam Pointer** gold panel,
    * **clickable source line** (link + printed URL).
-4. **Practice MCQs** — section banner; per question: EN + HI prompt, five options
-   `(A)–(E)`, highlighted correct-answer chip, EN + HI detailed explanation,
-   exam takeaway. Each MCQ is wrapped in `KeepTogether`.
-5. **Category one-liners** — fast revision block.
-6. **Closing revision kit** — channel/offer summary with supported bullets.
-7. **Header/footer on every page** — navy band with logo, brand string, and
+5. **Practice MCQs** — section banner; per question: EN + HI prompt, up to five
+   options `(A)–(E)`, highlighted correct-answer chip, EN + HI detailed
+   explanation, exam takeaway. Each MCQ is wrapped in `KeepTogether`.
+6. **Final Revision Capsule** — a dense two-column table of the day's
+   high-yield facts, figures and organisations (headline → key fact).
+7. **Closing revision kit** — channel/offer summary with supported bullets.
+8. **Header/footer on every page** — navy band with logo, brand string, and
    `Page X of Y` (dynamic via `NumberedCanvas`); thin outer rule.
 
 ### Clickable source references
@@ -176,6 +181,9 @@ Runs on the **real PDF bytes**, exit `0` pass / `1` fail.
 | File exists, not truncated (`file_missing`, `file_too_small`) | error |
 | Page count sane (`too_few_pages` error, `too_many_pages` warn) | error / warning |
 | Blank pages | warning |
+| **Substantive page count** (`insufficient_substantive_pages`, floor scales with story count) | error |
+| **Below 15-page daily target** (`below_page_target`) | warning |
+| **Near-empty / heading-only pages** (`near_empty_pages`) | warning |
 | Fonts embedded; Devanagari font present | error / warning |
 | Sufficient text (`too_little_text`) | error |
 | Hindi present (`insufficient_hindi` error, `low_hindi` warn) | error / warning |
@@ -186,6 +194,23 @@ Runs on the **real PDF bytes**, exit `0` pass / `1` fail.
 | Images present; text overflow beyond page box | warning |
 | `file_sha256` recorded for the publication ledger | info |
 
+### Substantive page gate (content-aware)
+
+`analyse_page_density()` measures the extractable character count of every
+page. A page is **substantive** when it carries at least
+`PDF_QA_SUBSTANTIVE_CHARS` (default 600) characters; a page between
+`PDF_QA_NEAR_EMPTY_CHARS` (default 260) and that threshold is a
+**near-empty / heading-only** page.
+
+* The editorial daily target is `PDF_QA_TARGET_PAGES` (default **15**) — falling
+  short raises `below_page_target` (warning).
+* The hard floor is `minimum_substantive_pages(item_count) = clamp(item_count, 2, 15)`.
+  Falling below that raises `insufficient_substantive_pages` (error), which means
+  content was lost in layout, not that it was a genuinely quiet news day.
+
+This distinguishes the two failure modes the spec calls out: **content lost**
+(fail) versus **genuinely little verified news** (warn + honest QA report).
+
 `scripts/pdf_preview.py` runs the real generator **and** this QA gate, then
 renders representative pages (cover, first story, middle, MCQ, last) to PNG.
 
@@ -193,23 +218,29 @@ renders representative pages (cover, first story, middle, MCQ, last) to PNG.
 
 ## 8. Evidence — sample edition
 
+Generated 2026-10-18 from `tests/fixtures/bilingual_sample.py` (12 synthetic
+stories across 12 categories, 8 five-option MCQs):
+
 ```
-Pages:           10
-Chars:           15068
-Devanagari:      2674 (17.7%)
-Fonts:           6 (Mukta-Bold, Mukta-Regular, Poppins-Bold, …)
-MCQs:            6
-Answer markers:  6
-Duplicate Qs:    0
-URLs:            7
-Images:          75
-Blank pages:     none
-QA verdict:      PASSED
+Pages:             22
+Substantive pages: 22  (target >= 15)
+Blank pages:       none
+Near-empty pages:  none
+Chars:             42,654
+Devanagari:        9,880 (23.2%)
+Fonts:             6 (Mukta-Bold, Mukta-Regular, Poppins-Bold, …)
+MCQs:              8
+Answer markers:    8
+Duplicate Qs:      0
+URLs:              15
+Image XObjects:    209
+QA verdict:        PASSED (0 errors, 0 warnings)
 ```
 
 Rendered pages were inspected visually: Hindi conjuncts/matras shape correctly,
-the `»`/`·` markers render (no tofu), source URLs print and are clickable, and the
-footer page numbers advance correctly.
+the `»`/`·` markers render (no tofu), source URLs print and are clickable,
+detailed bilingual analysis and the revision capsule are present, and the footer
+page numbers advance correctly.
 
 ---
 
@@ -221,6 +252,8 @@ footer page numbers advance correctly.
 | `KeepTogether` MCQ blocks can leave whitespace at the bottom of a page when the next MCQ does not fit. | Intentional — an orphaned/split MCQ is worse than whitespace. |
 | Repeated page watermark. | Measured peak deviation from white ≤ ~1 RGB unit at 7 % alpha; it does not obscure text, so it was retained as a subtle brand mark. |
 | Cover can look sparse for short editions. | Expected for a small daily edition. |
+| The **Detailed Analysis** panel is suppressed when its wording is entirely covered by the key points. | Intentional — prevents printing the same fact twice in one card. |
+| The **Final Revision Capsule** starts on a fresh page so its table is not split. | Intentional — a split revision table is harder to revise from. |
 
 ---
 
@@ -230,6 +263,7 @@ footer page numbers advance correctly.
 # Generate a sample edition, run the real QA gate, render pages to PNG
 python scripts/pdf_preview.py --out output/sample_preview.pdf --png-dir output/preview
 
-# Offline tests, including the real generate→QA path
-python -m pytest tests/test_pdf_sample_qa.py tests/test_pdf_hindi.py -q
+# Offline tests, including the real generate→QA path and the page target
+python -m pytest tests/test_pdf_sample_qa.py tests/test_pdf_hindi.py `
+                 tests/test_content_completeness.py tests/test_selection.py -q
 ```

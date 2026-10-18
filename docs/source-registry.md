@@ -208,3 +208,33 @@ all individually live-probed** in this pass; use `python scripts/source_health.p
 * Feed health is a point-in-time observation. A feed that worked on 2026-10-18
   can break; that is exactly why `scripts/source_health.py --live` exists and
   why `notes=` fields carry probe dates.
+
+---
+
+## 8. Verification policy (agent 04)
+
+`agents/04_fact_verification.py` decides whether a collected article has enough
+provenance to be published. It is deliberately conservative but not so strict
+that genuine single-source official news is discarded (the earlier
+`len(corroborating) >= 2` rule rejected 80–90 % of real articles).
+
+An article is treated as **provenance-verified** when any of the following hold:
+
+1. **Primary/official route** — the article host matches the publisher host, or
+   the item comes from an official authority tier (`source_level <= 3`), or the
+   host ends with a recognised official suffix (`.gov.in`, `.nic.in`, `.res.in`,
+   `rbi.org.in`, `sebi.gov.in`, `nabard.org`, `icar.org.in`, `isro.gov.in`,
+   `drdo.gov.in`, `who.int`, `worldbank.org`, `imf.org`, `wto.org`, `un.org`).
+2. **Two or more independent domains** corroborate the event.
+3. **One independent domain plus a clean curated editorial report** (Level 4 /
+   Tier 1–2 with heuristic confidence `>= 0.80`).
+4. **A clean curated editorial report on its own** with final confidence
+   `>= 0.45` — broadsheet-level reporting from The Hindu, Indian Express,
+   Business Standard, Mint or Reuters.
+
+Articles that satisfy none of the above are flagged
+`independent_source_verification_missing` and are not published.
+
+> The relaxed rules still **never** treat an AI summary or an aggregator row as
+> independent evidence. The corroboration count is computed only across
+> distinct publisher domains.

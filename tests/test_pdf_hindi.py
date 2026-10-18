@@ -58,7 +58,7 @@ def test_mixed_para_hindi_shaping():
             full = "\n".join(p.extract_text() or "" for p in reader.pages)
         # Must contain correct forms via hidden text layer
         assert "विषय-सूची" in full, "INDEX Hindi broken: expected विषय-सूची"
-        assert ("मुख्य परीक्षा तथ्य" in full or "महत्वपूर्ण" in full), "MOST IMPORTANT Hindi broken"
+        assert ("श्रेणीवार मुख्य तथ्य" in full or "महत्वपूर्ण" in full), "One-liners heading Hindi broken"
         assert "मुख्य बिंदु" in full, "Key Points Hindi broken"
         assert "स्थैतिक तथ्य" in full, "Static Facts Hindi broken"
         assert "परीक्षा तथ्य" in full, "Exam Fact Hindi broken"

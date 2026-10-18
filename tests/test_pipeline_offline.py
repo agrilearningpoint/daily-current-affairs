@@ -73,6 +73,19 @@ def test_content_no_invention_and_mcq_validation():
         assert len(set(m["options"])) == len(m["options"])
 
 
+def test_content_builds_detailed_explanations_and_one_liners():
+    scored = scoring.score_all(scoring.deduplicate(make_items()))
+    c = content.build_content(scored, {"type": "daily", "date_display": "05 October 2026"})
+    # Category-wise one-liners must be produced for the revision section.
+    assert c.get("one_liners"), "content must expose category one-liners"
+    for it in c["items"]:
+        assert it.get("detailed_explanation_en"), "detailed EN explanation required"
+        assert it.get("detailed_explanation_hi"), "detailed HI explanation required"
+        assert it.get("key_points_en"), "key points still required"
+    comp = c.get("completeness_report")
+    assert comp is not None and comp["total_items"] == len(c["items"])
+
+
 def test_pdf_end_to_end_and_qa_checks():
     import os
 

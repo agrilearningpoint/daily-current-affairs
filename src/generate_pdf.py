@@ -39,7 +39,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus.flowables import Flowable
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, HRFlowable, Image
+    PageBreak, KeepTogether, HRFlowable, Image, CondPageBreak
 )
 from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
 
@@ -904,6 +904,8 @@ def news_card(
     source_url: str = "",
     image_path: Optional[str] = None,
     image_caption: Optional[str] = None,
+    detailed_explanation_en: str = "",
+    detailed_explanation_hi: str = "",
 ) -> List[Flowable]:
     cat = CATEGORY_STYLE.get(category_key, CATEGORY_STYLE["national"])
     story: List[Flowable] = []
@@ -985,6 +987,33 @@ def news_card(
         story.append(Spacer(1, 0.8*mm))
 
     story.append(Spacer(1, 1.5*mm))
+
+    # Detailed bilingual explanation (prose). Rendered only when it adds content
+    # beyond the key-point bullets, so the same fact is never printed twice in
+    # one card (master rule 9).
+    det_en_clean = _safe(detailed_explanation_en).strip()
+    det_hi_clean = _strip_html(detailed_explanation_hi).strip()
+    kp_blob = " ".join(_safe(_strip_html(k)) for k in (key_points_en or [])).lower()
+    det_norm = re.sub(r"[^a-z0-9 ]", " ", det_en_clean.lower())
+    kp_tokens = {w for w in re.findall(r"[a-z0-9]+", kp_blob) if len(w) > 3}
+    det_tokens = {w for w in re.findall(r"[a-z0-9]+", det_norm) if len(w) > 3}
+    is_redundant = bool(det_tokens) and not (det_tokens - kp_tokens)
+    if det_en_clean and len(det_en_clean.split()) >= 12 and not is_redundant:
+        story.append(mixed_para(
+            "DETAILED ANALYSIS  •  विस्तृत विवरण",
+            "deth",
+            STYLES["body_en"],
+            fontSize=11.5,
+            leading=16,
+            textColor=COLORS["header_bg"],
+            fontName=FONT_SEMI,
+            width_mm=178,
+        ))
+        story.append(Spacer(1, 0.8*mm))
+        story.append(Paragraph(det_en_clean, STYLES["body_en"]))
+        if det_hi_clean:
+            story.append(hindi_to_image(det_hi_clean, width_mm=178, font_size_pt=12, bold=False, color="#222B36", bg="white"))
+        story.append(Spacer(1, 1.5*mm))
 
     # Static Facts
     if static_facts:
@@ -1391,16 +1420,39 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     story.append(idx_tbl)
     story.append(Spacer(1, 3.5*mm))
 
-    # --- MOST IMPORTANT ONE-LINERS (Directly following index, no blank page!) ---
-    story.append(mixed_para("MOST IMPORTANT EXAM POINTERS • मुख्य परीक्षा तथ्य", "mi_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["header_bg"]))
+    # --- CATEGORY-WISE ONE-LINERS (topic-wise revision, no blank page) ---
+    story.append(mixed_para("CATEGORY-WISE ONE-LINERS • श्रेणीवार मुख्य तथ्य", "mi_h", STYLES["headline_en"], fontSize=13, leading=16, textColor=COLORS["header_bg"]))
     story.append(Spacer(1, 1*mm))
 
-    for it in top_items[:8]:
-        fact = next(iter(it.get("static_facts", {}).values()), "")
-        clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
-        clean_fact = _strip_html(fact)
-        line = f"<b>{clean_hl}</b>" + (f'  »  <font color="#1E5E2B">{clean_fact}</font>' if clean_fact else "")
-        story.append(Paragraph(f"•  {line}", STYLES["one_liner"]))
+    ol_items = content.get("one_liners") or []
+    if ol_items:
+        ol_by_cat: Dict[str, List[Dict[str, Any]]] = {}
+        for ol in ol_items:
+            ck = CAT_MAP.get(ol.get("category", "National"), "national")
+            ol_by_cat.setdefault(ck, []).append(ol)
+        for ck, ols in ol_by_cat.items():
+            info = CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])
+            story.append(Paragraph(
+                f'<font size="9.5" color="{info["color"].hexval()}"><b>{info["label"]}</b></font>',
+                ParagraphStyle("ol_cat", parent=STYLES["static_label"], fontSize=9.5, leading=13, spaceBefore=2),
+            ))
+            for ol in ols[:8]:
+                clean_en = _safe(ol.get("text_en", ""))
+                clean_hi = _strip_html(ol.get("text_hi", ""))
+                if not clean_en:
+                    continue
+                story.append(Paragraph(f"•  {clean_en}", STYLES["one_liner"]))
+                if clean_hi:
+                    story.append(hindi_to_image(clean_hi, width_mm=182, font_size_pt=11, bold=False, color="#222B36", bg="white", left_padding_mm=3.5))
+            story.append(Spacer(1, 1*mm))
+    else:
+        # Fallback for older content payloads without a one-liners array.
+        for it in top_items[:8]:
+            fact = next(iter(it.get("static_facts", {}).values()), "")
+            clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
+            clean_fact = _strip_html(fact)
+            line = f"<b>{clean_hl}</b>" + (f'  »  <font color="#1E5E2B">{clean_fact}</font>' if clean_fact else "")
+            story.append(Paragraph(f"•  {line}", STYLES["one_liner"]))
 
     story.append(Spacer(1, 3.5*mm))
     story.append(HRFlowable(width="100%", thickness=0.8, color=COLORS["header_bg"], spaceAfter=3*mm, spaceBefore=2*mm))
@@ -1426,6 +1478,8 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
                 source_url=it.get("source", {}).get("url", ""),
                 image_path=it.get("image_path") or None,
                 image_caption=it.get("image_caption") or None,
+                detailed_explanation_en=it.get("detailed_explanation_en", ""),
+                detailed_explanation_hi=it.get("detailed_explanation_hi", ""),
             )
             story.extend(blocks)
 
@@ -1451,6 +1505,56 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
             exam_point=m.get("exam_point", ""),
         )
         story.append(block)
+
+    # =========================================================================
+    # 3b. FINAL REVISION CAPSULE (facts, dates, figures at a glance)
+    # =========================================================================
+    rev_rows: List[List[Flowable]] = [[
+        Paragraph("<b>DEVELOPMENT / TOPIC</b>", ParagraphStyle("rev_h1", parent=STYLES["static_label"], fontSize=8.5, leading=11, textColor=white)),
+        Paragraph("<b>KEY FACT / FIGURE TO REMEMBER</b>", ParagraphStyle("rev_h2", parent=STYLES["static_label"], fontSize=8.5, leading=11, textColor=white)),
+    ]]
+    rev_count = 0
+    for it in items:
+        if rev_count >= 18:
+            break
+        hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
+        # Prefer an extracted numeric fact; fall back to the exam fact.
+        facts = it.get("static_facts") or {}
+        fact = next((v for k, v in facts.items() if k.startswith("Fact")), "")
+        if not fact:
+            fact = it.get("exam_fact_en") or next(iter(facts.values()), "")
+        clean_fact = _strip_html(fact)
+        if not hl or not clean_fact:
+            continue
+        rev_rows.append([
+            Paragraph(hl, ParagraphStyle("rev_t", parent=STYLES["static_text"], fontSize=8, leading=10.5)),
+            Paragraph(clean_fact, ParagraphStyle("rev_f", parent=STYLES["static_text"], fontSize=8, leading=10.5, textColor=COLORS["primary_green"])),
+        ])
+        rev_count += 1
+
+    if rev_count:
+        story.append(Spacer(1, 3*mm))
+        # Break only if there is not enough room to keep the capsule heading
+        # with a few rows — avoids both a stranded heading and a whole-page gap.
+        story.append(CondPageBreak(70*mm))
+        story.append(mixed_para("FINAL REVISION CAPSULE • अंतिम पुनरावृत्ति", "rev_h", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["header_bg"]))
+        story.append(Paragraph("High-yield facts, figures and organisations from today's edition — revise in one glance.",
+                               ParagraphStyle("rev_sub", fontName=FONT_REGULAR, fontSize=8.5, leading=11, textColor=COLORS["muted_text"])))
+        story.append(Spacer(1, 2*mm))
+        rev_tbl = Table(rev_rows, colWidths=[(PAGE_W - 28*mm) * 0.55, (PAGE_W - 28*mm) * 0.45], repeatRows=1)
+        rev_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLORS["header_bg"]),
+            ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
+            ("INNERGRID", (0, 0), (-1, -1), 0.25, COLORS["border_light"]),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [white, COLORS["card_bg"]]),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        story.append(rev_tbl)
+        story.append(Spacer(1, 4*mm))
 
     # =========================================================================
     # 4. CLOSING REVISION KIT (Replaces 90% Blank Final Page)

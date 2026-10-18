@@ -75,6 +75,20 @@ def test_sample_pdf_passes_real_qa_gate(sample_pdf):
     assert not report.blank_pages
 
 
+def test_sample_pdf_meets_daily_page_and_qa_targets(sample_pdf):
+    """The deterministic sample must clear the 15-page daily target with a clean gate."""
+    pdf_path, content, mcqs = sample_pdf
+    qa = _load_pdf_qa()
+    report = qa.run_qa(pdf_path, min_mcq_count=len(mcqs), item_count=len(content["items"]))
+    errors = [i for i in report.issues if i.severity == "error"]
+    assert report.passed, f"QA failed: {[ (i.code, i.message) for i in errors ]}"
+    assert report.substantive_pages >= 15, (
+        f"Only {report.substantive_pages} substantive pages (target 15)"
+    )
+    assert not report.blank_pages
+    assert not report.near_empty_pages
+
+
 def test_sample_pdf_contains_all_stories_and_mcqs(sample_pdf):
     pdf_path, content, mcqs = sample_pdf
     import pymupdf

@@ -161,6 +161,12 @@ MIN_HINDI_PCT = float(os.getenv("PDF_QA_MIN_HINDI_PCT", "5.0"))
 MIN_MCQ_COUNT = int(os.getenv("PDF_QA_MIN_MCQ_COUNT", "10"))
 STRICT = os.getenv("PDF_QA_STRICT", "0") == "1"
 RENDER_CHECK = os.getenv("PDF_QA_RENDER_CHECK", "1") == "1"
+# Editorial target for a normal daily edition (master spec section 4).
+TARGET_SUBSTANTIVE_PAGES = int(os.getenv("PDF_QA_TARGET_PAGES", "15"))
+# A page with at least this many extractable characters is "substantive"; below
+# this but above the blank threshold is a "near-empty / heading-only" page.
+SUBSTANTIVE_CHARS = int(os.getenv("PDF_QA_SUBSTANTIVE_CHARS", "600"))
+NEAR_EMPTY_CHARS = int(os.getenv("PDF_QA_NEAR_EMPTY_CHARS", "260"))
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 URL_RE = re.compile(r"https?://[^\s\)\]\"']+")
@@ -199,6 +205,9 @@ class QAReport:
     duplicate_questions: int = 0
     urls_found: int = 0
     blank_pages: List[int] = field(default_factory=list)
+    near_empty_pages: List[int] = field(default_factory=list)
+    substantive_pages: int = 0
+    min_page_chars: int = 0
     image_xobjects: int = 0
     issues: List[QAIssue] = field(default_factory=list)
     checked_at: str = ""
@@ -231,6 +240,9 @@ class QAReport:
             "duplicate_questions": self.duplicate_questions,
             "urls_found": self.urls_found,
             "blank_pages": self.blank_pages,
+            "near_empty_pages": self.near_empty_pages,
+            "substantive_pages": self.substantive_pages,
+            "min_page_chars": self.min_page_chars,
             "image_xobjects": self.image_xobjects,
             "issues": [
                 {"severity": i.severity, "code": i.code,
@@ -303,6 +315,24 @@ def detect_blank_pages(doc: "fitz.Document", min_chars: int = 20) -> List[int]:
         except Exception:
             continue
     return blanks
+
+
+def analyse_page_density(doc: "fitz.Document") -> Tuple[List[int], int, int]:
+    """Return (per-page char counts, substantive page count, min chars on a page).
+
+    A page counts as *substantive* when it carries at least ``SUBSTANTIVE_CHARS``
+    extractable characters. This is a measured occupancy proxy that works across
+    PyMuPDF and the pypdf adapter, so a heading-only or near-empty page cannot
+    masquerade as real content (master spec section 11).
+    """
+    counts: List[int] = []
+    for page in doc:
+        try:
+            counts.append(len(page.get_text("text").strip()))
+        except Exception:
+            counts.append(0)
+    substantive = sum(1 for c in counts if c >= SUBSTANTIVE_CHARS)
+    return counts, substantive, (min(counts) if counts else 0)
 
 
 def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
@@ -380,6 +410,20 @@ def check_pages(report: QAReport, doc: "fitz.Document") -> None:
                    f"{len(blanks)} suspicious blank page(s): {blanks[:5]}",
                    blank_pages=blanks)
 
+    # Content-aware occupancy: substantive vs near-empty / heading-only pages.
+    counts, substantive, min_chars = analyse_page_density(doc)
+    report.substantive_pages = substantive
+    report.min_page_chars = min_chars
+    near_empty = [
+        i for i, c in enumerate(counts, 1)
+        if NEAR_EMPTY_CHARS <= c < SUBSTANTIVE_CHARS and i not in blanks
+    ]
+    report.near_empty_pages = near_empty
+    if near_empty:
+        report.add("warning", "near_empty_pages",
+                   f"{len(near_empty)} near-empty/heading-only page(s): {near_empty[:5]}",
+                   near_empty_pages=near_empty)
+
 
 def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
     fonts = extract_fonts(doc)
@@ -430,6 +474,36 @@ def minimum_mcq_count(item_count: int) -> int:
     if item_count < 1:
         return MIN_MCQ_COUNT
     return min(MIN_MCQ_COUNT, item_count * 2)
+
+
+def minimum_substantive_pages(item_count: int) -> int:
+    """Floor below which content has clearly been lost, scaled to story volume.
+
+    The editorial *target* is :data:`TARGET_SUBSTANTIVE_PAGES`, but a genuine
+    low-news day must not be failed merely for being short. We therefore fail
+    only when the PDF is thinner than the number of selected stories (each story
+    should occupy at least a fraction of a page), which signals a layout or
+    content-loss defect rather than a sparse news day.
+    """
+    if item_count < 1:
+        return MIN_PAGES
+    return max(MIN_PAGES, min(TARGET_SUBSTANTIVE_PAGES, item_count))
+
+
+def check_page_target(report: QAReport, item_count: int) -> None:
+    """Warn when the edition is below the editorial page target; error only on
+    clear content loss (fewer substantive pages than selected stories)."""
+    floor = minimum_substantive_pages(item_count)
+    if report.substantive_pages < floor:
+        report.add("error", "insufficient_substantive_pages",
+                   f"Only {report.substantive_pages} substantive page(s) for "
+                   f"{item_count} stories (floor {floor}) — content lost or layout defect",
+                   substantive_pages=report.substantive_pages, floor=floor, items=item_count)
+    elif report.substantive_pages < TARGET_SUBSTANTIVE_PAGES:
+        report.add("warning", "below_page_target",
+                   f"{report.substantive_pages} substantive page(s) is below the "
+                   f"{TARGET_SUBSTANTIVE_PAGES}-page daily target (verified news volume may be low)",
+                   substantive_pages=report.substantive_pages, target=TARGET_SUBSTANTIVE_PAGES)
 
 
 def check_mcqs(report: QAReport, text: str, min_mcq_count: int = MIN_MCQ_COUNT) -> None:
@@ -534,7 +608,8 @@ def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
-def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
+def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
+           item_count: Optional[int] = None) -> QAReport:
     report = QAReport(
         pdf_path=str(pdf_path),
         checked_at=datetime.now(timezone.utc).isoformat(),
@@ -562,6 +637,8 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT) -> QAReport:
         check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)
         check_visual_overflow(report, doc)
+        if item_count is not None:
+            check_page_target(report, item_count)
     finally:
         doc.close()
 
@@ -633,7 +710,7 @@ def main() -> int:
     min_mcq_count = minimum_mcq_count(len(selected_items))
     logger.info("QA requires at least %d MCQs for %d selected stories",
                 min_mcq_count, len(selected_items))
-    report = run_qa(pdf, min_mcq_count=min_mcq_count)
+    report = run_qa(pdf, min_mcq_count=min_mcq_count, item_count=len(selected_items))
 
     # Save report
     report_file = ctx.qa_report_path()
