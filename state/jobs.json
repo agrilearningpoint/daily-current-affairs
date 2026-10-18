@@ -359,7 +359,7 @@
     "failed_stage": "19_pdf_qa"
   },
   "daily_2026-10-18": {
-    "run_attempts": 2,
+    "run_attempts": 3,
     "job_id": "daily_2026-10-18",
     "job_type": "daily",
     "job_date": "2026-10-18",
@@ -369,8 +369,8 @@
       "end": "2026-10-18T10:10:51.327174+05:30"
     },
     "github_run_id": "39101149465",
-    "status": "running",
-    "updated_at": "2026-10-18T05:37:28.011174+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-18T05:40:06.347688+00:00",
     "started_at": "2026-10-18T04:40:53.228422+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-18.json": {
@@ -379,9 +379,9 @@
       }
     },
     "last_success_stage": "01_source_fetch",
-    "last_error": "04_fact_verification: failed after 3 attempt(s): | [Router] All providers failed. Last error: None\n2026-10-18 05:00:39 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-18 05:00:39 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-18 05:00:39 | INFO     | agent.04_fact_verification | Verification complete in 31.4s | 438 total | 0 passed | 438 rejected | 0 crashed\n2026-10-18 05:00:39 | INFO     | agent.04_fact_verification | Avg confidence: 0.544\n2026-10-18 05:00:39 | INFO     | agent.04_fact_verification | Methods: {'combined': 9, 'heuristic+cross_source': 429}\n2026-10-18 05:00:39 | ERROR    | agent.04_fact_verification | Only 0 verified items (min 1 required). Tuning tips: lower MIN_CONFIDENCE_THRESHOLD (current=0.30), check input quality, enable LLM verify.",
+    "last_error": "04_fact_verification: failed after 3 attempt(s):  [Router] All providers failed. Last error: None\n2026-10-18 05:40:02 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-18 05:40:02 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-18 05:40:02 | INFO     | agent.04_fact_verification | Verification complete in 41.0s | 438 total | 0 passed | 438 rejected | 0 crashed\n2026-10-18 05:40:02 | INFO     | agent.04_fact_verification | Avg confidence: 0.544\n2026-10-18 05:40:02 | INFO     | agent.04_fact_verification | Methods: {'combined': 12, 'heuristic+cross_source': 426}\n2026-10-18 05:40:02 | ERROR    | agent.04_fact_verification | Only 0 verified items (min 1 required). Tuning tips: lower MIN_CONFIDENCE_THRESHOLD (current=0.30), check input quality, enable LLM verify.",
     "failed_stage": "04_fact_verification",
-    "checkpoint_run_id": "39098895147"
+    "checkpoint_run_id": "39101149465"
   },
   "weekly_2026-10-18": {
     "run_attempts": 1,
