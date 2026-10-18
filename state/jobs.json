@@ -305,65 +305,6 @@
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "38980682993"
   },
-  "daily_2026-10-17": {
-    "started_at": "2026-10-18T07:53:27.540100+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-17.json": {
-        "stage": "01_source_fetch",
-        "sha256": "06955e2c267b3b6a8cbc6ae4c55c6db0d7cb665ceb752839a775c90bbccca062"
-      },
-      "data/verified/daily_2026-10-17.json": {
-        "stage": "04_fact_verification",
-        "sha256": "85476a81b29cf750cc58c9b77d2cf1471351800bc96533e5b886d27c161b8fb1"
-      },
-      "data/dedup/daily_2026-10-17.json": {
-        "stage": "05_deduplication",
-        "sha256": "f0f6ce036cec14681c55747fe1f772904f15d830f56fbb29427087f4434c5453"
-      },
-      "data/scored/daily_2026-10-17.json": {
-        "stage": "06_news_importance",
-        "sha256": "df85d49a63997e361c91a059e13727ba5656baef5fc706edd7a6a9c37a3c11fa"
-      },
-      "data/selected/daily_2026-10-17.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "bb7905dccfc474d1344b1e6992940c5a795888ff3d57df20772fe3205190a3af"
-      },
-      "data/content/daily_2026-10-17.json": {
-        "stage": "12_content_editor",
-        "sha256": "dabaf89e33d6e9e5707b148040408e7d8e411808e63cb4c6b6309be2c73f01cf"
-      },
-      "data/mcq/daily_2026-10-17.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "cdbb9d2120f2e3b3de667f328f360d04a46624dbff0e5bfc082dd92f77748dc9"
-      },
-      "output/daily_2026-10-17.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "84f9fbe0331fcca24d53e0669de98e9d2aaf0a870dbe8d9641dab598b4aec915"
-      },
-      "logs/qa/daily_2026-10-17_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "16a84f069be8d02094ae301d78a32536149e6e018714f2c1bf2f371f60feb096"
-      },
-      "logs/qa/daily_2026-10-17_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "9386bca950c459fa44714ab974316af1ef4c7814eb1329e22ed04a58e09ae373"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-10-17",
-    "job_type": "daily",
-    "job_date": "2026-10-17",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-16T00:00:00+05:30",
-      "end": "2026-10-16T23:59:59.999999+05:30"
-    },
-    "github_run_id": "39109319109",
-    "status": "success",
-    "updated_at": "2026-10-18T07:57:01.964762+00:00",
-    "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "39109319109"
-  },
   "daily_2026-10-18": {
     "run_attempts": 4,
     "job_id": "daily_2026-10-18",
@@ -407,5 +348,64 @@
     "last_success_stage": "00_model_orchestrator",
     "last_error": "20_weekly_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 239, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 235, in main\n    return prepare(get_context())\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_editor.py\", line 48, in prepare\n    raise ValueError(f\"only {len(scored)} verified {ctx.job_type} events in requested period (min {minimum})\")\nValueError: only 4 verified weekly events in requested period (min 5)",
     "failed_stage": "20_weekly_editor"
+  },
+  "daily_2026-10-17": {
+    "started_at": "2026-10-18T09:52:55.664992+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-17.json": {
+        "stage": "01_source_fetch",
+        "sha256": "a34f4dbef38ac8a3edcc1578b7fbf6b8d516c987654dc3c3c43be9f7dbdd3c75"
+      },
+      "data/verified/daily_2026-10-17.json": {
+        "stage": "04_fact_verification",
+        "sha256": "b362c6d876faf1ce4439e3b83f92c43c7cf2fc93c719ce7cf4d5139406eb1f54"
+      },
+      "data/dedup/daily_2026-10-17.json": {
+        "stage": "05_deduplication",
+        "sha256": "c41511190461e17967c8831315d01ad9522575a2dd30b4f9499febd7d3cb8db1"
+      },
+      "data/scored/daily_2026-10-17.json": {
+        "stage": "06_news_importance",
+        "sha256": "da7be31b23d46c11625a91eab333e5892701e6146cb252360fe8b1fd2829feaf"
+      },
+      "data/selected/daily_2026-10-17.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "067ed5617ba942a50c80642c0a2fa6a6db710eda3dd4d298b33c0dbd841a7997"
+      },
+      "data/content/daily_2026-10-17.json": {
+        "stage": "12_content_editor",
+        "sha256": "dfc782d2030c631ca386fa774ca7e310ec8a17ba7a9df33726ceb46accde865b"
+      },
+      "data/mcq/daily_2026-10-17.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "54324a498d3527ba9ee444730e15a3eacc022cb87cd6d0f34c1dc1d4dd566d46"
+      },
+      "output/daily_2026-10-17.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "1ac91ea7aeb24ca71048ca9bbd57a82673a9d296eebd9bc8396d45bbc47eb459"
+      },
+      "logs/qa/daily_2026-10-17_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "155153fcff73733c34fd93250ccb9fda48ddbcc221a94899a3e14cf17acbced6"
+      },
+      "logs/qa/daily_2026-10-17_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "4b2e6a870fff6dfbbeb9cfe499072d4762b657f9e32efca0a4f41baf5dba55bb"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-10-17",
+    "job_type": "daily",
+    "job_date": "2026-10-17",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-16T00:00:00+05:30",
+      "end": "2026-10-16T23:59:59.999999+05:30"
+    },
+    "github_run_id": "39117031609",
+    "status": "success",
+    "updated_at": "2026-10-18T09:54:35.606003+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "39117031609"
   }
 }
