@@ -42,6 +42,16 @@ env:
   ALP_STAGE_TIMEOUT: "900"
   ALP_MAX_RETRIES: "2"
   LOG_LEVEL: ${{ github.event.inputs.debug == 'true' && 'DEBUG' || 'INFO' }}
+  # --- PDF content policy (single documented source: docs/pdf-design.md) -------
+  # Editorial target for a daily edition. Below this raises a WARNING, never a
+  # failure, so a genuinely quiet news day still publishes.
+  PDF_QA_TARGET_PAGES: "15"
+  # Content-loss floor is derived in code as clamp(ceil(items/2), 2, TARGET):
+  # ~half a page per selected story. Dropping below it (or losing selected
+  # stories) fails the gate, because that means the renderer lost content.
+  PDF_QA_MIN_PAGES: "2"
+  PDF_QA_SUBSTANTIVE_CHARS: "600"
+  PDF_QA_NEAR_EMPTY_CHARS: "260"
 
 jobs:
   run-daily:
