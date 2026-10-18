@@ -188,6 +188,7 @@ Runs on the **real PDF bytes**, exit `0` pass / `1` fail.
 | Sufficient text (`too_little_text`) | error |
 | Hindi present (`insufficient_hindi` error, `low_hindi` warn) | error / warning |
 | MCQ count, answer markers, duplicate questions | error / warning |
+| **Selected-story coverage** (`stories_missing_from_pdf` — every selected headline must appear) | error / warning |
 | **Glyph integrity** (`replacement_chars`, `unsupported_symbols`) | error |
 | HTML/entity leakage | error |
 | Source URLs present | warning |
@@ -204,12 +205,37 @@ page. A page is **substantive** when it carries at least
 
 * The editorial daily target is `PDF_QA_TARGET_PAGES` (default **15**) — falling
   short raises `below_page_target` (warning).
-* The hard floor is `minimum_substantive_pages(item_count) = clamp(item_count, 2, 15)`.
-  Falling below that raises `insufficient_substantive_pages` (error), which means
-  content was lost in layout, not that it was a genuinely quiet news day.
+* The content-loss floor is
+  `minimum_substantive_pages(item_count) = clamp(ceil(item_count / 2), 2, 15)`:
+  about **half a page per selected story**, capped at the target. Real RSS
+  summaries are shorter than the rich fixture, so a full page per story would
+  fail legitimate short-summary editions; half a page still catches a renderer
+  that dropped or crushed content. Falling below raises
+  `insufficient_substantive_pages` (error).
 
-This distinguishes the two failure modes the spec calls out: **content lost**
-(fail) versus **genuinely little verified news** (warn + honest QA report).
+### Story-coverage gate (layout-independent)
+
+`check_story_coverage()` normalises each selected English headline and looks for
+its first seven words in the extracted PDF text (the comparison survives line
+wrapping, HTML escaping and the glyph guard's symbol substitutions).
+
+* `>= max(2, ceil(20% of stories))` headlines missing → `stories_missing_from_pdf`
+  (**error**) — content was silently dropped.
+* Exactly one headline missing → `story_missing_from_pdf` (**warning**).
+
+This is the true "content lost" signal: it fails for a defective render, not for
+a genuinely quiet news day. Together with the page floor it distinguishes the two
+failure modes the spec calls out:
+
+| Situation | Outcome |
+| --- | --- |
+| Renderer dropped stories / crushed content | **error** → pipeline fails, nothing published |
+| Genuinely few verified stories | **warning** (`below_page_target`) → edition still publishes |
+
+The completeness validator in `pipeline/completeness.py` is **advisory only**: it
+is persisted as `content["completeness_report"]` and logged by stage 12, but it
+never blocks publishing (so a temporarily unavailable AI translator cannot halt
+the pipeline).
 
 `scripts/pdf_preview.py` runs the real generator **and** this QA gate, then
 renders representative pages (cover, first story, middle, MCQ, last) to PNG.
@@ -241,6 +267,21 @@ Rendered pages were inspected visually: Hindi conjuncts/matras shape correctly,
 the `»`/`·` markers render (no tofu), source URLs print and are clickable,
 detailed bilingual analysis and the revision capsule are present, and the footer
 page numbers advance correctly.
+
+A second, *realistic* end-to-end run was made with 15 short RSS-style summaries
+through the real content builder, MCQ generator, PDF engine and QA gate:
+
+```
+Items: 15   MCQs: 15   One-liners: 15
+Pages: 23   Substantive: 23   Floor: 8 (ceil(15/2))   Target: 15
+Stories missing: 0
+Errors: none        Warnings: low_hindi (offline fallback had no AI translator)
+Verdict: PASSED
+```
+
+This proves the softened gate still produces a full-length edition for short
+summaries and does not fail a legitimate day, while `stories_missing_from_pdf`
+remains available to catch real content loss.
 
 ---
 

@@ -539,7 +539,7 @@ pytest tests/ -v -m "not slow"
 | `test_pdf_hindi.py` | Devanagari shaping + extractable Unicode forms |
 | `test_pdf_sample_qa.py` | Real PDF generation + real QA gate on the bilingual fixture, incl. the 15-page daily target |
 | `test_content_completeness.py` | Bilingual story completeness validator (required fields, Devanagari, numeric drift) |
-| `test_selection.py` | Stage 07/10 coverage, dedup numeric guards, QA MCQ + substantive-page floors |
+| `test_selection.py` | Stage 07/10 coverage, dedup numeric guards, QA MCQ + substantive-page floors + story-coverage gate |
 | `test_source_registry.py` | Canonical registry: duplicate URLs, tiers, coverage |
 | `test_module_consolidation.py` | Locks the removal of duplicate modules |
 | `test_publication_safety.py` | Publish guards (missing PDF, dry-run, ledger) |

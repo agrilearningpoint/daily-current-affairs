@@ -128,9 +128,10 @@ def test_daily_domain_relevance_retains_full_coverage(tmp_path, monkeypatch):
     assert all(it.get("student_relevance", 0) >= 15 for it in saved)
 
 
-@pytest.mark.parametrize(("item_count", "expected"), [(0, 2), (1, 2), (3, 3), (12, 12), (30, 15)])
+@pytest.mark.parametrize(("item_count", "expected"), [(0, 2), (1, 2), (3, 2), (4, 2), (12, 6), (30, 15), (40, 15)])
 def test_pdf_qa_scales_substantive_page_floor(item_count, expected):
-    """A sparse day must not be failed, but content loss below the story count must."""
+    """Floor is ~half a page per story so real short-summary days are not failed,
+    while clear content loss still trips an error."""
     assert load_agent("19").minimum_substantive_pages(item_count) == expected
 
 
@@ -144,10 +145,11 @@ def test_pdf_qa_flags_content_loss_but_only_warns_on_sparse_day():
     assert any(i.code == "insufficient_substantive_pages" and i.severity == "error"
                for i in report.issues)
 
-    # 4 stories and 4 substantive pages -> below target but honest (warning only).
+    # A realistic short-summary day (12 stories -> 8 pages) clears the floor but
+    # is below the 15-page target, so it warns instead of failing.
     report = qa.QAReport(pdf_path="fixture.pdf")
-    report.substantive_pages = 4
-    qa.check_page_target(report, 4)
+    report.substantive_pages = 8
+    qa.check_page_target(report, 12)
     assert not any(i.severity == "error" for i in report.issues)
     assert any(i.code == "below_page_target" for i in report.issues)
 
@@ -155,6 +157,28 @@ def test_pdf_qa_flags_content_loss_but_only_warns_on_sparse_day():
     report = qa.QAReport(pdf_path="fixture.pdf")
     report.substantive_pages = 20
     qa.check_page_target(report, 18)
+    assert not report.issues
+
+
+def test_pdf_qa_detects_missing_stories_from_the_pdf():
+    qa = load_agent("19")
+    text = "Cabinet approves 1250 crore scheme for 500 credit societies today"
+    items = [
+        {"headline_en": "Cabinet approves 1250 crore scheme for 500 credit societies"},
+        {"headline_en": "RBI keeps repo rate unchanged at 650 per cent in review"},
+        {"headline_en": "ISRO tests semi cryogenic engine at Mahendragiri facility"},
+        {"headline_en": "India adds 2100 MW solar capacity in September month"},
+        {"headline_en": "WHO and FAO launch joint action plan on resistance"},
+    ]
+    report = qa.QAReport(pdf_path="fixture.pdf")
+    qa.check_story_coverage(report, text, items)
+    # One story (the first) is present; four are missing -> error.
+    assert any(i.code == "stories_missing_from_pdf" and i.severity == "error"
+               for i in report.issues)
+
+    # All present -> no issue.
+    report = qa.QAReport(pdf_path="fixture.pdf")
+    qa.check_story_coverage(report, text, items[:1])
     assert not report.issues
 
 

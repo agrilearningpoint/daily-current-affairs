@@ -208,6 +208,7 @@ class QAReport:
     near_empty_pages: List[int] = field(default_factory=list)
     substantive_pages: int = 0
     min_page_chars: int = 0
+    stories_missing: List[str] = field(default_factory=list)
     image_xobjects: int = 0
     issues: List[QAIssue] = field(default_factory=list)
     checked_at: str = ""
@@ -243,6 +244,7 @@ class QAReport:
             "near_empty_pages": self.near_empty_pages,
             "substantive_pages": self.substantive_pages,
             "min_page_chars": self.min_page_chars,
+            "stories_missing": self.stories_missing,
             "image_xobjects": self.image_xobjects,
             "issues": [
                 {"severity": i.severity, "code": i.code,
@@ -333,6 +335,57 @@ def analyse_page_density(doc: "fitz.Document") -> Tuple[List[int], int, int]:
             counts.append(0)
     substantive = sum(1 for c in counts if c >= SUBSTANTIVE_CHARS)
     return counts, substantive, (min(counts) if counts else 0)
+
+
+def _normalize_for_coverage(text: str) -> str:
+    """Lower-case, strip markup/punctuation and collapse whitespace.
+
+    Used to compare a selected story headline against the extracted PDF text so
+    the comparison survives line wrapping, HTML escaping and symbol-safe
+    substitutions made by the glyph guard.
+    """
+    text = re.sub(r"<[^>]+>", " ", text or "")
+    text = re.sub(r"[^0-9A-Za-z\u0900-\u097F]+", " ", text)
+    return re.sub(r"\s+", " ", text).lower().strip()
+
+
+def check_story_coverage(report: QAReport, text: str,
+                         selected_items: List[Dict[str, Any]]) -> None:
+    """Verify every selected story actually appears in the PDF.
+
+    This is the layout-independent content-loss gate. It does not care how many
+    pages the edition uses; it fails only when the renderer silently dropped
+    selected stories (the failure mode the master spec calls "content lost").
+    """
+    norm = _normalize_for_coverage(text)
+    if not norm:
+        return
+
+    missing: List[str] = []
+    total = 0
+    for it in selected_items:
+        headline = it.get("headline_en") or ""
+        words = _normalize_for_coverage(headline).split()
+        if len(words) < 3:
+            continue
+        total += 1
+        key = " ".join(words[:7]) if len(words) >= 7 else " ".join(words)
+        if key not in norm:
+            missing.append(headline.strip()[:80])
+
+    report.stories_missing = missing
+    if not total:
+        return
+    threshold = max(2, -(-total // 5))  # max(2, ceil(20% of stories))
+    if len(missing) >= threshold:
+        report.add("error", "stories_missing_from_pdf",
+                   f"{len(missing)}/{total} selected stories not found in the PDF "
+                   f"— content lost in layout",
+                   missing=missing[:5], total=total)
+    elif missing:
+        report.add("warning", "story_missing_from_pdf",
+                   f"{len(missing)}/{total} selected stories not found in the PDF",
+                   missing=missing[:5], total=total)
 
 
 def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
@@ -477,17 +530,18 @@ def minimum_mcq_count(item_count: int) -> int:
 
 
 def minimum_substantive_pages(item_count: int) -> int:
-    """Floor below which content has clearly been lost, scaled to story volume.
+    """Content-loss floor: about half a page per selected story, capped at the target.
 
-    The editorial *target* is :data:`TARGET_SUBSTANTIVE_PAGES`, but a genuine
-    low-news day must not be failed merely for being short. We therefore fail
-    only when the PDF is thinner than the number of selected stories (each story
-    should occupy at least a fraction of a page), which signals a layout or
-    content-loss defect rather than a sparse news day.
+    Real RSS summaries are shorter than the rich test fixture, so requiring a
+    full page per story would fail legitimate short-summary editions. The floor
+    is therefore deliberately conservative (ceil(n/2), clamped to
+    ``[MIN_PAGES, TARGET_SUBSTANTIVE_PAGES]``): falling below it means the
+    renderer dropped or crushed content, not that it was a quiet news day.
     """
     if item_count < 1:
         return MIN_PAGES
-    return max(MIN_PAGES, min(TARGET_SUBSTANTIVE_PAGES, item_count))
+    half = (item_count + 1) // 2  # ceil(n / 2)
+    return max(MIN_PAGES, min(TARGET_SUBSTANTIVE_PAGES, half))
 
 
 def check_page_target(report: QAReport, item_count: int) -> None:
@@ -609,7 +663,8 @@ def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
 # Main
 # --------------------------------------------------------------------------- #
 def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
-           item_count: Optional[int] = None) -> QAReport:
+           item_count: Optional[int] = None,
+           selected_items: Optional[List[Dict[str, Any]]] = None) -> QAReport:
     report = QAReport(
         pdf_path=str(pdf_path),
         checked_at=datetime.now(timezone.utc).isoformat(),
@@ -637,6 +692,8 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
         check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)
         check_visual_overflow(report, doc)
+        if selected_items:
+            check_story_coverage(report, text, selected_items)
         if item_count is not None:
             check_page_target(report, item_count)
     finally:
@@ -674,6 +731,10 @@ def print_summary(report: QAReport) -> None:
     print(f"URLs:            {report.urls_found}")
     print(f"Images:          {report.image_xobjects}")
     print(f"Blank pages:     {report.blank_pages if report.blank_pages else 'none'}")
+    print(f"Substantive pgs: {report.substantive_pages} (min page chars {report.min_page_chars})")
+    print(f"Near-empty pgs:  {report.near_empty_pages if report.near_empty_pages else 'none'}")
+    if report.stories_missing:
+        print(f"Stories missing: {len(report.stories_missing)} (e.g. {report.stories_missing[0]!r})")
 
     if report.issues:
         print()
@@ -710,7 +771,8 @@ def main() -> int:
     min_mcq_count = minimum_mcq_count(len(selected_items))
     logger.info("QA requires at least %d MCQs for %d selected stories",
                 min_mcq_count, len(selected_items))
-    report = run_qa(pdf, min_mcq_count=min_mcq_count, item_count=len(selected_items))
+    report = run_qa(pdf, min_mcq_count=min_mcq_count,
+                    item_count=len(selected_items), selected_items=selected_items)
 
     # Save report
     report_file = ctx.qa_report_path()
