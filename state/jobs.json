@@ -357,5 +357,19 @@
     "checkpoint_run_id": "39069277110",
     "last_error": "19_pdf_qa: failed after 3 attempt(s):  field--type-string\\nfield--label-hidden\">', '<div class=\"field field--name-field-images\\nB) SIP inflows hit all-time high of Rs 32,490 crore in September: AMFI data\\nC) Three out of 19 SIR tribunals vacant; ECI awaits names from Calcutta HC\\nD) RBI tightens rules on rupee non-deliverable contracts, widens 20% cash reserve\\nrequirement\\nE) Old Monk Reports Rs 500 Crore Loss Amid Labelling Dispute\\n[OK] Correct Answer: A) <span class=\"field field--name-title field--type-string\\nfield--label-hidden\">']\n  [ERROR] [insufficient_mcqs] Only 1 MCQs found (min 2)\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n========================================================================\n\n2026-10-17 21:03:53 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa"
+  },
+  "daily_2026-10-18": {
+    "run_attempts": 0,
+    "job_id": "daily_2026-10-18",
+    "job_type": "daily",
+    "job_date": "2026-10-18",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-17T10:10:51.327174+05:30",
+      "end": "2026-10-18T10:10:51.327174+05:30"
+    },
+    "github_run_id": "39097885785",
+    "status": "running",
+    "updated_at": "2026-10-18T04:40:51.327612+00:00"
   }
 }
