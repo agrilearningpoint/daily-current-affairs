@@ -384,7 +384,7 @@
     "checkpoint_run_id": "39097885785"
   },
   "weekly_2026-10-18": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "weekly_2026-10-18",
     "job_type": "weekly",
     "job_date": "2026-10-18",
@@ -394,7 +394,12 @@
       "end": "2026-10-18T23:59:59.999999+05:30"
     },
     "github_run_id": "39098956424",
-    "status": "running",
-    "updated_at": "2026-10-18T04:59:24.281996+00:00"
+    "status": "failed",
+    "updated_at": "2026-10-18T04:59:42.133035+00:00",
+    "started_at": "2026-10-18T04:59:25.578128+00:00",
+    "artifacts": {},
+    "last_success_stage": "00_model_orchestrator",
+    "last_error": "20_weekly_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 239, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 235, in main\n    return prepare(get_context())\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_editor.py\", line 48, in prepare\n    raise ValueError(f\"only {len(scored)} verified {ctx.job_type} events in requested period (min {minimum})\")\nValueError: only 4 verified weekly events in requested period (min 5)",
+    "failed_stage": "20_weekly_editor"
   }
 }
