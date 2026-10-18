@@ -94,46 +94,57 @@ if not _HAS_SHAPING:
         )
 
 
-# --- COLOR TOKENS (Premium Coaching Palette) ---
+# --- COLOR TOKENS (Premium Editorial Palette) ---
+# Aligned with docs/pdf-design.md: navy (#123B5D) for major headings and the
+# header/footer band, teal (#087E8B) for category labels and secondary accents,
+# restrained gold (#E7B44A) for highlights, dark slate (#222B36) for body copy.
+# Existing token names are preserved so no call site breaks.
 COLORS = {
-    "primary_navy": HexColor("#0A2540"),       # Executive Deep Navy
-    "secondary_navy": HexColor("#1E3A8A"),     # Royal Navy
-    "primary_green": HexColor("#1E5E2B"),      # Deep Forest Coaching Green
-    "light_green": HexColor("#E8F5E9"),        # Subtle Mint Tint
-    "agri_accent": HexColor("#2E7D32"),        # Vibrant Leaf Green
-    "banking_blue": HexColor("#0D47A1"),       # Deep Banking Blue
-    "banking_light": HexColor("#E3F2FD"),      # Banking Light
-    "national_orange": HexColor("#C2410C"),     # Rust Orange
+    "primary_navy": HexColor("#123B5D"),       # Spec navy — major headings, header/footer
+    "secondary_navy": HexColor("#1C5A80"),     # Lighter navy for sub-headings
+    "brand_teal": HexColor("#087E8B"),         # Spec teal — category labels, accents
+    "teal_light": HexColor("#E7F4F5"),         # Subtle teal tint panel
+    "brand_gold": HexColor("#E7B44A"),         # Spec gold — restrained highlight
+    "gold_light": HexColor("#FBF3DF"),         # Light gold panel
+    "primary_green": HexColor("#1E5E2B"),      # ALP brand green (logo / identity)
+    "light_green": HexColor("#E8F5E9"),        # Subtle mint tint
+    "agri_accent": HexColor("#2E7D32"),        # Leaf green
+    "banking_blue": HexColor("#0D47A1"),       # Banking blue (legacy token)
+    "banking_light": HexColor("#E3F2FD"),      # Banking light
+    "national_orange": HexColor("#C2410C"),    # Rust orange (legacy token)
     "national_light": HexColor("#FFF7ED"),
-    "economy_teal": HexColor("#0F766E"),       # Deep Teal
-    "economy_light": HexColor("#F0FDFA"),
-    "science_cyan": HexColor("#0369A1"),       # Science Sky
+    "economy_teal": HexColor("#087E8B"),       # Deep teal (spec)
+    "economy_light": HexColor("#E7F4F5"),
+    "science_cyan": HexColor("#0369A1"),       # Science sky (legacy token)
     "science_light": HexColor("#F0F9FF"),
     "environment_green": HexColor("#15803D"),
     "environment_light": HexColor("#F0FDF4"),
-    "sports_red": HexColor("#B91C1C"),         # Coaching Outer Red Border
+    "sports_red": HexColor("#B91C1C"),         # Thin outer rule accent
     "sports_light": HexColor("#FEF2F2"),
-    "alert_gold": HexColor("#D97706"),         # Amber Alert
-    "alert_light": HexColor("#FEF3C7"),        # Light Amber Box
-    "dark_text": HexColor("#0F172A"),          # High Contrast Slate Dark
-    "body_text": HexColor("#334155"),          # Softer Dark Slate
-    "muted_text": HexColor("#64748B"),         # Cool Gray
-    "border_light": HexColor("#E2E8F0"),       # Clean Thin Border
-    "card_bg": HexColor("#F8FAFC"),            # Soft Card Background
-    "header_bg": HexColor("#1E5E2B"),          # Dark Forest Green Header
-    "footer_bg": HexColor("#1E5E2B"),          # Dark Forest Green Footer
+    "alert_gold": HexColor("#B45309"),         # Dark gold for readable accent text
+    "alert_light": HexColor("#FBF3DF"),        # Light gold box
+    "dark_text": HexColor("#1B2634"),          # High contrast slate dark
+    "body_text": HexColor("#222B36"),          # Spec body text
+    "muted_text": HexColor("#5B6673"),         # Cool gray for metadata
+    "border_light": HexColor("#E2E8F0"),       # Clean thin border
+    "card_bg": HexColor("#F7F9FA"),            # Soft card background
+    "header_bg": HexColor("#123B5D"),          # Spec navy header band
+    "footer_bg": HexColor("#123B5D"),          # Spec navy footer band
 }
 
+# Restrained palette: every category label uses the teal accent on a light
+# teal panel. Category identity comes from the label text, not from a rainbow
+# of colours (see docs/pdf-design.md §Palette).
 CATEGORY_STYLE = {
-    "agriculture": {"color": COLORS["primary_green"], "light": COLORS["light_green"], "label": "AGRICULTURE & ALLIED"},
-    "banking": {"color": COLORS["banking_blue"], "light": COLORS["banking_light"], "label": "BANKING & FINANCE"},
-    "national": {"color": COLORS["national_orange"], "light": COLORS["national_light"], "label": "NATIONAL AFFAIRS"},
-    "international": {"color": HexColor("#6D28D9"), "light": HexColor("#F5F3FF"), "label": "INTERNATIONAL AFFAIRS"},
-    "economy": {"color": COLORS["economy_teal"], "light": COLORS["economy_light"], "label": "ECONOMY & SCHEMES"},
-    "science": {"color": COLORS["science_cyan"], "light": COLORS["science_light"], "label": "SCIENCE & TECHNOLOGY"},
-    "environment": {"color": COLORS["environment_green"], "light": COLORS["environment_light"], "label": "ENVIRONMENT & CLIMATE"},
-    "sports": {"color": COLORS["sports_red"], "light": COLORS["sports_light"], "label": "SPORTS"},
-    "important_days": {"color": HexColor("#7C3AED"), "light": HexColor("#F5F3FF"), "label": "IMPORTANT DAYS"},
+    "agriculture": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "AGRICULTURE & ALLIED"},
+    "banking": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "BANKING & FINANCE"},
+    "national": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "NATIONAL AFFAIRS"},
+    "international": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "INTERNATIONAL AFFAIRS"},
+    "economy": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "ECONOMY & SCHEMES"},
+    "science": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "SCIENCE & TECHNOLOGY"},
+    "environment": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "ENVIRONMENT & CLIMATE"},
+    "sports": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "SPORTS"},
+    "important_days": {"color": COLORS["brand_teal"], "light": COLORS["teal_light"], "label": "IMPORTANT DAYS"},
 }
 
 CAT_MAP = {
@@ -184,30 +195,106 @@ def get_styles() -> Dict[str, ParagraphStyle]:
         "cover_sub": ParagraphStyle("CoverSub", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=13, leading=17, textColor=COLORS["primary_green"], alignment=TA_CENTER),
         "cover_pill": ParagraphStyle("CoverPill", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"], alignment=TA_CENTER),
         "cover_tag": ParagraphStyle("CoverTag", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13, textColor=COLORS["muted_text"], alignment=TA_CENTER),
-        "section_banner": ParagraphStyle("SectionBanner", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13, leading=16, textColor=white, alignment=TA_LEFT),
-        "headline_en": ParagraphStyle("HeadlineEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=14, leading=18, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=2),
-        "headline_hi": ParagraphStyle("HeadlineHI", parent=styles["Normal"], fontName=FONT_HINDI_BOLD, fontSize=13.5, leading=17.5, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=4),
-        "body_en": ParagraphStyle("BodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=2),
-        "body_hi": ParagraphStyle("BodyHI", parent=styles["Normal"], fontName=FONT_HINDI, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=2),
-        "static_label": ParagraphStyle("StaticLabel", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"], alignment=TA_LEFT),
-        "static_text": ParagraphStyle("StaticText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13, textColor=COLORS["dark_text"], alignment=TA_LEFT),
-        "exam_fact": ParagraphStyle("ExamFact", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=9.5, leading=13.5, textColor=HexColor("#92400E"), alignment=TA_LEFT),
-        "mcq_q": ParagraphStyle("MCQQ", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10.5, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=3),
-        "mcq_opt": ParagraphStyle("MCQOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=12, spaceAfter=2),
-        "mcq_ans": ParagraphStyle("MCQAns", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9.5, leading=13.5, textColor=white, alignment=TA_LEFT),
-        "mcq_exp": ParagraphStyle("MCQExp", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=13, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=2),
-        "one_liner": ParagraphStyle("OneLiner", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=10, spaceAfter=3),
-        "footer": ParagraphStyle("Footer", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8, leading=10, textColor=white, alignment=TA_CENTER),
-        "header": ParagraphStyle("Header", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=white, alignment=TA_CENTER),
+        "section_banner": ParagraphStyle("SectionBanner", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=16, leading=20, textColor=white, alignment=TA_LEFT),
+        "headline_en": ParagraphStyle("HeadlineEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=19.5, textColor=COLORS["primary_navy"], alignment=TA_LEFT, spaceAfter=2),
+        "headline_hi": ParagraphStyle("HeadlineHI", parent=styles["Normal"], fontName=FONT_HINDI_BOLD, fontSize=15, leading=19.5, textColor=COLORS["primary_navy"], alignment=TA_LEFT, spaceAfter=4),
+        "body_en": ParagraphStyle("BodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=12, leading=17, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=3),
+        "body_hi": ParagraphStyle("BodyHI", parent=styles["Normal"], fontName=FONT_HINDI, fontSize=12, leading=17.5, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=3),
+        "static_label": ParagraphStyle("StaticLabel", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10, leading=13, textColor=COLORS["primary_navy"], alignment=TA_LEFT),
+        "static_text": ParagraphStyle("StaticText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14, textColor=COLORS["dark_text"], alignment=TA_LEFT),
+        "exam_fact": ParagraphStyle("ExamFact", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=10, leading=14, textColor=COLORS["alert_gold"], alignment=TA_LEFT),
+        "mcq_q": ParagraphStyle("MCQQ", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, spaceAfter=3),
+        "mcq_opt": ParagraphStyle("MCQOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=12, spaceAfter=2),
+        "mcq_ans": ParagraphStyle("MCQAns", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10.5, leading=14.5, textColor=white, alignment=TA_LEFT),
+        "mcq_exp": ParagraphStyle("MCQExp", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=2),
+        "one_liner": ParagraphStyle("OneLiner", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11, leading=15.5, textColor=COLORS["dark_text"], alignment=TA_LEFT, leftIndent=10, spaceAfter=3),
+        "footer": ParagraphStyle("Footer", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=11, textColor=white, alignment=TA_CENTER),
+        "header": ParagraphStyle("Header", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9, leading=11.5, textColor=white, alignment=TA_CENTER),
     }
 
 
 STYLES = get_styles()
 
 
+# --- GLYPH COVERAGE GUARD ---
+# Poppins and Mukta (the bundled fonts) do not cover every decorative symbol.
+# Rendering an unsupported codepoint produces a "tofu" box in the PDF, which is
+# a visible publication-quality defect (and a missing-glyph failure in QA).
+# Any character the bundled fonts cannot draw is deterministically replaced
+# with a supported equivalent (or dropped), so a broken glyph can never reach a
+# student-facing PDF. Order matters: every value here is glyph-supported.
+_SYMBOL_FALLBACK = {
+    "\u25b6": "\u00bb",   # ▶ -> »
+    "\u25b8": "\u00bb",
+    "\u2794": "\u00bb",   # ➔ -> »
+    "\u2192": "\u00bb",   # → -> »
+    "\u2714": "\u00b7",   # ✔ -> ·
+    "\u2713": "\u00b7",   # ✓ -> ·
+    "\u258c": "",         # ▌ -> dropped (layout draws a rule instead)
+    "\u258d": "", "\u258e": "", "\u258f": "", "\u2588": "",
+    "\u2605": "\u00b7",   # ★ -> ·
+    "\u25cf": "\u00b7",   # ● -> ·
+    "\u25a0": "\u00b7",   # ■ -> ·
+    "\U0001F4CC": "\u00b7",  # 📌 -> ·
+    "\U0001F4DD": "\u00b7",  # 📝 -> ·
+    "\U0001F3AF": "\u00bb",  # 🎯 -> »
+    "\U0001F680": "\u00bb",  # 🚀 -> »
+    "\u2705": "\u00b7",   # ✅ -> ·
+    "\u274C": "\u00b7",   # ❌ -> ·
+}
+
+_GLYPH_CACHE: Dict[str, bool] = {}
+_COVERAGE_FACES: Any = None
+
+
+def _coverage_faces() -> list:
+    """Lazily load the bundled fonts used for glyph-coverage checks."""
+    global _COVERAGE_FACES
+    if _COVERAGE_FACES is None:
+        faces: list = []
+        try:
+            import freetype  # optional; present via requirements.txt
+            for fname in ("Poppins-Regular.ttf", "Mukta-Regular.ttf"):
+                fp = os.path.join(FONTS_DIR, fname)
+                if os.path.exists(fp):
+                    faces.append(freetype.Face(fp))
+        except Exception:
+            faces = []
+        _COVERAGE_FACES = faces
+    return _COVERAGE_FACES
+
+
+def glyph_supported(ch: str) -> bool:
+    """True when at least one bundled font has a glyph for ``ch``.
+
+    When FreeType/fonts are unavailable the check returns True so text is never
+    mangled blindly; the shaping guard above already fails closed in that case.
+    """
+    cached = _GLYPH_CACHE.get(ch)
+    if cached is not None:
+        return cached
+    faces = _coverage_faces()
+    ok = True if not faces else any(f.get_char_index(ord(ch)) != 0 for f in faces)
+    _GLYPH_CACHE[ch] = ok
+    return ok
+
+
+def sanitize_glyphs(text: str) -> str:
+    """Replace/drop codepoints the bundled fonts cannot render (tofu guard)."""
+    if not text:
+        return text
+    out: List[str] = []
+    for ch in text:
+        if ord(ch) < 128 or glyph_supported(ch):
+            out.append(ch)
+        else:
+            out.append(_SYMBOL_FALLBACK.get(ch, ""))
+    return "".join(out)
+
+
 # --- SANITIZATION ---
 def _strip_html(text: Any) -> str:
-    """Completely strip HTML markup and unescape entities."""
+    """Completely strip HTML markup, unescape entities, guard glyph coverage."""
     if not text:
         return ""
     # Strip well-formed tags
@@ -215,7 +302,7 @@ def _strip_html(text: Any) -> str:
     # Strip unclosed or broken tags
     cleaned = re.sub(r"<[^>]*", " ", cleaned)
     cleaned = html.unescape(cleaned)
-    return " ".join(cleaned.split()).strip()
+    return sanitize_glyphs(" ".join(cleaned.split()).strip())
 
 
 def _safe(s: Any) -> str:
@@ -524,7 +611,8 @@ def hindi_to_image(
         lines = [clean_text]
         w_px, h_px = img.size
 
-    h_hash = hashlib.md5((clean_text + f"{font_size_pt}_{bold}_{color_rgb}_{bg_rgb}_{width_mm}").encode("utf-8")).hexdigest()[:10]
+    # Cache key only (not a security digest) — SHA-256 avoids MD5 scanner noise.
+    h_hash = hashlib.sha256((clean_text + f"{font_size_pt}_{bold}_{color_rgb}_{bg_rgb}_{width_mm}").encode("utf-8")).hexdigest()[:10]
     tmp_dir = Path(tempfile.gettempdir()) / "alp_hindi_cache"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = str(tmp_dir / f"hindi_{h_hash}.png")
@@ -551,6 +639,8 @@ def mixed_para(text: str, style_name: str, base_style: ParagraphStyle, **kw: Any
     clean_text = _strip_html(text)
     st = ParagraphStyle(style_name, parent=base_style, **kw)
     if DEVANAGARI_RE.search(clean_text):
+        # Devanagari text is shaped and rasterised by hindi_to_image; the
+        # ParagraphStyle font is irrelevant for this branch.
         bold = ("Bold" in st.fontName or "SemiBold" in st.fontName or "Bold" in base_style.fontName)
         width_mm = kw.pop("width_mm", None)
         bg = kw.pop("bg", "white")
@@ -758,11 +848,11 @@ def section_banner(category_key: str, number: str = "01") -> Table:
 
 def exam_fact_box(text_en: str, text_hi: Optional[str] = None) -> Table:
     content: List[Flowable] = []
-    content.append(mixed_para("▶ EXAM POINTER • परीक्षा तथ्य", "efh", STYLES["exam_fact"], fontSize=9, leading=12, textColor=HexColor("#B45309"), bg="#FEF3C7", width_mm=174))
+    content.append(mixed_para("» EXAM POINTER • परीक्षा तथ्य", "efh", STYLES["exam_fact"], fontSize=10, leading=14, textColor=HexColor("#B45309"), bg="#FBF3DF", width_mm=174))
     if text_en:
-        content.append(mixed_para(text_en, "ef_en", STYLES["exam_fact"], bg="#FEF3C7", width_mm=174))
+        content.append(mixed_para(text_en, "ef_en", STYLES["exam_fact"], bg="#FBF3DF", width_mm=174))
     if text_hi:
-        content.append(mixed_para(text_hi, "ef_hi", STYLES["exam_fact"], bg="#FEF3C7", width_mm=174))
+        content.append(mixed_para(text_hi, "ef_hi", STYLES["exam_fact"], bg="#FBF3DF", width_mm=174))
 
     inner = Table([[content]], colWidths=[PAGE_W - 32*mm])
     inner.setStyle(TableStyle([
@@ -797,7 +887,7 @@ def static_facts_table(facts_dict: Dict[str, str]) -> List[Flowable]:
         ("BACKGROUND", (0, 0), (0, -1), COLORS["card_bg"]),
         ("BACKGROUND", (1, 0), (1, -1), white),
     ]))
-    header = mixed_para("STATIC GK & FACTS • परीक्षा स्थैतिक तथ्य", "sfh", STYLES["static_text"], fontSize=8.5, leading=11, textColor=COLORS["primary_navy"])
+    header = mixed_para("STATIC GK & FACTS • परीक्षा स्थैतिक तथ्य", "sfh", STYLES["static_text"], fontSize=10, leading=13, textColor=COLORS["primary_navy"])
     return [header, t]
 
 
@@ -811,6 +901,7 @@ def news_card(
     exam_fact_en: str,
     exam_fact_hi: str,
     source_name: str,
+    source_url: str = "",
     image_path: Optional[str] = None,
     image_caption: Optional[str] = None,
 ) -> List[Flowable]:
@@ -822,13 +913,15 @@ def news_card(
     clean_hi = _strip_html(headline_hi).lstrip("> ")
 
     hl_en = Paragraph(f"<b>{clean_en}</b>", STYLES["headline_en"])
-    hl_hi = hindi_to_image(clean_hi, width_mm=174, font_size_pt=13.5, bold=True, color="#334155", bg="white")
+    hl_hi = hindi_to_image(clean_hi, width_mm=174, font_size_pt=15, bold=True, color="#123B5D", bg="white")
 
     header_block = Table([
-        [Paragraph(f'<font color="{cat["color"].hexval()}">▌</font>', ParagraphStyle("bar", parent=STYLES["headline_en"], fontSize=18, leading=18, textColor=cat["color"])),
-         [hl_en, hl_hi]]
+        ["", [hl_en, hl_hi]]
     ], colWidths=[3.5*mm, PAGE_W - 28*mm - 3.5*mm])
     header_block.setStyle(TableStyle([
+        # Vertical accent rule drawn as a filled cell (font-independent, so no
+        # missing-glyph box is possible).
+        ("BACKGROUND", (0, 0), (0, 0), cat["color"]),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 1),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
@@ -862,7 +955,7 @@ def news_card(
             ]))
             story.append(img_table)
             if image_caption:
-                story.append(Paragraph(f'<font color="#64748B" size="7.5"><i>{_safe(image_caption)}</i></font>', ParagraphStyle("cap", parent=STYLES["static_text"], alignment=TA_CENTER, fontSize=7.5, leading=10, spaceBefore=1)))
+                story.append(Paragraph(f'<font color="#5B6673" size="9"><i>{_safe(image_caption)}</i></font>', ParagraphStyle("cap", parent=STYLES["static_text"], alignment=TA_CENTER, fontSize=9, leading=12, spaceBefore=1)))
             story.append(Spacer(1, 1.5*mm))
         except Exception:
             pass
@@ -872,10 +965,10 @@ def news_card(
         "Key Points  •  मुख्य बिंदु",
         "kph",
         STYLES["body_en"],
-        fontSize=10.5,
-        leading=14,
+        fontSize=12,
+        leading=17,
         textColor=COLORS["primary_navy"],
-        fontName="Helvetica-Bold",
+        fontName=FONT_SEMI,
         width_mm=178,
     ))
     story.append(Spacer(1, 1*mm))
@@ -888,7 +981,7 @@ def news_card(
             continue
         story.append(Paragraph(f"•  {c_en}", STYLES["body_en"]))
         if c_hi:
-            story.append(hindi_to_image(c_hi, width_mm=178, font_size_pt=10, bold=False, color="#475569", bg="white", left_padding_mm=3.5))
+            story.append(hindi_to_image(c_hi, width_mm=178, font_size_pt=12, bold=False, color="#222B36", bg="white", left_padding_mm=3.5))
         story.append(Spacer(1, 0.8*mm))
 
     story.append(Spacer(1, 1.5*mm))
@@ -904,9 +997,22 @@ def news_card(
         story.append(exam_fact_box(exam_fact_en, exam_fact_hi))
         story.append(Spacer(1, 1.5*mm))
 
-    # Source line
-    if source_name:
-        story.append(Paragraph(f'<font color="#64748B" size="7.5">Source: <b>{_safe(source_name)}</b> | Verified for Competitive Exams</font>', ParagraphStyle("src", parent=STYLES["static_text"], fontSize=7.5, leading=10, alignment=TA_RIGHT)))
+    # Source line — clickable when a source URL is available (spec: clickable
+    # source references per story). The URL is also printed so extractable text
+    # QA and copy-paste work even without link access.
+    if source_name or source_url:
+        src_label = _safe(source_name) or "Source"
+        url_ok = bool(source_url) and source_url.lower().startswith(("http://", "https://"))
+        if url_ok:
+            safe_url = _safe(source_url)
+            src_label = f'<link href="{safe_url}">{src_label}</link>'
+            url_text = f'  <font color="#5B6673" size="8">{safe_url}</font>'
+        else:
+            url_text = ""
+        story.append(Paragraph(
+            f'<font color="#5B6673" size="9">Source: <b>{src_label}</b>{url_text}</font>',
+            ParagraphStyle("src", parent=STYLES["static_text"], fontSize=9, leading=12, alignment=TA_RIGHT),
+        ))
 
     story.append(Spacer(1, 2*mm))
     story.append(HRFlowable(width="100%", thickness=0.4, color=COLORS["border_light"], spaceAfter=3*mm, spaceBefore=1*mm))
@@ -932,7 +1038,7 @@ def mcq_block(
     q_title_en = Paragraph(f"<b>Q{q_num}.  {clean_q_en}</b>", STYLES["mcq_q"])
     story.append(q_title_en)
     if clean_q_hi:
-        story.append(hindi_to_image(clean_q_hi, width_mm=182, font_size_pt=10.5, bold=False, color="#334155", bg="white"))
+        story.append(hindi_to_image(clean_q_hi, width_mm=182, font_size_pt=11.5, bold=False, color="#222B36", bg="white"))
     story.append(Spacer(1, 1.2*mm))
 
     for idx, opt in enumerate(options_en):
@@ -944,7 +1050,7 @@ def mcq_block(
     # Correct Answer Box
     correct_idx = ord(correct.upper()) - 65 if correct else 0
     correct_text = _safe(options_en[correct_idx]) if 0 <= correct_idx < len(options_en) else ""
-    ans_text = f"✔  Correct Answer: ({correct}) {correct_text}"
+    ans_text = f"»  Correct Answer: ({correct}) {correct_text}"
     ans_data = [[Paragraph(f"<b>{ans_text}</b>", STYLES["mcq_ans"])]]
     ans_table = Table(ans_data, colWidths=[PAGE_W - 28*mm])
     ans_table.setStyle(TableStyle([
@@ -961,15 +1067,15 @@ def mcq_block(
     # Explanation
     clean_exp_en = _safe(explanation_en)
     clean_exp_hi = _strip_html(explanation_hi)
-    story.append(Paragraph('<b><font color="#0A2540" size="8.5">▶ Detailed Explanation:</font></b>', ParagraphStyle("exph", parent=STYLES["mcq_exp"], fontSize=8.5, leading=11, textColor=COLORS["primary_navy"])))
+    story.append(Paragraph('<b><font color="#123B5D" size="10">» Detailed Explanation:</font></b>', ParagraphStyle("exph", parent=STYLES["mcq_exp"], fontSize=10, leading=14, textColor=COLORS["primary_navy"])))
     if clean_exp_en:
         story.append(Paragraph(clean_exp_en, STYLES["mcq_exp"]))
     if clean_exp_hi:
-        story.append(hindi_to_image(clean_exp_hi, width_mm=182, font_size_pt=9.5, bold=False, color="#475569", bg="white"))
+        story.append(hindi_to_image(clean_exp_hi, width_mm=182, font_size_pt=11, bold=False, color="#222B36", bg="white"))
 
     if exam_point:
         clean_ep = _safe(exam_point)
-        story.append(Paragraph(f'<b><font color="#D97706" size="8.5">▶ Exam Takeaway:</font></b> <font size="8.5">{clean_ep}</font>', ParagraphStyle("ep", parent=STYLES["mcq_exp"], fontSize=8.5, leading=11)))
+        story.append(Paragraph(f'<b><font color="#B45309" size="10">» Exam Takeaway:</font></b> <font size="10">{clean_ep}</font>', ParagraphStyle("ep", parent=STYLES["mcq_exp"], fontSize=10, leading=14)))
 
     story.append(Spacer(1, 1.5*mm))
     story.append(HRFlowable(width="100%", thickness=0.3, color=COLORS["border_light"], spaceAfter=2*mm, spaceBefore=1*mm))
@@ -988,9 +1094,9 @@ def build_closing_kit(date_str: str) -> Flowable:
     # 3 Column features
     row = [
         [
-            Paragraph("<b>📌 Daily Current Affairs</b><br/><font size='7' color='#475569'>Every morning bilingual PDF with exam facts &amp; MCQs.</font>", STYLES["static_text"]),
-            Paragraph("<b>📝 Daily Telegram Quizzes</b><br/><font size='7' color='#475569'>Timed quizzes on @agriquizworld for real exam practice.</font>", STYLES["static_text"]),
-            Paragraph("<b>🎯 Agriculture Revision</b><br/><font size='7' color='#475569'>Agronomy, Horticulture, Soil Science &amp; Schemes notes.</font>", STYLES["static_text"]),
+            Paragraph("<b>• Daily Current Affairs</b><br/><font size='8' color='#5B6673'>Every morning bilingual PDF with exam facts &amp; MCQs.</font>", STYLES["static_text"]),
+            Paragraph("<b>• Daily Telegram Quizzes</b><br/><font size='8' color='#5B6673'>Timed quizzes on @agriquizworld for real exam practice.</font>", STYLES["static_text"]),
+            Paragraph("<b>• Agriculture Revision</b><br/><font size='8' color='#5B6673'>Agronomy, Horticulture, Soil Science &amp; Schemes notes.</font>", STYLES["static_text"]),
         ]
     ]
     t = Table(row, colWidths=[58*mm, 58*mm, 58*mm])
@@ -1085,6 +1191,11 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
         bottomMargin=14*mm,
         title=f"Agri Learning Point - {label} - {date_str}",
         author="Agri Learning Point (Satyam Sir)",
+        # PDF metadata strings use ASCII punctuation for compatibility with
+        # viewers that still decode the Info dictionary as PDFDocEncoding.
+        subject=f"{label} - bilingual exam current affairs, {date_str}",
+        creator="Agri Learning Point production pipeline",
+        keywords="current affairs, Hindi, English, AGTA, AFO, ICAR, NABARD, FCI, IBPS",
     )
 
     story: List[Flowable] = []
@@ -1156,10 +1267,10 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     # Quick Stats & Community Bar
     stats_data = [
         [
-            Paragraph(f"<b>📌 Selected Stories:</b> {len(items)}", STYLES["static_text"]),
-            Paragraph(f"<b>📝 Practice MCQs:</b> {len(mcqs)}", STYLES["static_text"]),
-            Paragraph("<b>⚡ Static GK:</b> Included", STYLES["static_text"]),
-            Paragraph("<b>✈ Telegram:</b> @agrilearningpoint", STYLES["static_text"]),
+            Paragraph(f"<b>• Selected Stories:</b> {len(items)}", STYLES["static_text"]),
+            Paragraph(f"<b>• Practice MCQs:</b> {len(mcqs)}", STYLES["static_text"]),
+            Paragraph("<b>» Static GK:</b> Included", STYLES["static_text"]),
+            Paragraph("<b>» Telegram:</b> @agrilearningpoint", STYLES["static_text"]),
         ]
     ]
     t_stats = Table(stats_data, colWidths=[42*mm, 42*mm, 40*mm, 50*mm])
@@ -1177,7 +1288,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
     # Coaching Institute Exam Guide Box (Fills lower cover page with real exam value)
     guide_rows = [
         [
-            Paragraph("<b>🎯 EXAM RELEVANCE &amp; SYLLABUS ALIGNMENT</b>", ParagraphStyle("gr_h", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["header_bg"])),
+            Paragraph("<b>» EXAM RELEVANCE &amp; SYLLABUS ALIGNMENT</b>", ParagraphStyle("gr_h", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["header_bg"])),
             Paragraph("<b>DAILY STUDY MANDATE</b>", ParagraphStyle("gr_m", fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_RIGHT)),
         ],
         [
@@ -1190,7 +1301,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
             Paragraph(
                 "<b>1. Read Daily:</b> Go through paired English-Hindi pointers.<br/>"
                 "<b>2. Memorize:</b> Revise static facts and numbers.<br/>"
-                "<b>3. Solve MCQs:</b> Attempt the 15 exam-standard practice questions.<br/>"
+                f"<b>3. Solve MCQs:</b> Attempt the {len(mcqs)} exam-standard practice questions.<br/>"
                 "<b>4. Telegram Quiz:</b> Join 9:00 PM live quiz on @agriquizworld.",
                 ParagraphStyle("gr_steps", fontName=FONT_REGULAR, fontSize=7, leading=9.5, textColor=COLORS["dark_text"])
             )
@@ -1288,7 +1399,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
         fact = next(iter(it.get("static_facts", {}).values()), "")
         clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
         clean_fact = _strip_html(fact)
-        line = f"<b>{clean_hl}</b>" + (f'  →  <font color="#1E5E2B">{clean_fact}</font>' if clean_fact else "")
+        line = f"<b>{clean_hl}</b>" + (f'  »  <font color="#1E5E2B">{clean_fact}</font>' if clean_fact else "")
         story.append(Paragraph(f"•  {line}", STYLES["one_liner"]))
 
     story.append(Spacer(1, 3.5*mm))
@@ -1312,6 +1423,7 @@ def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_pat
                 exam_fact_en=it.get("exam_fact_en", ""),
                 exam_fact_hi=it.get("exam_fact_hi", ""),
                 source_name=it.get("source", {}).get("name", ""),
+                source_url=it.get("source", {}).get("url", ""),
                 image_path=it.get("image_path") or None,
                 image_caption=it.get("image_caption") or None,
             )

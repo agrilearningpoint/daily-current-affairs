@@ -9,8 +9,10 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch: {}
 
+# Shared with daily/weekly/monthly — watchdog also commits state (recovery plan
+# + merged ledgers), so it must not run concurrently with a pipeline run.
 concurrency:
-  group: current-affairs-watchdog
+  group: current-affairs-pipeline
   cancel-in-progress: false
 
 permissions:

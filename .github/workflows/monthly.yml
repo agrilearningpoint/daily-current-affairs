@@ -19,8 +19,9 @@ on:
         type: boolean
         default: false
 
+# Shared with daily/weekly/watchdog — they all commit the same state files.
 concurrency:
-  group: current-affairs-monthly
+  group: current-affairs-pipeline
   cancel-in-progress: false
 
 jobs:

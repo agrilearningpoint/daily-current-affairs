@@ -17,7 +17,12 @@ from urllib.parse import quote
 VERIFIED_RSS = [
     ("ICAR", "https://icar.org.in/rss.xml", "tier1", "agriculture"),
     ("WHO News", "https://www.who.int/rss-feeds/news-english.xml", "tier1", "health"),
-    ("The Hindu National", "https://www.thehindu.com/news/national/feeder/default.rss", "tier2", "national"),
+    # NOTE: this URL MUST stay byte-identical to the The Hindu entry in
+    # config/sources.py (LEVEL_4_DISCOVERY). pipeline.source_registry dedupes
+    # the merged registry by RSS URL; two different URLs for the same publisher
+    # would double-fetch the same feed. Enforced by
+    # tests/test_source_registry.py::test_verified_rss_and_all_sources_agree_on_shared_publishers.
+    ("The Hindu National", "https://www.thehindu.com/feeder/default.rss", "tier2", "national"),
     ("Indian Express", "https://indianexpress.com/feed/", "tier2", "national"),
 ]
 

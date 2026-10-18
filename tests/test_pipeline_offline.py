@@ -74,12 +74,22 @@ def test_content_no_invention_and_mcq_validation():
 
 
 def test_pdf_end_to_end_and_qa_checks():
-    import sys, os
+    import os
+
     from PIL import features
-    if sys.platform == "win32" and not features.check("raqm") and os.environ.get("ALP_ALLOW_UNSHAPED_DEV_PDF") != "1":
+
+    def _shaping_available() -> bool:
+        try:
+            import freetype
+            import uharfbuzz
+            return True
+        except ImportError:
+            return bool(features.check("raqm"))
+
+    if not _shaping_available() and os.environ.get("ALP_ALLOW_UNSHAPED_DEV_PDF") != "1":
         pytest.skip(
-            "Pillow built without RAQM/HarfBuzz on this Windows environment. "
-            "See src/generate_pdf.py diagnostics for setup requirements."
+            "Neither uharfbuzz+freetype nor Pillow RAQM available in this "
+            "environment. See src/generate_pdf.py shaping diagnostics."
         )
     scored = scoring.score_all(scoring.deduplicate(make_items()))
     c = content.build_content(scored, {"type": "daily", "date": "2026-10-05",

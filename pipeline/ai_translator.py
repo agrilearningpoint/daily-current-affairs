@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
@@ -58,28 +59,35 @@ _DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 # LRU Cache
 # --------------------------------------------------------------------------- #
 class _LRUCache:
+    """Thread-safe LRU cache (the translator may be called from worker threads)."""
+
     def __init__(self, max_size: int = CACHE_MAX_SIZE):
         self.max_size = max_size
         self._data: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
-        if key in self._data:
-            self._data.move_to_end(key)
-            return self._data[key]
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+                return self._data[key]
         return None
 
     def put(self, key: str, value: Dict[str, Any]) -> None:
-        if key in self._data:
-            self._data.move_to_end(key)
-        self._data[key] = value
-        while len(self._data) > self.max_size:
-            self._data.popitem(last=False)
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+            self._data[key] = value
+            while len(self._data) > self.max_size:
+                self._data.popitem(last=False)
 
     def clear(self) -> None:
-        self._data.clear()
+        with self._lock:
+            self._data.clear()
 
     def __len__(self) -> int:
-        return len(self._data)
+        with self._lock:
+            return len(self._data)
 
 
 _CACHE = _LRUCache()

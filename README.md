@@ -118,33 +118,40 @@ state/           ← Persistent state (jobs.json, ledgers, memory)
 
 ## 🔄 Pipeline Stages
 
-### Daily (15 stages)
+### Daily (16 stages)
+
+The authoritative list is `DAILY_STAGES` in `main.py`; this table mirrors it.
 
 | # | Stage | Critical | Purpose |
 |---|---|---|---|
-| 00 | `00_model_orchestrator` | ✅ | Set up LLM providers |
-| 01 | `01_source_fetch` | ✅ | Fetch RSS/APIs |
-| 04 | `04_fact_verification` | ✅ | Confidence scoring + cross-source |
+| 00 | `00_model_orchestrator` | ✅ | Resolve LLM providers for the run |
+| 01 | `01_source_fetch` | ✅ | Fetch the canonical RSS registry |
+| 04 | `04_fact_verification` | ✅ | Confidence scoring + cross-source checks |
 | 05 | `05_deduplication` | ✅ | Event-level dedup |
 | 06 | `06_news_importance` | ✅ | Importance scoring |
 | 07 | `07_student_domain_relevance` | ✅ | Exam relevance |
 | 10 | `10_final_news_selection` | ✅ | Top-N selection |
-| 11 | `11_importance_memory` | ❌ | Persist to memory |
+| 11 | `11_importance_memory` | ✅ | Persist to memory |
 | 12 | `12_content_editor` | ✅ | Bilingual content |
 | 16 | `16_mcq_generator` | ✅ | Generate MCQs |
 | 17 | `17_mcq_validator` | ✅ | Validate (no dupes, source-backed) |
-| 18 | `18_pdf_design` | ✅ | Render PDF |
-| 19 | `19_pdf_qa` | ✅ | QA gate |
+| 18 | `18_pdf_design` | ✅ | Render the bilingual PDF |
+| 19 | `19_pdf_qa` | ✅ | QA gate (fails the run on defects) |
 | 22 | `22_telegram_publisher` | ✅ | Publish PDF |
-| 23 | `23_telegram_pin_verifier` | ❌ | Pin + verify |
+| 23 | `23_telegram_pin_verifier` | ✅ | Pin + verify receipt |
+| 24 | `24_final_health_audit` | ✅ | Final health audit |
 
-### Weekly (2 stages)
-- `20_weekly_editor` → `22_telegram_publisher`
+### Weekly (10 stages)
+`00_model_orchestrator` → `20_weekly_editor` → `12` → `16` → `17` → `18` → `19` → `22` → `23` → `24`
 
-### Monthly (2 stages)
-- `21_monthly_editor` → `22_telegram_publisher`
+### Monthly (10 stages)
+`00_model_orchestrator` → `21_monthly_editor` → `12` → `16` → `17` → `18` → `19` → `22` → `23` → `24`
 
-**Critical** stages: Missing script → **job FAILED** (never silently skipped).
+The weekly/monthly tail is selected **by stage name** (`_TAIL_STAGE_NAMES` in
+`main.py`), so re-ordering or inserting a daily stage can never silently change
+what weekly/monthly run.
+
+**Critical** stages: a missing script → **job FAILED** (never silently skipped).
 
 ---
 
@@ -281,6 +288,37 @@ python agents/22_telegram_publisher.py
 # Dry-run publishing
 DRY_RUN=1 python agents/22_telegram_publisher.py
 ```
+
+### Diagnostics & preview tools
+
+```bash
+# Full environment + pipeline diagnostic (checks [1]-[14])
+python scripts/diagnose.py
+
+# Source registry: offline invariants (duplicate URLs, tiers, categories)
+python scripts/source_health.py
+
+# Source registry: live reachability / parseability probe for every source
+python scripts/source_health.py --live
+python scripts/source_health.py --live --json
+
+# Generate a sample bilingual edition, run the real PDF QA gate,
+# and render representative pages to PNG for visual inspection
+python scripts/pdf_preview.py --out output/sample_preview.pdf --png-dir output/preview
+```
+
+`source_health.py` and `pdf_preview.py` are read-only: they never publish to
+Telegram and never write pipeline state.
+
+### Documentation
+
+| Document | Contents |
+| --- | --- |
+| [`docs/production-audit.md`](docs/production-audit.md) | Every audited defect, with file/line evidence and the regression test that covers it |
+| [`docs/production-readiness.md`](docs/production-readiness.md) | Go-live gates and the operator pilot checklist |
+| [`docs/source-registry.md`](docs/source-registry.md) | Canonical source registry, `official` semantics, how to add/retire a source |
+| [`docs/pdf-design.md`](docs/pdf-design.md) | PDF palette, typography, Devanagari pipeline, glyph guard, QA gate |
+| [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Day-2 operations and recovery |
 
 ---
 
@@ -496,7 +534,15 @@ pytest tests/ -v -m "not slow"
 | `test_migration.py` | `migrate_state.py` safety |
 | `test_ai_router.py` | Multi-provider fallback |
 | `test_state_machine.py` | State transitions |
-| `test_pipeline_offline.py` | End-to-end offline |
+| `test_pipeline_offline.py` | End-to-end offline (incl. real generate→QA PDF path) |
+| `test_pdf_hindi.py` | Devanagari shaping + extractable Unicode forms |
+| `test_pdf_sample_qa.py` | Real PDF generation + real QA gate on the bilingual fixture |
+| `test_source_registry.py` | Canonical registry: duplicate URLs, tiers, coverage |
+| `test_module_consolidation.py` | Locks the removal of duplicate modules |
+| `test_publication_safety.py` | Publish guards (missing PDF, dry-run, ledger) |
+| `test_telegram_api.py`, `test_store_published.py`, `test_claim_verifier.py`, `test_env_example.py`, `test_stage_selection.py` | Hardened infrastructure contracts added in this branch |
+
+Test fixtures live in `tests/fixtures/` (see `bilingual_sample.py`).
 
 ---
 

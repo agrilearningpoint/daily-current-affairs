@@ -66,34 +66,18 @@ def _published_path() -> Path:
 def _file_lock(path: Path) -> Iterator[None]:
     """
     Exclusive file lock for cross-process safety.
-    POSIX: fcntl.flock
-    Windows: msvcrt.locking (via alternative implementation)
-    """
-    lock_path = path.with_suffix(path.suffix + ".lock")
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR)
-    try:
-        try:
-            import fcntl
-            fcntl.flock(fd, fcntl.LOCK_EX)
-        except ImportError:
-            # Windows fallback — best effort (skip if unavailable)
-            pass
-        except BlockingIOError:
-            logger.warning("Lock held by another process: %s", lock_path)
+    Delegates to pipeline.persistence.file_lock so POSIX uses fcntl.flock and
+    Windows uses msvcrt.locking — both real locks. (The previous local version
+    silently skipped locking off-POSIX, so concurrent Windows writers were not
+    actually serialised.) The lock lives in a sibling ``<name>.lock`` file so the
+    data file itself is never held open by a waiter.
+    """
+    from pipeline.persistence import file_lock
+
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with file_lock(lock_path):
         yield
-    finally:
-        try:
-            import fcntl
-            try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
-        except ImportError:
-            pass
-        os.close(fd)
-        # Keep the lock inode: unlinking allows a third process to bypass a waiter.
 
 
 # --------------------------------------------------------------------------- #
@@ -339,6 +323,28 @@ def append_published(record: Dict[str, Any]) -> bool:
 
 def is_published(key: str) -> bool:
     return str(key) in load_published().get("records", {})
+
+
+def is_job_published(job_id: str) -> bool:
+    """True when the ledger holds a *live* success receipt for this job_id.
+
+    Distinct from ``is_published(key)``: the ledger key is a hash of
+    (chat_id, job_id, file_hash), so job-level lookups must scan records.
+    A record only counts when it is a non-dry-run success with a positive
+    message_id — the same contract used by pipeline.publication.
+    """
+    from pipeline.publication import positive_message_id
+
+    records = load_published().get("records", {})
+    wanted = str(job_id)
+    return any(
+        isinstance(record, dict)
+        and str(record.get("job_id")) == wanted
+        and record.get("status") == "success"
+        and not record.get("dry_run")
+        and positive_message_id(record.get("message_id"))
+        for record in records.values()
+    )
 
 
 # --------------------------------------------------------------------------- #
