@@ -1366,20 +1366,19 @@
     "official": true,
     "category": "economy_data",
     "language": "en",
-    "collected_at": "2026-10-18T07:53:50.370225+00:00",
+    "collected_at": "2026-10-18T09:53:13.626965+00:00",
     "content_hash": "3857b2bc7c2c7c85",
     "headline_en": "NITI Aayog’s Frontier Tech Hub Unveils Data Centre Evaluation Framework to Help States Plan for Sustainable Growth",
     "raw_facts": "NITI Aayog’s Frontier Tech Hub Unveils Data Centre Evaluation Framework to Help States Plan for Sustainable Growth niti_admin Fri, 10/16/2026 - 10:54 Publishing Date Thu, 10/15/2026 - 12:00 Release Link https://www.pib.gov.in/PressReleaseDetail.aspx?PRID=2323840&reg=48&lang=1",
     "source_url": "http://www.niti.gov.in/node/2445",
     "event_id": "3857b2bc7c2c7c85",
-    "verified_at": "2026-10-18T07:55:11.208914+00:00",
-    "confidence_score": 0.51,
+    "verified_at": "2026-10-18T09:53:59.650921+00:00",
+    "confidence_score": 0.655,
     "verification_method": "combined",
     "corroborating_sources": [],
     "flags": [
-      "future_date_anomaly",
-      "unverified_event",
-      "institutionally_plausible_topic"
+      "source_unverified",
+      "lack_of_independent_confirmation"
     ],
     "is_verified": true,
     "verification_mode": "live",
@@ -1404,7 +1403,7 @@
     "source_reliability": 100,
     "importance_score": 9,
     "student_relevance": 9,
-    "last_seen": "2026-10-18T07:55:40.073178+00:00",
+    "last_seen": "2026-10-18T09:53:59.966387+00:00",
     "last_job_id": "daily_2026-10-17"
   },
   "ec2476f1bf25d7db": {
