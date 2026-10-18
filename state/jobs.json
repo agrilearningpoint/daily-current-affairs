@@ -305,6 +305,47 @@
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "38980682993"
   },
+  "daily_2026-10-17": {
+    "started_at": "2026-10-18T11:10:04.641796+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-17.json": {
+        "stage": "01_source_fetch",
+        "sha256": "44264aab02cca1fec1f9b6bb2cc0aa070aacfb0916c7ba1c15e8d16febf399c8"
+      },
+      "data/verified/daily_2026-10-17.json": {
+        "stage": "04_fact_verification",
+        "sha256": "05ec0cffc0c2220bee713e29fb20c132b713ad75f13db218ee1d635d597f8abd"
+      },
+      "data/dedup/daily_2026-10-17.json": {
+        "stage": "05_deduplication",
+        "sha256": "4a92c30fe2411387073128af85829817516b42744a6dbae25487b4f5168d6eca"
+      },
+      "data/scored/daily_2026-10-17.json": {
+        "stage": "06_news_importance",
+        "sha256": "8fcd8a2794ff59033cec6afcfbeccc84e26193630366d9c0e2aeb46e73943212"
+      },
+      "data/selected/daily_2026-10-17.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "db77763957f7fb03610f57da3990c5dc6956d1fe1f101b61efe575c9db4ab6e2"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-10-17",
+    "job_type": "daily",
+    "job_date": "2026-10-17",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-16T00:00:00+05:30",
+      "end": "2026-10-16T23:59:59.999999+05:30"
+    },
+    "github_run_id": "39122102821",
+    "status": "failed",
+    "updated_at": "2026-10-18T11:10:45.935605+00:00",
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "39122102821"
+  },
   "daily_2026-10-18": {
     "run_attempts": 4,
     "job_id": "daily_2026-10-18",
@@ -348,46 +389,5 @@
     "last_success_stage": "00_model_orchestrator",
     "last_error": "20_weekly_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 239, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 235, in main\n    return prepare(get_context())\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_editor.py\", line 48, in prepare\n    raise ValueError(f\"only {len(scored)} verified {ctx.job_type} events in requested period (min {minimum})\")\nValueError: only 4 verified weekly events in requested period (min 5)",
     "failed_stage": "20_weekly_editor"
-  },
-  "daily_2026-10-17": {
-    "started_at": "2026-10-18T11:10:04.641796+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-17.json": {
-        "stage": "01_source_fetch",
-        "sha256": "44264aab02cca1fec1f9b6bb2cc0aa070aacfb0916c7ba1c15e8d16febf399c8"
-      },
-      "data/verified/daily_2026-10-17.json": {
-        "stage": "04_fact_verification",
-        "sha256": "05ec0cffc0c2220bee713e29fb20c132b713ad75f13db218ee1d635d597f8abd"
-      },
-      "data/dedup/daily_2026-10-17.json": {
-        "stage": "05_deduplication",
-        "sha256": "4a92c30fe2411387073128af85829817516b42744a6dbae25487b4f5168d6eca"
-      },
-      "data/scored/daily_2026-10-17.json": {
-        "stage": "06_news_importance",
-        "sha256": "8fcd8a2794ff59033cec6afcfbeccc84e26193630366d9c0e2aeb46e73943212"
-      },
-      "data/selected/daily_2026-10-17.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "db77763957f7fb03610f57da3990c5dc6956d1fe1f101b61efe575c9db4ab6e2"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-10-17",
-    "job_type": "daily",
-    "job_date": "2026-10-17",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-16T00:00:00+05:30",
-      "end": "2026-10-16T23:59:59.999999+05:30"
-    },
-    "github_run_id": "39122102821",
-    "status": "failed",
-    "updated_at": "2026-10-18T11:10:45.935605+00:00",
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
-    "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "39122102821"
   }
 }
