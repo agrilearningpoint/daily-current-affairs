@@ -1,16 +1,21 @@
 {
-  "generated_at": "2026-10-19T06:55:22.266572+00:00",
+  "generated_at": "2026-10-19T14:24:28.126600+00:00",
   "stuck_running": [],
   "recent_failed_final": [
     "daily_2026-10-15",
     "daily_2026-10-16",
     "daily_2026-10-17",
     "daily_2026-10-18",
+    "daily_2026-10-19",
     "weekly_2026-10-18"
   ],
   "actions": [
     {
       "job_id": "daily_2026-10-17",
+      "action": "retry"
+    },
+    {
+      "job_id": "daily_2026-10-19",
       "action": "retry"
     }
   ],
