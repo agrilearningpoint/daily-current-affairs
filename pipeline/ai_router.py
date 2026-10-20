@@ -126,7 +126,7 @@ def _build_default_providers() -> List[Provider]:
             name="gemini",
             url="https://generativelanguage.googleapis.com/v1beta/models",
             key=gem_key,
-            model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
+            model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
             priority=10, rpm_limit=60, rpd_limit=1500,
         ))
 
@@ -137,7 +137,7 @@ def _build_default_providers() -> List[Provider]:
             name="groq",
             url="https://api.groq.com/openai/v1/chat/completions",
             key=groq_key,
-            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
             priority=20, rpm_limit=30, rpd_limit=14400,
         ))
 

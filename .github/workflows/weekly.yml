@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: false
+      allow_fallback:
+        description: 'Allow dictionary fallback if AI providers are rate-limited or fail?'
+        required: false
+        type: boolean
+        default: true
 
 # Shared with daily/monthly/watchdog — they all commit the same state files.
 concurrency:
@@ -112,11 +117,12 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-flash-latest' }}
-          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-120b' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-1.5-flash' }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-4o-mini' }}
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct' }}
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
+          ALP_ALLOW_FALLBACK_TRANSLATION: ${{ github.event.inputs.allow_fallback == 'false' && '0' || '1' }}
         run: |
           DATE="$EDITION_DATE"
           echo "DATE=$DATE" >> "$GITHUB_ENV"
