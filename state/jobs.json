@@ -417,7 +417,7 @@
     "checkpoint_run_id": "39158383114"
   },
   "daily_2026-10-19": {
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "daily_2026-10-19",
     "job_type": "daily",
     "job_date": "2026-10-19",
@@ -427,8 +427,8 @@
       "end": "2026-10-19T12:41:04.550774+05:30"
     },
     "github_run_id": "39356839998",
-    "status": "running",
-    "updated_at": "2026-10-20T02:04:11.583931+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-20T02:04:30.853844+00:00",
     "started_at": "2026-10-19T07:11:06.343286+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-19.json": {
@@ -455,6 +455,6 @@
     "last_success_stage": "11_importance_memory",
     "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
     "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "39342460447"
+    "checkpoint_run_id": "39356839998"
   }
 }
