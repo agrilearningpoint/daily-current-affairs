@@ -529,9 +529,13 @@
       "logs/qa/daily_2026-10-20_qa.json": {
         "stage": "19_pdf_qa",
         "sha256": "59ff6c37c7d26332d1e2497a9214c0b3bd615cad1ed16e735d6d0b17a8fe47aa"
+      },
+      "logs/qa/daily_2026-10-20_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "17e5133a3745a3b49056a3d0985083876f9945cde581dcb2f42efc80f850496e"
       }
     },
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-10-20",
     "job_type": "daily",
     "job_date": "2026-10-20",
@@ -541,9 +545,9 @@
       "end": "2026-10-20T16:48:14.158829+05:30"
     },
     "github_run_id": "39415159456",
-    "status": "running",
-    "updated_at": "2026-10-20T11:28:47.291675+00:00",
-    "last_success_stage": "19_pdf_qa",
-    "checkpoint_run_id": "39413868846"
+    "status": "success",
+    "updated_at": "2026-10-20T11:29:00.563124+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "39415159456"
   }
 }
