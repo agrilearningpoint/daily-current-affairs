@@ -141,6 +141,18 @@ def _build_default_providers() -> List[Provider]:
             priority=20, rpm_limit=30, rpd_limit=14400,
         ))
 
+    # DeepSeek (high-quality bilingual reasoning & translation)
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    if deepseek_key:
+        base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
+        providers.append(Provider(
+            name="deepseek",
+            url=f"{base}/chat/completions",
+            key=deepseek_key,
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+            priority=25, rpm_limit=60, rpd_limit=10000,
+        ))
+
     # OpenAI (also used for polish)
     openai_key = os.getenv("OPENAI_API_KEY")
     if openai_key:
@@ -190,6 +202,21 @@ def _build_default_providers() -> List[Provider]:
             key=nvidia_key,
             model=os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"),
             priority=60, rpm_limit=30, rpd_limit=5000,
+        ))
+
+    # Ollama (local/remote OpenAI-compatible server when configured)
+    ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL")
+    ollama_key = os.getenv("OLLAMA_API_KEY")
+    if ollama_url:
+        endpoint = ollama_url.rstrip("/")
+        if not endpoint.endswith("/chat/completions"):
+            endpoint = f"{endpoint}/v1/chat/completions" if not endpoint.endswith("/v1") else f"{endpoint}/chat/completions"
+        providers.append(Provider(
+            name="ollama",
+            url=endpoint,
+            key=ollama_key or "ollama",
+            model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
+            priority=70, rpm_limit=30, rpd_limit=5000,
         ))
 
     providers.sort(key=lambda p: p.priority)

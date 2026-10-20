@@ -19,7 +19,7 @@ def orchestrator():
 
 def test_setup_and_translation_use_the_same_provider_registry(monkeypatch):
     names = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY", "MISTRAL_API_KEY",
-             "LLM_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY"]
+             "LLM_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "DEEPSEEK_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL"]
     for name in names:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("LLM_API_URL", "https://provider.example/chat/completions")
@@ -55,6 +55,29 @@ def test_nvidia_default_endpoint_and_model(monkeypatch):
 
     assert nvidia.url == "https://integrate.api.nvidia.com/v1/chat/completions"
     assert nvidia.model == "meta/llama-3.3-70b-instruct"
+
+
+def test_deepseek_default_endpoint_and_model(monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "diagnostic-deepseek-not-a-credential")
+    monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
+
+    deepseek = next(provider for provider in ai_router._build_default_providers()
+                    if provider.name == "deepseek")
+
+    assert deepseek.url == "https://api.deepseek.com/v1/chat/completions"
+    assert deepseek.model == "deepseek-chat"
+
+
+def test_ollama_configured_endpoint_and_model(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://remote-ollama.internal:11434")
+    monkeypatch.setenv("OLLAMA_API_KEY", "diagnostic-ollama-not-a-credential")
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+
+    ollama = next(provider for provider in ai_router._build_default_providers()
+                  if provider.name == "ollama")
+
+    assert ollama.url == "http://remote-ollama.internal:11434/v1/chat/completions"
+    assert ollama.model == "llama3.1:8b"
 
 
 def test_openai_and_generic_openai_keys_both_join_fallback_registry(monkeypatch):

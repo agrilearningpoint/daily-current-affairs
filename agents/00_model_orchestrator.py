@@ -58,6 +58,9 @@ PROVIDERS = [
     {"name": "groq", "env_keys": ["GROQ_API_KEY"],
      "url": "https://api.groq.com/openai/v1/chat/completions",
      "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "priority": 20},
+    {"name": "deepseek", "env_keys": ["DEEPSEEK_API_KEY"],
+     "url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/") + "/chat/completions",
+     "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"), "priority": 25},
     {"name": "openai", "env_keys": ["OPENAI_API_KEY"],
      "url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions",
      "model": os.getenv("ALP_LLM", "gpt-4o-mini"), "priority": 30},
@@ -67,19 +70,29 @@ PROVIDERS = [
     {"name": "nvidia", "env_keys": ["NVIDIA_API_KEY"],
      "url": "https://integrate.api.nvidia.com/v1/chat/completions",
      "model": os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"), "priority": 60},
+    {"name": "ollama", "env_keys": ["OLLAMA_API_KEY", "OLLAMA_BASE_URL"],
+     "url": (os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/v1/chat/completions"),
+     "model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"), "priority": 70},
 ]
 
 
 # --------------------------------------------------------------------------- #
 def load_keys() -> List[Dict[str, Any]]:
     from pipeline.ai_router import _build_default_providers
-    env_names = {"gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
-                 "groq": "GROQ_API_KEY", "openai": "OPENAI_API_KEY", "mistral": "MISTRAL_API_KEY",
-                 "generic-openai": "LLM_API_KEY", "openrouter": "OPENROUTER_API_KEY",
-                 "nvidia": "NVIDIA_API_KEY"}
+    env_names = {
+        "gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "mistral": "MISTRAL_API_KEY",
+        "generic-openai": "LLM_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "nvidia": "NVIDIA_API_KEY",
+        "ollama": "OLLAMA_API_KEY" if os.getenv("OLLAMA_API_KEY") else "OLLAMA_BASE_URL",
+    }
     return [{"name": provider.name, "url": provider.url, "key": provider.key,
              "model": provider.model, "priority": provider.priority,
-             "env_used": env_names[provider.name]} for provider in _build_default_providers()]
+             "env_used": env_names.get(provider.name, "API_KEY")} for provider in _build_default_providers()]
 
 
 def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:

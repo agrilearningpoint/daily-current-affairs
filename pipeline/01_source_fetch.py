@@ -284,34 +284,58 @@ def main() -> int:
     feed_failures: List[Dict[str, str]] = []
     ok_feeds = 0
 
-    # Fetch feeds in parallel to reliably collect all 56 sources without timeouts
-    max_workers = min(10, max(1, len(specs)))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_spec = {
-            executor.submit(fetch_spec, spec, window_start, window_end, None): spec
-            for spec in specs
-        }
-        for future in concurrent.futures.as_completed(future_to_spec):
-            spec = future_to_spec[future]
-            try:
-                arts, total, malformed, error = future.result()
-            except Exception as exc:
-                error = f"{type(exc).__name__}: {exc}"
-                arts, total, malformed = [], 0, 0
-            if error:
-                feed_failures.append({"source_id": spec.source_id,
-                                      "url": spec.rss_url, "error": error})
-                print(f"[01_source_fetch] WARN feed failed: {spec.name} -> {error}",
-                      file=sys.stderr)
-                continue
-            ok_feeds += 1
-            for art in arts:
-                h = art.get("content_hash") or content_hash(art.get("title", ""), art.get("link", ""))
-                if h not in seen_hashes:
-                    seen_hashes.add(h)
-                    all_articles.append(art)
-            print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
-                  f"(of {total} entries, {malformed} malformed skipped)")
+    # Staggered harvesting into 4 controlled batches to prevent burst rate-limits
+    def _source_batch_id(spec: SourceSpec) -> tuple[int, str]:
+        cat = (spec.category or "").lower()
+        if any(k in cat for k in ("agriculture", "govt_national", "core")):
+            return 1, "Core Government & Agriculture"
+        if any(k in cat for k in ("banking", "finance", "economy")):
+            return 2, "Banking, Finance & Regulators"
+        if any(k in cat for k in ("science", "defence", "international_org", "health")):
+            return 3, "Science, Defence & Multilateral Orgs"
+        return 4, "Discovery, Media & Broadcasters"
+
+    batches: Dict[int, Tuple[str, List[SourceSpec]]] = {}
+    for spec in specs:
+        b_id, b_name = _source_batch_id(spec)
+        if b_id not in batches:
+            batches[b_id] = (b_name, [])
+        batches[b_id][1].append(spec)
+
+    print(f"[01_source_fetch] Staggered harvesting: {len(specs)} sources partitioned across {len(batches)} batches")
+    import time
+    for b_id in sorted(batches.keys()):
+        b_name, b_specs = batches[b_id]
+        print(f"[01_source_fetch] >>> Starting Batch {b_id}/{len(batches)}: {b_name} ({len(b_specs)} sources)")
+        max_workers = min(6, max(1, len(b_specs)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_spec = {
+                executor.submit(fetch_spec, spec, window_start, window_end, None): spec
+                for spec in b_specs
+            }
+            for future in concurrent.futures.as_completed(future_to_spec):
+                spec = future_to_spec[future]
+                try:
+                    arts, total, malformed, error = future.result()
+                except Exception as exc:
+                    error = f"{type(exc).__name__}: {exc}"
+                    arts, total, malformed = [], 0, 0
+                if error:
+                    feed_failures.append({"source_id": spec.source_id,
+                                          "url": spec.rss_url, "error": error})
+                    print(f"[01_source_fetch] WARN feed failed: {spec.name} -> {error}",
+                          file=sys.stderr)
+                    continue
+                ok_feeds += 1
+                for art in arts:
+                    h = art.get("content_hash") or content_hash(art.get("title", ""), art.get("link", ""))
+                    if h not in seen_hashes:
+                        seen_hashes.add(h)
+                        all_articles.append(art)
+                print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
+                      f"(of {total} entries, {malformed} malformed skipped)")
+        if b_id < len(batches):
+            time.sleep(1.0)
 
     edition = {
         "schema_version": "1.0",
