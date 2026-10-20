@@ -54,10 +54,10 @@ SKIP_HEALTHCHECK = os.getenv("ORCHESTRATOR_SKIP_HEALTHCHECK", "0") == "1"
 PROVIDERS = [
     {"name": "gemini", "env_keys": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
      "url": "https://generativelanguage.googleapis.com/v1beta/models",
-     "model": os.getenv("GEMINI_MODEL", "gemini-flash-latest"), "priority": 10},
+     "model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash"), "priority": 10},
     {"name": "groq", "env_keys": ["GROQ_API_KEY"],
      "url": "https://api.groq.com/openai/v1/chat/completions",
-     "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"), "priority": 20},
+     "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "priority": 20},
     {"name": "openai", "env_keys": ["OPENAI_API_KEY"],
      "url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions",
      "model": os.getenv("ALP_LLM", "gpt-4o-mini"), "priority": 30},

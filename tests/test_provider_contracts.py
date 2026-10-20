@@ -43,7 +43,7 @@ def test_groq_default_uses_a_current_model(monkeypatch):
     groq = next(provider for provider in ai_router._build_default_providers()
                 if provider.name == "groq")
 
-    assert groq.model == "openai/gpt-oss-120b"
+    assert groq.model == "llama-3.3-70b-versatile"
 
 
 def test_nvidia_default_endpoint_and_model(monkeypatch):
