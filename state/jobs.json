@@ -160,7 +160,7 @@
     "last_success_stage": "11_importance_memory",
     "failed_stage": "20_weekly_editor",
     "attempts": 0,
-    "error": "Weekly selection too small (0) — refusing weak filler",
+    "error": "Weekly selection too small (0) \u2014 refusing weak filler",
     "job_date": null,
     "stage_history": []
   },
@@ -301,7 +301,7 @@
       }
     },
     "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): \n2026-10-16 23:19:43 | INFO     | pipeline.ai_router | [Router] ✔ groq responded (task=polish, 135 chars)\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=6 fallback=0 untranslated=1 (AI success 85.7%)\n2026-10-16 23:19:43 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-16 23:19:43 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "last_error": "12_content_editor: failed after 3 attempt(s): \n2026-10-16 23:19:43 | INFO     | pipeline.ai_router | [Router] \u2714 groq responded (task=polish, 135 chars)\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=6 fallback=0 untranslated=1 (AI success 85.7%)\n2026-10-16 23:19:43 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-16 23:19:43 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "38980682993"
   },
@@ -541,11 +541,9 @@
       "end": "2026-10-20T16:48:14.158829+05:30"
     },
     "github_run_id": "39413868846",
-    "status": "failed",
+    "status": "running",
     "updated_at": "2026-10-20T11:22:39.150191+00:00",
     "last_success_stage": "19_pdf_qa",
-    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-20 11:22:34 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-20 11:22:34 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-10-20.pdf\n2026-10-20 11:22:34 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-10-20; manual reconciliation required, refusing resend\n2026-10-20 11:22:34 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
-    "failed_stage": "22_telegram_publisher",
     "checkpoint_run_id": "39413868846"
   }
 }
