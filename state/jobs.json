@@ -449,9 +449,9 @@
       "start": "2026-10-18T00:00:00+05:30",
       "end": "2026-10-18T23:59:59.999999+05:30"
     },
-    "github_run_id": "39382163243",
-    "status": "failed",
-    "updated_at": "2026-10-20T06:49:47.627872+00:00",
+    "github_run_id": "39384468951",
+    "status": "running",
+    "updated_at": "2026-10-20T07:09:29.305880+00:00",
     "last_success_stage": "11_importance_memory",
     "last_error": "12_content_editor: failed after 3 attempt(s): slator] trying provider openrouter\n2026-10-20 06:49:44 | INFO     | pipeline.ai_translator | [Translator] skipping mistral after an earlier rate limit\n2026-10-20 06:49:44 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['openrouter: HTTP 402'])\n2026-10-20 06:49:44 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=16 fallback=0 untranslated=97 (AI success 14.2%)\n2026-10-20 06:49:44 | WARNING  | pipeline.content | [Content Builder] 97 translations need review (AI did not pass)\n2026-10-20 06:49:44 | INFO     | pipeline.content | [Content Builder] Completeness: 5/28 items complete (avg words EN: 45.0, HI: 45.1)\n2026-10-20 06:49:44 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
     "failed_stage": "12_content_editor",
