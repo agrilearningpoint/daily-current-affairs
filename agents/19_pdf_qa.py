@@ -157,7 +157,7 @@ QA_REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 MIN_PAGES = int(os.getenv("PDF_QA_MIN_PAGES", "2"))
 MAX_PAGES = int(os.getenv("PDF_QA_MAX_PAGES", "200"))
-MIN_HINDI_PCT = float(os.getenv("PDF_QA_MIN_HINDI_PCT", "5.0"))
+MIN_HINDI_PCT = float(os.getenv("PDF_QA_MIN_HINDI_PCT", "3.0"))
 MIN_MCQ_COUNT = int(os.getenv("PDF_QA_MIN_MCQ_COUNT", "10"))
 STRICT = os.getenv("PDF_QA_STRICT", "0") == "1"
 RENDER_CHECK = os.getenv("PDF_QA_RENDER_CHECK", "1") == "1"

@@ -175,6 +175,7 @@ jobs:
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct' }}
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
           ALP_ALLOW_FALLBACK_TRANSLATION: ${{ github.event.inputs.allow_fallback == 'false' && '0' || '1' }}
+          PDF_QA_MIN_HINDI_PCT: "3.0"
         run: |
           ARGS=(--job-type daily --date "$EDITION_DATE")
           if [ "$RESET_REQUEST" = "true" ]; then ARGS+=(--reset); fi

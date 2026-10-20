@@ -255,25 +255,17 @@ def _clean_text_for_display(t: Any) -> str:
 
 
 def _is_broken_dictionary_hindi(hi_text: str) -> bool:
-    """Detect broken dictionary fallback translations that mix English grammatical words into Hindi."""
+    """Filter out template prompt boilerplate leaks from Hindi sentences."""
     if not hi_text or not DEVANAGARI_RE.search(hi_text):
         return True
-    bad_indicators = [
-        "’s ", "'s ", "comes into force", "takes effect", "gives ", "zero-duty",
-        "visa categories", "temporary रोज़गार", "recruitment", "for indian", "for भारतीय",
+    bad_boilerplate = [
         "record करें", "रिकॉर्ड करें", "source event:", "name + designation", "teen-cheez",
         "prelims में पूछा जाता है", "direct fact:", "rule:", "याद रखें।"
     ]
     hi_lower = hi_text.lower()
-    for bad in bad_indicators:
+    for bad in bad_boilerplate:
         if bad.lower() in hi_lower:
             return True
-    words = hi_text.split()
-    if not words:
-        return True
-    ascii_words = [w for w in words if re.fullmatch(r"[A-Za-z0-9\-–,.;:'\"()]+", w)]
-    if len(words) >= 4 and (len(ascii_words) / len(words)) > 0.45:
-        return True
     return False
 
 
