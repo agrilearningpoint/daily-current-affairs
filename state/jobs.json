@@ -160,7 +160,7 @@
     "last_success_stage": "11_importance_memory",
     "failed_stage": "20_weekly_editor",
     "attempts": 0,
-    "error": "Weekly selection too small (0) — refusing weak filler",
+    "error": "Weekly selection too small (0) \u2014 refusing weak filler",
     "job_date": null,
     "stage_history": []
   },
@@ -301,7 +301,7 @@
       }
     },
     "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): \n2026-10-16 23:19:43 | INFO     | pipeline.ai_router | [Router] ✔ groq responded (task=polish, 135 chars)\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=6 fallback=0 untranslated=1 (AI success 85.7%)\n2026-10-16 23:19:43 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-16 23:19:43 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
+    "last_error": "12_content_editor: failed after 3 attempt(s): \n2026-10-16 23:19:43 | INFO     | pipeline.ai_router | [Router] \u2714 groq responded (task=polish, 135 chars)\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=6 fallback=0 untranslated=1 (AI success 85.7%)\n2026-10-16 23:19:43 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-16 23:19:43 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "38980682993"
   },
@@ -521,18 +521,6 @@
       "data/mcq/daily_2026-10-20.json": {
         "stage": "16_mcq_generator",
         "sha256": "d8c849b58a78705e5bfee7b275a9b709d8c514122bd2725caf984c48467d1421"
-      },
-      "output/daily_2026-10-20.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "7427b153e7cb907b0f055803146d6eaefe9c74566f09d9a11d7258f2a95e6027"
-      },
-      "logs/qa/daily_2026-10-20_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "59ff6c37c7d26332d1e2497a9214c0b3bd615cad1ed16e735d6d0b17a8fe47aa"
-      },
-      "logs/qa/daily_2026-10-20_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "17e5133a3745a3b49056a3d0985083876f9945cde581dcb2f42efc80f850496e"
       }
     },
     "run_attempts": 2,
@@ -545,9 +533,9 @@
       "end": "2026-10-20T16:48:14.158829+05:30"
     },
     "github_run_id": "39415159456",
-    "status": "success",
+    "status": "running",
     "updated_at": "2026-10-20T11:29:00.563124+00:00",
-    "last_success_stage": "24_final_health_audit",
+    "last_success_stage": "16_mcq_generator",
     "checkpoint_run_id": "39415159456"
   }
 }
