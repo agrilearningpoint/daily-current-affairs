@@ -417,44 +417,44 @@
     "checkpoint_run_id": "39158383114"
   },
   "daily_2026-10-19": {
-    "run_attempts": 5,
+    "started_at": "2026-10-20T06:45:13.511792+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-19.json": {
+        "stage": "01_source_fetch",
+        "sha256": "f0154bba3b5823c38a0cb3af291dff966e1a91c888fd3f7725c800eb69e1d518"
+      },
+      "data/verified/daily_2026-10-19.json": {
+        "stage": "04_fact_verification",
+        "sha256": "2319e6eff5dab3f060b110e99741ca1dc20585d94401622bb7b5e715655b209b"
+      },
+      "data/dedup/daily_2026-10-19.json": {
+        "stage": "05_deduplication",
+        "sha256": "ad430b16a891932e3604bc121ca146cb599039761a9fd9b7229434f4fdb71c03"
+      },
+      "data/scored/daily_2026-10-19.json": {
+        "stage": "06_news_importance",
+        "sha256": "f0b13f27dc30eb3fb275d58c36731693dd2e84ae440d17f032137c43bb50fd05"
+      },
+      "data/selected/daily_2026-10-19.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "d299c9bb7b5ca95096a334250e9307265f5476620415e48ca5c9e4637bacfb58"
+      }
+    },
+    "run_attempts": 1,
     "job_id": "daily_2026-10-19",
     "job_type": "daily",
     "job_date": "2026-10-19",
     "dry_run": false,
     "window": {
       "start": "2026-10-18T00:00:00+05:30",
-      "end": "2026-10-19T12:41:04.550774+05:30"
+      "end": "2026-10-18T23:59:59.999999+05:30"
     },
     "github_run_id": "39382163243",
-    "status": "running",
-    "updated_at": "2026-10-20T06:45:12.053589+00:00",
-    "started_at": "2026-10-19T07:11:06.343286+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-19.json": {
-        "stage": "01_source_fetch",
-        "sha256": "6bef6aed220133520f45567f83897e0aea04d6ed65760097dfdb9dfae7f76793"
-      },
-      "data/verified/daily_2026-10-19.json": {
-        "stage": "04_fact_verification",
-        "sha256": "357131a0d170b4129075b29b5aa43d844158cae8278ecb748c757c0c731e8942"
-      },
-      "data/dedup/daily_2026-10-19.json": {
-        "stage": "05_deduplication",
-        "sha256": "18a0dd522cc2ed0e53f8df97270b16a7dcdb8a4d8ef9992990636690b4180b69"
-      },
-      "data/scored/daily_2026-10-19.json": {
-        "stage": "06_news_importance",
-        "sha256": "34e7b8127a529d57605aeb1e5f6396efcf2de5c29f1ce8f43d7015497ec83125"
-      },
-      "data/selected/daily_2026-10-19.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "e04c21d21e6d0c9477c5ac35ec4b54b8aae12a575577e73fabcb9c645c0488b6"
-      }
-    },
+    "status": "failed",
+    "updated_at": "2026-10-20T06:49:47.627872+00:00",
     "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
+    "last_error": "12_content_editor: failed after 3 attempt(s): slator] trying provider openrouter\n2026-10-20 06:49:44 | INFO     | pipeline.ai_translator | [Translator] skipping mistral after an earlier rate limit\n2026-10-20 06:49:44 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['openrouter: HTTP 402'])\n2026-10-20 06:49:44 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=16 fallback=0 untranslated=97 (AI success 14.2%)\n2026-10-20 06:49:44 | WARNING  | pipeline.content | [Content Builder] 97 translations need review (AI did not pass)\n2026-10-20 06:49:44 | INFO     | pipeline.content | [Content Builder] Completeness: 5/28 items complete (avg words EN: 45.0, HI: 45.1)\n2026-10-20 06:49:44 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
     "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "39356839998"
+    "checkpoint_run_id": "39382163243"
   }
 }
