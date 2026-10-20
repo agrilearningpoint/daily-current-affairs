@@ -57,16 +57,6 @@
       "file_sha256": "17ddb2a3171d84169d338fdb78172a2e23420b830638aa6d9a6b6762ed927de2",
       "status": "blocked_revision",
       "published_at": "2026-10-20T07:28:05.827810+00:00"
-    },
-    "1874ce791e7335c4e4fc5f44": {
-      "job_id": "daily_2026-10-20",
-      "chat_id": "-1004485392227",
-      "message_id": 105,
-      "file_hash": "503216d856fd847a",
-      "file_sha256": "503216d856fd847ae6d83a5d62c2eaecba63f5dcec7e80127d805cca8c5bd6ef",
-      "file": "daily_2026-10-20.pdf",
-      "published_at": "2026-10-20T12:29:28.620992+00:00",
-      "status": "success"
     }
   }
 }

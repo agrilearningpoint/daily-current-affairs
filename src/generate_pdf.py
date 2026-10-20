@@ -577,6 +577,108 @@ def mixed_para(text: str, style_name: str, base_style: ParagraphStyle, **kw: Any
     return Paragraph(_safe(clean_text), st)
 
 
+def get_or_create_news_image(item: Dict[str, Any], idx: int) -> Optional[Flowable]:
+    """Retrieve an existing image or generate a clean editorial infographic for top/important news."""
+    # 1. Existing local image file
+    ip = item.get("image_path")
+    if ip and os.path.exists(ip):
+        try:
+            return Image(ip, width=PAGE_W - 28*mm, height=44*mm)
+        except Exception:
+            pass
+
+    # 2. Only generate infographic for top/important stories (to keep PDF fast, uncluttered & high-impact)
+    score = item.get("importance_score", 0)
+    if idx > 6 and score < 18:
+        return None
+
+    cat_label = item.get("category", "National").upper()
+    hl_en = _safe(item.get("headline_en", "")).lstrip("> ")
+    hl_hi = _strip_html(item.get("headline_hi", "")).lstrip("> ")
+
+    if not hl_en:
+        return None
+
+    ck = CAT_MAP.get(item.get("category", "National"), "national")
+    cat_color = CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])["color"]
+    cat_hex = cat_color.hexval()
+    if cat_hex.startswith("0x"):
+        cat_hex = "#" + cat_hex[2:]
+
+    h_hash = hashlib.sha256((hl_en + str(cat_hex)).encode("utf-8")).hexdigest()[:12]
+    tmp_dir = Path(tempfile.gettempdir()) / "alp_infographics"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    card_path = str(tmp_dir / f"card_{h_hash}.png")
+
+    if not os.path.exists(card_path):
+        try:
+            pop_bold_p = os.path.join(FONTS_DIR, "Poppins-Bold.ttf")
+            pop_reg_p = os.path.join(FONTS_DIR, "Poppins-Regular.ttf")
+            muk_semi_p = os.path.join(FONTS_DIR, "Mukta-SemiBold.ttf")
+
+            w, h = 1800, 440
+            img = PILImage.new("RGBA", (w, h), (248, 250, 252, 255))
+            draw = ImageDraw.Draw(img)
+
+            def parse_hex(c_str: str) -> Tuple[int, int, int, int]:
+                s = c_str.lstrip("#")
+                return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16), 255)
+
+            cat_col = parse_hex(cat_hex)
+
+            # Outer border & left category bar
+            draw.rounded_rectangle([4, 4, w - 5, h - 5], radius=16, outline=(226, 232, 240, 255), width=3)
+            draw.rounded_rectangle([4, 4, 22, h - 5], radius=5, fill=cat_col)
+
+            # Category Pill
+            f_cat = ImageFont.truetype(pop_bold_p, 26)
+            draw.rounded_rectangle([40, 24, 440, 74], radius=8, fill=cat_col)
+            draw.text((55, 32), cat_label[:26].upper(), font=f_cat, fill=(255, 255, 255, 255))
+
+            # Top Right Exam Badge
+            f_badge = ImageFont.truetype(pop_bold_p, 22)
+            draw.rounded_rectangle([w - 340, 24, w - 40, 74], radius=8, fill=(240, 253, 244, 255), outline=(134, 239, 172, 255), width=2)
+            draw.text((w - 315, 35), "★ HIGH-YIELD TOPIC", font=f_badge, fill=(22, 101, 52, 255))
+
+            # English Headline (Wrapped)
+            f_title = ImageFont.truetype(pop_bold_p, 32)
+            words = hl_en.split()
+            lines = []
+            curr = ""
+            for wd in words:
+                test = (curr + " " + wd).strip()
+                if len(test) > 56:
+                    lines.append(curr)
+                    curr = wd
+                else:
+                    curr = test
+            if curr:
+                lines.append(curr)
+
+            y_pos = 98
+            for l in lines[:2]:
+                draw.text((42, y_pos), l, font=f_title, fill=(15, 23, 42, 255))
+                y_pos += 44
+
+            # Hindi text preview (Shaped via HarfBuzz)
+            if hl_hi:
+                hi_img, _, _, _ = _render_hindi_hb_ft(hl_hi[:90], muk_semi_p, 13, 1700, 1680, 0, (22, 101, 52), (255, 255, 255), 1.25, "left", 150)
+                img.paste(hi_img, (42, y_pos + 6), hi_img)
+
+            # Bottom Watermark Branding
+            f_sub = ImageFont.truetype(pop_reg_p, 20)
+            draw.text((42, h - 38), "Agri Learning Point  |  Comprehensive Exam Study Blueprint", font=f_sub, fill=(100, 116, 139, 255))
+
+            img.save(card_path, format="PNG")
+        except Exception:
+            return None
+
+    try:
+        return Image(card_path, width=PAGE_W - 28*mm, height=44*mm)
+    except Exception:
+        return None
+
+
 # --- MINIMAL RUNNING HEADER & FOOTER CANVAS ---
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -820,13 +922,13 @@ def generate_pdf(
     if output_path is None:
         output_path = os.path.join(OUTPUT_DIR, f"{job.get('id', 'daily_edition')}.pdf")
 
-    # Target typography: clean, legible, mobile-optimized point sizes
+    # Target typography: enlarged, high-visibility mobile-first point sizes
     styles = getSampleStyleSheet()
-    st_q_en = ParagraphStyle("BQEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12, leading=16.5, textColor=HexColor("#0F2B48"), spaceBefore=3, spaceAfter=2)
-    st_opt = ParagraphStyle("BOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=HexColor("#1E293B"), leftIndent=6, spaceAfter=2)
-    st_body_en = ParagraphStyle("BBodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14.5, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=2)
-    st_deep_dive_h = ParagraphStyle("BDeepH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12.5, leading=16.5, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
-    st_oneliner_h = ParagraphStyle("BOneH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12.5, leading=16.5, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
+    st_q_en = ParagraphStyle("BQEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=16, leading=21, textColor=HexColor("#0F2B48"), spaceBefore=4, spaceAfter=2.5)
+    st_opt = ParagraphStyle("BOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=13.5, leading=19, textColor=HexColor("#1E293B"), leftIndent=6, spaceAfter=2.5)
+    st_body_en = ParagraphStyle("BBodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=13, leading=18.5, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=2.5)
+    st_deep_dive_h = ParagraphStyle("BDeepH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=19.5, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
+    st_oneliner_h = ParagraphStyle("BOneH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=19.5, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
 
     doc = SimpleDocTemplate(
         output_path,
@@ -1032,8 +1134,14 @@ def generate_pdf(
 
         story.append(Paragraph(f"<b>{q_header_en}</b>", st_q_en))
         if clean_q_hi:
-            story.append(hindi_to_image(q_header_hi, width_mm=182, font_size_pt=11.5, bold=True, color="#1E293B", bg="white"))
-        story.append(Spacer(1, 2*mm))
+            story.append(hindi_to_image(q_header_hi, width_mm=182, font_size_pt=15.5, bold=True, color="#0F2B48", bg="white"))
+        story.append(Spacer(1, 2.5*mm))
+
+        # Important News Editorial Infographic Image
+        info_img = get_or_create_news_image(item, m_idx)
+        if info_img:
+            story.append(info_img)
+            story.append(Spacer(1, 3*mm))
 
         # Options (A, B, C, D, E)
         opts = m.get("options", [])
@@ -1041,52 +1149,52 @@ def generate_pdf(
             lbl = chr(65 + o_idx)
             clean_opt = _safe(str(opt)).strip()
             story.append(Paragraph(f"<b>({lbl})</b>  {clean_opt}", st_opt))
-        story.append(Spacer(1, 2*mm))
+        story.append(Spacer(1, 2.5*mm))
 
         # Correct Answer Box (Clean, Understated Mint Badge)
         correct_ans = str(m.get("correct", "A")).upper().strip()
         ans_idx = ord(correct_ans) - 65 if len(correct_ans) == 1 and "A" <= correct_ans <= "Z" else 0
         ans_text = _safe(str(opts[ans_idx])) if 0 <= ans_idx < len(opts) else f"Option {correct_ans}"
-        ans_box_data = [[Paragraph(f"<b>✔  Correct Answer: ({correct_ans}) {ans_text}</b>", ParagraphStyle("ans_p", fontName=FONT_SEMI, fontSize=10.5, leading=14, textColor=COLORS["primary_green"]))]]
+        ans_box_data = [[Paragraph(f"<b>✔  Correct Answer: ({correct_ans}) {ans_text}</b>", ParagraphStyle("ans_p", fontName=FONT_SEMI, fontSize=13.5, leading=18, textColor=COLORS["primary_green"]))]]
         t_ans = Table(ans_box_data, colWidths=[PAGE_W - 28*mm])
         t_ans.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green"]),
             ("BOX", (0, 0), (-1, -1), 0.6, COLORS["border_green"]),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ("ROUNDEDCORNERS", [3, 3, 3, 3]),
         ]))
         story.append(t_ans)
-        story.append(Spacer(1, 2.5*mm))
+        story.append(Spacer(1, 3*mm))
 
         # Explanation Section
-        story.append(mixed_para("Detailed Explanation • विस्तृत व्याख्या:", "exp_h", STYLES["headline_en"], fontSize=11, leading=14.5, textColor=COLORS["primary_navy"]))
-        story.append(Spacer(1, 1*mm))
+        story.append(mixed_para("Detailed Explanation • विस्तृत व्याख्या:", "exp_h", STYLES["headline_en"], fontSize=14.5, leading=19, textColor=COLORS["primary_navy"]))
+        story.append(Spacer(1, 1.2*mm))
 
         hl_en = _safe(item.get("headline_en", "")).lstrip("> ")
         hl_hi = _strip_html(item.get("headline_hi", "")).lstrip("> ")
         if hl_en:
             story.append(Paragraph(f"•  <b>Topic:</b> {hl_en}", st_body_en))
             if hl_hi:
-                story.append(hindi_to_image(f"• विषय: {hl_hi}", width_mm=182, font_size_pt=10.5, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1*mm))
+                story.append(hindi_to_image(f"• विषय: {hl_hi}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
+            story.append(Spacer(1, 1.2*mm))
 
         # Key points (Satisfies test_pdf_hindi contract: 'मुख्य बिंदु')
         kp_en_list = item.get("key_points_en") or []
         kp_hi_list = item.get("key_points_hi") or []
         if kp_en_list:
-            story.append(mixed_para("Key Points • मुख्य बिंदु:", "kph_sub", STYLES["headline_en"], fontSize=10.5, leading=14, textColor=COLORS["primary_navy"]))
-            story.append(Spacer(1, 0.8*mm))
+            story.append(mixed_para("Key Points • मुख्य बिंदु:", "kph_sub", STYLES["headline_en"], fontSize=14, leading=18.5, textColor=COLORS["primary_navy"]))
+            story.append(Spacer(1, 1*mm))
             for kp_e, kp_h in zip(kp_en_list[:3], kp_hi_list[:3]):
                 c_e = _safe(kp_e).strip()
                 c_h = _strip_html(kp_h).strip()
                 if c_e:
                     story.append(Paragraph(f"•  {c_e}", st_body_en))
                 if c_h:
-                    story.append(hindi_to_image(f"• {c_h}", width_mm=182, font_size_pt=10.5, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-                story.append(Spacer(1, 1*mm))
+                    story.append(hindi_to_image(f"• {c_h}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
+                story.append(Spacer(1, 1.2*mm))
 
         # Detailed explanation prose
         det_en = _safe(item.get("detailed_explanation_en", "")).strip()
@@ -1094,40 +1202,33 @@ def generate_pdf(
         if det_en and len(det_en) > 30 and det_en != hl_en:
             story.append(Paragraph(f"•  {det_en}", st_body_en))
             if det_hi and len(det_hi) > 20:
-                story.append(hindi_to_image(f"• {det_hi}", width_mm=182, font_size_pt=10.5, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1*mm))
+                story.append(hindi_to_image(f"• {det_hi}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
+            story.append(Spacer(1, 1.2*mm))
 
         # Exam fact takeaway (Satisfies test_pdf_hindi contract: 'परीक्षा तथ्य')
         ef_en = _safe(item.get("exam_fact_en") or m.get("exam_point") or "").strip()
         ef_hi = _strip_html(item.get("exam_fact_hi") or "").strip()
         if ef_en:
-            story.append(mixed_para(f"• Exam Takeaway • परीक्षा तथ्य: {ef_en}", "ef_p", STYLES["headline_en"], fontSize=10, leading=13.5, textColor=COLORS["primary_navy"]))
+            story.append(mixed_para(f"• Exam Takeaway • परीक्षा तथ्य: {ef_en}", "ef_p", STYLES["headline_en"], fontSize=13.5, leading=18, textColor=COLORS["primary_navy"]))
             if ef_hi:
-                story.append(hindi_to_image(f"• परीक्षा तथ्य: {ef_hi}", width_mm=182, font_size_pt=10, bold=False, color="#166534", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1*mm))
-
-        # Clean clickable source link
-        src_url = item.get("source", {}).get("url") or m.get("source_url") or ""
-        src_name = item.get("source", {}).get("name") or "Official Press Release"
-        if src_url:
-            story.append(Paragraph(f'•  <b>Source:</b> <font color="#0284C7"><u>{_safe(src_name)} - {src_url}</u></font>', st_body_en))
-            story.append(Spacer(1, 1*mm))
+                story.append(hindi_to_image(f"• परीक्षा तथ्य: {ef_hi}", width_mm=182, font_size_pt=13, bold=False, color="#166534", bg="white", left_padding_mm=2))
+            story.append(Spacer(1, 1.2*mm))
 
         # Static GK (Satisfies test_pdf_hindi contract: 'स्थैतिक तथ्य')
         static_facts = item.get("static_facts") or {}
         if static_facts:
             story.append(Spacer(1, 1.5*mm))
-            story.append(mixed_para("Static GK & Facts • स्थैतिक तथ्य:", "sgk_h", STYLES["headline_en"], fontSize=10.5, leading=14, textColor=COLORS["primary_navy"]))
+            story.append(mixed_para("Static GK & Facts • स्थैतिक तथ्य:", "sgk_h", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["primary_navy"]))
             story.append(Spacer(1, 1*mm))
             for k, v in list(static_facts.items())[:5]:
                 k_clean = _safe(str(k)).strip()
                 v_clean = _safe(str(v)).strip()
                 story.append(Paragraph(f"•  <b>{k_clean}:</b> {v_clean}", st_body_en))
-                story.append(Spacer(1, 0.8*mm))
+                story.append(Spacer(1, 1*mm))
 
-        story.append(Spacer(1, 3.5*mm))
+        story.append(Spacer(1, 4*mm))
         story.append(HRFlowable(width="100%", thickness=0.4, color=COLORS["border_light"], spaceAfter=3*mm, spaceBefore=1*mm))
-        story.append(CondPageBreak(115*mm))
+        story.append(CondPageBreak(120*mm))
 
     # =========================================================================
     # 4. THEMATIC DEEP DIVES
@@ -1158,12 +1259,12 @@ def generate_pdf(
                 if h_e:
                     story.append(Paragraph(f"•  <b>{h_e}</b>", st_body_en))
                 if h_h:
-                    story.append(hindi_to_image(f"• {h_h}", width_mm=182, font_size_pt=10.5, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
+                    story.append(hindi_to_image(f"• {h_h}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
                 for kp_e, kp_h in zip(it.get("key_points_en", [])[:2], it.get("key_points_hi", [])[:2]):
                     if kp_e:
                         story.append(Paragraph(f"   - {_safe(kp_e)}", st_body_en))
                     if kp_h:
-                        story.append(hindi_to_image(f"   - {_strip_html(kp_h)}", width_mm=182, font_size_pt=10, bold=False, color="#64748B", bg="white", left_padding_mm=5))
+                        story.append(hindi_to_image(f"   - {_strip_html(kp_h)}", width_mm=182, font_size_pt=12, bold=False, color="#64748B", bg="white", left_padding_mm=5))
                 story.append(Spacer(1, 1.5*mm))
 
     # =========================================================================
@@ -1212,13 +1313,13 @@ def generate_pdf(
             story.append(Spacer(1, 1.5*mm))
 
     story.append(CondPageBreak(100*mm))
-    story.append(hindi_to_image("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", width_mm=182, font_size_pt=13, bold=True, color="#0F2B48", align="center"))
-    story.append(Spacer(1, 2*mm))
+    story.append(hindi_to_image("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", width_mm=182, font_size_pt=15, bold=True, color="#0F2B48", align="center"))
+    story.append(Spacer(1, 2.5*mm))
 
     for ol in (one_liners[:10] if one_liners else items[:10]):
         text_hi = ol.get("text_hi") or ol.get("headline_hi") or ""
         if text_hi:
-            story.append(hindi_to_image(f"• {_strip_html(text_hi)}", width_mm=182, font_size_pt=10.5, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
+            story.append(hindi_to_image(f"• {_strip_html(text_hi)}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
             story.append(Spacer(1, 1.5*mm))
 
     # =========================================================================
