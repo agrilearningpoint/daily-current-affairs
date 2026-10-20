@@ -327,9 +327,25 @@
       "data/selected/daily_2026-10-17.json": {
         "stage": "10_final_news_selection",
         "sha256": "b18c7b5c748f4e0aa10ce6ca0fdb4f6ec12fc9a89ee9a71a5393f1634eb25924"
+      },
+      "data/content/daily_2026-10-17.json": {
+        "stage": "12_content_editor",
+        "sha256": "1ffc919f9a658385c2fea54bc5d4e9576090996555041f0a2d7a76943fdeaa0b"
+      },
+      "data/mcq/daily_2026-10-17.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "16b90ac4d1ec7bd284cfb7e1a281b98641b4f862ea82623d946d44303d81cae1"
+      },
+      "output/daily_2026-10-17.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "17ddb2a3171d84169d338fdb78172a2e23420b830638aa6d9a6b6762ed927de2"
+      },
+      "logs/qa/daily_2026-10-17_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "f63d6bd67c6135a8df313d5ccc47ccad698412fef664f7114134a4f6544ce0ef"
       }
     },
-    "run_attempts": 3,
+    "run_attempts": 4,
     "job_id": "daily_2026-10-17",
     "job_type": "daily",
     "job_date": "2026-10-17",
@@ -339,12 +355,12 @@
       "end": "2026-10-16T23:59:59.999999+05:30"
     },
     "github_run_id": "39386554369",
-    "status": "running",
-    "updated_at": "2026-10-20T07:27:19.545274+00:00",
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
-    "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "39212738257"
+    "status": "failed",
+    "updated_at": "2026-10-20T07:28:24.632950+00:00",
+    "last_success_stage": "19_pdf_qa",
+    "checkpoint_run_id": "39386554369",
+    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-20 07:28:20 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-20 07:28:20 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-10-17.pdf\n2026-10-20 07:28:21 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-10-17; manual reconciliation required, refusing resend\n2026-10-20 07:28:21 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
+    "failed_stage": "22_telegram_publisher"
   },
   "daily_2026-10-18": {
     "run_attempts": 6,
