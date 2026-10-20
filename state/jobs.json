@@ -416,47 +416,6 @@
     "failed_stage": "12_content_editor",
     "checkpoint_run_id": "39158383114"
   },
-  "daily_2026-10-19": {
-    "started_at": "2026-10-20T06:45:13.511792+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-10-19.json": {
-        "stage": "01_source_fetch",
-        "sha256": "f0154bba3b5823c38a0cb3af291dff966e1a91c888fd3f7725c800eb69e1d518"
-      },
-      "data/verified/daily_2026-10-19.json": {
-        "stage": "04_fact_verification",
-        "sha256": "2319e6eff5dab3f060b110e99741ca1dc20585d94401622bb7b5e715655b209b"
-      },
-      "data/dedup/daily_2026-10-19.json": {
-        "stage": "05_deduplication",
-        "sha256": "ad430b16a891932e3604bc121ca146cb599039761a9fd9b7229434f4fdb71c03"
-      },
-      "data/scored/daily_2026-10-19.json": {
-        "stage": "06_news_importance",
-        "sha256": "f0b13f27dc30eb3fb275d58c36731693dd2e84ae440d17f032137c43bb50fd05"
-      },
-      "data/selected/daily_2026-10-19.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "d299c9bb7b5ca95096a334250e9307265f5476620415e48ca5c9e4637bacfb58"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-10-19",
-    "job_type": "daily",
-    "job_date": "2026-10-19",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-18T00:00:00+05:30",
-      "end": "2026-10-18T23:59:59.999999+05:30"
-    },
-    "github_run_id": "39384468951",
-    "status": "running",
-    "updated_at": "2026-10-20T07:09:29.305880+00:00",
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): slator] trying provider openrouter\n2026-10-20 06:49:44 | INFO     | pipeline.ai_translator | [Translator] skipping mistral after an earlier rate limit\n2026-10-20 06:49:44 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['openrouter: HTTP 402'])\n2026-10-20 06:49:44 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=16 fallback=0 untranslated=97 (AI success 14.2%)\n2026-10-20 06:49:44 | WARNING  | pipeline.content | [Content Builder] 97 translations need review (AI did not pass)\n2026-10-20 06:49:44 | INFO     | pipeline.content | [Content Builder] Completeness: 5/28 items complete (avg words EN: 45.0, HI: 45.1)\n2026-10-20 06:49:44 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
-    "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "39382163243"
-  },
   "daily_2026-10-20": {
     "run_attempts": 1,
     "job_id": "daily_2026-10-20",
@@ -495,5 +454,64 @@
     },
     "last_success_stage": "11_importance_memory",
     "checkpoint_run_id": "39383428112"
+  },
+  "daily_2026-10-19": {
+    "started_at": "2026-10-20T07:09:32.020650+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-19.json": {
+        "stage": "01_source_fetch",
+        "sha256": "fbf32e42f2b88cb27114a379529a1e76b5fed2f622e1e9e25dd34e992d3b8062"
+      },
+      "data/verified/daily_2026-10-19.json": {
+        "stage": "04_fact_verification",
+        "sha256": "b419fe9bb7587458a352ad36637a3303bb95ead82908026f3d89de57e33d2201"
+      },
+      "data/dedup/daily_2026-10-19.json": {
+        "stage": "05_deduplication",
+        "sha256": "5cbc22f377507b7bcdee01ec116adf31bfa2ad03f69ac235f5234d50cf963375"
+      },
+      "data/scored/daily_2026-10-19.json": {
+        "stage": "06_news_importance",
+        "sha256": "6b7c12c3d9a4fc2468ea89d3a74684ed252b435ae55c5e4a8c55e78d7e1a4f7f"
+      },
+      "data/selected/daily_2026-10-19.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "770b26afbac8d052ed9081f16276c61f30ad94d4f4c23c431eb3b5931a37a73c"
+      },
+      "data/content/daily_2026-10-19.json": {
+        "stage": "12_content_editor",
+        "sha256": "122bad452433e2fb2c31707da560cb6f6ff3d6bacf7fe4548147efe53a5f1785"
+      },
+      "data/mcq/daily_2026-10-19.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "a83a9d904074dd4ea227814be879925d4e9905a2bcfb581efa64c1c7b37967e7"
+      },
+      "output/daily_2026-10-19.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "d85022a0289d1e4809802fca4c2d2caacccd22d51e35f1c84573eefd599757e9"
+      },
+      "logs/qa/daily_2026-10-19_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "58e969e3fc6d93290fa52d933b05bd2c4c8e8ee1ccb85c98718f370d8d7f48e7"
+      },
+      "logs/qa/daily_2026-10-19_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "c01390f78d4b85ff016c2af7f626dcaddb67743a2f18b1a279b087995aa2df05"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-10-19",
+    "job_type": "daily",
+    "job_date": "2026-10-19",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-18T00:00:00+05:30",
+      "end": "2026-10-18T23:59:59.999999+05:30"
+    },
+    "github_run_id": "39384468951",
+    "status": "success",
+    "updated_at": "2026-10-20T07:10:37.417658+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "39384468951"
   }
 }
