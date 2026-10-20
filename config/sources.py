@@ -61,6 +61,7 @@ LEVEL_0_CORE = [
     _source("Department of Fisheries", "https://dof.gov.in", 0, "agriculture_core", rss=_gnews("dof.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Fisheries schemes and blue economy"),
     _source("APEDA", "https://apeda.gov.in", 0, "agriculture_core", rss=_gnews("apeda.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Agricultural exports and market access"),
     _source("Department of Agriculture Research and Education", "https://dare.gov.in", 0, "agriculture_core", rss=_gnews("dare.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Agricultural research and education"),
+    _source("ISRO", "https://www.isro.gov.in", 0, "science_space", rss=_gnews("isro.gov.in", "3d"), fallback=["gnews_site_search", "website_html"], use="Space missions, satellite launches, space science and technology", notes="Primary authority for Indian space program"),
 ]
 
 # LEVEL 1: specialist agriculture, food, climate and allied sectors.
@@ -106,6 +107,13 @@ LEVEL_3_GOVT = [
     _source("President of India", "https://www.presidentofindia.gov.in", 3, "govt_national", rss=_gnews("presidentofindia.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Presidential announcements"),
     _source("Election Commission of India", "https://eci.gov.in", 3, "govt_national", rss=_gnews("eci.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Election-related official announcements"),
     _source("UPSC", "https://upsc.gov.in", 3, "education", rss=_gnews("upsc.gov.in", "7d"), frequency="weekly", fallback=["gnews_site_search", "website_html"], use="Recruitment, examinations and appointments"),
+    _source("Ministry of Youth Affairs and Sports", "https://yas.nic.in", 3, "sports", rss=_gnews("yas.nic.in", "3d"), fallback=["gnews_site_search", "website_html"], use="Sports policy, Khelo India, national awards, federations"),
+    _source("Sports Authority of India", "https://sportsauthorityofindia.nic.in", 3, "sports", rss=_gnews("sportsauthorityofindia.nic.in", "3d"), fallback=["gnews_site_search", "website_html"], use="National sports events, athlete support and sports infrastructure"),
+    _source("Department of Personnel and Training", "https://dopt.gov.in", 3, "appointments_governance", rss=_gnews("dopt.gov.in", "7d"), fallback=["gnews_site_search", "website_html"], use="Key government appointments, ACC orders, civil service policies"),
+    _source("World Bank Group", "https://www.worldbank.org", 3, "international_org", rss=_gnews("worldbank.org India", "7d"), fallback=["gnews_site_search", "website_html"], use="Development finance, economic outlook, poverty and climate reports"),
+    _source("International Monetary Fund", "https://www.imf.org", 3, "international_org", rss=_gnews("imf.org India", "7d"), fallback=["gnews_site_search", "website_html"], use="Global economic projections, World Economic Outlook, financial stability"),
+    _source("United Nations", "https://www.un.org", 3, "international_org", rss=_gnews("news.un.org India", "7d"), fallback=["gnews_site_search", "website_html"], use="SDG goals, UN General Assembly, global treaties and conventions"),
+    _source("World Health Organization", "https://www.who.int", 3, "health", rss="https://www.who.int/rss-feeds/news-english.xml", fallback=["rss", "website_html", "gnews_site_search"], use="Global health guidelines, disease alerts, World Health Summit"),
 ]
 
 # LEVEL 4: editorial sources are useful for discovery, never final factual authority.
@@ -116,6 +124,8 @@ LEVEL_4_DISCOVERY = [
     _source("Business Standard", "https://www.business-standard.com", 4, "discovery", rss="https://www.business-standard.com/rss/latest.rss", priority=75, verification_required=False, fallback=["rss"], use="Economy and business discovery"),
     _source("Mint", "https://www.livemint.com", 4, "discovery", rss="https://www.livemint.com/rss/news", priority=75, verification_required=False, fallback=["rss"], use="Finance and economy discovery"),
     _source("Economic Times", "https://economictimes.indiatimes.com", 4, "discovery", rss="https://economictimes.indiatimes.com/rssfeedsdefault.cms", priority=75, verification_required=False, fallback=["rss"], use="Business and economy discovery"),
+    _source("DD News", "https://ddnews.gov.in", 4, "discovery", rss=_gnews("ddnews.gov.in", "2d"), priority=75, verification_required=False, fallback=["gnews_site_search"], use="Daily national, international, sports and awards discovery"),
+    _source("All India Radio News", "https://newsonair.gov.in", 4, "discovery", rss=_gnews("newsonair.gov.in", "2d"), priority=75, verification_required=False, fallback=["gnews_site_search"], use="Public broadcaster daily news, speeches, sports wrap-ups"),
 ]
 
 # LEVEL 5: aggregator feeds are opt-in in collector.py; use only for discovery.

@@ -86,6 +86,11 @@ GOOGLE_NEWS_SITES = {
     "iea.org": "tier1",
     "isro.gov.in": "tier1",
     "who.int": "tier1",
+    "yas.nic.in": "tier1",
+    "sportsauthorityofindia.nic.in": "tier1",
+    "dopt.gov.in": "tier1",
+    "ddnews.gov.in": "tier2",
+    "newsonair.gov.in": "tier2",
     # Editorial discovery only; never treat as primary verification
     "reuters.com": "tier2",
     "thehindu.com": "tier2",
