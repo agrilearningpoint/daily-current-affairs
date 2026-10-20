@@ -516,23 +516,11 @@
       },
       "data/content/daily_2026-10-20.json": {
         "stage": "12_content_editor",
-        "sha256": "270984f052a9b70f1832b61a048358f87037e90201c2d9db9fa49b3a9875b548"
+        "sha256": "9e797e4a7d139980fc4cdda9a55b5796570a86bfc290f191a7c60f65181c287d"
       },
       "data/mcq/daily_2026-10-20.json": {
         "stage": "16_mcq_generator",
-        "sha256": "d8c849b58a78705e5bfee7b275a9b709d8c514122bd2725caf984c48467d1421"
-      },
-      "output/daily_2026-10-20.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "00f49910a118612a82c60e323cf11c8b49e46ff225cb090b44eb845a3c334571"
-      },
-      "logs/qa/daily_2026-10-20_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "38a545597094c8ba3e9258632645c125031e0cf3e5772d2b2614b734753acad7"
-      },
-      "logs/qa/daily_2026-10-20_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "25ce1de074e168ce3c93e4e96450770d360eff3ea2939f7be176f79624c0c2c4"
+        "sha256": "026efcf3962fc80ace589c349b01886288271cb1440bd77942a61a0648b6c390"
       }
     },
     "run_attempts": 6,
@@ -545,9 +533,9 @@
       "end": "2026-10-20T16:48:14.158829+05:30"
     },
     "github_run_id": "39437815037",
-    "status": "success",
+    "status": "running",
     "updated_at": "2026-10-20T14:17:57.134618+00:00",
-    "last_success_stage": "24_final_health_audit",
+    "last_success_stage": "17_mcq_validator",
     "checkpoint_run_id": "39437815037"
   }
 }
