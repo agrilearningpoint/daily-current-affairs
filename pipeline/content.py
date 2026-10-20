@@ -40,6 +40,8 @@ Env switches (all optional)
   ALP_TRANSLATION_STRICT=1        -> no deterministic Hindi fallback
   ALP_MEMORY_PATH=<file.json>     -> override importance-memory location
 """
+from __future__ import annotations
+from typing import Any, Dict, List, Optional, Tuple
 import hashlib
 import json
 import logging
