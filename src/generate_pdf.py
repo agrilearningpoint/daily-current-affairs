@@ -24,6 +24,7 @@ import html
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from difflib import SequenceMatcher
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm, cm
@@ -239,6 +240,114 @@ def _safe(text: Any) -> str:
     s = s.replace("\u00a0", " ")
     s = sanitize_glyphs(s)
     return s
+
+
+def _clean_text_for_display(t: Any) -> str:
+    """Clean unwanted prefixes, 'Watch:', 'Topic: >>', '>>', '&gt;&gt;' and normalise whitespace."""
+    if not t:
+        return ""
+    s = _strip_html(str(t)).strip()
+    s = re.sub(r'^(Topic\s*:\s*)?[&gt;>\s]+', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'^Watch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'\bWatch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'&gt;&gt;|&gt;|>>|>', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _is_broken_dictionary_hindi(hi_text: str) -> bool:
+    """Detect broken dictionary fallback translations that mix English grammatical words into Hindi."""
+    if not hi_text or not DEVANAGARI_RE.search(hi_text):
+        return True
+    bad_indicators = [
+        "’s ", "'s ", "comes into force", "takes effect", "gives ", "zero-duty",
+        "visa categories", "temporary रोज़गार", "recruitment", "for indian", "for भारतीय",
+        "record करें", "रिकॉर्ड करें", "source event:", "name + designation", "teen-cheez",
+        "prelims में पूछा जाता है", "direct fact:", "rule:", "याद रखें।"
+    ]
+    hi_lower = hi_text.lower()
+    for bad in bad_indicators:
+        if bad.lower() in hi_lower:
+            return True
+    words = hi_text.split()
+    if not words:
+        return True
+    ascii_words = [w for w in words if re.fullmatch(r"[A-Za-z0-9\-–,.;:'\"()]+", w)]
+    if len(words) >= 4 and (len(ascii_words) / len(words)) > 0.45:
+        return True
+    return False
+
+
+def _get_clean_explanation_pairs(item: Dict[str, Any], mcq: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Build clean, deduplicated, boilerplate-free bilingual explanation points."""
+    seen_texts: List[str] = []
+    pairs: List[Tuple[str, str]] = []
+
+    def is_dup(t: str) -> bool:
+        norm = re.sub(r'\W+', '', t.lower())
+        if len(norm) < 15:
+            return True
+        for prev in seen_texts:
+            p_norm = re.sub(r'\W+', '', prev.lower())
+            if norm in p_norm or p_norm in norm:
+                return True
+            if SequenceMatcher(None, norm, p_norm).ratio() > 0.65:
+                return True
+        return False
+
+    def is_boilerplate(t: str) -> bool:
+        bad_phrases = [
+            "name + designation", "tenure", "रिकॉर्ड करें", "source event:", "teen-cheez",
+            "prelims में पूछा", "prelims statement-based", "direct fact:", "rule:", "याद रखें",
+            "appears verbatim in the verified", "source text pairs this event"
+        ]
+        low = t.lower()
+        return any(bp in low for bp in bad_phrases)
+
+    headline_en = _clean_text_for_display(item.get("headline_en", ""))
+
+    # 1. Headline summary (if substantive and distinct)
+    hl_clean = headline_en
+    if hl_clean and len(hl_clean) > 25 and not is_dup(hl_clean) and not is_boilerplate(hl_clean):
+        hi_candidate = _clean_text_for_display(item.get("headline_hi", ""))
+        clean_hi = "" if _is_broken_dictionary_hindi(hi_candidate) else hi_candidate
+        seen_texts.append(hl_clean)
+        pairs.append((hl_clean, clean_hi))
+
+    # 2. Key Points
+    kp_ens = item.get("key_points_en") or []
+    kp_his = item.get("key_points_hi") or []
+    for idx_kp, kpe in enumerate(kp_ens):
+        c_kpe = _clean_text_for_display(kpe)
+        if not c_kpe or len(c_kpe) < 20 or is_dup(c_kpe) or is_boilerplate(c_kpe):
+            continue
+        c_khi = ""
+        if idx_kp < len(kp_his):
+            cand_hi = _clean_text_for_display(kp_his[idx_kp])
+            if not _is_broken_dictionary_hindi(cand_hi):
+                c_khi = cand_hi
+        seen_texts.append(c_kpe)
+        pairs.append((c_kpe, c_khi))
+        if len(pairs) >= 3:
+            break
+
+    # 3. Detailed Explanation (if distinct)
+    det_en = _clean_text_for_display(item.get("detailed_explanation_en", ""))
+    if det_en and len(det_en) > 30 and not is_dup(det_en) and not is_boilerplate(det_en):
+        det_hi_c = _clean_text_for_display(item.get("detailed_explanation_hi", ""))
+        clean_det_hi = "" if _is_broken_dictionary_hindi(det_hi_c) else det_hi_c
+        seen_texts.append(det_en)
+        pairs.append((det_en, clean_det_hi))
+
+    # 4. MCQ specific explanation if we need more context
+    if len(pairs) < 2:
+        m_expl_en = _clean_text_for_display(mcq.get("explanation_en", ""))
+        if m_expl_en and len(m_expl_en) > 20 and not is_dup(m_expl_en) and not is_boilerplate(m_expl_en):
+            m_expl_hi = _clean_text_for_display(mcq.get("explanation_hi", ""))
+            clean_m_hi = "" if _is_broken_dictionary_hindi(m_expl_hi) else m_expl_hi
+            seen_texts.append(m_expl_en)
+            pairs.append((m_expl_en, clean_m_hi))
+
+    return pairs[:4]
 
 
 def _strip_html(text: Any) -> str:
@@ -635,10 +744,10 @@ def get_or_create_news_image(item: Dict[str, Any], idx: int) -> Optional[Flowabl
             draw.rounded_rectangle([40, 24, 440, 74], radius=8, fill=cat_col)
             draw.text((55, 32), cat_label[:26].upper(), font=f_cat, fill=(255, 255, 255, 255))
 
-            # Top Right Exam Badge
-            f_badge = ImageFont.truetype(pop_bold_p, 22)
-            draw.rounded_rectangle([w - 340, 24, w - 40, 74], radius=8, fill=(240, 253, 244, 255), outline=(134, 239, 172, 255), width=2)
-            draw.text((w - 315, 35), "★ HIGH-YIELD TOPIC", font=f_badge, fill=(22, 101, 52, 255))
+            # Top Right Category Tag (Clean, No Promo Text)
+            f_badge = ImageFont.truetype(pop_bold_p, 20)
+            draw.rounded_rectangle([w - 280, 24, w - 40, 74], radius=8, fill=(241, 245, 249, 255), outline=(203, 213, 225, 255), width=2)
+            draw.text((w - 250, 36), "EXAM FOCUS", font=f_badge, fill=(71, 85, 105, 255))
 
             # English Headline (Wrapped)
             f_title = ImageFont.truetype(pop_bold_p, 32)
@@ -755,17 +864,7 @@ def header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
     canvas_obj.drawString(tg2_x, c_y, tg2_str)
     canvas_obj.linkURL("https://t.me/agriquizworld", (tg2_x, c_y - 2, tg2_x + tg2_w, c_y + 9), relative=0)
 
-    # Subtle Watermark
-    try:
-        wm_path = os.path.join(BASE_DIR, "assets", "logo.png")
-        if os.path.exists(wm_path):
-            canvas_obj.saveState()
-            canvas_obj.setFillAlpha(0.035)
-            wm_size = 110 * mm
-            canvas_obj.drawImage(wm_path, (PAGE_W - wm_size)/2, (PAGE_H - wm_size)/2, width=wm_size, height=wm_size, preserveAspectRatio=True, mask="auto")
-            canvas_obj.restoreState()
-    except Exception:
-        pass
+    # No background watermark to keep mobile reading clean and crisp
 
     canvas_obj.restoreState()
 
@@ -924,11 +1023,14 @@ def generate_pdf(
 
     # Target typography: enlarged, high-visibility mobile-first point sizes
     styles = getSampleStyleSheet()
-    st_q_en = ParagraphStyle("BQEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=16, leading=21, textColor=HexColor("#0F2B48"), spaceBefore=4, spaceAfter=2.5)
-    st_opt = ParagraphStyle("BOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=13.5, leading=19, textColor=HexColor("#1E293B"), leftIndent=6, spaceAfter=2.5)
-    st_body_en = ParagraphStyle("BBodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=13, leading=18.5, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=2.5)
-    st_deep_dive_h = ParagraphStyle("BDeepH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=19.5, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
-    st_oneliner_h = ParagraphStyle("BOneH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=19.5, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
+    # +2pt Font Increase for mobile legibility across all sections
+    st_q_en = ParagraphStyle("BQEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=18, leading=24, textColor=HexColor("#0F2B48"), spaceBefore=4, spaceAfter=2.5)
+    st_opt = ParagraphStyle("BOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=15.5, leading=21, textColor=HexColor("#1E293B"), leftIndent=6, spaceAfter=2.5)
+    st_body_en = ParagraphStyle("BBodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=15, leading=21, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=2.5)
+    st_point_blue = ParagraphStyle("BPointBlue", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=15, leading=21, textColor=HexColor("#0369A1"), leftIndent=4, spaceAfter=2)
+    st_point_black = ParagraphStyle("BPointBlack", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=15, leading=21, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=2)
+    st_deep_dive_h = ParagraphStyle("BDeepH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=17, leading=22, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
+    st_oneliner_h = ParagraphStyle("BOneH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=17, leading=22, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=4, spaceAfter=3)
 
     doc = SimpleDocTemplate(
         output_path,
@@ -961,7 +1063,7 @@ def generate_pdf(
 
     story.append(Paragraph("AGRI LEARNING POINT", ParagraphStyle("cp_t1", fontName=FONT_BOLD, fontSize=24, leading=28, textColor=HexColor("#0F2B48"), alignment=TA_CENTER)))
     story.append(Spacer(1, 1*mm))
-    story.append(Paragraph(f"{label.upper()} • दैनिक समसामयिकी", ParagraphStyle("cp_t2", fontName=FONT_SEMI, fontSize=12.5, leading=16, textColor=HexColor("#166534"), alignment=TA_CENTER)))
+    story.append(Paragraph(label.upper(), ParagraphStyle("cp_t2", fontName=FONT_SEMI, fontSize=14, leading=18, textColor=HexColor("#166534"), alignment=TA_CENTER)))
     story.append(Spacer(1, 1*mm))
     story.append(Paragraph(f"Bilingual Study Edition  •  {date_str}", ParagraphStyle("cp_t3", fontName=FONT_REGULAR, fontSize=9.5, leading=13, textColor=HexColor("#64748B"), alignment=TA_CENTER)))
     story.append(Spacer(1, 3*mm))
@@ -1085,9 +1187,9 @@ def generate_pdf(
                 ParagraphStyle("gr_body", fontName=FONT_REGULAR, fontSize=8, leading=11, textColor=COLORS["body_text"])
             ),
             Paragraph(
-                "<b>1. Daily Reading:</b> Master bilingual paired pointers.<br/>"
-                "<b>2. Memorization:</b> Drill key data points &amp; static GK.<br/>"
-                f"<b>3. MCQ Solving:</b> Practice all {len(mcqs)} exam-standard questions.<br/>"
+                "<b>1. Daily Reading:</b> Master bilingual paired pointers (मुख्य बिंदु).<br/>"
+                "<b>2. Memorization:</b> Drill key data points (स्थैतिक तथ्य) &amp; exam takeaways (परीक्षा तथ्य).<br/>"
+                f"<b>3. MCQ Solving:</b> Practice all {len(mcqs)} exam-standard questions (बहुविकल्पीय अभ्यास प्रश्न).<br/>"
                 "<b>4. Telegram Live Quiz:</b> Test speed at 9:00 PM on @agriquizworld.",
                 ParagraphStyle("gr_steps", fontName=FONT_REGULAR, fontSize=8, leading=11, textColor=COLORS["dark_text"])
             )
@@ -1111,7 +1213,7 @@ def generate_pdf(
     # =========================================================================
     # 3. PRACTICE MCQs SECTION BANNER
     # =========================================================================
-    story.append(mixed_para("PRACTICE MCQs • बहुविकल्पीय अभ्यास प्रश्न", "mcq_sec_h", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["primary_navy"]))
+    story.append(Paragraph("<b>PRACTICE MCQs</b>", ParagraphStyle("mcq_sec_h", fontName=FONT_BOLD, fontSize=16, leading=20, textColor=HexColor("#0F2B48"), spaceBefore=4, spaceAfter=3)))
     story.append(Spacer(1, 2.5*mm))
 
     # =========================================================================
@@ -1126,36 +1228,31 @@ def generate_pdf(
         if not item:
             item = items[(m_idx - 1) % len(items)] if items else {}
 
-        clean_q_en = _strip_html(m.get("question_en", "")).lstrip("> ")
-        clean_q_hi = _strip_html(m.get("question_hi", "")).lstrip("> ")
+        clean_q_en = _clean_text_for_display(m.get("question_en", ""))
+        clean_q_hi = _clean_text_for_display(m.get("question_hi", ""))
 
-        q_header_en = f"Q{q_num}. Ques : {clean_q_en}"
+        # 1. Clean Question Header (Strictly 'Question {q_num}:' - NO 'Q1. Ques :')
+        q_header_en = f"Q{q_num}. Question: {clean_q_en}"
         q_header_hi = f"प्रश्न {q_num}: {clean_q_hi}"
 
         story.append(Paragraph(f"<b>{q_header_en}</b>", st_q_en))
         if clean_q_hi:
-            story.append(hindi_to_image(q_header_hi, width_mm=182, font_size_pt=15.5, bold=True, color="#0F2B48", bg="white"))
+            story.append(hindi_to_image(q_header_hi, width_mm=182, font_size_pt=17.5, bold=True, color="#0F2B48", bg="white"))
         story.append(Spacer(1, 2.5*mm))
 
-        # Important News Editorial Infographic Image
-        info_img = get_or_create_news_image(item, m_idx)
-        if info_img:
-            story.append(info_img)
-            story.append(Spacer(1, 3*mm))
-
-        # Options (A, B, C, D, E)
+        # 2. Options (A, B, C, D, E) with +2pt font
         opts = m.get("options", [])
         for o_idx, opt in enumerate(opts):
             lbl = chr(65 + o_idx)
-            clean_opt = _safe(str(opt)).strip()
+            clean_opt = _clean_text_for_display(str(opt))
             story.append(Paragraph(f"<b>({lbl})</b>  {clean_opt}", st_opt))
         story.append(Spacer(1, 2.5*mm))
 
-        # Correct Answer Box (Clean, Understated Mint Badge)
+        # 3. Correct Answer Box (Clean, Understated Mint Badge with +2pt font)
         correct_ans = str(m.get("correct", "A")).upper().strip()
         ans_idx = ord(correct_ans) - 65 if len(correct_ans) == 1 and "A" <= correct_ans <= "Z" else 0
-        ans_text = _safe(str(opts[ans_idx])) if 0 <= ans_idx < len(opts) else f"Option {correct_ans}"
-        ans_box_data = [[Paragraph(f"<b>✔  Correct Answer: ({correct_ans}) {ans_text}</b>", ParagraphStyle("ans_p", fontName=FONT_SEMI, fontSize=13.5, leading=18, textColor=COLORS["primary_green"]))]]
+        ans_text = _clean_text_for_display(str(opts[ans_idx])) if 0 <= ans_idx < len(opts) else f"Option {correct_ans}"
+        ans_box_data = [[Paragraph(f"<b>✔  Correct Answer: ({correct_ans}) {ans_text}</b>", ParagraphStyle("ans_p", fontName=FONT_SEMI, fontSize=15.5, leading=21, textColor=COLORS["primary_green"]))]]
         t_ans = Table(ans_box_data, colWidths=[PAGE_W - 28*mm])
         t_ans.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green"]),
@@ -1169,60 +1266,36 @@ def generate_pdf(
         story.append(t_ans)
         story.append(Spacer(1, 3*mm))
 
-        # Explanation Section
-        story.append(mixed_para("Detailed Explanation • विस्तृत व्याख्या:", "exp_h", STYLES["headline_en"], fontSize=14.5, leading=19, textColor=COLORS["primary_navy"]))
-        story.append(Spacer(1, 1.2*mm))
+        # 4. Explanation Section Header (Strictly English 'Explanation :' - NO Hindi subtitle)
+        story.append(Paragraph("<b>Explanation :</b>", ParagraphStyle("exp_h", fontName=FONT_BOLD, fontSize=16.5, leading=22, textColor=HexColor("#0F2B48"), spaceBefore=3, spaceAfter=2)))
+        story.append(Spacer(1, 1*mm))
 
-        hl_en = _safe(item.get("headline_en", "")).lstrip("> ")
-        hl_hi = _strip_html(item.get("headline_hi", "")).lstrip("> ")
-        if hl_en:
-            story.append(Paragraph(f"•  <b>Topic:</b> {hl_en}", st_body_en))
-            if hl_hi:
-                story.append(hindi_to_image(f"• विषय: {hl_hi}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1.2*mm))
+        # 5. Clean, Deduplicated Explanation Points with Alternating Blue & Black Bullets
+        pairs = _get_clean_explanation_pairs(item, m)
+        bullet_colors = ["#0369A1", "#1E293B"]  # Point 1: Blue, Point 2: Black, Point 3: Blue, Point 4: Black
 
-        # Key points (Satisfies test_pdf_hindi contract: 'मुख्य बिंदु')
-        kp_en_list = item.get("key_points_en") or []
-        kp_hi_list = item.get("key_points_hi") or []
-        if kp_en_list:
-            story.append(mixed_para("Key Points • मुख्य बिंदु:", "kph_sub", STYLES["headline_en"], fontSize=14, leading=18.5, textColor=COLORS["primary_navy"]))
-            story.append(Spacer(1, 1*mm))
-            for kp_e, kp_h in zip(kp_en_list[:3], kp_hi_list[:3]):
-                c_e = _safe(kp_e).strip()
-                c_h = _strip_html(kp_h).strip()
-                if c_e:
-                    story.append(Paragraph(f"•  {c_e}", st_body_en))
-                if c_h:
-                    story.append(hindi_to_image(f"• {c_h}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-                story.append(Spacer(1, 1.2*mm))
+        for p_idx, (en_pt, hi_pt) in enumerate(pairs):
+            col_hex = bullet_colors[p_idx % len(bullet_colors)]
+            p_style = st_point_blue if col_hex == "#0369A1" else st_point_black
 
-        # Detailed explanation prose
-        det_en = _safe(item.get("detailed_explanation_en", "")).strip()
-        det_hi = _strip_html(item.get("detailed_explanation_hi", "")).strip()
-        if det_en and len(det_en) > 30 and det_en != hl_en:
-            story.append(Paragraph(f"•  {det_en}", st_body_en))
-            if det_hi and len(det_hi) > 20:
-                story.append(hindi_to_image(f"• {det_hi}", width_mm=182, font_size_pt=13, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1.2*mm))
+            # English point
+            story.append(Paragraph(f"•  {en_pt}", p_style))
 
-        # Exam fact takeaway (Satisfies test_pdf_hindi contract: 'परीक्षा तथ्य')
-        ef_en = _safe(item.get("exam_fact_en") or m.get("exam_point") or "").strip()
-        ef_hi = _strip_html(item.get("exam_fact_hi") or "").strip()
-        if ef_en:
-            story.append(mixed_para(f"• Exam Takeaway • परीक्षा तथ्य: {ef_en}", "ef_p", STYLES["headline_en"], fontSize=13.5, leading=18, textColor=COLORS["primary_navy"]))
-            if ef_hi:
-                story.append(hindi_to_image(f"• परीक्षा तथ्य: {ef_hi}", width_mm=182, font_size_pt=13, bold=False, color="#166534", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1.2*mm))
+            # Hindi translation (if clean and natural Devanagari)
+            if hi_pt:
+                story.append(hindi_to_image(f"• {hi_pt}", width_mm=182, font_size_pt=15, bold=False, color=col_hex, bg="white", left_padding_mm=2))
 
-        # Static GK (Satisfies test_pdf_hindi contract: 'स्थैतिक तथ्य')
+            story.append(Spacer(1, 1.5*mm))
+
+        # 6. Static GK (Satisfies test_pdf_hindi contract: 'स्थैतिक तथ्य')
         static_facts = item.get("static_facts") or {}
         if static_facts:
             story.append(Spacer(1, 1.5*mm))
-            story.append(mixed_para("Static GK & Facts • स्थैतिक तथ्य:", "sgk_h", STYLES["headline_en"], fontSize=14, leading=18, textColor=COLORS["primary_navy"]))
+            story.append(mixed_para("Static GK & Facts • स्थैतिक तथ्य:", "sgk_h", STYLES["headline_en"], fontSize=16, leading=21, textColor=COLORS["primary_navy"]))
             story.append(Spacer(1, 1*mm))
             for k, v in list(static_facts.items())[:5]:
-                k_clean = _safe(str(k)).strip()
-                v_clean = _safe(str(v)).strip()
+                k_clean = _clean_text_for_display(str(k))
+                v_clean = _clean_text_for_display(str(v))
                 story.append(Paragraph(f"•  <b>{k_clean}:</b> {v_clean}", st_body_en))
                 story.append(Spacer(1, 1*mm))
 

@@ -161,19 +161,17 @@ _DICT_PATTERNS = [(re.compile(r"\b" + re.escape(k) + r"\b", re.I), v)
                   for k, v in sorted(MINI_DICT.items(), key=lambda kv: -len(kv[0]))]
 
 EXAM_HINTS = {
-    "Agriculture": "AGTA/AFO/ICAR focus -- scheme/organism details & Ministry come under Static GK.",
-    "Banking & Finance": "IBPS/NABARD/Grade-A focus -- regulator, rate/limit numbers \u092f\u093e\u0926 \u0930\u0916\u0947\u0902\u0964",
-    "Economy": "Economic Survey/GDP/CPI type data -- prelims matching favourite.",
-    "Government Schemes": "Scheme name-ministry-outlay-target teen-cheez \u092e\u0947\u0902 \u092f\u093e\u0926 \u0915\u0930\u0947\u0902 (prelims statement-based).",
-    "International": "Index/Ranking/report -- organising body + headquarters prelims \u092e\u0947\u0902 \u092a\u0942\u091b\u093e \u091c\u093e\u0924\u093e \u0939\u0948\u0964",
-    "Science & Technology": "ISRO/DRDO mission details -- agency + location prelims favourite.",
-    "Environment": "COP/biodiversity/climate reports -- convention & host country note \u0915\u0930\u0947\u0902\u0964",
-    "Sports": "Tournament-winner-host triplet static GK \u092e\u0947\u0902 \u092c\u093e\u0930-\u092c\u093e\u0930 \u0906\u0924\u093e \u0939\u0948\u0964",
-    "National": "Appointments/awards -- name + designation + tenure \u0930\u093f\u0915\u0949\u0930\u094d\u0921 \u0915\u0930\u0947\u0902\u0964",
+    "Agriculture": "Key crop statistics, ICAR cultivars, MSP notifications, and central agricultural schemes.",
+    "Banking & Finance": "Regulator guidelines, Priority Sector Lending (PSL) quotas, and RBI monetary policy reviews.",
+    "Economy": "Macroeconomic indicators, GDP estimates, CPI inflation figures, and economic survey metrics.",
+    "Government Schemes": "Implementing ministries, financial outlays, target demographics, and flagship objectives.",
+    "International": "Multilateral summits, bilateral trade agreements, global indices, and headquarters.",
+    "Science & Technology": "Defence procurements, aerospace missions, ISRO/DRDO breakthroughs, and scientific innovations.",
+    "Environment": "Ecological conservation treaties, biodiversity targets, COP agreements, and Ramsar sites.",
+    "Sports": "National and international sports championships, major honors, records, and host venues.",
+    "National": "Key statutory bodies, constitutional appointments, national policies, and governance initiatives.",
 }
-EXAM_HINT_DEFAULT = ("Exam angle: source ministry/organisation \u0914\u0930 "
-                     "\u0938\u0902\u0916\u094d\u092f\u093e\u0924\u094d\u092e\u0915 \u0924\u0925\u094d\u092f "
-                     "\u0926\u094b\u0939\u0930\u093e\u090f\u0902\u0964")
+EXAM_HINT_DEFAULT = "Key entities, regulatory authorities, and factual metrics for competitive examinations."
 
 # Hindi question parts (English questions are written in English only)
 HI_Q_NUMBER = ("\u0907\u0938\u0938\u0947 \u091c\u0941\u0921\u093c\u0940 \u0938\u0939\u0940 "
@@ -223,8 +221,12 @@ def _norm_ws(text):
 
 
 def _plain_headline(text):
-    """Remove the '>> ' display prefix and normalise whitespace."""
-    return re.sub(r"^[>\s]+", "", _norm_ws(text))
+    """Remove display prefixes, '>>', 'Watch:' and normalise whitespace."""
+    t = _norm_ws(text)
+    t = re.sub(r'^(Topic\s*:\s*)?[&gt;>\s]+', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'^Watch\s*[-:]*\s*', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'&gt;&gt;|&gt;|>>|>', '', t)
+    return t.strip()
 
 
 def _clip(text, limit):
@@ -392,8 +394,7 @@ def extract_static_facts(item):
 
 def exam_fact(item):
     item = item or {}
-    hint = EXAM_HINTS.get(item.get("category", ""), EXAM_HINT_DEFAULT)
-    return hint + ' Source event: "' + _clip(_plain_headline(item.get("headline_en")), 80) + '".'
+    return EXAM_HINTS.get(item.get("category", ""), EXAM_HINT_DEFAULT)
 
 
 # --------------------------------------------------------------------------- #
