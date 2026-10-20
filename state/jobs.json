@@ -521,9 +521,21 @@
       "data/mcq/daily_2026-10-20.json": {
         "stage": "16_mcq_generator",
         "sha256": "d8c849b58a78705e5bfee7b275a9b709d8c514122bd2725caf984c48467d1421"
+      },
+      "output/daily_2026-10-20.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "febe57a9aa144937bcf6aca56308dcfb7434c1cd747b10927f84508f3befc45a"
+      },
+      "logs/qa/daily_2026-10-20_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "21d8d35e94882c85d212e07ac3bd6e99342751725bd1470d10564a279cb21139"
+      },
+      "logs/qa/daily_2026-10-20_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "18148af4714e78918529a6a04e05411302b8da6ffe95c151a71a684012272de5"
       }
     },
-    "run_attempts": 3,
+    "run_attempts": 4,
     "job_id": "daily_2026-10-20",
     "job_type": "daily",
     "job_date": "2026-10-20",
@@ -533,9 +545,9 @@
       "end": "2026-10-20T16:48:14.158829+05:30"
     },
     "github_run_id": "39424599079",
-    "status": "running",
-    "updated_at": "2026-10-20T12:44:48.186103+00:00",
-    "last_success_stage": "16_mcq_generator",
-    "checkpoint_run_id": "39422534865"
+    "status": "success",
+    "updated_at": "2026-10-20T12:45:08.537487+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "39424599079"
   }
 }
