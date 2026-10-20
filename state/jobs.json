@@ -492,47 +492,43 @@
     "checkpoint_run_id": "39384468951"
   },
   "daily_2026-10-20": {
-    "started_at": "2026-10-20T10:13:59.279303+00:00",
+    "started_at": "2026-10-20T11:18:14.159468+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-20.json": {
         "stage": "01_source_fetch",
-        "sha256": "d4049d44a3cfdf7724996ccfa5d80dfc42d2a8a6d99bc35635ac1b7cb94cb163"
+        "sha256": "75aa4ba504e9bf51352e27b212c791bc0da770cee6130cd42f4ab4943330a624"
       },
       "data/verified/daily_2026-10-20.json": {
         "stage": "04_fact_verification",
-        "sha256": "ad6b9b04d9a3f3cb77a490e4a976a71438c0606e0a709f24609aa808bb973a0a"
+        "sha256": "5616b9ca9af91df4cb37a80af88ce781e368e7c54a4a7f7bfcb99cb1590352d1"
       },
       "data/dedup/daily_2026-10-20.json": {
         "stage": "05_deduplication",
-        "sha256": "5c48d27b2900f48e5e8287b90b96702e130a3cdd7fc806ac985584286a30cc38"
+        "sha256": "80bd141839e4f79483c9ecf75704ad42688215d3f4a42dfc3c67b9fcab0330a6"
       },
       "data/scored/daily_2026-10-20.json": {
         "stage": "06_news_importance",
-        "sha256": "8d6654f5038dab1bdeda0b62442614e8fdd544d4941e09ef84c3117f78eba9e9"
+        "sha256": "a29caa7ba7c0c378b50b07fd67546d3e4b809c1076d6d20eca2999fc1c007fcd"
       },
       "data/selected/daily_2026-10-20.json": {
         "stage": "10_final_news_selection",
-        "sha256": "ce87a8d11ae30b0a4c59a0a03ef3767abc0a790adaaf81db21559c6ef49cfac0"
+        "sha256": "2bd50c70ddbcafbfdfed7fbb08805fce583a8245185d8e3838e964f2907eaa44"
       },
       "data/content/daily_2026-10-20.json": {
         "stage": "12_content_editor",
-        "sha256": "e3971eb5d018b0ea10daba180cb7fd1e32270e7f567d9b9491c36b55269f1cde"
+        "sha256": "270984f052a9b70f1832b61a048358f87037e90201c2d9db9fa49b3a9875b548"
       },
       "data/mcq/daily_2026-10-20.json": {
         "stage": "16_mcq_generator",
-        "sha256": "0899b2d6ab20eb6f09ee00bb944eeb78caf6d78b1021a9142ca009ef5743375d"
+        "sha256": "d8c849b58a78705e5bfee7b275a9b709d8c514122bd2725caf984c48467d1421"
       },
       "output/daily_2026-10-20.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "011254666465d7269ceea860f9daf093ece1205db8a3df6c4e40cbc0adec3e13"
+        "sha256": "7427b153e7cb907b0f055803146d6eaefe9c74566f09d9a11d7258f2a95e6027"
       },
       "logs/qa/daily_2026-10-20_qa.json": {
         "stage": "19_pdf_qa",
-        "sha256": "e05e9812b997b38d7e01fc92c49f525f3fcdacf5491b6b41a74c07ca7adfd71a"
-      },
-      "logs/qa/daily_2026-10-20_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "3362dee12a8f9920561b7deb5b2bc226b59cdd96c2af1c7c206cef1d92b465f5"
+        "sha256": "59ff6c37c7d26332d1e2497a9214c0b3bd615cad1ed16e735d6d0b17a8fe47aa"
       }
     },
     "run_attempts": 1,
@@ -542,12 +538,14 @@
     "dry_run": false,
     "window": {
       "start": "2026-10-19T00:00:00+05:30",
-      "end": "2026-10-20T15:43:59.278850+05:30"
+      "end": "2026-10-20T16:48:14.158829+05:30"
     },
-    "github_run_id": "39406385643",
-    "status": "success",
-    "updated_at": "2026-10-20T10:18:09.710009+00:00",
-    "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "39406385643"
+    "github_run_id": "39413868846",
+    "status": "failed",
+    "updated_at": "2026-10-20T11:22:39.150191+00:00",
+    "last_success_stage": "19_pdf_qa",
+    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-20 11:22:34 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-20 11:22:34 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-10-20.pdf\n2026-10-20 11:22:34 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-10-20; manual reconciliation required, refusing resend\n2026-10-20 11:22:34 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
+    "failed_stage": "22_telegram_publisher",
+    "checkpoint_run_id": "39413868846"
   }
 }
