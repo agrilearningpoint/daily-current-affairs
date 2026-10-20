@@ -50,6 +50,13 @@ RAW_DIR = ROOT / "data" / "raw"
 # Job context (date/backfill correctness)
 # --------------------------------------------------------------------------
 
+# Regex to detect raw document filenames (e.g. 459-1.pdf - CPCB) that must never become news headlines
+RAW_FILE_RE = re.compile(
+    r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)",
+    re.IGNORECASE,
+)
+
+
 def job_context() -> Tuple[str, str, datetime]:
     """Return (job_id, job_date_iso, window_end_utc).
 
@@ -225,8 +232,8 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         if not title or not link.lower().startswith(("http://", "https://")):
             malformed += 1
             continue  # validated at collection boundary; logged via counter
-        # Discard fragments or junk headlines (e.g. Drupal 'estic', single words, < 15 chars)
-        if len(title) < 15 or len(title.split()) < 3:
+        # Discard fragments, junk headlines, or raw file attachments (e.g. 459-1.pdf - CPCB)
+        if len(title) < 15 or len(title.split()) < 3 or RAW_FILE_RE.search(title):
             malformed += 1
             continue
         published = _parse_entry_time(entry)

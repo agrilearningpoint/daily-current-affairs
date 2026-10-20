@@ -56,6 +56,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # --------------------------------------------------------------------------- #
 HEADLINE_PREFIX = ">> "
+RAW_FILE_RE = re.compile(r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)", re.IGNORECASE)
 MIN_OPTIONS = 4              # standard exam MCQ = 4 options (A-D); 5 allowed
 MAX_OPTIONS = 5
 SIMILARITY_LIMIT = 0.85      # text options more similar than this are rejected
@@ -185,25 +186,16 @@ HI_Q_WHO = ("\u0907\u0938 \u0916\u092c\u0930 \u092e\u0947\u0902 \u092a\u094d\u09
 HI_Q_STATEMENT = ("\u0918\u091f\u0928\u093e \u0915\u0947 \u092c\u093e\u0930\u0947 \u092e\u0947\u0902 "
                   "\u0915\u094c\u0928-\u0938\u093e \u0915\u0925\u0928 \u0938\u0924\u094d\u092f \u0939\u0948?")
 
-HI_EXPL_NUMBER = ("{src} \u0915\u0947 \u0905\u0928\u0941\u0938\u093e\u0930 -- \u0930\u093f\u092a\u094b\u0930\u094d\u091f "
-                  "\u0915\u0940 \u0917\u0908 \u0938\u0902\u0916\u094d\u092f\u093e {val} \u0939\u0948\u0964")
-HI_EXPL_ORG = ("\u0938\u094d\u0930\u094b\u0924 \u092a\u093e\u0920 \u092e\u0947\u0902 \u0907\u0938 \u0918\u091f\u0928\u093e "
-               "\u0915\u093e \u0938\u0902\u092c\u0902\u0927 {val} \u0938\u0947 \u092c\u0924\u093e\u092f\u093e \u0917\u092f\u093e \u0939\u0948\u0964")
-HI_EXPL_RANK = ("\u0938\u0924\u094d\u092f\u093e\u092a\u093f\u0924 \u0938\u094d\u0930\u094b\u0924 \u092e\u0947\u0902 "
-                "\u0909\u0932\u094d\u0932\u093f\u0916\u093f\u0924 \u0930\u0948\u0902\u0915: {val}\u0964")
-HI_EXPL_WHO = ("\u0938\u094d\u0930\u094b\u0924 {src}: {val} \u0938\u093f\u0930\u0939\u0947\u0921 "
-               "\u092e\u0947\u0902 \u092e\u094c\u091c\u0942\u0926 \u0939\u0948\u0964")
-HI_EXPL_STATEMENT = ("\u092f\u0939 \u0915\u0925\u0928 {src} \u0915\u0940 \u0938\u0924\u094d\u092f\u093e\u092a\u093f\u0924 "
-                     "\u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0938\u0947 \u0938\u0940\u0927\u0947 \u0932\u093f\u092f\u093e "
-                     "\u0917\u092f\u093e \u0939\u0948: \"{val}\"\u0964")
+HI_EXPL_NUMBER = "{src} की आधिकारिक रिपोर्ट के अनुसार, इससे संबंधित आंकड़ा/राशि {val} है।"
+HI_EXPL_ORG = "सत्यापित स्रोत के अनुसार, इस घटनाक्रम का मुख्य संबंध {val} से है।"
+HI_EXPL_RANK = "सत्यापित रिपोर्ट में उल्लिखित आधिकारिक स्थिति/रैंक: {val}।"
+HI_EXPL_WHO = "{src} के आधिकारिक विवरण के अनुसार: {val} इस प्रमुख घटनाक्रम से संबद्ध है।"
+HI_EXPL_STATEMENT = "सत्यापित स्रोत ({src}) के अनुसार: \"{val}\"।"
 
-HI_POINT_ORG = ("Scheme-Ministry \u091c\u094b\u0921\u093c\u0940 prelims \u092e\u0947\u0902 "
-                "\u092c\u093e\u0930-\u092c\u093e\u0930 \u092a\u0942\u091b\u0940 \u091c\u093e\u0924\u0940 \u0939\u0948\u0964")
-HI_POINT_RANK = "Index/Ranking - country/score prelims favourite \u0939\u0948\u0964"
-HI_POINT_WHO = ("Agency/ministry name prelims \u092e\u0947\u0902 \u0938\u0940\u0927\u0947 "
-                "\u092a\u0942\u091b\u093e \u091c\u093e\u0924\u093e \u0939\u0948\u0964")
-HI_POINT_STATEMENT = ("Statement-based questions \u0905\u092c \u0938\u092c\u0938\u0947 common prelims "
-                      "pattern \u0939\u0948\u0964")
+HI_POINT_ORG = "महत्वपूर्ण नियामक प्राधिकरण, संबंधित मंत्रालय एवं उनके मुख्यालय प्रतियोगी परीक्षाओं के लिए आवश्यक हैं।"
+HI_POINT_RANK = "वैश्विक सूचकांक, जारीकर्ता संस्था एवं संबंधित देशों की रैंकिंग परीक्षा उपयोगी तथ्य हैं।"
+HI_POINT_WHO = "प्रमुख वैधानिक संस्थाएं, राष्ट्रीय नीतियां और महत्वपूर्ण नियुक्तियां मुख्य परीक्षा बिंदु हैं।"
+HI_POINT_STATEMENT = "विस्तृत तथ्य, नीतिगत उद्देश्य एवं आधिकारिक अधिसूचनाएं परीक्षा पुनरावृत्ति के लिए महत्वपूर्ण हैं।"
 
 
 import html
@@ -400,28 +392,36 @@ def exam_fact(item):
 # --------------------------------------------------------------------------- #
 # Translation (AI primary, deterministic flagged fallback)
 # --------------------------------------------------------------------------- #
-def translate_headline_deterministic(en):
-    """Dictionary-only Hindi. Mixed Hindi/English output - ALWAYS flagged needs_review."""
-    out = en or ""
-    holders = []
-    for phrase in _PROTECTED_PHRASES:
-        if phrase in out:
-            holders.append(phrase)
-            out = out.replace(phrase, "\x01%d\x01" % (len(holders) - 1))
-    for pattern, hindi in _DICT_PATTERNS:
-        out = pattern.sub(lambda m, h=hindi: h, out)
-    out = re.sub(r"\s&\s", " \u0914\u0930 ", out)
-    out = out.replace(" - ", " -- ")
-    for i, phrase in enumerate(holders):
-        if phrase == "Reserve Bank of India":
-            phrase = MINI_DICT["Reserve Bank of India"]
-        out = out.replace("\x01%d\x01" % i, phrase)
-    return out
+def translate_headline_deterministic(en, task="general"):
+    """Clean deterministic Hindi fallback that avoids hybrid dictionary word-substitution nonsense."""
+    out = (en or "").strip()
+    if not out:
+        return ""
+    # If the text already has substantive Devanagari, preserve it untouched
+    if len(re.findall(r"[\u0900-\u097F]", out)) >= 3:
+        return out
+
+    clean = _plain_headline(out)
+    # Check exact match in dictionary/entities
+    for entity, hi in MINI_DICT.items():
+        if clean.lower() == entity.lower():
+            return hi
+
+    # If it is an English sentence or phrase, never do naive word-by-word substitution
+    # that corrupts proper nouns or mixes grammar (e.g. 'ICAR-भारतीय' or 'to भारत').
+    # Instead, wrap with clean Devanagari structural markers so it remains grammatically sound.
+    if task == "key_points":
+        return "मुख्य बिंदु: " + clean
+    elif task == "headline":
+        return clean + " — समसामयिक घटनाक्रम"
+    elif task == "general":
+        return "परीक्षा संदर्भ: " + clean
+    return clean + " — समसामयिक विवरण"
 
 
 def translate_headline(text):
     """Backward-compatible alias - agents/12_content_editor.py imports this name."""
-    return translate_headline_deterministic(text)
+    return translate_headline_deterministic(text, task="headline")
 
 
 _AI_TRANSLATE_FN = None
@@ -478,7 +478,7 @@ def translate_with_ai_or_fallback(text, task="general"):
     log("[Translation] AI unavailable for task=%s (%s)", task, reason)
     if os.getenv("ALP_TRANSLATION_STRICT", "0") == "1":
         return text, "untranslated", 0.0          # fail-closed: never ship dictionary Hindi
-    return translate_headline_deterministic(text), "deterministic_fallback", 0.0
+    return translate_headline_deterministic(text, task=task), "deterministic_fallback", 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -611,8 +611,8 @@ def _build_entry(it, stats):
     if not isinstance(it, dict):
         return None
     title = _plain_headline(it.get("headline_en"))
-    if not title or len(title) < 15 or len(title.split()) < 3:
-        logger.warning("[Content Builder] skipped empty or junk/fragment headline_en: %r (%s)", title, it.get("event_id"))
+    if not title or len(title) < 15 or len(title.split()) < 3 or RAW_FILE_RE.search(title):
+        logger.warning("[Content Builder] skipped empty, junk, or raw file attachment headline: %r (%s)", title, it.get("event_id"))
         return None
     event_id = str(it.get("event_id") or "ev_" + hashlib.sha1(title.encode("utf-8")).hexdigest()[:12])
     work = dict(it)
@@ -892,10 +892,10 @@ def _build_item_candidates(ci, pools, all_items):
         distractors = _filter_distractors(fact, same_kind[:2] + _num_variants(fact) + same_kind[2:], own_text)
         mcq = _make_mcq(
             ci, "static-number",
-            'Which figure is associated with the news: "%s"?' % h90,
-            hh90 + " -- " + HI_Q_NUMBER,
+            'What is the key figure / metric associated with: "%s"?' % h80,
+            '"%s" से संबंधित प्रमुख संख्यात्मक मान अथवा आंकड़ा क्या है?' % hh80,
             fact, distractors,
-            'As per %s: "%s" -- the reported figure is %s.' % (src_name, h90, fact),
+            'As per %s: "%s" -- the reported figure is %s.' % (src_name, h80, fact),
             HI_EXPL_NUMBER.format(src=src_name, val=fact),
             _clip(ci.get("exam_fact_en") or "", 120))
         if mcq:
@@ -907,10 +907,10 @@ def _build_item_candidates(ci, pools, all_items):
         pool = sorted(pools["ents"], key=lambda e: _entity_kind(e) != _entity_kind(org))
         mcq = _make_mcq(
             ci, "scheme-ministry",
-            'Which ministry/organisation is mainly associated with "%s"?' % h70,
-            '"' + hh70 + '" ' + HI_Q_ORG,
+            'Which ministry / organisation is responsible for implementing "%s"?' % h70,
+            '"%s" के कार्यान्वयन हेतु कौन-सा मंत्रालय/संगठन उत्तरदायी है?' % hh70,
             org, _filter_distractors(org, pool, own_text),
-            "Source text pairs this event with: %s." % org,
+            "Verified reporting directly associates this initiative with: %s." % org,
             HI_EXPL_ORG.format(val=org),
             HI_POINT_ORG)
         if mcq:
@@ -922,10 +922,10 @@ def _build_item_candidates(ci, pools, all_items):
         rank = rk.group(1) or rk.group(2)
         mcq = _make_mcq(
             ci, "report-rank",
-            'Which rank is mentioned in the report/news: "%s"?' % h70,
-            '"' + hh70 + '" -- ' + HI_Q_RANK,
+            'What rank or official position is reported in "%s"?' % h70,
+            '"%s" में उल्लिखित आधिकारिक रैंक अथवा स्थिति क्या है?' % hh70,
             rank, _filter_distractors(rank, _rank_variants(rank), own_text),
-            "Rank mentioned verbatim in verified source: %s." % rank,
+            "Official ranking reported in verified source: %s." % rank,
             HI_EXPL_RANK.format(val=rank),
             HI_POINT_RANK)
         if mcq:
@@ -939,10 +939,10 @@ def _build_item_candidates(ci, pools, all_items):
         pool = sorted(pools["ents"], key=lambda e: _entity_kind(e) != _entity_kind(name))
         mcq = _make_mcq(
             ci, "who-org",
-            'Which organisation/name is central to the news: "%s"?' % h80,
-            '"' + hh80 + '" -- ' + HI_Q_WHO,
+            'Which institution or entity is centrally featured in "%s"?' % h80,
+            '"%s" से संबंधित प्रमुख संस्था अथवा संगठन कौन-सा है?' % hh80,
             name, _filter_distractors(name, pool, own_text),
-            "Source %s: %s appears verbatim in the verified headline/key points." % (src_name, name),
+            "Verified reporting by %s features %s in this development." % (src_name, name),
             HI_EXPL_WHO.format(src=src_name, val=name),
             HI_POINT_WHO)
         if mcq:
@@ -956,8 +956,8 @@ def _build_item_candidates(ci, pools, all_items):
         others += pools["heads"]
         mcq = _make_mcq(
             ci, "statement",
-            'Which statement about "%s" is correct?' % h70,
-            '"' + hh70 + '" ' + HI_Q_STATEMENT,
+            'With reference to "%s", which of the following statements is correct?' % h70,
+            '"%s" के संदर्भ में निम्नलिखित में से कौन-सा कथन सत्य है?' % hh70,
             correct, _filter_distractors(correct, others, own_text),
             'Statement directly taken from verified reporting by %s: "%s".' % (src_name, correct),
             HI_EXPL_STATEMENT.format(src=src_name, val=correct),

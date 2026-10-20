@@ -2,8 +2,13 @@
 """FINAL NEWS SELECTION AGENT v2 — 25-30 items for 15+ pages"""
 import logging
 import os
+import re
 
 COMMAND = "Select top 25-30 news items with category diversity."
+RAW_FILE_RE = re.compile(
+    r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)",
+    re.IGNORECASE,
+)
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
 
 
@@ -24,6 +29,11 @@ class Agent:
         env_target = os.getenv("ALP_TARGET_NEWS_COUNT")
         if env_target and env_target.isdigit():
             target = int(env_target)
+        # Filter out raw file attachment headlines (e.g. 459-1.pdf - CPCB)
+        scored = [
+            x for x in scored
+            if not RAW_FILE_RE.search(x.get("title", "") or x.get("headline_en", ""))
+        ]
         scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
         selected = self._diverse_selection(scored, target)
         logging.info(f"[{self.name}] selected {len(selected)} items (target={target})")

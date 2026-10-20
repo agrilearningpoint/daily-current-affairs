@@ -144,3 +144,24 @@ def test_sanitize_glyphs_maps_unsupported_and_preserves_supported():
     assert sanitize_glyphs("✔ done") == "· done"
     assert sanitize_glyphs("₹1,250 — 60:40") == "₹1,250 — 60:40"
     assert sanitize_glyphs("मुख्य बिंदु") == "मुख्य बिंदु"
+
+
+def test_sample_pdf_does_not_contain_hybrid_or_raw_filename_artifacts(sample_pdf):
+    """Ensure no raw attachment filenames, hybrid Hindi/English gibberish, or 'Ques :' leaks."""
+    pdf_path, _content, _mcqs = sample_pdf
+    import pymupdf
+    with pymupdf.open(pdf_path) as doc:
+        full_text = "\n".join(page.get_text() for page in doc)
+
+    # 1. No raw attachment filenames
+    for bad_ext in (".pdf -", ".docx -", ".xlsx -", "459-1.pdf", "96-final.pdf"):
+        assert bad_ext not in full_text, f"Raw attachment filename leaked into PDF: {bad_ext}"
+
+    # 2. No hybrid dictionary-substitution gibberish
+    for bad_phrase in ("ICAR-भारतीय", "to भारत", "of भारत", "सरकार of", "मंत्रालय of", "cuts GDP वृद्धि"):
+        assert bad_phrase not in full_text, f"Hybrid translation gibberish found: {bad_phrase}"
+
+    # 3. Clean MCQ stems: no 'Q1. Ques :' or 'Topic: >>'
+    assert "Ques :" not in full_text, "MCQ contains 'Ques :'"
+    assert "Topic: >>" not in full_text, "MCQ contains 'Topic: >>'"
+    assert "Topic: &gt;&gt;" not in full_text, "MCQ contains 'Topic: &gt;&gt;'"

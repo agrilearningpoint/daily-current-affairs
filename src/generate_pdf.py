@@ -242,30 +242,49 @@ def _safe(text: Any) -> str:
     return s
 
 
+RAW_FILE_RE = re.compile(
+    r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)",
+    re.IGNORECASE,
+)
+
+
 def _clean_text_for_display(t: Any) -> str:
-    """Clean unwanted prefixes, 'Watch:', 'Topic: >>', '>>', '&gt;&gt;' and normalise whitespace."""
+    """Clean unwanted prefixes, 'Watch:', 'Topic: >>', 'Ques :', '>>', '&gt;&gt;' and normalise whitespace."""
     if not t:
         return ""
     s = _strip_html(str(t)).strip()
-    s = re.sub(r'^(Topic\s*:\s*)?[&gt;>\s]+', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'^Watch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:Topic\s*:\s*)?[&gt;>\s]+', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:Ques|Question)\s*[:.-]*\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'\bWatch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'&gt;&gt;|&gt;|>>|>', '', s)
     return re.sub(r'\s+', ' ', s).strip()
 
 
 def _is_broken_dictionary_hindi(hi_text: str) -> bool:
-    """Filter out template prompt boilerplate leaks from Hindi sentences."""
+    """Filter out template prompt boilerplate leaks, hybrid word substitutions, and non-Hindi text."""
     if not hi_text or not DEVANAGARI_RE.search(hi_text):
         return True
     bad_boilerplate = [
         "record करें", "रिकॉर्ड करें", "source event:", "name + designation", "teen-cheez",
-        "prelims में पूछा जाता है", "direct fact:", "rule:", "याद रखें।"
+        "prelims में पूछा जाता है", "prelims favourite", "direct fact:", "rule:", "याद रखें।"
     ]
     hi_lower = hi_text.lower()
     for bad in bad_boilerplate:
         if bad.lower() in hi_lower:
             return True
+    # Hybrid word substitution check: English syntax directly adjacent to Devanagari words
+    hybrid_patterns = [
+        r'\bto\s+भारत\b', r'\bof\s+भारत\b', r'\bसरकार\s+of\b', r'\bमंत्रालय\s+of\b',
+        r'ICAR-भारतीय', r'\bवृद्धि\s+cuts\b', r'\bcuts\s+.*वृद्धि\b'
+    ]
+    for hp in hybrid_patterns:
+        if re.search(hp, hi_text, re.IGNORECASE):
+            return True
+    # If text is predominantly English words with just 1 or 2 isolated Devanagari tokens
+    latin_words = len(re.findall(r'[a-zA-Z]{2,}', hi_text))
+    dev_words = len(re.findall(r'[\u0900-\u097F]+', hi_text))
+    if latin_words >= 5 and dev_words <= 2:
+        return True
     return False
 
 
@@ -995,6 +1014,7 @@ def generate_pdf(
     items = [
         it for it in raw_items
         if len(_strip_html(it.get("headline_en", "")).lstrip("> ")) >= 10
+        and not RAW_FILE_RE.search(it.get("headline_en", ""))
     ]
     if not items and not mcqs:
         raise ValueError("REFUSING to build PDF: 0 selected news items (quality gate, never fill/invent)")
@@ -1223,9 +1243,9 @@ def generate_pdf(
         clean_q_en = _clean_text_for_display(m.get("question_en", ""))
         clean_q_hi = _clean_text_for_display(m.get("question_hi", ""))
 
-        # 1. Clean Question Header (Strictly 'Question {q_num}:' - NO 'Q1. Ques :')
-        q_header_en = f"Q{q_num}. Question: {clean_q_en}"
-        q_header_hi = f"प्रश्न {q_num}: {clean_q_hi}"
+        # 1. Clean Question Header (Standard Coaching Format: 'Q1. ...' / 'प्रश्न 1. ...')
+        q_header_en = f"Q{q_num}. {clean_q_en}"
+        q_header_hi = f"प्रश्न {q_num}. {clean_q_hi}" if clean_q_hi else ""
 
         story.append(Paragraph(f"<b>{q_header_en}</b>", st_q_en))
         if clean_q_hi:

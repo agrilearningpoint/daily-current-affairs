@@ -363,8 +363,11 @@ def check_story_coverage(report: QAReport, text: str,
 
     missing: List[str] = []
     total = 0
+    raw_file_re = re.compile(r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)", re.IGNORECASE)
     for it in selected_items:
         headline = it.get("headline_en") or ""
+        if raw_file_re.search(headline):
+            continue  # Raw file attachments are legitimately filtered at the PDF boundary
         words = _normalize_for_coverage(headline).split()
         if len(words) < 3:
             continue
