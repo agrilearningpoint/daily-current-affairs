@@ -117,6 +117,15 @@
       "file_sha256": "c8c559b40da9b83b840eb5689cd516870d9e45620246a7d28ccd4d5fcea3b28c",
       "status": "verified",
       "verified_at": "2026-10-20T16:07:46.466715+00:00"
+    },
+    "12cb821c62a8a54c985c51b5": {
+      "job_id": "daily_2026-10-21",
+      "chat_id": "-1004485392227",
+      "message_id": 123,
+      "pinned_message_id": 123,
+      "file_sha256": "8bea9b3fa16fdbe958e7b1d644da95cfecb2c714a86da3792a133574a17724d1",
+      "status": "verified",
+      "verified_at": "2026-10-21T00:51:26.937252+00:00"
     }
   }
 }
