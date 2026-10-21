@@ -171,11 +171,11 @@ NEAR_EMPTY_CHARS = int(os.getenv("PDF_QA_NEAR_EMPTY_CHARS", "260"))
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 URL_RE = re.compile(r"https?://[^\s\)\]\"']+")
 MCQ_Q_RE = re.compile(
-    r"(?:प्रश्न|Q(?:uestion)?)\s*[\.\:\-–]?\s*(\d+)",
+    r"(?:प्रश्न|Q(?:uestion|ues)?)\s*[\.\:\-–]?\s*(\d+)",
     re.IGNORECASE,
 )
 ANSWER_RE = re.compile(
-    r"(?:उत्तर|Answer|Correct\s*Answer|Ans)\s*[\.\:\-–]?\s*[\(\[]?([A-E])[\)\]]?",
+    r"(?:उत्तर|Answer|Correct\s*Answer|Ans)\s*[\.\:\-–]?\s*(?:Option\s*)?[\(\[]?([A-E])[\)\]]?",
     re.IGNORECASE,
 )
 

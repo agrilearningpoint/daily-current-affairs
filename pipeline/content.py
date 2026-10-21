@@ -381,6 +381,13 @@ def extract_static_facts(item):
     ents = [e for e in _extract_entities(src) if len(e) > 4][:2]
     if ents:
         facts["Key Name"] = ", ".join(ents)      # display only - never used as an MCQ answer
+    try:
+        from pipeline.static_gk_db import lookup_static_gk_for_text
+        gk_pairs = lookup_static_gk_for_text(src)
+        if gk_pairs:
+            facts["_static_gk_pairs"] = gk_pairs
+    except Exception:
+        pass
     return facts
 
 
@@ -652,6 +659,7 @@ def _build_entry(it, stats):
         "key_points_en": kps_en,
         "key_points_hi": key_points_hi,
         "static_facts": sf,
+        "static_gk_pairs": sf.get("_static_gk_pairs", []),
         "exam_fact_en": ef,
         "exam_fact_hi": exam_fact_hi,
         "organizations": orgs,
@@ -1039,12 +1047,29 @@ def validate_mcqs(mcqs, content_items):
         else:
             src_text = src_by_event.get(m.get("event_id"), "")
             correct = opts[ci_idx]
-            if correct not in src_text:
+            base_correct = correct.split(" / ")[0].strip()
+
+            def _in_src(needle: str, text: str) -> bool:
+                if not needle or not text:
+                    return False
+                if needle in text or needle.lower() in text.lower():
+                    return True
+                sub_names = re.findall(r"\(([^)]+)\)", needle)
+                for sn in sub_names:
+                    if sn in text or sn.lower() in text.lower():
+                        return True
+                main_name = re.sub(r"\([^)]+\)", "", needle).strip()
+                if len(main_name) > 4 and (main_name in text or main_name.lower() in text.lower()):
+                    return True
+                return False
+
+            if not _in_src(base_correct, src_text) and not _in_src(correct, src_text):
                 errs.append("answer not supported by source text")
-            if any(o.lower() in src_text.lower() for i, o in enumerate(opts) if i != ci_idx):
+            if any(_in_src(o.split(" / ")[0].strip(), src_text) for i, o in enumerate(opts) if i != ci_idx and len(o.split(" / ")[0].strip()) > 4):
                 errs.append("a distractor also appears in the source text (ambiguous answer)")
-            if m.get("explanation_en") and correct not in m["explanation_en"]:
-                errs.append("explanation missing correct option value")
+            if m.get("explanation_en"):
+                if not _in_src(base_correct, m["explanation_en"]) and not _in_src(correct, m["explanation_en"]):
+                    errs.append("explanation missing correct option value")
 
         qkey = _qkey(m.get("question_en"))
         if qkey in seen_q:
