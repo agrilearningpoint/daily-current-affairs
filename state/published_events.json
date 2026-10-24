@@ -175,6 +175,16 @@
       "file": "daily_2026-10-24.pdf",
       "published_at": "2026-10-24T14:53:37.009952+00:00",
       "status": "success"
+    },
+    "8c5ab7cd65e26c9611bb454c": {
+      "job_id": "daily_2026-10-24",
+      "chat_id": "-1004485392227",
+      "message_id": 155,
+      "file_hash": "3df94c637ad5c367",
+      "file_sha256": "3df94c637ad5c367ab5e6e446f0129ba86377f4d76e4a42a300c563c319f7d78",
+      "file": "daily_2026-10-24.pdf",
+      "published_at": "2026-10-24T16:22:24.658237+00:00",
+      "status": "success"
     }
   }
 }

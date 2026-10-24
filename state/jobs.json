@@ -728,27 +728,47 @@
     "checkpoint_run_id": "39880421572"
   },
   "daily_2026-10-24": {
-    "started_at": "2026-10-24T15:55:33.679735+00:00",
+    "started_at": "2026-10-24T16:20:56.377108+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-24.json": {
         "stage": "01_source_fetch",
-        "sha256": "6c6bae6c4ee1c4de92f2e3126ef74e2e53b96ac363c19f066844d2d63ee6ddf8"
+        "sha256": "76d2a453b7972c04aaf0177a552ac5c6327fe656c46e6968c87628cd9b94a5c7"
       },
       "data/verified/daily_2026-10-24.json": {
         "stage": "04_fact_verification",
-        "sha256": "2521b5f4c9f19d27d214802a675724745fe5eafeaa2038e13fd563681fdca000"
+        "sha256": "802a8245df28634c348563340d94add5399ce3e64da7f42190f3a0fca837b7dc"
       },
       "data/dedup/daily_2026-10-24.json": {
         "stage": "05_deduplication",
-        "sha256": "a133420c8d082fceba5f6aef3d1df032c032279213742b693af32909afdeeeec"
+        "sha256": "1c49708ea6cb4911fcc953c274ab1d8bf8122913ffb2027c2d2568b4cae029b2"
       },
       "data/scored/daily_2026-10-24.json": {
         "stage": "06_news_importance",
-        "sha256": "79865fdcfd177d607a2248fe7d293f94a75b24d3da6e76e5a448223e8bff0682"
+        "sha256": "7e778dd54dfb2df789a6cd4f6851e693bcc9534fe96d4a478175123ff0506df1"
       },
       "data/selected/daily_2026-10-24.json": {
         "stage": "10_final_news_selection",
-        "sha256": "d2a36a0a532449802e83693654529337e8c47ddb25948028741e8086d7372a49"
+        "sha256": "9bcf7fa0ce9aa01195afbee09fb624c19f793be9d93b68751c3e810a73dc22f7"
+      },
+      "data/content/daily_2026-10-24.json": {
+        "stage": "12_content_editor",
+        "sha256": "024c385332fa5875d39c13d0dc3bb96f296adc9b55afc07aabc288713f146c44"
+      },
+      "data/mcq/daily_2026-10-24.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "92d47bc8e732f9d34521d04f691aa6ba7c417dd99b4227667189a58cc82188c9"
+      },
+      "output/daily_2026-10-24.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "3df94c637ad5c367ab5e6e446f0129ba86377f4d76e4a42a300c563c319f7d78"
+      },
+      "logs/qa/daily_2026-10-24_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "33b5d289500ff96326b6144dcde903ee788fa66fe2dd62a0fe9154f2efd5b8ce"
+      },
+      "logs/qa/daily_2026-10-24_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "8919e200208d7ee6d614ef8b86df9e89e5a99b9bdb42eed6595f6f0739267b4b"
       }
     },
     "run_attempts": 1,
@@ -757,15 +777,13 @@
     "job_date": "2026-10-24",
     "dry_run": false,
     "window": {
-      "start": "2026-10-23T21:25:33.679146+05:30",
-      "end": "2026-10-24T21:25:33.679146+05:30"
+      "start": "2026-10-23T21:50:56.376067+05:30",
+      "end": "2026-10-24T21:50:56.376067+05:30"
     },
     "github_run_id": "40111086380",
-    "status": "running",
-    "updated_at": "2026-10-24T16:20:54.412724+00:00",
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): lier rate limit\n2026-10-24 15:57:48 | INFO     | pipeline.ai_translator | [Translator] trying provider nvidia\n2026-10-24 15:57:48 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['deepseek: HTTP 402', 'openrouter: HTTP 402', 'nvidia: HTTP 404'])\n2026-10-24 15:57:48 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=7 fallback=0 untranslated=8 (AI success 46.7%)\n2026-10-24 15:57:48 | WARNING  | pipeline.content | [Content Builder] 8 translations need review (AI did not pass)\n2026-10-24 15:57:48 | INFO     | pipeline.content | [Content Builder] Completeness: 7/15 items complete (avg words EN: 264.3, HI: 12.6)\n2026-10-24 15:57:48 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
-    "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "40109140877"
+    "status": "success",
+    "updated_at": "2026-10-24T16:22:30.399316+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "40111086380"
   }
 }
