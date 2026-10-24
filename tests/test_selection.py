@@ -63,6 +63,35 @@ def test_daily_selection_rejects_empty_input(tmp_path, monkeypatch):
         load_agent("10").Agent(job_id, "daily", {}).run()
 
 
+def test_daily_selection_honours_production_minimum(tmp_path, monkeypatch):
+    """Scheduled runs reject a thin edition before content/PDF work begins."""
+    from pipeline import state
+
+    monkeypatch.setattr(state, "SCORED_DIR", tmp_path / "scored")
+    monkeypatch.setattr(state, "SELECTED_DIR", tmp_path / "selected")
+    monkeypatch.setenv("ALP_MIN_DAILY_NEWS", "15")
+    job_id = "daily_2026-10-14"
+    state.write_json_atomic(
+        state.data_path(state.SCORED_DIR, job_id),
+        {"items": [{"event_id": str(i), "importance_score": i} for i in range(14)]},
+    )
+
+    with pytest.raises(RuntimeError, match="min 15"):
+        load_agent("10").Agent(job_id, "daily", {}).run()
+
+
+def test_pdf_qa_page_range_is_a_hard_release_gate(monkeypatch):
+    qa = load_agent("19")
+    monkeypatch.setattr(qa, "MIN_PAGES", 15)
+    monkeypatch.setattr(qa, "MAX_PAGES", 45)
+    short = qa.QAReport(pdf_path="fixture.pdf")
+    qa.check_pages(short, type("Doc", (), {"page_count": 14, "__iter__": lambda self: iter(())})())
+    assert any(i.code == "too_few_pages" and i.severity == "error" for i in short.issues)
+    long = qa.QAReport(pdf_path="fixture.pdf")
+    qa.check_pages(long, type("Doc", (), {"page_count": 46, "__iter__": lambda self: iter(())})())
+    assert any(i.code == "too_many_pages" and i.severity == "error" for i in long.issues)
+
+
 @pytest.mark.parametrize("job_type", ["weekly", "monthly"])
 def test_period_selection_keeps_five_item_minimum(tmp_path, monkeypatch, job_type):
     from pipeline import state

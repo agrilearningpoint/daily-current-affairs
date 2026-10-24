@@ -170,7 +170,10 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
            if not k.endswith("API_KEY") and k not in ("LLM_API_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")}
     env.update(ALP_ROOT=str(root), ALP_MAX_RETRIES="0", ALP_DISABLE_LLM_VERIFY="1",
                ALP_DISABLE_POLISH="1", DRY_RUN="1", ORCHESTRATOR_SKIP_HEALTHCHECK="1",
-               PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+               PYTHONIOENCODING="utf-8", PYTHONUTF8="1",
+               # This fixture has eight synthetic stories; it verifies recovery
+               # mechanics rather than the production booklet-length policy.
+               PDF_QA_MIN_PAGES="2", PDF_QA_MAX_PAGES="45")
     if sys.platform == "win32":
         env.setdefault("ALP_ALLOW_UNSHAPED_DEV_PDF", os.environ.get("ALP_ALLOW_UNSHAPED_DEV_PDF", "1"))
     try:

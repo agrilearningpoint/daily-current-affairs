@@ -57,7 +57,20 @@ class Agent:
             cats[cat] = cats.get(cat, 0) + 1
         for cat, cnt in sorted(cats.items(), key=lambda x: -x[1]):
             logging.info(f"  {cat}: {cnt}")
+        # Scheduled production runs require enough verified stories for a
+        # substantive student revision booklet. Offline diagnostics can retain
+        # the permissive default by omitting this setting.
         min_items = 1 if self.job_type == "daily" else 5
+        if self.job_type == "daily":
+            raw_min = os.getenv("ALP_MIN_DAILY_NEWS", str(min_items)).strip()
+            try:
+                min_items = int(raw_min)
+            except ValueError as exc:
+                raise RuntimeError(
+                    "ALP_MIN_DAILY_NEWS must be a whole number between 1 and 40"
+                ) from exc
+            if not 1 <= min_items <= 40:
+                raise RuntimeError("ALP_MIN_DAILY_NEWS must be between 1 and 40")
         if len(selected) < min_items:
             self.context["stage_failed"] = (
                 f"only {len(selected)} selected (min {min_items} for {self.job_type})"

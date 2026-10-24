@@ -219,6 +219,9 @@ python -c "from main import load_state; print('✅ Imports OK')"
 | `NVIDIA_MODEL` | `meta/llama-3.3-70b-instruct` | NVIDIA NIM model |
 | `MIN_CONFIDENCE_THRESHOLD` | `0.3` | Verification threshold (0–1) |
 | `MIN_VERIFIED_COUNT` | `1` | Min items to proceed |
+| `ALP_MIN_DAILY_NEWS` | `15` | Minimum verified stories for a publishable daily study pack |
+| `PDF_QA_MIN_PAGES` | `15` | Hard minimum page count before publishing |
+| `PDF_QA_MAX_PAGES` | `45` | Hard maximum page count before publishing |
 | `TELEGRAM_PARSE_MODE` | `HTML` | Message format |
 | `TELEGRAM_MAX_PER_RUN` | `5` | Max PDFs per run |
 | `STAGE_TIMEOUT_SECONDS` | `900` | Kill hung stages |

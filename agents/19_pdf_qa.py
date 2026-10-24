@@ -18,8 +18,8 @@ Checks:
 10. Optional: image XObjects present (watermark/logo)
 
 Env:
-  PDF_QA_MIN_PAGES       (default 2)
-  PDF_QA_MAX_PAGES       (default 200)
+  PDF_QA_MIN_PAGES       (default 15)
+  PDF_QA_MAX_PAGES       (default 45)
   PDF_QA_MIN_HINDI_PCT   (default 5.0)  — % of chars that must be Devanagari
   PDF_QA_MIN_MCQ_COUNT   (default 10; sparse editions require 2 per story)
   PDF_QA_STRICT          (1 = fail on warnings; 0 = warnings OK)
@@ -155,8 +155,11 @@ OUTPUT_DIR = REPO_ROOT / "output"
 QA_REPORT_DIR = REPO_ROOT / "logs" / "qa"
 QA_REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-MIN_PAGES = int(os.getenv("PDF_QA_MIN_PAGES", "2"))
-MAX_PAGES = int(os.getenv("PDF_QA_MAX_PAGES", "200"))
+# Release editions are intentionally bounded: fewer than 15 pages is not a
+# complete daily study pack, while more than 45 pages is too long for a daily
+# revision booklet. Offline fixtures may explicitly lower the minimum.
+MIN_PAGES = int(os.getenv("PDF_QA_MIN_PAGES", "15"))
+MAX_PAGES = int(os.getenv("PDF_QA_MAX_PAGES", "45"))
 MIN_HINDI_PCT = float(os.getenv("PDF_QA_MIN_HINDI_PCT", "3.0"))
 MIN_MCQ_COUNT = int(os.getenv("PDF_QA_MIN_MCQ_COUNT", "10"))
 STRICT = os.getenv("PDF_QA_STRICT", "0") == "1"
@@ -167,6 +170,10 @@ TARGET_SUBSTANTIVE_PAGES = int(os.getenv("PDF_QA_TARGET_PAGES", "15"))
 # this but above the blank threshold is a "near-empty / heading-only" page.
 SUBSTANTIVE_CHARS = int(os.getenv("PDF_QA_SUBSTANTIVE_CHARS", "600"))
 NEAR_EMPTY_CHARS = int(os.getenv("PDF_QA_NEAR_EMPTY_CHARS", "260"))
+# The 15-page release bound includes a cover, index and rapid-revision page.
+# Keep the content-loss floor independent so a legitimate 15-page edition is
+# not rejected merely because those designed pages are not text-dense.
+MIN_SUBSTANTIVE_PAGES = int(os.getenv("PDF_QA_MIN_SUBSTANTIVE_PAGES", "2"))
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 URL_RE = re.compile(r"https?://[^\s\)\]\"']+")
@@ -455,7 +462,7 @@ def check_pages(report: QAReport, doc: "fitz.Document") -> None:
                    f"PDF has only {report.page_count} pages (min {MIN_PAGES})",
                    pages=report.page_count)
     if report.page_count > MAX_PAGES:
-        report.add("warning", "too_many_pages",
+        report.add("error", "too_many_pages",
                    f"PDF has {report.page_count} pages (max {MAX_PAGES})",
                    pages=report.page_count)
 
@@ -559,9 +566,9 @@ def minimum_substantive_pages(item_count: int) -> int:
     renderer dropped or crushed content, not that it was a quiet news day.
     """
     if item_count < 1:
-        return MIN_PAGES
+        return MIN_SUBSTANTIVE_PAGES
     half = (item_count + 1) // 2  # ceil(n / 2)
-    return max(MIN_PAGES, min(TARGET_SUBSTANTIVE_PAGES, half))
+    return max(MIN_SUBSTANTIVE_PAGES, min(TARGET_SUBSTANTIVE_PAGES, half))
 
 
 def check_page_target(report: QAReport, item_count: int) -> None:
