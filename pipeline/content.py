@@ -646,16 +646,23 @@ def _build_entry(it, stats):
     ef = exam_fact(work)
 
     flags = []
+    # A daily booklet needs concise, correct Hindi - not hundreds of separate
+    # translation calls that exhaust a free-tier provider mid-edition.  The
+    # renderer shows at most two key-point pairs, so translate exactly those
+    # three student-facing blocks (headline + two revision facts).
     headline_hi = _translate_tracked(title, "headline", stats, flags)
-    key_points_hi = [_translate_tracked(kp, "key_points", stats, flags) for kp in kps]
-    exam_fact_hi = _translate_tracked(ef, "general", stats, flags)
+    key_points_hi = [
+        _translate_tracked(kp, "key_points", stats, flags) if idx < 2 else ""
+        for idx, kp in enumerate(kps)
+    ]
+    exam_fact_hi = ""
 
     title_en = polish_with_ai(title, raw_facts)
     kps_en = [polish_with_ai(p, raw_facts) for p in kps]
 
     # Detailed explanation (bilingual)
     det_en = it.get("detailed_explanation_en") or _build_detailed_explanation(title_en, raw_facts, kps_en, sf, ef)
-    det_hi = it.get("detailed_explanation_hi") or _translate_tracked(det_en, "general", stats, flags)
+    det_hi = it.get("detailed_explanation_hi") or ""
 
     # Entities and numbers
     orgs = [e for e in _extract_entities(raw_facts + " " + title_en) if len(e) > 3][:4]

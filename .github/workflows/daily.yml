@@ -54,6 +54,9 @@ env:
   PDF_QA_MIN_PAGES: "15"
   PDF_QA_MAX_PAGES: "45"
   ALP_MIN_DAILY_NEWS: "15"
+  # Fifteen high-value stories produce a complete 15-45 page study pack while
+  # keeping strict AI Hindi translation within free-tier rate limits.
+  ALP_TARGET_NEWS_COUNT: "15"
   PDF_QA_SUBSTANTIVE_CHARS: "600"
   PDF_QA_NEAR_EMPTY_CHARS: "260"
 
@@ -168,8 +171,8 @@ jobs:
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL || vars.OLLAMA_BASE_URL || '' }}
           OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.1:8b' }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-1.5-flash' }}
-          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'llama-3.3-70b-versatile' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.0-flash' }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-120b' }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-4o-mini' }}
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct' }}
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
