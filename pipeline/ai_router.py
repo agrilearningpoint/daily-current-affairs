@@ -112,6 +112,79 @@ class Provider:
                            self.name, seconds, reason)
 
 
+# Live model discovery is deliberately best-effort.  Provider catalogues change
+# more often than this repository, so model IDs must not be treated as a
+# permanent part of the workflow configuration.
+_MODEL_DISCOVERY_TIMEOUT = 8
+_PREFERRED_MODELS = {
+    "gemini": ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"),
+    "groq": ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"),
+    "nvidia": ("meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct",
+               "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+}
+
+
+def _catalog_url(provider: Provider) -> str:
+    if provider.name == "gemini":
+        return provider.url
+    marker = "/chat/completions"
+    if marker in provider.url:
+        return provider.url.split(marker, 1)[0] + "/models"
+    return ""
+
+
+def _live_model_ids(provider: Provider) -> List[str]:
+    """Return currently advertised text models without exposing secret values."""
+    if os.getenv("ALP_MODEL_AUTO_DISCOVERY", "1") != "1":
+        return []
+    url = _catalog_url(provider)
+    if not url:
+        return []
+    headers = {"x-goog-api-key": provider.key} if provider.name == "gemini" else {
+        "Authorization": f"Bearer {provider.key}"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=_MODEL_DISCOVERY_TIMEOUT)
+        if response.status_code != 200:
+            logger.info("[Router] %s model catalogue unavailable (HTTP %s)", provider.name, response.status_code)
+            return []
+        data = response.json()
+        if provider.name == "gemini":
+            models = data.get("models", [])
+            return [str(m.get("name", "")).removeprefix("models/") for m in models
+                    if "generateContent" in (m.get("supportedGenerationMethods") or [])]
+        return [str(m.get("id", "")) for m in data.get("data", []) if m.get("id")]
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        logger.info("[Router] %s model catalogue lookup skipped: %s", provider.name, type(exc).__name__)
+        return []
+
+
+def _choose_live_model(provider: Provider, available: List[str], exclude: set[str] | None = None) -> str | None:
+    exclude = exclude or set()
+    candidates = [m for m in available if m and m not in exclude]
+    if not candidates:
+        return None
+    # A configured model wins only when the provider still advertises it.
+    if provider.model in candidates:
+        return provider.model
+    for preferred in _PREFERRED_MODELS.get(provider.name, ()):
+        if preferred in candidates:
+            return preferred
+    text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini)", m, re.I)
+                   and not re.search(r"(?:embed|rerank|guard|vision|audio|image)", m, re.I)]
+    return sorted(text_models or candidates)[0]
+
+
+def _refresh_provider_model(provider: Provider, exclude: set[str] | None = None) -> bool:
+    chosen = _choose_live_model(provider, _live_model_ids(provider), exclude)
+    if not chosen or chosen == provider.model:
+        return False
+    old = provider.model
+    provider.model = chosen
+    logger.info("[Router] %s automatically switched retired model %s -> %s", provider.name, old, chosen)
+    return True
+
+
 # --------------------------------------------------------------------------- #
 # Provider discovery
 # --------------------------------------------------------------------------- #
@@ -122,7 +195,7 @@ def _build_default_providers() -> List[Provider]:
     # Gemini (highest priority — per aapke .env.example)
     gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if gem_key:
-        providers.append(Provider(
+        provider = Provider(
             name="gemini",
             url="https://generativelanguage.googleapis.com/v1beta/models",
             key=gem_key,
@@ -130,19 +203,23 @@ def _build_default_providers() -> List[Provider]:
             # generateContent-compatible default unless a secret overrides it.
             model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
             priority=10, rpm_limit=60, rpd_limit=1500,
-        ))
+        )
+        _refresh_provider_model(provider)
+        providers.append(provider)
 
     # Groq (fast fallback)
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
-        providers.append(Provider(
+        provider = Provider(
             name="groq",
             url="https://api.groq.com/openai/v1/chat/completions",
             key=groq_key,
             # Groq retired llama-3.3-70b-versatile on 2026-08-16.
             model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             priority=20, rpm_limit=30, rpd_limit=14400,
-        ))
+        )
+        _refresh_provider_model(provider)
+        providers.append(provider)
 
     # DeepSeek (high-quality bilingual reasoning & translation)
     deepseek_key = os.getenv("DEEPSEEK_API_KEY")
@@ -199,13 +276,15 @@ def _build_default_providers() -> List[Provider]:
 
     nvidia_key = os.getenv("NVIDIA_API_KEY")
     if nvidia_key:
-        providers.append(Provider(
+        provider = Provider(
             name="nvidia",
             url="https://integrate.api.nvidia.com/v1/chat/completions",
             key=nvidia_key,
             model=os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"),
             priority=60, rpm_limit=30, rpd_limit=5000,
-        ))
+        )
+        _refresh_provider_model(provider)
+        providers.append(provider)
 
     # Ollama (local/remote OpenAI-compatible server when configured)
     ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL")
@@ -339,7 +418,7 @@ def _classify_error(status: int, body: str) -> str:
         return FailureType.RATE_LIMIT
     if status in (401, 402, 403):
         return FailureType.AUTH_ERROR
-    if status == 404:
+    if status in (404, 410):
         return FailureType.MODEL_ERROR
     if 400 <= status < 500:
         return FailureType.BAD_REQUEST
@@ -505,6 +584,21 @@ def route(
             logger.info("[Router] ✔ %s responded (task=%s, %d chars)",
                         provider.name, task, len(content))
             return content
+
+        # A 404/410 can mean only the selected model was retired. Refresh the
+        # provider catalogue once before taking the provider out of service.
+        if failure == FailureType.MODEL_ERROR and _refresh_provider_model(
+            provider, exclude={provider.model}
+        ):
+            provider.record_call()
+            content, failure = _call_provider(
+                provider, prompt, task, needs_hindi, response_format, system_prompt
+            )
+            if content is not None:
+                _CACHE.put(ck, content)
+                logger.info("[Router] %s responded after model refresh (task=%s)",
+                            provider.name, task)
+                return content
 
         # Failure handling
         last_error = f"{provider.name}: {failure}"
