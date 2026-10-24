@@ -126,7 +126,9 @@ def _build_default_providers() -> List[Provider]:
             name="gemini",
             url="https://generativelanguage.googleapis.com/v1beta/models",
             key=gem_key,
-            model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+            # 1.5 Flash was retired from the public endpoint; use a current
+            # generateContent-compatible default unless a secret overrides it.
+            model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
             priority=10, rpm_limit=60, rpd_limit=1500,
         ))
 
@@ -137,7 +139,8 @@ def _build_default_providers() -> List[Provider]:
             name="groq",
             url="https://api.groq.com/openai/v1/chat/completions",
             key=groq_key,
-            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            # Groq retired llama-3.3-70b-versatile on 2026-08-16.
+            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
             priority=20, rpm_limit=30, rpd_limit=14400,
         ))
 
