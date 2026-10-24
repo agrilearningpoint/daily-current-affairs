@@ -1,19 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-AGRI LEARNING POINT - Premium Daily Current Affairs PDF Generator
-================================================================
-Production engine for daily / weekly / monthly bilingual editions.
-Engineered for competitive-exam coaching standards (AGTA, AFO, ICAR, NABARD, FCI, UPSC, SSC).
-
-Clean, Mobile-Friendly, Distraction-Free Design:
-- Minimal Two-Color Palette: Deep Classic Navy (#0F2B48) & Forest Green (#166534)
-- Crisp Devanagari Typography: Mukta (SemiBold for headings, Regular for body) shaped with HarfBuzz + FreeType
-- Selectable vector text layer for QA & searchability
-- Clean running header and 3 official channels footer (YouTube, @agrilearningpoint, @agriquizworld)
-- Zero unnecessary colors, zero fake social links.
-"""
-
 from __future__ import annotations
 
 import os
@@ -40,6 +24,159 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     PageBreak, KeepTogether, HRFlowable, Image, CondPageBreak
 )
+
+IMPORTANT_DAYS_BY_MONTH: Dict[str, List[str]] = {
+    "january": [
+        "9 January: Pravasi Bharatiya Divas (Non-Resident Indian Day)",
+        "10 January: World Hindi Day (Vishwa Hindi Diwas)",
+        "12 January: National Youth Day (Swami Vivekananda Jayanti)",
+        "15 January: Indian Army Day (Field Marshal K.M. Cariappa taking command in 1949)",
+        "24 January: National Girl Child Day",
+        "25 January: National Voters' Day (Theme: Nothing Like Voting, I Vote for Sure)",
+        "26 January: Republic Day of India / International Customs Day",
+        "30 January: Martyrs' Day (Shaheed Diwas - Mahatma Gandhi Smriti)",
+    ],
+    "february": [
+        "2 February: World Wetlands Day (Ramsar Convention on Wetlands)",
+        "4 February: World Cancer Day (Theme: Close the Care Gap)",
+        "10 February: World Pulses Day (FAO - Pulses for a Sustainable Future)",
+        "13 February: National Women's Day (Sarojini Naidu Birth Anniversary)",
+        "20 February: World Day of Social Justice",
+        "24 February: Central Excise Day / PM-KISAN Launch Anniversary (Launched 24 Feb 2019)",
+        "28 February: National Science Day (Commemorating discovery of the Raman Effect)",
+    ],
+    "march": [
+        "3 March: World Wildlife Day (Connecting People and Planet)",
+        "8 March: International Women's Day",
+        "15 March: World Consumer Rights Day",
+        "21 March: International Day of Forests",
+        "22 March: World Water Day (Leveraging Water for Peace)",
+        "23 March: World Meteorological Day / Shaheed Diwas (Bhagat Singh, Rajguru, Sukhdev)",
+        "24 March: World Tuberculosis (TB) Day (Yes! We can end TB!)",
+    ],
+    "april": [
+        "7 April: World Health Day (WHO Foundation Day, 1948)",
+        "14 April: Dr. B.R. Ambedkar Jayanti / National Water Day",
+        "18 April: World Heritage Day (International Day for Monuments and Sites)",
+        "21 April: National Civil Services Day",
+        "22 April: Earth Day (International Mother Earth Day)",
+        "24 April: National Panchayati Raj Day (73rd Constitutional Amendment Act, 1992)",
+        "25 April: World Malaria Day",
+    ],
+    "may": [
+        "1 May: International Labour Day (May Day)",
+        "3 May: World Press Freedom Day",
+        "11 May: National Technology Day (Operation Shakti - Pokhran-II Tests 1998)",
+        "20 May: World Bee Day (FAO - Pollinator-Friendly Agricultural Production)",
+        "21 May: National Anti-Terrorism Day",
+        "22 May: International Day for Biological Diversity",
+        "31 May: World No Tobacco Day",
+    ],
+    "june": [
+        "1 June: World Milk Day (FAO - Celebrating the Vital Role of Dairy)",
+        "5 June: World Environment Day (UNEP Flagship Day)",
+        "7 June: World Food Safety Day (FAO/WHO - Food Standards Save Lives)",
+        "8 June: World Oceans Day",
+        "17 June: World Day to Combat Desertification and Drought (United for Land)",
+        "21 June: International Day of Yoga",
+        "29 June: National Statistics Day (Prof. P.C. Mahalanobis Birth Anniversary)",
+    ],
+    "july": [
+        "1 July: National Doctor's Day (Dr. B.C. Roy) / GST Day (Launched 1 July 2017)",
+        "11 July: World Population Day",
+        "12 July: NABARD Foundation Day (Established 12 July 1982 by Act 61 of 1981)",
+        "16 July: ICAR Foundation Day (Established 16 July 1929 as Imperial Council)",
+        "26 July: Kargil Vijay Diwas (Operation Vijay 1999)",
+        "28 July: World Nature Conservation Day / World Hepatitis Day",
+        "29 July: International Tiger Day (Global Tiger Recovery Program)",
+    ],
+    "august": [
+        "7 August: National Handloom Day / National Javelin Day (Neeraj Chopra Olympic Gold)",
+        "9 August: World Tribal Day (International Day of the World's Indigenous Peoples)",
+        "12 August: International Youth Day / World Elephant Day",
+        "15 August: Independence Day of India",
+        "20 August: Sadbhavana Diwas (Communal Harmony Day)",
+        "29 August: National Sports Day (Rashtriya Khel Diwas - Major Dhyan Chand Jayanti)",
+    ],
+    "september": [
+        "1 to 7 September: National Nutrition Week (Rashtriya Poshan Maah)",
+        "5 September: Teachers' Day (Dr. Sarvepalli Radhakrishnan Birth Anniversary)",
+        "8 September: International Literacy Day",
+        "14 September: Hindi Diwas (Adopted as official language 14 Sept 1949)",
+        "15 September: National Engineers' Day (Sir M. Visvesvaraya Jayanti)",
+        "16 September: World Ozone Day (Montreal Protocol Anniversary)",
+        "27 September: World Tourism Day",
+    ],
+    "october": [
+        "1 October: International Coffee Day / International Day of Older Persons",
+        "2 October: Mahatma Gandhi Jayanti / International Day of Non-Violence",
+        "2 to 8 October: National Wildlife Week",
+        "4 October: World Animal Day",
+        "7 October: World Cotton Day (Theme: Cotton for Good)",
+        "8 October: Indian Air Force Day (Established 8 October 1932)",
+        "9 October: World Post Day (Universal Postal Union)",
+        "10 October: World Mental Health Day",
+        "14 October: World Standards Day (ISO, IEC, ITU)",
+        "15 October: Mahila Kisan Diwas (Women Farmers Day) / World Students' Day (Dr. Kalam)",
+        "16 October: World Food Day (FAO Foundation Day 1945)",
+        "24 October: United Nations Day (UN Charter 1945) / World Polio Day",
+        "31 October: National Unity Day (Rashtriya Ekta Diwas - Sardar Patel Jayanti)",
+    ],
+    "november": [
+        "5 November: World Tsunami Awareness Day",
+        "9 November: National Legal Services Day",
+        "11 November: National Education Day (Maulana Abul Kalam Azad Jayanti)",
+        "14 November: Children's Day / World Diabetes Day",
+        "15 November: Janjatiya Gaurav Divas (Bhagwan Birsa Munda Birth Anniversary)",
+        "26 November: Constitution Day of India (Samvidhan Divas) / National Milk Day (Dr. Verghese Kurien)",
+    ],
+    "december": [
+        "1 December: World AIDS Day",
+        "2 December: National Pollution Control Day / World Computer Literacy Day",
+        "3 December: National Agriculture Education Day (Dr. Rajendra Prasad Jayanti) / Day of Persons with Disabilities",
+        "4 December: Indian Navy Day (Operation Trident 1971)",
+        "5 December: World Soil Day (FAO - Soils: Where Food Begins)",
+        "10 December: Human Rights Day (Universal Declaration of Human Rights 1948)",
+        "14 December: National Energy Conservation Day (BEE)",
+        "16 December: Vijay Diwas (1971 Liberation War)",
+        "22 December: National Mathematics Day (Srinivasa Ramanujan Birth Anniversary)",
+        "23 December: Kisan Diwas (National Farmers' Day - Chaudhary Charan Singh Jayanti)",
+        "25 December: Good Governance Day (Sushasan Divas - Atal Bihari Vajpayee Jayanti)",
+    ],
+}
+
+
+def get_important_days_for_date(date_str: str) -> List[str]:
+    """Returns dynamic, syllabus-aligned Important Days for the edition's month."""
+    d_low = str(date_str or "").lower()
+    for month_name, days in IMPORTANT_DAYS_BY_MONTH.items():
+        if month_name in d_low:
+            return days
+    # Check ISO month format YYYY-MM-DD
+    m_iso = re.search(r"-(0[1-9]|1[0-2])-", d_low)
+    if m_iso:
+        months_list = list(IMPORTANT_DAYS_BY_MONTH.keys())
+        idx = int(m_iso.group(1)) - 1
+        if 0 <= idx < len(months_list):
+            return IMPORTANT_DAYS_BY_MONTH[months_list[idx]]
+    return IMPORTANT_DAYS_BY_MONTH["october"]
+
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+AGRI LEARNING POINT - Premium Daily Current Affairs PDF Generator
+================================================================
+Production engine for daily / weekly / monthly bilingual editions.
+Engineered for competitive-exam coaching standards (AGTA, AFO, ICAR, NABARD, FCI, UPSC, SSC).
+
+Clean, Mobile-Friendly, Distraction-Free Design:
+- Minimal Two-Color Palette: Deep Classic Navy (#0F2B48) & Forest Green (#166534)
+- Crisp Devanagari Typography: Mukta (SemiBold for headings, Regular for body) shaped with HarfBuzz + FreeType
+- Selectable vector text layer for QA & searchability
+- Clean running header and 3 official channels footer (YouTube, @agrilearningpoint, @agriquizworld)
+- Zero unnecessary colors, zero fake social links.
+"""
 from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
 
 # --- HARFBUZZ + FREETYPE CHECK ---
@@ -316,15 +453,7 @@ def _get_clean_explanation_pairs(item: Dict[str, Any], mcq: Dict[str, Any]) -> L
 
     headline_en = _clean_text_for_display(item.get("headline_en", ""))
 
-    # 1. Headline summary (if substantive and distinct)
-    hl_clean = headline_en
-    if hl_clean and len(hl_clean) > 25 and not is_dup(hl_clean) and not is_boilerplate(hl_clean):
-        hi_candidate = _clean_text_for_display(item.get("headline_hi", ""))
-        clean_hi = "" if _is_broken_dictionary_hindi(hi_candidate) else hi_candidate
-        seen_texts.append(hl_clean)
-        pairs.append((hl_clean, clean_hi))
-
-    # 2. Key Points
+    # 1. Key Points first (substantive facts, not headline duplication)
     kp_ens = item.get("key_points_en") or []
     kp_his = item.get("key_points_hi") or []
     for idx_kp, kpe in enumerate(kp_ens):
@@ -341,13 +470,22 @@ def _get_clean_explanation_pairs(item: Dict[str, Any], mcq: Dict[str, Any]) -> L
         if len(pairs) >= 3:
             break
 
-    # 3. Detailed Explanation (if distinct)
+    # 2. Detailed Explanation (if distinct)
     det_en = _clean_text_for_display(item.get("detailed_explanation_en", ""))
     if det_en and len(det_en) > 30 and not is_dup(det_en) and not is_boilerplate(det_en):
         det_hi_c = _clean_text_for_display(item.get("detailed_explanation_hi", ""))
         clean_det_hi = "" if _is_broken_dictionary_hindi(det_hi_c) else det_hi_c
         seen_texts.append(det_en)
         pairs.append((det_en, clean_det_hi))
+
+    # 3. Fallback: only if no key points or detailed explanation exist, use headline
+    if not pairs:
+        hl_clean = headline_en
+        if hl_clean and len(hl_clean) > 25 and not is_dup(hl_clean) and not is_boilerplate(hl_clean):
+            hi_candidate = _clean_text_for_display(item.get("headline_hi", ""))
+            clean_hi = "" if _is_broken_dictionary_hindi(hi_candidate) else hi_candidate
+            seen_texts.append(hl_clean)
+            pairs.append((hl_clean, clean_hi))
 
     # 4. MCQ specific explanation if we need more context
     if len(pairs) < 2:
@@ -1387,24 +1525,7 @@ def generate_pdf(
     # =========================================================================
     # 5. IMPORTANT DAYS SECTION
     # =========================================================================
-    sample_days = [
-        "1 October: International Coffee Day (Theme 2026: Celebrating Coffee, Honouring the People Behind Every Cup)",
-        "1 October: National Voluntary Blood Donation Day (NVBDD) (2026 theme: 'One Drop of Humanity. Give Blood. Save Lives.')",
-        "1 October: International Day of Older Persons (2026 Theme: The Age of Longevity: Rethinking Systems for Longer Lives)",
-        "2 October: International Day of Non-Violence (Birthday of Mahatma Gandhi)",
-        "2 - 8 October: National Wildlife Week 2026",
-        "4 October: World Animal Day",
-        "4 to 10 October: World Space Week (theme 2026: 'Rocket Revolution')",
-        "5 October: World Habitat Day (2026 theme: Adequate Housing for All)",
-        "5 October: World Teachers' Day (theme 2026: 'Standing with teachers: 60 years of protecting the profession')",
-        "7 October: World Cotton Day (Theme 2026: 'Cotton for Good: Building Prosperity Through Trade')",
-        "8 October: 94th Indian Air Force Day (theme 2026: 'Indian Air Force - Infallible, Impervious and Precise')",
-        "9 October: World Post Day (theme 2026: 'World Post Day: One Postal Network, Infinite Possibilities')",
-        "10 October: World Mental Health Day (theme 2026: 'Lived Experiences Heard: Real Voices, Real Change')",
-        "14 October: World Standards Day (theme 2026: 'Shared Vision for a Better World')",
-        "15 October: Mahila Kisan Diwas (theme 2026: 'Role of Women Farmers in Building Developed Agriculture')",
-        "16 October: World Food Day (theme 2026: 'Right to foods for a better life and a better future')",
-    ]
+    sample_days = get_important_days_for_date(date_str)
     story.append(CondPageBreak(80*mm))
     story.append(Paragraph("<b>Important days :</b>", st_deep_dive_h))
     story.append(Spacer(1, 2*mm))

@@ -501,6 +501,23 @@ def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
                    fonts=fonts[:10])
 
 
+
+def check_editorial_quality(report: QAReport, text: str) -> None:
+    """Editorial quality assurance: prevents placeholder, corrupt, or leaked content."""
+    # 1. Untitled content check
+    if re.search(r"\buntitled\b", text, re.IGNORECASE):
+        report.add("error", "untitled_content", "PDF contains 'Untitled' headline or placeholder string")
+
+    # 2. Suspected truncated prefix check
+    corrupt_matches = re.findall(r"\b(aiwan|ranscript of|inistr)\b", text, re.IGNORECASE)
+    if corrupt_matches:
+        report.add("warning", "corrupt_prefix", f"PDF contains suspected truncated words: {corrupt_matches}")
+
+    # 3. Broken question template check
+    if 'Which ministry / organisation is responsible for implementing "- \'' in text:
+        report.add("error", "broken_mcq_template", "PDF contains broken/robotic MCQ template with bare hyphen")
+
+
 def check_text_content(report: QAReport, text: str) -> None:
     report.total_chars = len(text)
     if report.total_chars < 500:
@@ -690,6 +707,7 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
         check_images(report, doc)
         text = extract_text(doc)
         check_text_content(report, text)
+        check_editorial_quality(report, text)
         check_glyph_integrity(report, text)
         check_html_leakage(report, text)
         check_mcqs(report, text, min_mcq_count)

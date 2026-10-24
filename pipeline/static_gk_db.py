@@ -5,6 +5,7 @@ Authoritative, verified factual reference for competitive exam current affairs.
 Matches UPSC, UPSSSC AGTA, IBPS AFO, ICAR, NABARD, FCI, and State PCS coaching standards.
 """
 from __future__ import annotations
+import re
 from typing import Dict, List, Tuple, Any
 
 # Master Entity Database: (English Name, Hindi Name, Paired Static GK Facts)
@@ -116,6 +117,20 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "RBI का केंद्रीय कार्यालय प्रारंभ में कलकत्ता में स्थापित किया गया था लेकिन 1937 में इसे स्थायी रूप से मुंबई स्थानांतरित कर दिया गया।"),
         ]
     },
+    "SBI": {
+        "name_en": "State Bank of India (SBI)",
+        "name_hi": "भारतीय स्टेट बैंक (SBI)",
+        "facts": [
+            ("State Bank of India (SBI) was established on 1 July 1955 under the State Bank of India Act, 1955.",
+             "भारतीय स्टेट बैंक (SBI) की स्थापना भारतीय स्टेट बैंक अधिनियम, 1955 के तहत 1 जुलाई 1955 को हुई थी।"),
+            ("SBI is headquartered in Mumbai, Maharashtra.",
+             "SBI का मुख्यालय मुंबई, महाराष्ट्र में स्थित है।"),
+            ("SBI was nationalised in 1955 (formerly the Imperial Bank of India established in 1921).",
+             "SBI का राष्ट्रीयकरण 1955 में किया गया था (पूर्व में 1921 में स्थापित इंपीरियल बैंक ऑफ इंडिया)।"),
+            ("SBI is India's largest public sector bank and a Domestic Systemically Important Bank (D-SIB).",
+             "SBI भारत का सबसे बड़ा सार्वजनिक क्षेत्र का बैंक और घरेलू प्रणालीगत रूप से महत्वपूर्ण बैंक (D-SIB) है।"),
+        ]
+    },
     "SEBI": {
         "name_en": "Securities and Exchange Board of India (SEBI)",
         "name_hi": "भारतीय प्रतिभूति और विनिमय बोर्ड (SEBI)",
@@ -144,6 +159,18 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "IRDAI भारत में बीमा और पुनर्बीमा उद्योगों का विनियमन और संवर्धन करता है।"),
         ]
     },
+    "DICGC": {
+        "name_en": "Deposit Insurance and Credit Guarantee Corporation (DICGC)",
+        "name_hi": "जमा बीमा और ऋण गारंटी निगम (DICGC)",
+        "facts": [
+            ("DICGC was established on 15 July 1978 under the DICGC Act, 1961 as a wholly owned subsidiary of RBI.",
+             "DICGC की स्थापना 15 जुलाई 1978 को DICGC अधिनियम, 1961 के तहत RBI की पूर्ण स्वामित्व वाली सहायक कंपनी के रूप में हुई थी।"),
+            ("DICGC provides deposit insurance coverage up to ₹5 lakh per depositor per insured bank.",
+             "DICGC प्रत्येक बीमित बैंक में प्रति जमाकर्ता ₹5 लाख तक की जमा राशि पर बीमा सुरक्षा प्रदान करता है।"),
+            ("DICGC is headquartered in Mumbai, Maharashtra.",
+             "DICGC का मुख्यालय मुंबई, महाराष्ट्र में स्थित है।"),
+        ]
+    },
     "WORLD_BANK": {
         "name_en": "World Bank",
         "name_hi": "विश्व बैंक (World Bank)",
@@ -156,6 +183,32 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "विश्व बैंक समूह में पाँच संस्थाएँ शामिल हैं: IBRD, IDA, IFC, MIGA और ICSID।"),
             ("The International Bank for Reconstruction and Development (IBRD) has 189 member countries.",
              "अंतर्राष्ट्रीय पुनर्निर्माण और विकास बैंक (IBRD) के 189 सदस्य देश हैं।"),
+        ]
+    },
+    "WFP": {
+        "name_en": "United Nations World Food Programme (WFP)",
+        "name_hi": "संयुक्त राष्ट्र विश्व खाद्य कार्यक्रम (WFP)",
+        "facts": [
+            ("The World Food Programme (WFP) was established in 1961 by the FAO and UN General Assembly.",
+             "विश्व खाद्य कार्यक्रम (WFP) की स्थापना 1961 में FAO और संयुक्त राष्ट्र महासभा द्वारा की गई थी।"),
+            ("WFP is headquartered in Rome, Italy.",
+             "WFP का मुख्यालय रोम, इटली में स्थित है।"),
+            ("WFP received the Nobel Peace Prize in 2020 for its global efforts to combat hunger and ensure food security.",
+             "भूख से निपटने और खाद्य सुरक्षा सुनिश्चित करने के प्रयासों के लिए WFP को 2020 में नोबेल शांति पुरस्कार मिला।"),
+            ("WFP collaborates with India to support the Public Distribution System (PDS) and Annapurti Grain ATMs.",
+             "WFP सार्वजनिक वितरण प्रणाली (PDS) और अन्नपूर्ति ग्रेन एटीएम के विस्तार में भारत के साथ सहयोग करता है।"),
+        ]
+    },
+    "UNESCO": {
+        "name_en": "United Nations Educational, Scientific and Cultural Organization (UNESCO)",
+        "name_hi": "संयुक्त राष्ट्र शैक्षिक, वैज्ञानिक एवं सांस्कृतिक संगठन (UNESCO)",
+        "facts": [
+            ("UNESCO was founded on 16 November 1945 and is headquartered in Paris, France.",
+             "UNESCO की स्थापना 16 नवंबर 1945 को हुई थी और इसका मुख्यालय पेरिस, फ्रांस में है।"),
+            ("India joined UNESCO in 1946.",
+             "भारत 1946 में UNESCO में शामिल हुआ।"),
+            ("The World Heritage Convention was adopted by UNESCO in 1972, and ratified by India in 1977.",
+             "विश्व धरोहर अभिसमय को UNESCO द्वारा 1972 में अपनाया गया था, जिसे भारत ने 1977 में अनुमोदित किया।"),
         ]
     },
     "FAO": {
@@ -196,6 +249,66 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "मंत्रालय का मुख्यालय कृषि भवन, नई दिल्ली में स्थित है।"),
             ("Key flagship schemes include PM-KISAN, PM Fasal Bima Yojana (PMFBY), and Agriculture Infrastructure Fund (AIF).",
              "प्रमुख प्रमुख योजनाओं में पीएम-किसान, पीएम फसल बीमा योजना (PMFBY) और कृषि अवसंरचना कोष (AIF) शामिल हैं।"),
+        ]
+    },
+    "MNRE": {
+        "name_en": "Ministry of New and Renewable Energy (MNRE)",
+        "name_hi": "नवीन एवं नवीकरणीय ऊर्जा मंत्रालय (MNRE)",
+        "facts": [
+            ("MNRE is the nodal ministry for all matters relating to new and renewable energy in India.",
+             "MNRE भारत में नवीन और नवीकरणीय ऊर्जा से संबंधित सभी मामलों के लिए नोडल मंत्रालय है।"),
+            ("PM-KUSUM was launched in 2019 to provide energy security for farmers and promote solarized agriculture.",
+             "पीएम-कुसुम योजना 2019 में किसानों की ऊर्जा सुरक्षा और सौर कृषि को बढ़ावा देने के लिए शुरू की गई थी।"),
+            ("MNRE is headquartered at Atal Akshay Urja Bhawan, New Delhi.",
+             "MNRE का मुख्यालय अटल अक्षय ऊर्जा भवन, नई दिल्ली में स्थित है।"),
+        ]
+    },
+    "CCO": {
+        "name_en": "Coal Controller Organisation (CCO)",
+        "name_hi": "कोल कंट्रोलर ऑर्गनाइजेशन (CCO)",
+        "facts": [
+            ("The Coal Controller Organisation (CCO) was established in 1916 and functions under the Ministry of Coal.",
+             "कोल कंट्रोलर ऑर्गनाइजेशन (CCO) की स्थापना 1916 में हुई थी और यह कोयला मंत्रालय के अधीन कार्य करता है।"),
+            ("CCO is headquartered in New Delhi (formerly Kolkata).",
+             "CCO का मुख्यालय नई दिल्ली में स्थित है।"),
+            ("Ministry of Coal was established in 1975 to manage coal and lignite exploration and production in India.",
+             "कोयला मंत्रालय की स्थापना 1975 में भारत में कोयला और लिग्नाइट उत्पादन के प्रबंधन के लिए की गई थी।"),
+        ]
+    },
+    "OIML": {
+        "name_en": "International Organization of Legal Metrology (OIML)",
+        "name_hi": "अंतर्राष्ट्रीय विधिक मापविज्ञान संगठन (OIML)",
+        "facts": [
+            ("OIML was established in 1955 and is headquartered in Paris, France.",
+             "OIML की स्थापना 1955 में हुई थी और इसका मुख्यालय पेरिस, फ्रांस में है।"),
+            ("Legal Metrology applies legal requirements to measurements and instruments used in trade and public transactions.",
+             "विधिक मापविज्ञान (Legal Metrology) व्यापार और सार्वजनिक लेनदेन में मापों और माप उपकरणों पर कानूनी नियम लागू करता है।"),
+            ("India's Legal Metrology is administered by the Department of Consumer Affairs.",
+             "भारत में विधिक मापविज्ञान का प्रशासन उपभोक्ता मामले विभाग द्वारा किया जाता है।"),
+        ]
+    },
+    "SNA": {
+        "name_en": "Sangeet Natak Akademi",
+        "name_hi": "संगीत नाटक अकादमी",
+        "facts": [
+            ("Sangeet Natak Akademi was established in 1953 as India's national academy for music, dance and drama.",
+             "संगीत नाटक अकादमी की स्थापना 1953 में भारत की राष्ट्रीय संगीत, नृत्य और नाटक अकादमी के रूप में हुई थी।"),
+            ("The Akademi functions under the Ministry of Culture and is headquartered at Rabindra Bhavan, New Delhi.",
+             "यह अकादमी संस्कृति मंत्रालय के तहत कार्य करती है और इसका मुख्यालय रवींद्र भवन, नई दिल्ली में है।"),
+            ("Ustad Bismillah Khan Yuva Puraskar was instituted by Sangeet Natak Akademi in 2006 for artists up to 40 years of age.",
+             "उस्ताद बिस्मिल्लाह खान युवा पुरस्कार की स्थापना 2006 में 40 वर्ष तक के कलाकारों के लिए की गई थी।"),
+        ]
+    },
+    "WWF": {
+        "name_en": "World Wide Fund for Nature (WWF)",
+        "name_hi": "वर्ल्ड वाइड फंड फॉर नेचर (WWF)",
+        "facts": [
+            ("WWF was founded in 1961 and is headquartered in Gland, Switzerland.",
+             "WWF की स्थापना 1961 में हुई थी और इसका मुख्यालय ग्लैंड, स्विट्जरलैंड में है।"),
+            ("National Clean Air Programme (NCAP) was launched by MoEFCC in 2019 to improve air quality across Indian cities.",
+             "राष्ट्रीय स्वच्छ वायु कार्यक्रम (NCAP) 2019 में MoEFCC द्वारा भारतीय शहरों में वायु गुणवत्ता सुधारने के लिए शुरू किया गया था।"),
+            ("Mission LiFE (Lifestyle for Environment) was launched at COP26 in Glasgow.",
+             "मिशन LiFE (पर्यावरण के लिए जीवनशैली) की शुरुआत ग्लासगो में आयोजित COP26 में हुई थी।"),
         ]
     },
     "MEITY": {
@@ -330,10 +443,11 @@ SEMANTIC_OPTION_POOLS: Dict[str, List[Tuple[str, str]]] = {
     ],
     "financial_regulators": [
         ("Reserve Bank of India (RBI)", "भारतीय रिज़र्व बैंक (RBI)"),
+        ("State Bank of India (SBI)", "भारतीय स्टेट बैंक (SBI)"),
         ("Securities and Exchange Board of India (SEBI)", "भारतीय प्रतिभूति और विनिमय बोर्ड (SEBI)"),
         ("Insurance Regulatory and Development Authority of India (IRDAI)", "भारतीय बीमा विनियामक और विकास प्राधिकरण (IRDAI)"),
         ("Pension Fund Regulatory and Development Authority (PFRDA)", "पेंशन निधि विनियामक और विकास प्राधिकरण (PFRDA)"),
-        ("Insolvency and Bankruptcy Board of India (IBBI)", "भारतीय दिवाला और शोधन अक्षमता बोर्ड (IBBI)"),
+        ("Deposit Insurance and Credit Guarantee Corporation (DICGC)", "जमा बीमा और ऋण गारंटी निगम (DICGC)"),
         ("National Bank for Agriculture and Rural Development (NABARD)", "राष्ट्रीय कृषि और ग्रामीण विकास बैंक (NABARD)"),
     ],
     "defence_tech": [
@@ -347,41 +461,86 @@ SEMANTIC_OPTION_POOLS: Dict[str, List[Tuple[str, str]]] = {
     "schemes_agri": [
         ("PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)", "पीएम-किसान (प्रधानमंत्री किसान सम्मान निधि)"),
         ("PMFBY (Pradhan Mantri Fasal Bima Yojana)", "पीएमएफबीवाई (प्रधानमंत्री फसल बीमा योजना)"),
+        ("PM-KUSUM (Kisan Urja Suraksha evam Utthaan Mahabhiyan)", "पीएम-कुसुम (किसान ऊर्जा सुरक्षा एवं उत्थान महाभियान)"),
         ("KERA Project (Kerala Climate Resilient Agri-Value Chain)", "केरा परियोजना (KERA Project)"),
         ("RKVY (Rashtriya Krishi Vikas Yojana)", "आरकेवीवाई (राष्ट्रीय कृषि विकास योजना)"),
         ("Digital Agriculture Mission", "डिजिटल कृषि मिशन"),
         ("PM Dhan-Dhaanya Krishi Yojana (PMDDKY)", "पीएम धन-धान्य कृषि योजना (PMDDKY)"),
         ("Agriculture Infrastructure Fund (AIF)", "कृषि अवसंरचना कोष (AIF)"),
     ],
+    "global_orgs": [
+        ("Food and Agriculture Organization (FAO)", "खाद्य एवं कृषि संगठन (FAO)"),
+        ("World Food Programme (WFP)", "विश्व खाद्य कार्यक्रम (WFP)"),
+        ("World Bank", "विश्व बैंक"),
+        ("International Monetary Fund (IMF)", "अंतरराष्ट्रीय मुद्रा कोष (IMF)"),
+        ("World Trade Organization (WTO)", "विश्व व्यापार संगठन (WTO)"),
+        ("World Health Organization (WHO)", "विश्व स्वास्थ्य संगठन (WHO)"),
+        ("Asian Development Bank (ADB)", "एशियाई विकास बैंक (ADB)"),
+        ("UNESCO", "यूनेस्को (UNESCO)"),
+    ],
+    "research_institutes": [
+        ("ICAR-Indian Agricultural Research Institute (IARI), New Delhi", "भाकृअनुप-भारतीय कृषि अनुसंधान संस्थान (IARI), नई दिल्ली"),
+        ("ICAR-National Dairy Research Institute (NDRI), Karnal", "भाकृअनुप-राष्ट्रीय डेयरी अनुसंधान संस्थान (NDRI), करनाल"),
+        ("ICAR-Central Rice Research Institute (CRRI), Cuttack", "भाकृअनुप-केंद्रीय चावल अनुसंधान संस्थान (CRRI), कटक"),
+        ("ICAR-Indian Institute of Sugarcane Research (IISR), Lucknow", "भाकृअनुप-भारतीय गन्ना अनुसंधान संस्थान (IISR), लखनऊ"),
+        ("ICAR-Central Arid Zone Research Institute (CAZRI), Jodhpur", "भाकृअनुप-केंद्रीय शुष्क क्षेत्र अनुसंधान संस्थान (CAZRI), जोधपुर"),
+        ("ICAR-Indian Veterinary Research Institute (IVRI), Izatnagar", "भाकृअनुप-भारतीय पशु चिकित्सा अनुसंधान संस्थान (IVRI), इज़्ज़तनगर"),
+    ],
+    "cities_venues": [
+        ("New Delhi", "नई दिल्ली"),
+        ("Mumbai", "मुंबई"),
+        ("Bengaluru", "बेंगलुरु"),
+        ("Hyderabad", "हैदराबाद"),
+        ("Chennai", "चेन्नई"),
+        ("Kolkata", "कोलकाता"),
+        ("Ahmedabad", "अहमदाबाद"),
+        ("Varanasi", "वाराणसी"),
+    ],
 }
 
 
 def lookup_static_gk_for_text(text: str) -> List[Tuple[str, str]]:
-    """Scan text for known statutory / institutional entities and return paired bilingual facts."""
-    t_upper = text.upper()
+    """Scan text for known statutory / institutional entities and return paired bilingual facts.
+    
+    Uses strict word boundaries so that abbreviations like 'SCO' do not match inside
+    unrelated words like 'Scott' or 'score'.
+    """
+    t_upper = (text or "").upper()
     results: List[Tuple[str, str]] = []
     seen_keys = set()
 
-    # Direct keyword matching
+    # Exact word-boundary matching tuples: (needle, entity_key)
     matches = [
         ("ICAR-IARI", "IARI"), ("IARI", "IARI"),
         ("ICAR", "ICAR"), ("NABARD", "NABARD"),
-        ("FOOD CORPORATION", "FCI"), ("FCI", "FCI"),
+        ("FOOD CORPORATION OF INDIA", "FCI"), ("FOOD CORPORATION", "FCI"), ("FCI", "FCI"),
         ("APEDA", "APEDA"), ("NAFED", "NAFED"),
-        ("RESERVE BANK", "RBI"), ("RBI", "RBI"),
-        ("SEBI", "SEBI"), ("IRDAI", "IRDAI"),
+        ("RESERVE BANK OF INDIA", "RBI"), ("RESERVE BANK", "RBI"), ("RBI", "RBI"),
+        ("STATE BANK OF INDIA", "SBI"), ("STATE BANK", "SBI"), ("SBI", "SBI"),
+        ("SEBI", "SEBI"), ("IRDAI", "IRDAI"), ("DICGC", "DICGC"),
         ("WORLD BANK", "WORLD_BANK"),
+        ("WORLD FOOD PROGRAMME", "WFP"), ("WFP", "WFP"),
+        ("UNESCO", "UNESCO"),
+        ("PM-KUSUM", "MNRE"), ("AGRIVOLTAICS", "MNRE"), ("MNRE", "MNRE"),
+        ("COAL CONTROLLER", "CCO"), ("CCO", "CCO"), ("MINISTRY OF COAL", "CCO"),
+        ("LEGAL METROLOGY", "OIML"), ("OIML", "OIML"), ("CIML", "OIML"),
+        ("SANGEET NATAK AKADEMI", "SNA"), ("USTAD BISMILLAH KHAN", "SNA"),
+        ("WWF", "WWF"), ("NCAP", "WWF"), ("MISSION LIFE", "WWF"),
         ("FAO", "FAO"), ("FOOD AND AGRICULTURE ORGANIZATION", "FAO"),
-        ("EXTERNAL AFFAIRS", "MEA"), ("MINISTRY OF EXTERNAL", "MEA"),
+        ("EXTERNAL AFFAIRS", "MEA"), ("MINISTRY OF EXTERNAL", "MEA"), ("MEA", "MEA"),
         ("MINISTRY OF AGRICULTURE", "MOA"), ("AGRICULTURE MINISTRY", "MOA"),
         ("MEITY", "MEITY"), ("ELECTRONICS AND INFORMATION", "MEITY"), ("DIGILOCKER", "MEITY"),
-        ("ISRO", "ISRO"), ("DRDO", "DRDO"), ("SPORTS AUTHORITY", "SAI"), ("SAI", "SAI"),
+        ("ISRO", "ISRO"), ("DRDO", "DRDO"), ("SPORTS AUTHORITY OF INDIA", "SAI"), ("SAI", "SAI"),
         ("SIOFA", "SIOFA"), ("AIIA", "AIIA"), ("AYURVEDA", "AIIA"),
         ("BIMSTEC", "BIMSTEC"), ("SCO", "SCO"),
     ]
 
     for needle, key in matches:
-        if needle in t_upper and key not in seen_keys:
+        if key in seen_keys:
+            continue
+        # Strict word boundary check: needle must be a standalone word or token
+        pattern = r"(?:\b|^)" + re.escape(needle) + r"(?:\b|$)"
+        if re.search(pattern, t_upper):
             seen_keys.add(key)
             data = ENTITY_STATIC_DB.get(key)
             if data and "facts" in data:

@@ -1,15 +1,31 @@
 """Shared edition windows, independent of source configuration and network I/O."""
 
-from datetime import date, datetime, time as dt_time, timedelta
+from datetime import date, datetime, time as dt_time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
 
 
+def rolling_24h_utc_window(run_started_at_utc: datetime | None = None) -> tuple[datetime, datetime]:
+    """Return strictly reproducible 24-hour UTC window: [run_started_at_utc - 24 hours, run_started_at_utc].
+    
+    Timestamps are converted to Asia/Kolkata for display and metadata logging.
+    """
+    if run_started_at_utc is None:
+        run_started_at_utc = datetime.now(timezone.utc)
+    elif run_started_at_utc.tzinfo is None:
+        run_started_at_utc = run_started_at_utc.replace(tzinfo=timezone.utc)
+    else:
+        run_started_at_utc = run_started_at_utc.astimezone(timezone.utc)
+    window_end = run_started_at_utc
+    window_start = window_end - timedelta(hours=24)
+    return window_start, window_end
+
+
 def collect_window(job_type: str, job_date: str) -> tuple[datetime, datetime]:
     """Return inclusive IST collection window for a daily/weekly/monthly edition.
 
-    Daily current-date run: trailing 24 hours ending at run time.
+    Daily current-date run: genuine trailing 24 hours ending at run time.
     Daily historical-date run: previous calendar day (edition dated job_date).
     Weekly: Monday through the end of job_date.
     Monthly: previous complete month when job_date is the first; otherwise MTD.
@@ -25,10 +41,8 @@ def collect_window(job_type: str, job_date: str) -> tuple[datetime, datetime]:
     if job_type == "daily":
         if edition_day == now.date():
             end = now
-            # Include from start of yesterday (00:00:00 IST) up to now (24-36 hrs),
-            # ensuring early-morning releases and UTC midnight items from yesterday
-            # are captured for complete 24-hour current affairs coverage.
-            start = datetime.combine(edition_day - timedelta(days=1), dt_time.min, tzinfo=IST)
+            # Strict rolling 24 hours: ending at current execution time
+            start = end - timedelta(hours=24)
         else:
             end_day = edition_day - timedelta(days=1)
             start = datetime.combine(end_day, dt_time.min, tzinfo=IST)

@@ -140,42 +140,68 @@ def independent_domain(url):
     return ".".join(labels[-count:])
 
 
+def _get_article_features(a: Dict[str, Any]) -> Dict[str, Any]:
+    link = a.get("link", "")
+    title = clean_text(a.get("title", "")).lower()
+    art_text = f"{title} {a.get('summary', '')}"
+    terms = set(extract_key_terms(art_text))
+    numbers = {float(v) for v in re.findall(r"\b\d+(?:\.\d+)?\b", title)}
+    host = independent_domain(link)
+    return {"link": link, "title": title, "terms": terms, "numbers": numbers, "host": host}
+
+
 def cross_source_score(
     article: Dict[str, Any],
     all_articles: List[Dict[str, Any]],
     similarity_threshold: float = 0.25,
+    feature_cache: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Tuple[float, List[str]]:
     """
     Check if same claim appears in multiple sources.
     Returns (confidence 0-1, corroborating_source_list).
     """
-    art_text = f"{article.get('title', '')} {article.get('summary', '')}"
-    art_terms = set(extract_key_terms(art_text))
+    art_link = article.get("link", "")
+    if feature_cache and art_link in feature_cache:
+        feat = feature_cache[art_link]
+    else:
+        feat = _get_article_features(article)
+
+    art_terms = feat["terms"]
     if not art_terms:
         return 0.3, []  # no terms → weak but non-zero
 
-    article_link = article.get("link", "")
-    own_host = independent_domain(article_link)
+    own_host = feat["host"]
+    title = feat["title"]
+    numbers = feat["numbers"]
     corroborating: List[str] = []
-    title = clean_text(article.get("title", "")).lower()
-    numbers = {float(value) for value in re.findall(r"\b\d+(?:\.\d+)?\b", title)}
+
     for other in all_articles:
         other_link = other.get("link", "")
-        host = independent_domain(other_link)
-        # Syndicated pages or another article in the same feed are not independent proof.
-        if not host or host == own_host or other_link == article_link:
+        if feature_cache and other_link in feature_cache:
+            o_feat = feature_cache[other_link]
+        else:
+            o_feat = _get_article_features(other)
+
+        host = o_feat["host"]
+        if not host or host == own_host or other_link == art_link:
             continue
-        other_title = clean_text(other.get("title", "")).lower()
-        other_numbers = {float(value) for value in re.findall(r"\b\d+(?:\.\d+)?\b", other_title)}
+
+        other_numbers = o_feat["numbers"]
         if numbers and other_numbers and numbers != other_numbers:
             continue
-        other_text = f"{other_title} {other.get('summary', '')}"
-        other_terms = set(extract_key_terms(other_text))
+
+        other_terms = o_feat["terms"]
         if not other_terms:
             continue
+
         overlap = len(art_terms & other_terms) / max(len(art_terms | other_terms), 1)
-        similarity = SequenceMatcher(None, title, other_title).ratio()
+        other_title = o_feat["title"]
+
         shared_nums = (numbers & other_numbers) if (numbers and other_numbers) else set()
+        if overlap < 0.15 and not shared_nums and not (set(title.split()) & set(other_title.split())):
+            continue
+
+        similarity = SequenceMatcher(None, title, other_title).ratio()
         is_corroborated = (
             (overlap >= similarity_threshold and similarity >= 0.40)
             or (overlap >= 0.50)
@@ -297,9 +323,10 @@ def llm_score(article: Dict[str, Any]) -> Tuple[float, List[str]]:
 def verify_article(
     article: Dict[str, Any],
     all_articles: List[Dict[str, Any]],
+    feature_cache: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Run all strategies + weighted combine. Never raises."""
-    cross_s, corroborating = cross_source_score(article, all_articles)
+    cross_s, corroborating = cross_source_score(article, all_articles, feature_cache=feature_cache)
     heur_s, heur_flags = heuristic_score(article)
 
     llm_s = 0.0
@@ -426,9 +453,10 @@ def main() -> int:
     verified: List[Dict[str, Any]] = []
     failed = 0
 
+    feature_cache = {a.get("link", ""): _get_article_features(a) for a in articles}
     for idx, art in enumerate(articles, 1):
         try:
-            result = verify_article(art, articles)
+            result = verify_article(art, articles, feature_cache=feature_cache)
             verified.append(result)
             logger.debug(
                 "[%d/%d] %s → %.2f (%s)",

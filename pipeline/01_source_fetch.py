@@ -192,6 +192,91 @@ def sanitize_feed_text(text: str) -> str:
     return " ".join(cleaned.split()).strip()
 
 
+def clean_and_validate_headline(raw_title: str, source_name: str = "") -> Tuple[str, bool]:
+    """Clean, sanitize, and validate headline against junk/untitled/truncated patterns.
+    
+    Returns (cleaned_title, is_valid).
+    """
+    title = sanitize_feed_text(raw_title)
+    if not title:
+        return "", False
+
+    # Strip leading dashes, bullets, spaces, arrows
+    title = re.sub(r"^[-–—•:\|\s\>]+", "", title).strip()
+
+    # Strip redundant trailing publisher repetition (e.g. 'Headline - Source Name')
+    if source_name:
+        s_clean = re.sub(r"[^\w\s]", "", source_name).lower().strip()
+        parts = title.rsplit(" - ", 1)
+        if len(parts) == 2:
+            suffix_clean = re.sub(r"[^\w\s]", "", parts[1]).lower().strip()
+            if suffix_clean == s_clean or (s_clean and s_clean in suffix_clean):
+                title = parts[0].strip()
+
+    # Reject placeholder "Untitled"
+    if re.search(r"\buntitled\b", title, re.IGNORECASE):
+        return title, False
+
+    # Reject raw files (.pdf, .docx, etc.)
+    if RAW_FILE_RE.search(title):
+        return title, False
+
+    # Reject bare ministry / department / organisation names without an event
+    bare_org_patterns = [
+        r"^(?:Department|Ministry)\s+of\s+[A-Za-z\s,&-]+$",
+        r"^Sports Authority of India$",
+        r"^Election Commission of India$",
+        r"^Indian Council of Agricultural Research$",
+        r"^ICAR-[A-Za-z\s,&-]+$",
+    ]
+    for pat in bare_org_patterns:
+        if re.match(pat, title.strip(), re.IGNORECASE):
+            return title, False
+
+    # Length and word count checks
+    words = title.split()
+    if len(title) < 18 or len(words) < 4:
+        return title, False
+
+    # Check for truncated leading characters (e.g. 'aiwan' -> 'Taiwan', 'ranscript' -> 'Transcript')
+    first_char = title[0]
+    if first_char.isalpha() and first_char.islower() and not title.startswith(("e-", "i-", "m-")):
+        if title.startswith("aiwan "):
+            title = "T" + title
+        elif title.startswith("ranscript "):
+            title = "T" + title
+        else:
+            return title, False
+
+    return title, True
+
+
+def extract_article_text(url: str, timeout: int = 5) -> str:
+    """Safely extract plain article text from webpage URL without hanging."""
+    if not url or not url.startswith(("http://", "https://")):
+        return ""
+    if os.getenv("ALP_DISABLE_NETWORK", "0") == "1" or os.getenv("DRY_RUN", "0") == "1":
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        if resp.status_code != 200 or not resp.text:
+            return ""
+        soup = BeautifulSoup(resp.content[:300_000], "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "aside"]):
+            tag.decompose()
+        paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+        meaningful = [
+            p for p in paragraphs
+            if len(p) > 30 and not any(w in p.lower() for w in ("copyright", "all rights reserved", "subscribe", "terms of use"))
+        ]
+        text = " ".join(meaningful)
+        return " ".join(text.split())[:3000]
+    except Exception:
+        return ""
+
+
 # --------------------------------------------------------------------------
 # Fetch + normalize
 # --------------------------------------------------------------------------
@@ -227,15 +312,11 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
     entries = list(getattr(parsed, "entries", []) or [])
     for entry in entries:
         raw_title = getattr(entry, "title", "") or ""
-        title = sanitize_feed_text(raw_title)
+        title, is_valid = clean_and_validate_headline(raw_title, spec.name)
         link = clean_url((getattr(entry, "link", "") or "").strip())
-        if not title or not link.lower().startswith(("http://", "https://")):
+        if not is_valid or not link.lower().startswith(("http://", "https://")):
             malformed += 1
             continue  # validated at collection boundary; logged via counter
-        # Discard fragments, junk headlines, or raw file attachments (e.g. 459-1.pdf - CPCB)
-        if len(title) < 15 or len(title.split()) < 3 or RAW_FILE_RE.search(title):
-            malformed += 1
-            continue
         published = _parse_entry_time(entry)
         if published is None:
             # Missing timestamps are NOT treated as current news.
@@ -248,6 +329,11 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             continue
         seen_hashes.add(h)
         summary = sanitize_feed_text(getattr(entry, "summary", "") or "")
+        # If summary is thin or identical to title, attempt substantive paragraph extraction
+        if len(summary) < 120 or summary.lower() == title.lower():
+            body_txt = extract_article_text(link, timeout=4)
+            if len(body_txt) > len(summary):
+                summary = body_txt
         source_name = resolve_publisher(link, spec.name)
         collected.append({
             "title": title,

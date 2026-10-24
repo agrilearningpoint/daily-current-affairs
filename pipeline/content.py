@@ -49,6 +49,10 @@ import os
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
+try:
+    from pipeline.static_gk_db import SEMANTIC_OPTION_POOLS
+except Exception:
+    SEMANTIC_OPTION_POOLS = {}
 
 logger = logging.getLogger(__name__)
 
@@ -215,9 +219,9 @@ def _norm_ws(text):
 def _plain_headline(text):
     """Remove display prefixes, '>>', 'Watch:' and normalise whitespace."""
     t = _norm_ws(text)
-    t = re.sub(r'^(Topic\s*:\s*)?[&gt;>\s]+', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'^(?:Topic\s*:\s*)?(?:>>|>|\s)+', '', t, flags=re.IGNORECASE)
     t = re.sub(r'^Watch\s*[-:]*\s*', '', t, flags=re.IGNORECASE)
-    t = re.sub(r'&gt;&gt;|&gt;|>>|>', '', t)
+    t = re.sub(r'>>|>', '', t)
     return t.strip()
 
 
@@ -880,6 +884,68 @@ def _make_mcq(ci, mtype, q_en, q_hi, correct, distractors, expl_en, expl_hi, exa
             "source_url": (ci.get("source") or {}).get("url", "")}
 
 
+def _clean_stem_for_mcq(stem: str, target: str) -> str:
+    """Removes the target answer from the question stem to prevent answer leakage."""
+    if not stem:
+        return ""
+    cleaned = stem
+    if target:
+        cleaned = re.sub(re.escape(target), "", cleaned, flags=re.IGNORECASE)
+        for dig in re.findall(r"\b\d+(?:,\d+)*(?:\.\d+)?\b", target):
+            cleaned = re.sub(r"\b" + re.escape(dig) + r"\b", "", cleaned)
+        for acr in re.findall(r"\b[A-Z]{3,}\b", target):
+            cleaned = re.sub(r"\b" + re.escape(acr) + r"\b", "", cleaned)
+    cleaned = re.sub(r"\s*[-–—:]\s*$", "", cleaned)
+    cleaned = re.sub(r"^\s*[-–—:]\s*", "", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,;:-'\"")
+    return cleaned
+
+
+def _build_statement_variants(correct: str, own_text: str) -> list[str]:
+    """Generates 4 plausible, same-format distractors for statement questions without cross-story pollution."""
+    distractors = []
+    m = _NUM_RE.search(correct)
+    if m:
+        num_str = m.group(0)
+        variants = _num_variants(num_str)
+        for v in variants:
+            cand = correct.replace(num_str, v, 1)
+            if cand != correct and cand not in distractors:
+                distractors.append(cand)
+            if len(distractors) >= 4:
+                return distractors
+
+    all_pools = []
+    for k in ["ministries", "agri_orgs", "financial_regulators", "defence_tech", "global_orgs"]:
+        all_pools.extend([x[0] for x in SEMANTIC_OPTION_POOLS.get(k, [])])
+    
+    found_org = None
+    for org_name in sorted(all_pools, key=len, reverse=True):
+        if org_name in correct:
+            found_org = org_name
+            break
+        m_paren = re.search(r"\(([A-Z]{3,})\)", org_name)
+        if m_paren and m_paren.group(1) in correct:
+            found_org = m_paren.group(1)
+            break
+            
+    if found_org:
+        for alt_org in all_pools:
+            alt_rep = alt_org
+            if found_org.isupper() and len(found_org) <= 6:
+                m_alt_paren = re.search(r"\(([A-Z]{3,})\)", alt_org)
+                if m_alt_paren:
+                    alt_rep = m_alt_paren.group(1)
+            if alt_rep != found_org and alt_rep.lower() not in own_text.lower():
+                cand = correct.replace(found_org, alt_rep, 1)
+                if cand != correct and cand not in distractors:
+                    distractors.append(cand)
+                if len(distractors) >= 4:
+                    return distractors
+
+    return distractors
+
+
 def _build_item_candidates(ci, pools, all_items):
     """All MCQs that can be built for one item, in priority order (every answer is in the source text)."""
     cands = []
@@ -897,82 +963,120 @@ def _build_item_candidates(ci, pools, all_items):
     if nums:
         fact = nums[0]
         same_kind = [n for n in pools["nums"] if _num_kind(n) == _num_kind(fact)]
-        distractors = _filter_distractors(fact, same_kind[:2] + _num_variants(fact) + same_kind[2:], own_text)
-        mcq = _make_mcq(
-            ci, "static-number",
-            'What is the key figure / metric associated with: "%s"?' % h80,
-            '"%s" से संबंधित प्रमुख संख्यात्मक मान अथवा आंकड़ा क्या है?' % hh80,
-            fact, distractors,
-            'As per %s: "%s" -- the reported figure is %s.' % (src_name, h80, fact),
-            HI_EXPL_NUMBER.format(src=src_name, val=fact),
-            _clip(ci.get("exam_fact_en") or "", 120))
-        if mcq:
-            cands.append(mcq)
+        distractor_pool = same_kind[:2] + _num_variants(fact) + same_kind[2:]
+        distractors = _filter_distractors(fact, distractor_pool, own_text)
+        
+        q_stem_en = _clean_stem_for_mcq(h80, fact)
+        q_stem_hi = _clean_stem_for_mcq(hh80, fact)
+        
+        # Verify no answer leak in stem
+        if len(q_stem_en) >= 10 and fact.lower() not in q_stem_en.lower():
+            q_en = 'What is the key figure / financial outlay associated with: "%s"?' % q_stem_en
+            q_hi = '"%s" से संबंधित प्रमुख संख्यात्मक मान अथवा वित्तीय आंकड़ा क्या है?' % q_stem_hi
+            mcq = _make_mcq(
+                ci, "static-number",
+                q_en, q_hi,
+                fact, distractors,
+                'As per %s: "%s" -- the reported figure is %s.' % (src_name, q_stem_en, fact),
+                HI_EXPL_NUMBER.format(src=src_name, val=fact),
+                _clip(ci.get("exam_fact_en") or "", 120))
+            if mcq:
+                cands.append(mcq)
 
     # 2) scheme -> ministry / organisation ---------------------------------------
     org = _first_org(own_text)
     if org:
-        pool = sorted(pools["ents"], key=lambda e: _entity_kind(e) != _entity_kind(org))
-        mcq = _make_mcq(
-            ci, "scheme-ministry",
-            'Which ministry / organisation is responsible for implementing "%s"?' % h70,
-            '"%s" के कार्यान्वयन हेतु कौन-सा मंत्रालय/संगठन उत्तरदायी है?' % hh70,
-            org, _filter_distractors(org, pool, own_text),
-            "Verified reporting directly associates this initiative with: %s." % org,
-            HI_EXPL_ORG.format(val=org),
-            HI_POINT_ORG)
-        if mcq:
-            cands.append(mcq)
+        is_ministry = "ministry" in org.lower() or "department" in org.lower()
+        is_fin = any(f in org.lower() for f in ["bank", "rbi", "sebi", "irdai", "pfrda", "dicgc", "nabard"])
+        is_agri = any(a in org.lower() for a in ["icar", "fci", "apeda", "nafed", "cwc", "kisan", "krishi", "iari"])
+
+        if is_ministry and "ministries" in SEMANTIC_OPTION_POOLS:
+            cand_pool = [m[0] for m in SEMANTIC_OPTION_POOLS["ministries"]] + [o for o in DOMAIN_ORGS if "ministry" in o.lower()]
+        elif is_fin and "financial_regulators" in SEMANTIC_OPTION_POOLS:
+            cand_pool = [m[0] for m in SEMANTIC_OPTION_POOLS["financial_regulators"]] + [o for o in DOMAIN_ORGS if any(b in o.lower() for b in ["bank", "rbi", "sebi"])]
+        elif is_agri and "agri_orgs" in SEMANTIC_OPTION_POOLS:
+            cand_pool = [m[0] for m in SEMANTIC_OPTION_POOLS["agri_orgs"]] + [m[0] for m in SEMANTIC_OPTION_POOLS.get("research_institutes", [])]
+        else:
+            cand_pool = DOMAIN_ORGS + [m[0] for m in SEMANTIC_OPTION_POOLS.get("ministries", [])]
+
+        distractors = _filter_distractors(org, cand_pool, own_text)
+        q_stem_en = _clean_stem_for_mcq(h70, org)
+        q_stem_hi = _clean_stem_for_mcq(hh70, org)
+
+        if len(q_stem_en) >= 10 and org.lower() not in q_stem_en.lower():
+            q_en = 'Which ministry / organisation is responsible for implementing "%s"?' % q_stem_en
+            q_hi = '"%s" के कार्यान्वयन हेतु कौन-सा मंत्रालय/संगठन उत्तरदायी है?' % q_stem_hi
+            mcq = _make_mcq(
+                ci, "scheme-ministry",
+                q_en, q_hi,
+                org, distractors,
+                "Verified reporting directly associates this initiative with: %s." % org,
+                HI_EXPL_ORG.format(val=org),
+                HI_POINT_ORG)
+            if mcq:
+                cands.append(mcq)
 
     # 3) report rank -------------------------------------------------------------
     rk = RANK_RE.search(own_text)
     if rk:
         rank = rk.group(1) or rk.group(2)
-        mcq = _make_mcq(
-            ci, "report-rank",
-            'What rank or official position is reported in "%s"?' % h70,
-            '"%s" में उल्लिखित आधिकारिक रैंक अथवा स्थिति क्या है?' % hh70,
-            rank, _filter_distractors(rank, _rank_variants(rank), own_text),
-            "Official ranking reported in verified source: %s." % rank,
-            HI_EXPL_RANK.format(val=rank),
-            HI_POINT_RANK)
-        if mcq:
-            cands.append(mcq)
+        q_stem_en = _clean_stem_for_mcq(h70, rank)
+        q_stem_hi = _clean_stem_for_mcq(hh70, rank)
+        if len(q_stem_en) >= 10 and rank.lower() not in q_stem_en.lower():
+            q_en = 'What rank or official position is reported in "%s"?' % q_stem_en
+            q_hi = '"%s" में उल्लिखित आधिकारिक रैंक अथवा स्थिति क्या है?' % q_stem_hi
+            mcq = _make_mcq(
+                ci, "report-rank",
+                q_en, q_hi,
+                rank, _filter_distractors(rank, _rank_variants(rank), own_text),
+                "Official ranking reported in verified source: %s." % rank,
+                HI_EXPL_RANK.format(val=rank),
+                HI_POINT_RANK)
+            if mcq:
+                cands.append(mcq)
 
     # 4) who / organisation name -------------------------------------------------
     names = [e for e in _extract_entities(headline) + _extract_entities(own_text)
              if e != org and e in own_text]
     if names:
         name = names[0]
-        pool = sorted(pools["ents"], key=lambda e: _entity_kind(e) != _entity_kind(name))
-        mcq = _make_mcq(
-            ci, "who-org",
-            'Which institution or entity is centrally featured in "%s"?' % h80,
-            '"%s" से संबंधित प्रमुख संस्था अथवा संगठन कौन-सा है?' % hh80,
-            name, _filter_distractors(name, pool, own_text),
-            "Verified reporting by %s features %s in this development." % (src_name, name),
-            HI_EXPL_WHO.format(src=src_name, val=name),
-            HI_POINT_WHO)
-        if mcq:
-            cands.append(mcq)
+        cand_pool = DOMAIN_ORGS + [m[0] for m in SEMANTIC_OPTION_POOLS.get("agri_orgs", [])] + [m[0] for m in SEMANTIC_OPTION_POOLS.get("financial_regulators", [])]
+        distractors = _filter_distractors(name, cand_pool, own_text)
+        q_stem_en = _clean_stem_for_mcq(h80, name)
+        q_stem_hi = _clean_stem_for_mcq(hh80, name)
+        if len(q_stem_en) >= 10 and name.lower() not in q_stem_en.lower():
+            q_en = 'Which institution or entity is centrally featured in "%s"?' % q_stem_en
+            q_hi = '"%s" से संबंधित प्रमुख संस्था अथवा संगठन कौन-सा है?' % q_stem_hi
+            mcq = _make_mcq(
+                ci, "who-org",
+                q_en, q_hi,
+                name, distractors,
+                "Verified reporting by %s features %s in this development." % (src_name, name),
+                HI_EXPL_WHO.format(src=src_name, val=name),
+                HI_POINT_WHO)
+            if mcq:
+                cands.append(mcq)
 
     # 5) statement ---------------------------------------------------------------
     if kps:
-        correct = _clip(kps[0], 150)
-        others = [_clip(p, 150) for o in all_items if o.get("event_id") != ci.get("event_id")
-                  for p in (o.get("key_points_en") or [])[:1]]
-        others += pools["heads"]
-        mcq = _make_mcq(
-            ci, "statement",
-            'With reference to "%s", which of the following statements is correct?' % h70,
-            '"%s" के संदर्भ में निम्नलिखित में से कौन-सा कथन सत्य है?' % hh70,
-            correct, _filter_distractors(correct, others, own_text),
-            'Statement directly taken from verified reporting by %s: "%s".' % (src_name, correct),
-            HI_EXPL_STATEMENT.format(src=src_name, val=correct),
-            HI_POINT_STATEMENT)
-        if mcq:
-            cands.append(mcq)
+        correct = _clip(kps[0], 120)
+        distractors = _build_statement_variants(correct, own_text)
+        if len(distractors) >= MIN_OPTIONS - 1:
+            q_stem_en = _clean_stem_for_mcq(h70, correct)
+            q_stem_hi = _clean_stem_for_mcq(hh70, correct)
+            q_en = 'With reference to "%s", which of the following statements is correct?' % (q_stem_en or h70)
+            q_hi = '"%s" के संदर्भ में निम्नलिखित में से कौन-सा कथन सत्य है?' % (q_stem_hi or hh70)
+            mcq = _make_mcq(
+                ci, "statement",
+                q_en, q_hi,
+                correct, distractors,
+                'Statement directly taken from verified reporting by %s: "%s".' % (src_name, correct),
+                HI_EXPL_STATEMENT.format(src=src_name, val=correct),
+                HI_POINT_STATEMENT)
+            if mcq:
+                cands.append(mcq)
     return cands
+
 
 
 def generate_mcqs(content_items, target=None):
@@ -1078,6 +1182,14 @@ def validate_mcqs(mcqs, content_items):
             errs.append("auto 'none of these' not allowed")
         if len(m.get("question_en") or "") < 20:
             errs.append("question too short")
+        if any(len(o) > 130 for o in opts):
+            errs.append("option text exceeds 130 characters")
+        if "untitled" in (m.get("question_en") or "").lower():
+            errs.append("question contains 'Untitled'")
+        if re.search(r'Which ministry / organisation is responsible for implementing "- \'', m.get("question_en") or ""):
+            errs.append("broken question stem")
+        if len(base_correct) >= 4 and base_correct.lower() in (m.get("question_en") or "").lower():
+            errs.append("question leaks the answer")
         if not (m.get("question_hi") or "").strip():
             errs.append("missing Hindi question")
 

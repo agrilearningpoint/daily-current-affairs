@@ -29,11 +29,25 @@ class Agent:
         env_target = os.getenv("ALP_TARGET_NEWS_COUNT")
         if env_target and env_target.isdigit():
             target = int(env_target)
-        # Filter out raw file attachment headlines (e.g. 459-1.pdf - CPCB)
-        scored = [
-            x for x in scored
-            if not RAW_FILE_RE.search(x.get("title", "") or x.get("headline_en", ""))
-        ]
+        def _is_valid_candidate(x: dict) -> bool:
+            h = (x.get("headline_en") or x.get("title") or "").strip()
+            if not h:
+                return True
+            if len(h) < 15 or len(h.split()) < 3:
+                return False
+            if RAW_FILE_RE.search(h):
+                return False
+            if re.search(r"\buntitled\b", h, re.I):
+                return False
+            if h.startswith(("-", "—", "–", ":")):
+                return False
+            if re.match(r"^(?:Department|Ministry)\s+of\s+[A-Za-z\s,&-]+$", h, re.I):
+                return False
+            if re.match(r"^Sports Authority of India$", h, re.I):
+                return False
+            return True
+
+        scored = [x for x in scored if _is_valid_candidate(x)]
         scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
         selected = self._diverse_selection(scored, target)
         logging.info(f"[{self.name}] selected {len(selected)} items (target={target})")
