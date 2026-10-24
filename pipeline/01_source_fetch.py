@@ -56,6 +56,24 @@ RAW_FILE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Publisher paywalls and consent walls sometimes return HTTP 200 and their UI
+# copy was previously mistaken for article text.  Such copy must never enter a
+# study edition, even when a valid RSS headline is available.
+JUNK_ARTICLE_TEXT_RE = re.compile(
+    r"(?:you\s+(?:do\s+not|don't)\s+have\s+(?:an\s+)?active\s+subscription|"
+    r"subscription\s+benefits|unlock\s+this\s+with\s+subscription|"
+    r"sign\s+in\s+to\s+continue|subscribe\s+to\s+continue|"
+    r"enable\s+(?:cookies|javascript)\s+to\s+continue|"
+    r"access\s+denied|captcha|verify\s+you\s+are\s+human)",
+    re.IGNORECASE,
+)
+
+
+def is_usable_article_text(text: str) -> bool:
+    """Reject boilerplate/paywall responses that are not news evidence."""
+    cleaned = sanitize_feed_text(text)
+    return bool(cleaned) and not bool(JUNK_ARTICLE_TEXT_RE.search(cleaned))
+
 
 def job_context() -> Tuple[str, str, datetime]:
     """Return (job_id, job_date_iso, window_end_utc).
@@ -269,7 +287,8 @@ def extract_article_text(url: str, timeout: int = 5) -> str:
         paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
         meaningful = [
             p for p in paragraphs
-            if len(p) > 30 and not any(w in p.lower() for w in ("copyright", "all rights reserved", "subscribe", "terms of use"))
+            if len(p) > 30 and is_usable_article_text(p)
+            and not any(w in p.lower() for w in ("copyright", "all rights reserved", "terms of use"))
         ]
         text = " ".join(meaningful)
         return " ".join(text.split())[:3000]
@@ -329,11 +348,17 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             continue
         seen_hashes.add(h)
         summary = sanitize_feed_text(getattr(entry, "summary", "") or "")
+        if not is_usable_article_text(summary):
+            summary = ""
         # If summary is thin or identical to title, attempt substantive paragraph extraction
         if len(summary) < 120 or summary.lower() == title.lower():
             body_txt = extract_article_text(link, timeout=4)
             if len(body_txt) > len(summary):
                 summary = body_txt
+        if not is_usable_article_text(summary):
+            # A valid headline alone may be retained for scoring, but it must
+            # not be dressed up as an article summary later in the pipeline.
+            summary = ""
         source_name = resolve_publisher(link, spec.name)
         collected.append({
             "title": title,

@@ -62,6 +62,12 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 HEADLINE_PREFIX = ">> "
 RAW_FILE_RE = re.compile(r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)", re.IGNORECASE)
+UNUSABLE_EVIDENCE_RE = re.compile(
+    r"(?:you\s+(?:do\s+not|don't)\s+have\s+(?:an\s+)?active\s+subscription|"
+    r"subscription\s+benefits|unlock\s+this\s+with\s+subscription|"
+    r"sign\s+in\s+to\s+continue|subscribe\s+to\s+continue|access\s+denied|captcha)",
+    re.IGNORECASE,
+)
 MIN_OPTIONS = 4              # standard exam MCQ = 4 options (A-D); 5 allowed
 MAX_OPTIONS = 5
 SIMILARITY_LIMIT = 0.85      # text options more similar than this are rejected
@@ -631,6 +637,9 @@ def _build_entry(it, stats):
     work["headline_en"] = title
     work["event_id"] = event_id
     raw_facts = it.get("raw_facts") or ""
+    if UNUSABLE_EVIDENCE_RE.search(title) or UNUSABLE_EVIDENCE_RE.search(raw_facts):
+        logger.warning("[Content Builder] skipped paywall/boilerplate evidence: %s", event_id)
+        return None
 
     kps = extract_key_points(work)
     sf = extract_static_facts(work)

@@ -751,7 +751,7 @@ def _extract_explanation_points(item: Dict[str, Any], mcq: Dict[str, Any]) -> Li
                 clean_hi = c_hi
         seen.append(clean_en)
         pairs.append((clean_en, clean_hi))
-        if len(pairs) >= 3:
+        if len(pairs) >= 2:
             break
 
     # 2. Detailed Explanation
@@ -771,7 +771,8 @@ def _extract_explanation_points(item: Dict[str, Any], mcq: Dict[str, Any]) -> Li
             seen.append(m_en)
             pairs.append((m_en, c_hi))
 
-    return pairs[:3]
+    # Two verified points are clearer on a phone screen than a dense wall of text.
+    return pairs[:2]
 
 
 def _extract_static_gk_pairs(item: Dict[str, Any]) -> List[Tuple[str, str]]:
@@ -792,7 +793,8 @@ def _extract_static_gk_pairs(item: Dict[str, Any]) -> List[Tuple[str, str]]:
         hi = ef_hi if DEVANAGARI_RE.search(ef_hi) else ""
         pairs.append((f"• परीक्षा तथ्य / Exam Fact: {ef_en}", f"• परीक्षा तथ्य: {hi}" if hi else ""))
 
-    return pairs[:4]
+    # Keep the static-GK box compact and revision-friendly.
+    return pairs[:3]
 
 
 def _format_display_date(date_str: str | None) -> str:
@@ -999,8 +1001,6 @@ def generate_pdf(
 
         cat = str(it.get("category", "National")).upper()
         headline_en = _clean_text_for_display(it.get("headline_en", ""))
-        source_name = (it.get("source") or {}).get("name") or "Verified National Source"
-        source_url = (it.get("source") or {}).get("url") or "https://t.me/agrilearningpoint"
 
         unit_elements: List[Flowable] = []
 
@@ -1023,7 +1023,7 @@ def generate_pdf(
         q_en = _clean_text_for_display(m.get("question_en", ""))
         if not q_en:
             q_en = f"What key development was announced regarding {headline_en}?"
-        unit_elements.append(Paragraph(f"<b>Q{q_idx}. Ques {q_idx}:</b> {_safe(q_en)}", STYLES["ques_en"]))
+        unit_elements.append(Paragraph(f"<b>Q{q_idx}.</b> {_safe(q_en)}", STYLES["ques_en"]))
         unit_elements.append(Spacer(PRINT_W, 2 * pt))
 
         q_hi = _clean_text_for_display(m.get("question_hi", ""))
@@ -1104,12 +1104,7 @@ def generate_pdf(
             unit_elements.append(Spacer(PRINT_W, 3 * pt))
             unit_elements.append(sgk_table)
 
-        # 7. Source & Attribution
-        src_text = f"<b>Source:</b> {_safe(source_name)}   |   <b>Official Link:</b> {_safe(source_url)}"
-        unit_elements.append(Spacer(PRINT_W, 3 * pt))
-        unit_elements.append(Paragraph(src_text, STYLES["section_tag"]))
-
-        # Thin divider before next educational unit
+        # Evidence remains in pipeline data; public PDFs intentionally have no source URLs.
         unit_elements.append(Spacer(PRINT_W, 6 * pt))
         unit_elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS["border_light"]))
         unit_elements.append(Spacer(PRINT_W, 10 * pt))

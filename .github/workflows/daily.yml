@@ -16,10 +16,10 @@ on:
         type: boolean
         default: false
       allow_fallback:
-        description: 'Allow dictionary fallback if AI providers are rate-limited or fail?'
+        description: 'Development preview only: allow dictionary fallback (production remains strict)'
         required: false
         type: boolean
-        default: true
+        default: false
       reset:
         description: "Reset job state and re-run from scratch?"
         required: false
