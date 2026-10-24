@@ -728,22 +728,44 @@
     "checkpoint_run_id": "39880421572"
   },
   "daily_2026-10-24": {
-    "started_at": "2026-10-24T15:28:50.662968+00:00",
-    "artifacts": {},
+    "started_at": "2026-10-24T15:30:55.113041+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-24.json": {
+        "stage": "01_source_fetch",
+        "sha256": "71a635122d4dcac52d775032f3f03e4b821da63809726670bdc7ee34b7974a43"
+      },
+      "data/verified/daily_2026-10-24.json": {
+        "stage": "04_fact_verification",
+        "sha256": "7edd4d7519517b34f045d3611bd900caf218f0f048db3dce72a43fcb5f1d2241"
+      },
+      "data/dedup/daily_2026-10-24.json": {
+        "stage": "05_deduplication",
+        "sha256": "ff080c25ce0cf0196436c5413dc328742770d58157b9eb89b9248c814cd1f6af"
+      },
+      "data/scored/daily_2026-10-24.json": {
+        "stage": "06_news_importance",
+        "sha256": "714c1235b35a6f5da31c8517e020a440e935fa58d4b7e45866e563017417589e"
+      },
+      "data/selected/daily_2026-10-24.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "fba12591f234b98a0a8bfda9c21a002cc4be2818532a857b7897aac52dee9da1"
+      }
+    },
     "run_attempts": 1,
     "job_id": "daily_2026-10-24",
     "job_type": "daily",
     "job_date": "2026-10-24",
     "dry_run": false,
     "window": {
-      "start": "2026-10-23T20:58:50.662436+05:30",
-      "end": "2026-10-24T20:58:50.662436+05:30"
+      "start": "2026-10-23T21:00:55.112433+05:30",
+      "end": "2026-10-24T21:00:55.112433+05:30"
     },
     "github_run_id": "40107271499",
-    "status": "running",
-    "updated_at": "2026-10-24T15:30:53.497528+00:00",
-    "last_error": "00_model_orchestrator: failed after 3 attempt(s): ids(provider), exclude)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/ai_router.py\", line 173, in _choose_live_model\n    text_models = [m for m in candidates if re.search(r\"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini)\", m, re.I)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/ai_router.py\", line 173, in <listcomp>\n    text_models = [m for m in candidates if re.search(r\"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini)\", m, re.I)\n                                            ^^\nNameError: name 're' is not defined",
-    "failed_stage": "00_model_orchestrator",
-    "checkpoint_run_id": "40107114814"
+    "status": "failed",
+    "updated_at": "2026-10-24T15:37:45.417420+00:00",
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s):  rate limit\n2026-10-24 15:37:41 | INFO     | pipeline.ai_translator | [Translator] trying provider nvidia\n2026-10-24 15:37:41 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['deepseek: HTTP 402', 'openrouter: HTTP 402', 'nvidia: HTTP 404'])\n2026-10-24 15:37:41 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=126 fallback=0 untranslated=59 (AI success 68.1%)\n2026-10-24 15:37:41 | WARNING  | pipeline.content | [Content Builder] 59 translations need review (AI did not pass)\n2026-10-24 15:37:41 | INFO     | pipeline.content | [Content Builder] Completeness: 4/28 items complete (avg words EN: 281.9, HI: 289.3)\n2026-10-24 15:37:41 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "40107271499"
   }
 }
