@@ -760,9 +760,9 @@
       "start": "2026-10-23T21:00:55.112433+05:30",
       "end": "2026-10-24T21:00:55.112433+05:30"
     },
-    "github_run_id": "40107271499",
-    "status": "failed",
-    "updated_at": "2026-10-24T15:37:45.417420+00:00",
+    "github_run_id": "40108311358",
+    "status": "running",
+    "updated_at": "2026-10-24T15:44:27.344904+00:00",
     "last_success_stage": "11_importance_memory",
     "last_error": "12_content_editor: failed after 3 attempt(s):  rate limit\n2026-10-24 15:37:41 | INFO     | pipeline.ai_translator | [Translator] trying provider nvidia\n2026-10-24 15:37:41 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['deepseek: HTTP 402', 'openrouter: HTTP 402', 'nvidia: HTTP 404'])\n2026-10-24 15:37:41 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=126 fallback=0 untranslated=59 (AI success 68.1%)\n2026-10-24 15:37:41 | WARNING  | pipeline.content | [Content Builder] 59 translations need review (AI did not pass)\n2026-10-24 15:37:41 | INFO     | pipeline.content | [Content Builder] Completeness: 4/28 items complete (avg words EN: 281.9, HI: 289.3)\n2026-10-24 15:37:41 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
     "failed_stage": "12_content_editor",
