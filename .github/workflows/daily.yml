@@ -57,6 +57,9 @@ env:
   # Fifteen high-value stories produce a complete 15-45 page study pack while
   # keeping strict AI Hindi translation within free-tier rate limits.
   ALP_TARGET_NEWS_COUNT: "15"
+  # Source sentences are already edited deterministically; avoid unnecessary
+  # AI polishing calls so free models are reserved for Hindi translations.
+  ALP_DISABLE_POLISH: "1"
   PDF_QA_SUBSTANTIVE_CHARS: "600"
   PDF_QA_NEAR_EMPTY_CHARS: "260"
 

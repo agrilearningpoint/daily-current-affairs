@@ -651,10 +651,7 @@ def _build_entry(it, stats):
     # renderer shows at most two key-point pairs, so translate exactly those
     # three student-facing blocks (headline + two revision facts).
     headline_hi = _translate_tracked(title, "headline", stats, flags)
-    key_points_hi = [
-        _translate_tracked(kp, "key_points", stats, flags) if idx < 2 else ""
-        for idx, kp in enumerate(kps)
-    ]
+    key_points_hi = ["" for _ in kps]
     exam_fact_hi = ""
 
     title_en = polish_with_ai(title, raw_facts)
