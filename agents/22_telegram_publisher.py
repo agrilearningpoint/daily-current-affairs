@@ -202,30 +202,60 @@ def escape_html(text: str) -> str:
 
 
 def build_caption(title: str, summary: str = "", link: str = "", source: str = "") -> str:
-    """Build HTML caption (≤1024 chars)."""
-    parts: List[str] = []
+    """Build HTML caption (≤1024 chars) formatted with bold, italic, and sign format."""
     clean_title = re.sub(r"^>+\s*", "", title).strip()
-    if clean_title:
-        parts.append(f"📚 <b>{escape_html(clean_title)}</b>")
-    if summary:
-        clean_summary = re.sub(r'<[^>]*>?', '', summary)
-        clean_lines = []
-        for line in clean_summary.splitlines():
-            line_str = re.sub(r'https?://\S+', '', line).strip()
-            if line_str and line_str != "•":
-                clean_lines.append(line_str)
-        if clean_lines:
-            short = "\n".join(clean_lines)[:500]
-            parts.append("")
-            parts.append(escape_html(short))
-    if source:
-        parts.append("")
-        parts.append(f"<i>Source: {escape_html(source[:80])}</i>")
-    if link and link.startswith(("http://", "https://")):
-        safe = html.escape(link, quote=True)
-        parts.append(f'🔗 <a href="{safe}">Read more</a>')
+    date_display = ""
+    m_iso = re.search(r"(\d{4}-\d{2}-\d{2})", clean_title)
+    if m_iso:
+        try:
+            dt = datetime.strptime(m_iso.group(1), "%Y-%m-%d")
+            date_display = dt.strftime("%d %b %Y").lstrip("0")
+        except Exception:
+            date_display = m_iso.group(1)
+    else:
+        m_human = re.search(r"(\d{1,2}\s+[A-Za-z]+\s+\d{4})", clean_title)
+        if m_human:
+            try:
+                raw_d = m_human.group(1)
+                for fmt in ("%d %B %Y", "%d %b %Y"):
+                    try:
+                        dt = datetime.strptime(raw_d, fmt)
+                        date_display = dt.strftime("%d %b %Y").lstrip("0")
+                        break
+                    except ValueError:
+                        pass
+                if not date_display:
+                    date_display = raw_d
+            except Exception:
+                date_display = m_human.group(1)
+        else:
+            job_date = os.getenv("ALP_JOB_DATE", "")
+            if job_date:
+                try:
+                    dt = datetime.strptime(job_date, "%Y-%m-%d")
+                    date_display = dt.strftime("%d %b %Y").lstrip("0")
+                except Exception:
+                    date_display = job_date
+            else:
+                date_display = datetime.now().strftime("%d %b %Y").lstrip("0")
 
-    caption = "\n".join(parts)
+    caption_lines = [
+        f"🌾 <b>agri learning point  {date_display}</b> <i>Genius Current Affairs Top Notch MCQs</i>",
+        "",
+        "• <b>India's No.1 Current Affairs PDF</b>",
+        "• <i>Research With Unique Facts</i>",
+        "• <b>English &amp; Hindi  Language</b>",
+        "• <i>One Liner Current Affairs</i>",
+        "• <b>Best Explanations</b>",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "🎯 <i>UPSSSC AGTA • IBPS AFO • ICAR • NABARD • STATE PCS</i>",
+        "🔗 <b>Official Channels:</b>",
+        "  👉 <a href='https://t.me/agrilearningpoint'>Agri Learning Point</a> (Current Affairs)",
+        "  👉 <a href='https://t.me/agriquizworld'>Agri Quiz World</a> (Daily Quizzes)",
+        "  👉 <a href='https://www.youtube.com/@Agrilearningpoint'>YouTube: Agri Learning Point</a>",
+    ]
+    caption = "\n".join(caption_lines)
     if len(caption) > TELEGRAM_CAPTION_MAX_LEN:
         caption = caption[: TELEGRAM_CAPTION_MAX_LEN - 3] + "..."
     return caption

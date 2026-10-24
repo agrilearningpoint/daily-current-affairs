@@ -729,15 +729,37 @@ def _extract_static_gk_pairs(item: Dict[str, Any]) -> List[Tuple[str, str]]:
     return pairs[:4]
 
 
+def _format_display_date(date_str: str | None) -> str:
+    if not date_str:
+        return datetime.now().strftime("%d %B %Y")
+    clean = str(date_str).replace("daily_", "").replace("weekly_", "").replace("monthly_", "").strip()
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d %B %Y"):
+        try:
+            dt = datetime.strptime(clean, fmt)
+            return dt.strftime("%d %B %Y").lstrip("0")
+        except ValueError:
+            continue
+    return clean
+
+
 # --- MAIN PDF GENERATION ENGINE ---
-def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path: Optional[str] = None) -> str:
+def generate_pdf(
+    content: Dict[str, Any],
+    mcqs: List[Dict[str, Any]],
+    output_path: Optional[str] = None,
+    date_str: Optional[str] = None,
+    **kwargs: Any,
+) -> str:
     """Generate professional Exam Genius-grade Current Affairs PDF."""
     items = content.get("items") or []
     if not items:
         raise ValueError("Empty edition: Refusing to generate PDF with zero items.")
 
     job_info = content.get("job") or {}
-    date_display = job_info.get("date_display") or datetime.now().strftime("%d %B %Y")
+    if date_str:
+        date_display = _format_display_date(date_str)
+    else:
+        date_display = job_info.get("date_display") or datetime.now().strftime("%d %B %Y")
     job_id = job_info.get("id") or f"daily_{datetime.now().strftime('%Y-%m-%d')}"
 
     if output_path is None:
