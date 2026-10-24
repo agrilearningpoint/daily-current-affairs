@@ -728,43 +728,47 @@
     "checkpoint_run_id": "39880421572"
   },
   "daily_2026-10-24": {
-    "started_at": "2026-10-24T12:06:52.507564+00:00",
+    "started_at": "2026-10-24T14:12:57.640825+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-24.json": {
         "stage": "01_source_fetch",
-        "sha256": "81dd5045e6fa2adada3e097b17ff432b55f700880577e8724c0c32b15c0e933a"
+        "sha256": "0ff450e5188ae8b8e568c2940a2d354b08cdfa816f9ea9c96f402074c08ba69e"
       },
       "data/verified/daily_2026-10-24.json": {
         "stage": "04_fact_verification",
-        "sha256": "ba4379ef8ca34e325c1a2c03f98b3dbc12a8b3a3df3f06061cd581506ed3e2e8"
+        "sha256": "193cfcff4982d419e699d268ee008c1f546b33941956ed0d3c9acea21bde20f6"
       },
       "data/dedup/daily_2026-10-24.json": {
         "stage": "05_deduplication",
-        "sha256": "89ab17637153742dc224488e1793d87fd2db01d9bec42f0f5843a1ff06b39eb7"
+        "sha256": "82cbc73ebb5b5e219cf4a56c54f899c6e82a5f6e08efe4c6356f42618fee55cc"
       },
       "data/scored/daily_2026-10-24.json": {
         "stage": "06_news_importance",
-        "sha256": "8c87aac88097387f4b9d6c12dcdf4845fe61483d6568c9da05c3732079303cde"
+        "sha256": "380ac77c455086ce3162bf77604fe6818777efcfe0d7e311708194cd069990ce"
       },
       "data/selected/daily_2026-10-24.json": {
         "stage": "10_final_news_selection",
-        "sha256": "c5845b77d09d5f21bfae1721be03c3d78dc70dc3285005a48a8dc46731d9147e"
+        "sha256": "f6487e8246e7abfbaca964f96c9661f28003bc0515cac0e3c483dbfabbf6ccbe"
       },
       "data/content/daily_2026-10-24.json": {
         "stage": "12_content_editor",
-        "sha256": "54cbac8cd1c6fcb63411dabde3ea638613522001c9eab0a13f73608729802e4a"
+        "sha256": "ebc9df75cd8de96905ad3bbc5f1520b2b9f9918c1b12fcfe6066a8aa87a5fa0e"
       },
       "data/mcq/daily_2026-10-24.json": {
         "stage": "16_mcq_generator",
-        "sha256": "02d515ea7936a8360397df798a888f1b60eead326b6c86a4b645640e79c2d35d"
+        "sha256": "5d7b36e45ace2b1e9e52c8bbb5699884013a4a3eaf2061fa9d1d1eccd33b6d51"
       },
       "output/daily_2026-10-24.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "fb3e768563f3ac1f499536933beeec331e773f8bbc690c5e6ad345eb8398a318"
+        "sha256": "7ec2732cb4b51fea87f3df1afd3f7bba8a53355ccf737ed380abcb946f927ba1"
       },
       "logs/qa/daily_2026-10-24_qa.json": {
         "stage": "19_pdf_qa",
-        "sha256": "2d6c7bb15e8168b338e0aa885066bea18e06277ee9891e0a0b5ce0db723ab8c8"
+        "sha256": "7a4741690d7d680b7d3f5b62a3455abfc1cce1e23d1cff9071705130ba069c59"
+      },
+      "logs/qa/daily_2026-10-24_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "4d417b225322257d24d5bd9a8ff47295f2480f17ef7bbbcfd5e36c50e839df22"
       }
     },
     "run_attempts": 1,
@@ -773,15 +777,13 @@
     "job_date": "2026-10-24",
     "dry_run": false,
     "window": {
-      "start": "2026-10-23T17:36:52.506538+05:30",
-      "end": "2026-10-24T17:36:52.506538+05:30"
+      "start": "2026-10-23T19:42:57.639972+05:30",
+      "end": "2026-10-24T19:42:57.639972+05:30"
     },
     "github_run_id": "40101459710",
-    "status": "running",
-    "updated_at": "2026-10-24T14:12:56.119468+00:00",
-    "last_success_stage": "19_pdf_qa",
-    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-24 12:10:37 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-24 12:10:37 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-10-24.pdf\n2026-10-24 12:10:37 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-10-24; manual reconciliation required, refusing resend\n2026-10-24 12:10:37 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
-    "failed_stage": "22_telegram_publisher",
-    "checkpoint_run_id": "40092553082"
+    "status": "success",
+    "updated_at": "2026-10-24T14:15:40.505644+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "40101459710"
   }
 }
