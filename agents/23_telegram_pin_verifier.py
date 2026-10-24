@@ -354,7 +354,7 @@ def process_verification(record: Dict[str, Any]) -> bool:
 
     if ok:
         _record_success(pin_ledger, pin_key, record, msg_id)
-        notify_channel(f"📌 Latest edition pinned (job: {job_id})")
+        # Keep the Telegram channel content-only; pinning sends no text message.
         return True
     else:
         _record_failure(pin_ledger, pin_key, record, "pin verification failed after retries")

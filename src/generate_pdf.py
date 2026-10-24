@@ -65,6 +65,7 @@ PDF_MARGIN_PT = float(os.getenv("PDF_MARGIN_PT", "36"))
 PDF_MAX_MCQS = int(os.getenv("PDF_MAX_MCQS", "20"))
 PDF_PAGE_SIZE = os.getenv("PDF_PAGE_SIZE", "A4")
 PDF_TITLE = os.getenv("PDF_TITLE", "AGRI LEARNING POINT")
+CURRENT_COVER_DATE = ""
 
 
 def get_shaping_diagnostics() -> tuple[bool, str]:
@@ -579,10 +580,59 @@ class ExamGeniusCanvas(canvas.Canvas):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
-            if self._pageNumber > 1:
+            if self._pageNumber == 1:
+                self.draw_cover_decorations()
+            else:
                 self.draw_page_decorations(num_pages)
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
+
+    def draw_cover_decorations(self):
+        """Draw the full-bleed branded cover used by the supplied reference."""
+        self.saveState()
+        w, h = PAGE_W, PAGE_H
+        self.setFillColor(HexColor("#E7F4FC"))
+        self.rect(0, 0, w, h, stroke=0, fill=1)
+        self.setFillColor(HexColor("#74BDF0"))
+        p = self.beginPath()
+        p.moveTo(0, h); p.lineTo(w, h); p.lineTo(w, h * .54)
+        p.curveTo(w * .70, h * .49, w * .27, h * .49, 0, h * .82); p.close()
+        self.drawPath(p, stroke=0, fill=1)
+        self.setFillColor(HexColor("#083B82"))
+        p = self.beginPath()
+        p.moveTo(0, 0); p.lineTo(w, 0); p.lineTo(w, h * .54)
+        p.curveTo(w * .69, h * .48, w * .32, h * .39, 0, h * .22); p.close()
+        self.drawPath(p, stroke=0, fill=1)
+        self.setFillColor(HexColor("#103F7B")); self.setFont(FONT_BOLD, 22)
+        self.drawCentredString(w / 2, h - 68, "AGRI LEARNING POINT")
+        self.setFont(FONT_SEMI, 14); self.drawCentredString(w / 2, h - 98, "Presents")
+        self.setFillColor(HexColor("#0953A2")); self.setFont(FONT_BOLD, 31)
+        for y, line in ((h - 154, "AGRI"), (h - 198, "CURRENT"), (h - 242, "AFFAIRS")):
+            self.drawCentredString(w / 2, y, line)
+        self.setFillColor(HexColor("#E51D3E")); self.setFont(FONT_BOLD, 18)
+        self.drawCentredString(w / 2, h - 282, "In Bilingual")
+        self.setFillColor(HexColor("#103F7B")); self.setFont(FONT_BOLD, 14)
+        self.drawCentredString(w / 2, h - 310, CURRENT_COVER_DATE)
+        logo = os.path.join(BASE_DIR, "assets", "logo.png")
+        if os.path.isfile(logo):
+            try:
+                self.setFillColor(COLORS["white"]); self.circle(w / 2, h * .43, 68, stroke=0, fill=1)
+                self.drawImage(logo, w / 2 - 54, h * .43 - 54, 108, 108,
+                               preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
+        badges = ("UPSC / PCS", "IBPS AFO", "NABARD", "ICAR / JRF", "STATE AGRI")
+        x = 27
+        for label in badges:
+            self.setFillColor(HexColor("#D5ECFF")); self.roundRect(x, 135, 102, 26, 13, stroke=0, fill=1)
+            self.setStrokeColor(COLORS["white"]); self.setLineWidth(1.5)
+            self.roundRect(x, 135, 102, 26, 13, stroke=1, fill=0)
+            self.setFillColor(HexColor("#103F7B")); self.setFont(FONT_SEMI, 7.6)
+            self.drawCentredString(x + 51, 145, label); x += 108
+        self.setFillColor(HexColor("#1262B9")); self.rect(0, 0, w, 30, stroke=0, fill=1)
+        self.setFillColor(COLORS["white"]); self.setFont(FONT_SEMI, 9)
+        self.drawCentredString(w / 2, 11, "Achieve Success with Agri Learning Point - Your Ultimate Guide to Agriculture & Govt. Exams")
+        self.restoreState()
 
     def draw_page_decorations(self, total_pages: int):
         self.saveState()
@@ -591,36 +641,52 @@ class ExamGeniusCanvas(canvas.Canvas):
         left_m = 36 * pt
         right_m = w - 36 * pt
 
-        # Top Running Header
-        header_y = h - 26 * pt
+        # Reference-style blue running header.
+        self.setFillColor(HexColor("#65B4EB"))
+        self.rect(0, h - 50 * pt, w, 50 * pt, stroke=0, fill=1)
+        self.setStrokeColor(HexColor("#103F7B"))
+        self.setLineWidth(1.25)
+        self.line(0, h - 43 * pt, w, h - 43 * pt)
+        header_y = h - 28 * pt
         self.setFont(FONT_SEMI, 8)
-        self.setFillColor(COLORS["primary"])
+        self.setFillColor(HexColor("#103F7B"))
         self.drawString(left_m, header_y, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS (BILINGUAL)")
 
         self.setFont(FONT_REGULAR, 7.5)
-        self.setFillColor(COLORS["muted_text"])
+        self.setFillColor(HexColor("#103F7B"))
         self.drawRightString(right_m, header_y, "UPSSSC AGTA • IBPS AFO • ICAR • NABARD • STATE PCS")
 
-        # Top Hairline Divider
-        self.setStrokeColor(COLORS["border_light"])
+        # Top hairline divider.
+        self.setStrokeColor(HexColor("#B6DDF7"))
         self.setLineWidth(0.75)
         self.line(left_m, header_y - 4 * pt, right_m, header_y - 4 * pt)
 
-        # Bottom Running Footer
-        footer_y = 22 * pt
-        self.line(left_m, footer_y + 10 * pt, right_m, footer_y + 10 * pt)
+        # Discreet watermark plus the reference's black social footer.
+        watermark = os.path.join(BASE_DIR, "assets", "watermark_logo.png")
+        if os.path.isfile(watermark):
+            try:
+                self.setFillAlpha(0.08)
+                self.drawImage(watermark, w / 2 - 105, h / 2 - 105, 210, 210,
+                               preserveAspectRatio=True, mask="auto")
+                self.setFillAlpha(1)
+            except Exception:
+                pass
+
+        footer_y = 12 * pt
+        self.setFillColor(HexColor("#111111"))
+        self.rect(0, 0, w, 31 * pt, stroke=0, fill=1)
 
         self.setFont(FONT_SEMI, 7.5)
-        self.setFillColor(COLORS["primary"])
-        self.drawString(left_m, footer_y, "Agri Learning Point — YouTube: Agri Learning Point")
+        self.setFillColor(COLORS["white"])
+        self.drawString(left_m, footer_y, "YouTube: @agrilearningpoint")
 
         self.setFont(FONT_REGULAR, 7.5)
-        self.setFillColor(COLORS["muted_text"])
-        self.drawCentredString(w / 2.0, footer_y, "Telegram: @agrilearningpoint  |  Quiz: @agriquizworld")
+        self.setFillColor(COLORS["white"])
+        self.drawCentredString(w / 2.0, footer_y, "Telegram: @agrilearningpoint")
 
         page_str = f"Page {self._pageNumber} of {total_pages}"
         self.setFont(FONT_SEMI, 7.5)
-        self.setFillColor(COLORS["primary"])
+        self.setFillColor(COLORS["white"])
         self.drawRightString(right_m, footer_y, page_str)
 
         self.restoreState()
@@ -1118,6 +1184,8 @@ def generate_pdf(
     story.append(guide_table)
 
     # Build PDF with Two-Pass ExamGeniusCanvas
+    global CURRENT_COVER_DATE
+    CURRENT_COVER_DATE = date_display.upper()
     doc.build(story, canvasmaker=ExamGeniusCanvas)
     return output_path
 

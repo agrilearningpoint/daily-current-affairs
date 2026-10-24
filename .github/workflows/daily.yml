@@ -251,7 +251,7 @@ jobs:
       # Notifications
       # --------------------------------------------------------------------- #
       - name: Notify success (Telegram)
-        if: success()
+        if: ${{ false }}
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -262,7 +262,7 @@ jobs:
             Run: #${{ github.run_number }}
 
       - name: Notify failure (Telegram)
-        if: failure()
+        if: ${{ false }}
         uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
