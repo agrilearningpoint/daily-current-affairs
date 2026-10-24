@@ -728,47 +728,43 @@
     "checkpoint_run_id": "39880421572"
   },
   "daily_2026-10-24": {
-    "started_at": "2026-10-24T07:53:51.156394+00:00",
+    "started_at": "2026-10-24T12:06:52.507564+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-24.json": {
         "stage": "01_source_fetch",
-        "sha256": "0e6761b9e367a94282d5f524a4e3e6e45df8b7278f9c64b3fd395ebe8fa41b53"
+        "sha256": "81dd5045e6fa2adada3e097b17ff432b55f700880577e8724c0c32b15c0e933a"
       },
       "data/verified/daily_2026-10-24.json": {
         "stage": "04_fact_verification",
-        "sha256": "24095c27a26d3158bfda8eca16e30d0165ea72d9c7a48b7787eff25a1392edc4"
+        "sha256": "ba4379ef8ca34e325c1a2c03f98b3dbc12a8b3a3df3f06061cd581506ed3e2e8"
       },
       "data/dedup/daily_2026-10-24.json": {
         "stage": "05_deduplication",
-        "sha256": "3ef66a1070865f6371bc26579aaaabaece96064638f89f1d26ed31b52a3dc152"
+        "sha256": "89ab17637153742dc224488e1793d87fd2db01d9bec42f0f5843a1ff06b39eb7"
       },
       "data/scored/daily_2026-10-24.json": {
         "stage": "06_news_importance",
-        "sha256": "1fb279153b36f6be61cc0f76b576f5b2b9411ba4fd08c2dfff0a25c3f35fd1f5"
+        "sha256": "8c87aac88097387f4b9d6c12dcdf4845fe61483d6568c9da05c3732079303cde"
       },
       "data/selected/daily_2026-10-24.json": {
         "stage": "10_final_news_selection",
-        "sha256": "135ca8aad3300331663c2e8d9fb12d730d94089667ca184c0fe975dda8668daf"
+        "sha256": "c5845b77d09d5f21bfae1721be03c3d78dc70dc3285005a48a8dc46731d9147e"
       },
       "data/content/daily_2026-10-24.json": {
         "stage": "12_content_editor",
-        "sha256": "ad8a56fbdaf8e7d7f2cd872911d73d1d60d945b82951967dc9959cf39c03eba9"
+        "sha256": "54cbac8cd1c6fcb63411dabde3ea638613522001c9eab0a13f73608729802e4a"
       },
       "data/mcq/daily_2026-10-24.json": {
         "stage": "16_mcq_generator",
-        "sha256": "cdcdd50bffa8680a49b11fba84e8d63fd5ffd5326cfe9a31f501f7a12b25da57"
+        "sha256": "02d515ea7936a8360397df798a888f1b60eead326b6c86a4b645640e79c2d35d"
       },
       "output/daily_2026-10-24.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "0900f9ea5a00e587a71ccf7a713c552923e5c8c590439251a22223e51dd9d2f1"
+        "sha256": "fb3e768563f3ac1f499536933beeec331e773f8bbc690c5e6ad345eb8398a318"
       },
       "logs/qa/daily_2026-10-24_qa.json": {
         "stage": "19_pdf_qa",
-        "sha256": "8fb6b4940669188dd7b422e866a7694cd1ef8d5253f08c0a470ab83482d3e45d"
-      },
-      "logs/qa/daily_2026-10-24_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "a0546c55c369b36fe9fb00b56f42845aae9fa7eff1d9dd143c1e8951f4b4be11"
+        "sha256": "2d6c7bb15e8168b338e0aa885066bea18e06277ee9891e0a0b5ce0db723ab8c8"
       }
     },
     "run_attempts": 1,
@@ -777,12 +773,15 @@
     "job_date": "2026-10-24",
     "dry_run": false,
     "window": {
-      "start": "2026-10-23T13:23:51.148737+05:30",
-      "end": "2026-10-24T13:23:51.148737+05:30"
+      "start": "2026-10-23T17:36:52.506538+05:30",
+      "end": "2026-10-24T17:36:52.506538+05:30"
     },
-    "status": "running",
-    "updated_at": "2026-10-24T12:06:50.804785+00:00",
-    "last_success_stage": "24_final_health_audit",
-    "github_run_id": "40092553082"
+    "github_run_id": "40092553082",
+    "status": "failed",
+    "updated_at": "2026-10-24T12:10:41.749897+00:00",
+    "last_success_stage": "19_pdf_qa",
+    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-24 12:10:37 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-24 12:10:37 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-10-24.pdf\n2026-10-24 12:10:37 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-10-24; manual reconciliation required, refusing resend\n2026-10-24 12:10:37 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
+    "failed_stage": "22_telegram_publisher",
+    "checkpoint_run_id": "40092553082"
   }
 }
