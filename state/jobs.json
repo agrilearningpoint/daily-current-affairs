@@ -739,9 +739,9 @@
       "start": "2026-10-23T20:58:50.662436+05:30",
       "end": "2026-10-24T20:58:50.662436+05:30"
     },
-    "github_run_id": "40107114814",
-    "status": "failed",
-    "updated_at": "2026-10-24T15:29:11.411157+00:00",
+    "github_run_id": "40107271499",
+    "status": "running",
+    "updated_at": "2026-10-24T15:30:53.497528+00:00",
     "last_error": "00_model_orchestrator: failed after 3 attempt(s): ids(provider), exclude)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/ai_router.py\", line 173, in _choose_live_model\n    text_models = [m for m in candidates if re.search(r\"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini)\", m, re.I)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/ai_router.py\", line 173, in <listcomp>\n    text_models = [m for m in candidates if re.search(r\"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini)\", m, re.I)\n                                            ^^\nNameError: name 're' is not defined",
     "failed_stage": "00_model_orchestrator",
     "checkpoint_run_id": "40107114814"
