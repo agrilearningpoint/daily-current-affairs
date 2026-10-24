@@ -1,182 +1,49 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+AGRI LEARNING POINT — Exam Genius Style Daily Current Affairs PDF Generator
+==========================================================================
+Modern, mobile-first, student-centric current affairs publishing engine.
+Engineered for competitive-exam coaching standards:
+UPSSSC AGTA, IBPS AFO, ICAR, NABARD, FCI, State PCS, UPSC.
+
+Key Architecture (Exam Genius Benchmark):
+- Self-Contained Educational Units: Each topic combines Question, 5 Options,
+  Answer Callout, In-Depth Bilingual Explanation, and Static GK Box.
+- Mobile-First Layout: Clean single-column vertical flow, generous margins,
+  high readability on smartphones and tablets.
+- Dual-Layer Devanagari Typography: HarfBuzz + FreeType vector text shaping
+  with selectable PDF text layer.
+- Zero clutter, professional branding, and 100% verified exam facts.
+"""
+
 from __future__ import annotations
 
-import os
-import sys
-import tempfile
-import hashlib
 import html
+import io
+import math
+import os
 import re
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from difflib import SequenceMatcher
 
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm, cm
-from reportlab.lib.colors import HexColor, white, black
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY, TA_RIGHT
+from reportlab.lib.units import mm, inch
+pt = 1
+from reportlab.lib.colors import HexColor, Color
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
-from reportlab.platypus.flowables import Flowable
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, HRFlowable, Image, CondPageBreak
+    PageBreak, KeepTogether, HRFlowable, Image, Flowable
 )
 
-IMPORTANT_DAYS_BY_MONTH: Dict[str, List[str]] = {
-    "january": [
-        "9 January: Pravasi Bharatiya Divas (Non-Resident Indian Day)",
-        "10 January: World Hindi Day (Vishwa Hindi Diwas)",
-        "12 January: National Youth Day (Swami Vivekananda Jayanti)",
-        "15 January: Indian Army Day (Field Marshal K.M. Cariappa taking command in 1949)",
-        "24 January: National Girl Child Day",
-        "25 January: National Voters' Day (Theme: Nothing Like Voting, I Vote for Sure)",
-        "26 January: Republic Day of India / International Customs Day",
-        "30 January: Martyrs' Day (Shaheed Diwas - Mahatma Gandhi Smriti)",
-    ],
-    "february": [
-        "2 February: World Wetlands Day (Ramsar Convention on Wetlands)",
-        "4 February: World Cancer Day (Theme: Close the Care Gap)",
-        "10 February: World Pulses Day (FAO - Pulses for a Sustainable Future)",
-        "13 February: National Women's Day (Sarojini Naidu Birth Anniversary)",
-        "20 February: World Day of Social Justice",
-        "24 February: Central Excise Day / PM-KISAN Launch Anniversary (Launched 24 Feb 2019)",
-        "28 February: National Science Day (Commemorating discovery of the Raman Effect)",
-    ],
-    "march": [
-        "3 March: World Wildlife Day (Connecting People and Planet)",
-        "8 March: International Women's Day",
-        "15 March: World Consumer Rights Day",
-        "21 March: International Day of Forests",
-        "22 March: World Water Day (Leveraging Water for Peace)",
-        "23 March: World Meteorological Day / Shaheed Diwas (Bhagat Singh, Rajguru, Sukhdev)",
-        "24 March: World Tuberculosis (TB) Day (Yes! We can end TB!)",
-    ],
-    "april": [
-        "7 April: World Health Day (WHO Foundation Day, 1948)",
-        "14 April: Dr. B.R. Ambedkar Jayanti / National Water Day",
-        "18 April: World Heritage Day (International Day for Monuments and Sites)",
-        "21 April: National Civil Services Day",
-        "22 April: Earth Day (International Mother Earth Day)",
-        "24 April: National Panchayati Raj Day (73rd Constitutional Amendment Act, 1992)",
-        "25 April: World Malaria Day",
-    ],
-    "may": [
-        "1 May: International Labour Day (May Day)",
-        "3 May: World Press Freedom Day",
-        "11 May: National Technology Day (Operation Shakti - Pokhran-II Tests 1998)",
-        "20 May: World Bee Day (FAO - Pollinator-Friendly Agricultural Production)",
-        "21 May: National Anti-Terrorism Day",
-        "22 May: International Day for Biological Diversity",
-        "31 May: World No Tobacco Day",
-    ],
-    "june": [
-        "1 June: World Milk Day (FAO - Celebrating the Vital Role of Dairy)",
-        "5 June: World Environment Day (UNEP Flagship Day)",
-        "7 June: World Food Safety Day (FAO/WHO - Food Standards Save Lives)",
-        "8 June: World Oceans Day",
-        "17 June: World Day to Combat Desertification and Drought (United for Land)",
-        "21 June: International Day of Yoga",
-        "29 June: National Statistics Day (Prof. P.C. Mahalanobis Birth Anniversary)",
-    ],
-    "july": [
-        "1 July: National Doctor's Day (Dr. B.C. Roy) / GST Day (Launched 1 July 2017)",
-        "11 July: World Population Day",
-        "12 July: NABARD Foundation Day (Established 12 July 1982 by Act 61 of 1981)",
-        "16 July: ICAR Foundation Day (Established 16 July 1929 as Imperial Council)",
-        "26 July: Kargil Vijay Diwas (Operation Vijay 1999)",
-        "28 July: World Nature Conservation Day / World Hepatitis Day",
-        "29 July: International Tiger Day (Global Tiger Recovery Program)",
-    ],
-    "august": [
-        "7 August: National Handloom Day / National Javelin Day (Neeraj Chopra Olympic Gold)",
-        "9 August: World Tribal Day (International Day of the World's Indigenous Peoples)",
-        "12 August: International Youth Day / World Elephant Day",
-        "15 August: Independence Day of India",
-        "20 August: Sadbhavana Diwas (Communal Harmony Day)",
-        "29 August: National Sports Day (Rashtriya Khel Diwas - Major Dhyan Chand Jayanti)",
-    ],
-    "september": [
-        "1 to 7 September: National Nutrition Week (Rashtriya Poshan Maah)",
-        "5 September: Teachers' Day (Dr. Sarvepalli Radhakrishnan Birth Anniversary)",
-        "8 September: International Literacy Day",
-        "14 September: Hindi Diwas (Adopted as official language 14 Sept 1949)",
-        "15 September: National Engineers' Day (Sir M. Visvesvaraya Jayanti)",
-        "16 September: World Ozone Day (Montreal Protocol Anniversary)",
-        "27 September: World Tourism Day",
-    ],
-    "october": [
-        "1 October: International Coffee Day / International Day of Older Persons",
-        "2 October: Mahatma Gandhi Jayanti / International Day of Non-Violence",
-        "2 to 8 October: National Wildlife Week",
-        "4 October: World Animal Day",
-        "7 October: World Cotton Day (Theme: Cotton for Good)",
-        "8 October: Indian Air Force Day (Established 8 October 1932)",
-        "9 October: World Post Day (Universal Postal Union)",
-        "10 October: World Mental Health Day",
-        "14 October: World Standards Day (ISO, IEC, ITU)",
-        "15 October: Mahila Kisan Diwas (Women Farmers Day) / World Students' Day (Dr. Kalam)",
-        "16 October: World Food Day (FAO Foundation Day 1945)",
-        "24 October: United Nations Day (UN Charter 1945) / World Polio Day",
-        "31 October: National Unity Day (Rashtriya Ekta Diwas - Sardar Patel Jayanti)",
-    ],
-    "november": [
-        "5 November: World Tsunami Awareness Day",
-        "9 November: National Legal Services Day",
-        "11 November: National Education Day (Maulana Abul Kalam Azad Jayanti)",
-        "14 November: Children's Day / World Diabetes Day",
-        "15 November: Janjatiya Gaurav Divas (Bhagwan Birsa Munda Birth Anniversary)",
-        "26 November: Constitution Day of India (Samvidhan Divas) / National Milk Day (Dr. Verghese Kurien)",
-    ],
-    "december": [
-        "1 December: World AIDS Day",
-        "2 December: National Pollution Control Day / World Computer Literacy Day",
-        "3 December: National Agriculture Education Day (Dr. Rajendra Prasad Jayanti) / Day of Persons with Disabilities",
-        "4 December: Indian Navy Day (Operation Trident 1971)",
-        "5 December: World Soil Day (FAO - Soils: Where Food Begins)",
-        "10 December: Human Rights Day (Universal Declaration of Human Rights 1948)",
-        "14 December: National Energy Conservation Day (BEE)",
-        "16 December: Vijay Diwas (1971 Liberation War)",
-        "22 December: National Mathematics Day (Srinivasa Ramanujan Birth Anniversary)",
-        "23 December: Kisan Diwas (National Farmers' Day - Chaudhary Charan Singh Jayanti)",
-        "25 December: Good Governance Day (Sushasan Divas - Atal Bihari Vajpayee Jayanti)",
-    ],
-}
-
-
-def get_important_days_for_date(date_str: str) -> List[str]:
-    """Returns dynamic, syllabus-aligned Important Days for the edition's month."""
-    d_low = str(date_str or "").lower()
-    for month_name, days in IMPORTANT_DAYS_BY_MONTH.items():
-        if month_name in d_low:
-            return days
-    # Check ISO month format YYYY-MM-DD
-    m_iso = re.search(r"-(0[1-9]|1[0-2])-", d_low)
-    if m_iso:
-        months_list = list(IMPORTANT_DAYS_BY_MONTH.keys())
-        idx = int(m_iso.group(1)) - 1
-        if 0 <= idx < len(months_list):
-            return IMPORTANT_DAYS_BY_MONTH[months_list[idx]]
-    return IMPORTANT_DAYS_BY_MONTH["october"]
-
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-AGRI LEARNING POINT - Premium Daily Current Affairs PDF Generator
-================================================================
-Production engine for daily / weekly / monthly bilingual editions.
-Engineered for competitive-exam coaching standards (AGTA, AFO, ICAR, NABARD, FCI, UPSC, SSC).
-
-Clean, Mobile-Friendly, Distraction-Free Design:
-- Minimal Two-Color Palette: Deep Classic Navy (#0F2B48) & Forest Green (#166534)
-- Crisp Devanagari Typography: Mukta (SemiBold for headings, Regular for body) shaped with HarfBuzz + FreeType
-- Selectable vector text layer for QA & searchability
-- Clean running header and 3 official channels footer (YouTube, @agrilearningpoint, @agriquizworld)
-- Zero unnecessary colors, zero fake social links.
-"""
 from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
 
 # --- HARFBUZZ + FREETYPE CHECK ---
@@ -187,11 +54,17 @@ try:
 except ImportError:
     _HAS_HB_FT = False
 
-# --- PATHS ---
+# --- PATHS & CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+PDF_FONT_DIR = os.getenv("PDF_FONT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts"))
+FONTS_DIR = PDF_FONT_DIR
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+PDF_MARGIN_PT = float(os.getenv("PDF_MARGIN_PT", "36"))
+PDF_MAX_MCQS = int(os.getenv("PDF_MAX_MCQS", "20"))
+PDF_PAGE_SIZE = os.getenv("PDF_PAGE_SIZE", "A4")
+PDF_TITLE = os.getenv("PDF_TITLE", "AGRI LEARNING POINT")
 
 
 def get_shaping_diagnostics() -> tuple[bool, str]:
@@ -204,60 +77,34 @@ def get_shaping_diagnostics() -> tuple[bool, str]:
 
 
 _HAS_SHAPING, _SHAPING_DIAGNOSTIC = get_shaping_diagnostics()
-_HAS_RAQM = bool(PILFeatures.check("raqm"))
 _ALLOW_UNSHAPED_DEV = os.getenv("ALP_ALLOW_UNSHAPED_DEV_PDF", "0") == "1"
 
 if not _HAS_SHAPING and not _ALLOW_UNSHAPED_DEV:
     raise RuntimeError(f"FATAL: {_SHAPING_DIAGNOSTIC}")
 
-# --- COLOR TOKENS (Clean, Mobile-Friendly, Minimal Palette) ---
+# --- COLOR PALETTE (Modern Exam Genius Theme) ---
 COLORS = {
-    "primary_navy": HexColor("#0F2B48"),       # Deep Navy — primary brand & title
-    "secondary_navy": HexColor("#1E3A5F"),     # Subtle Navy
-    "brand_teal": HexColor("#0F2B48"),         # Harmonized with primary navy
-    "teal_light": HexColor("#F1F5F9"),         # Soft neutral slate panel
-    "primary_green": HexColor("#166534"),      # Forest green for answers & takeaways
-    "light_green": HexColor("#F0FDF4"),        # Soft mint panel
-    "border_green": HexColor("#86EFAC"),       # Light green border
-    "dark_text": HexColor("#0F172A"),          # High contrast deep charcoal
-    "body_text": HexColor("#1E293B"),          # Slate dark for easy mobile reading
-    "muted_text": HexColor("#64748B"),         # Cool gray for metadata
-    "border_light": HexColor("#E2E8F0"),       # Clean thin border
-    "card_bg": HexColor("#F8FAFC"),            # Soft card background
-    "header_bg": HexColor("#0F2B48"),          # Navy header
-    "footer_bg": HexColor("#0F2B48"),          # Navy footer
-    "alert_gold": HexColor("#B45309"),
-    "alert_light": HexColor("#FEF3C7"),
-    "sports_red": HexColor("#0F2B48"),
-}
-
-CATEGORY_STYLE = {
-    "agriculture": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "AGRICULTURE & ALLIED"},
-    "banking": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "BANKING & FINANCE"},
-    "national": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "NATIONAL AFFAIRS"},
-    "international": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "INTERNATIONAL AFFAIRS"},
-    "economy": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "ECONOMY & SCHEMES"},
-    "science": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "SCIENCE & TECHNOLOGY"},
-    "environment": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "ENVIRONMENT & CLIMATE"},
-    "sports": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "SPORTS"},
-    "important_days": {"color": COLORS["primary_navy"], "light": COLORS["card_bg"], "label": "IMPORTANT DAYS"},
-}
-
-CAT_MAP = {
-    "Agriculture": "agriculture", "agriculture": "agriculture",
-    "Banking & Finance": "banking", "banking": "banking", "banking_finance": "banking",
-    "Economy": "economy", "economy": "economy", "economy_data": "economy",
-    "Government Schemes": "national", "government_schemes": "national",
-    "National": "national", "national": "national",
-    "International": "international", "international": "international",
-    "Science & Technology": "science", "science_technology": "science",
-    "Environment": "environment", "environment": "environment",
-    "Sports": "sports", "sports": "sports",
-    "Important Days": "important_days", "important_days": "important_days",
-    "Awards": "national", "Appointments": "national",
+    "primary": HexColor("#0A2540"),        # Deep Academic Navy
+    "primary_dark": HexColor("#051626"),   # Near Black Slate
+    "secondary": HexColor("#0F4C81"),      # Classic Blueprint Navy
+    "accent_green": HexColor("#0D7A42"),   # Vibrant Agricultural Green
+    "light_green_bg": HexColor("#ECFDF5"), # Soft Mint Green Box
+    "border_green": HexColor("#6EE7B7"),   # Clean Green Border
+    "badge_bg": HexColor("#EFF6FF"),       # Light Indigo Pill
+    "badge_text": HexColor("#1D4ED8"),     # Indigo Pill Text
+    "dark_text": HexColor("#0F172A"),      # Charcoal Primary Text
+    "body_text": HexColor("#1E293B"),      # Slate Dark
+    "body_hindi": HexColor("#1E293B"),     # Hindi Text Slate
+    "muted_text": HexColor("#64748B"),     # Subtitle & Meta Gray
+    "border_light": HexColor("#E2E8F0"),   # Hairline Slate Border
+    "card_bg": HexColor("#F8FAFC"),        # Ice White Card BG
+    "card_border": HexColor("#CBD5E1"),    # Card Border
+    "gold_accent": HexColor("#D97706"),    # Highlight Gold
+    "white": HexColor("#FFFFFF"),
 }
 
 PAGE_W, PAGE_H = A4
+PRINT_W = PAGE_W - 72 * pt  # 523.28 pt printable width (36pt margins left/right)
 
 
 # --- FONT REGISTRATION ---
@@ -267,7 +114,8 @@ def register_fonts() -> bool:
         pdfmetrics.registerFont(TTFont("Poppins-SemiBold", os.path.join(FONTS_DIR, "Poppins-SemiBold.ttf")))
         pdfmetrics.registerFont(TTFont("Poppins-Bold", os.path.join(FONTS_DIR, "Poppins-Bold.ttf")))
         pdfmetrics.registerFont(TTFont("Mukta", os.path.join(FONTS_DIR, "Mukta-Regular.ttf")))
-        pdfmetrics.registerFont(TTFont("Mukta-Bold", os.path.join(FONTS_DIR, "Mukta-SemiBold.ttf")))
+        pdfmetrics.registerFont(TTFont("Mukta-SemiBold", os.path.join(FONTS_DIR, "Mukta-SemiBold.ttf")))
+        pdfmetrics.registerFont(TTFont("Mukta-Bold", os.path.join(FONTS_DIR, "Mukta-Bold.ttf")))
         return True
     except Exception as exc:
         raise RuntimeError(f"FATAL: Required fonts failed to register from {FONTS_DIR}: {exc}")
@@ -275,31 +123,14 @@ def register_fonts() -> bool:
 
 FONTS_OK = register_fonts()
 FONT_REGULAR = "Poppins"
-FONT_BOLD = "Poppins-Bold"
 FONT_SEMI = "Poppins-SemiBold"
+FONT_BOLD = "Poppins-Bold"
 FONT_HINDI = "Mukta"
+FONT_HINDI_SEMI = "Mukta-SemiBold"
 FONT_HINDI_BOLD = "Mukta-Bold"
 
 
-# --- STYLES ---
-def get_styles() -> Dict[str, ParagraphStyle]:
-    styles = getSampleStyleSheet()
-    return {
-        "cover_masthead": ParagraphStyle("CoverMasthead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=24, leading=28, textColor=COLORS["primary_navy"], alignment=TA_CENTER),
-        "cover_sub": ParagraphStyle("CoverSub", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=12, leading=16, textColor=COLORS["primary_navy"], alignment=TA_CENTER),
-        "cover_pill": ParagraphStyle("CoverPill", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_navy"], alignment=TA_CENTER),
-        "cover_tag": ParagraphStyle("CoverTag", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=12, textColor=COLORS["muted_text"], alignment=TA_CENTER),
-        "headline_en": ParagraphStyle("HeadlineEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12.5, leading=16.5, textColor=COLORS["primary_navy"], alignment=TA_LEFT, spaceAfter=2),
-        "body_en": ParagraphStyle("BodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT, spaceAfter=2),
-        "static_label": ParagraphStyle("StaticLabel", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9, leading=12, textColor=COLORS["primary_navy"], alignment=TA_LEFT),
-        "static_text": ParagraphStyle("StaticText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=12.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "exam_fact": ParagraphStyle("ExamFact", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=9.5, leading=13, textColor=COLORS["primary_green"], alignment=TA_LEFT),
-        "one_liner": ParagraphStyle("OneLiner", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=6, spaceAfter=2.5),
-    }
-
-
-STYLES = get_styles()
-
+# --- GLYPH SUPPORT & SANITIZATION ---
 _SYMBOL_FALLBACK = {
     "\u25b6": "\u00bb",
     "\u25b8": "\u00bb",
@@ -325,7 +156,6 @@ _COVERAGE_FACES: Any = None
 
 
 def _coverage_faces() -> list:
-    """Lazily load the bundled fonts used for glyph-coverage checks."""
     global _COVERAGE_FACES
     if _COVERAGE_FACES is None:
         faces: list = []
@@ -342,11 +172,7 @@ def _coverage_faces() -> list:
 
 
 def glyph_supported(ch: str) -> bool:
-    """True when at least one bundled font has a glyph for ``ch``.
-
-    When FreeType/fonts are unavailable the check returns True so text is never
-    mangled blindly; the shaping guard above already fails closed in that case.
-    """
+    """True when at least one bundled font has a glyph for ``ch``."""
     cached = _GLYPH_CACHE.get(ch)
     if cached is not None:
         return cached
@@ -379,126 +205,6 @@ def _safe(text: Any) -> str:
     return s
 
 
-RAW_FILE_RE = re.compile(
-    r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)",
-    re.IGNORECASE,
-)
-
-
-def _clean_text_for_display(t: Any) -> str:
-    """Clean unwanted prefixes, 'Watch:', 'Topic: >>', 'Ques :', '>>', '&gt;&gt;' and normalise whitespace."""
-    if not t:
-        return ""
-    s = _strip_html(str(t)).strip()
-    s = re.sub(r'^(?:Topic\s*:\s*)?(?:&gt;|>>|>|\s)+', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'^(?:Ques|Question)\s*[:.-]*\s*', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'\bWatch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'&gt;&gt;|&gt;|>>|>', '', s)
-    return re.sub(r'\s+', ' ', s).strip()
-
-
-def _is_broken_dictionary_hindi(hi_text: str) -> bool:
-    """Filter out template prompt boilerplate leaks, hybrid word substitutions, and non-Hindi text."""
-    if not hi_text or not DEVANAGARI_RE.search(hi_text):
-        return True
-    bad_boilerplate = [
-        "record करें", "रिकॉर्ड करें", "source event:", "name + designation", "teen-cheez",
-        "prelims में पूछा जाता है", "prelims favourite", "direct fact:", "rule:", "याद रखें।"
-    ]
-    hi_lower = hi_text.lower()
-    for bad in bad_boilerplate:
-        if bad.lower() in hi_lower:
-            return True
-    # Hybrid word substitution check: English syntax directly adjacent to Devanagari words
-    hybrid_patterns = [
-        r'\bto\s+भारत\b', r'\bof\s+भारत\b', r'\bसरकार\s+of\b', r'\bमंत्रालय\s+of\b',
-        r'ICAR-भारतीय', r'\bवृद्धि\s+cuts\b', r'\bcuts\s+.*वृद्धि\b'
-    ]
-    for hp in hybrid_patterns:
-        if re.search(hp, hi_text, re.IGNORECASE):
-            return True
-    # If text is predominantly English words with just 1 or 2 isolated Devanagari tokens
-    latin_words = len(re.findall(r'[a-zA-Z]{2,}', hi_text))
-    dev_words = len(re.findall(r'[\u0900-\u097F]+', hi_text))
-    if latin_words >= 5 and dev_words <= 2:
-        return True
-    return False
-
-
-def _get_clean_explanation_pairs(item: Dict[str, Any], mcq: Dict[str, Any]) -> List[Tuple[str, str]]:
-    """Build clean, deduplicated, boilerplate-free bilingual explanation points."""
-    seen_texts: List[str] = []
-    pairs: List[Tuple[str, str]] = []
-
-    def is_dup(t: str) -> bool:
-        norm = re.sub(r'\W+', '', t.lower())
-        if len(norm) < 15:
-            return True
-        for prev in seen_texts:
-            p_norm = re.sub(r'\W+', '', prev.lower())
-            if norm in p_norm or p_norm in norm:
-                return True
-            if SequenceMatcher(None, norm, p_norm).ratio() > 0.65:
-                return True
-        return False
-
-    def is_boilerplate(t: str) -> bool:
-        bad_phrases = [
-            "name + designation", "tenure", "रिकॉर्ड करें", "source event:", "teen-cheez",
-            "prelims में पूछा", "prelims statement-based", "direct fact:", "rule:", "याद रखें",
-            "appears verbatim in the verified", "source text pairs this event"
-        ]
-        low = t.lower()
-        return any(bp in low for bp in bad_phrases)
-
-    headline_en = _clean_text_for_display(item.get("headline_en", ""))
-
-    # 1. Key Points first (substantive facts, not headline duplication)
-    kp_ens = item.get("key_points_en") or []
-    kp_his = item.get("key_points_hi") or []
-    for idx_kp, kpe in enumerate(kp_ens):
-        c_kpe = _clean_text_for_display(kpe)
-        if not c_kpe or len(c_kpe) < 20 or is_dup(c_kpe) or is_boilerplate(c_kpe):
-            continue
-        c_khi = ""
-        if idx_kp < len(kp_his):
-            cand_hi = _clean_text_for_display(kp_his[idx_kp])
-            if not _is_broken_dictionary_hindi(cand_hi):
-                c_khi = cand_hi
-        seen_texts.append(c_kpe)
-        pairs.append((c_kpe, c_khi))
-        if len(pairs) >= 3:
-            break
-
-    # 2. Detailed Explanation (if distinct)
-    det_en = _clean_text_for_display(item.get("detailed_explanation_en", ""))
-    if det_en and len(det_en) > 30 and not is_dup(det_en) and not is_boilerplate(det_en):
-        det_hi_c = _clean_text_for_display(item.get("detailed_explanation_hi", ""))
-        clean_det_hi = "" if _is_broken_dictionary_hindi(det_hi_c) else det_hi_c
-        seen_texts.append(det_en)
-        pairs.append((det_en, clean_det_hi))
-
-    # 3. Fallback: only if no key points or detailed explanation exist, use headline
-    if not pairs:
-        hl_clean = headline_en
-        if hl_clean and len(hl_clean) > 25 and not is_dup(hl_clean) and not is_boilerplate(hl_clean):
-            hi_candidate = _clean_text_for_display(item.get("headline_hi", ""))
-            clean_hi = "" if _is_broken_dictionary_hindi(hi_candidate) else hi_candidate
-            seen_texts.append(hl_clean)
-            pairs.append((hl_clean, clean_hi))
-
-    # 4. MCQ specific explanation if we need more context
-    if len(pairs) < 2:
-        m_expl_en = _clean_text_for_display(mcq.get("explanation_en", ""))
-        if m_expl_en and len(m_expl_en) > 20 and not is_dup(m_expl_en) and not is_boilerplate(m_expl_en):
-            m_expl_hi = _clean_text_for_display(mcq.get("explanation_hi", ""))
-            clean_m_hi = "" if _is_broken_dictionary_hindi(m_expl_hi) else m_expl_hi
-            seen_texts.append(m_expl_en)
-            pairs.append((m_expl_en, clean_m_hi))
-
-    return pairs[:4]
-
-
 def _strip_html(text: Any) -> str:
     if text is None:
         return ""
@@ -510,11 +216,23 @@ def _strip_html(text: Any) -> str:
     return s
 
 
+def _clean_text_for_display(t: Any) -> str:
+    if not t:
+        return ""
+    s = _strip_html(str(t)).strip()
+    s = re.sub(r'^(?:Topic\s*:\s*)?(?:&gt;|>>|>|\s)+', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'^(?:Ques|Question)\s*[:.-]*\s*', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'\bWatch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'&gt;&gt;|&gt;|>>|>', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 
 
 # --- SHAPED HINDI FLOWABLE WITH DUAL VECTOR-TEXT LAYER ---
 class _HindiTextFlowable(Flowable):
+    """Renders pixel-perfect HarfBuzz-shaped Devanagari while preserving vector text."""
     def __init__(self, img_flowable: Image, layer: Dict[str, Any]):
         super().__init__()
         self.img = img_flowable
@@ -546,7 +264,7 @@ class _HindiTextFlowable(Flowable):
             else:
                 tx = x + L["left_pad_mm"] * mm + 2
             ty = y + h_pt - (i + 1) * slot + slot * 0.16
-            canvas_obj.drawString(tx, ty, clean_l, mode=3)
+            canvas_obj.drawString(tx, ty, clean_l, mode=3)  # Invisible vector text for QA & search
         canvas_obj.restoreState()
 
     def draw(self):
@@ -620,328 +338,238 @@ def _render_hindi_hb_ft(
     if not lines:
         lines = [text]
 
-    line_h_px = int(font_size_pt * line_spacing * dpi / 72)
-    asc_px = face.size.ascender // 64
-    desc_px = abs(face.size.descender // 64)
-    lead_px = line_h_px - (asc_px + desc_px)
-    pad_top_px = max(lead_px // 2, 2)
-    total_h_px = len(lines) * line_h_px + pad_top_px + max(desc_px // 2, 4)
+    ascender = face.size.ascender // 64
+    descender = face.size.descender // 64
+    line_h = int((ascender - descender) * line_spacing)
+    total_h = line_h * len(lines) + int(6 * dpi / 72)
 
-    # Use RGBA transparency so there are no white bounding box artifacts on mobile
-    img = PILImage.new("RGBA", (width_px, total_h_px), (255, 255, 255, 0))
+    img = PILImage.new("RGBA", (width_px, max(total_h, 1)), (bg_rgb[0], bg_rgb[1], bg_rgb[2], 0 if bg_rgb == (255, 255, 255) else 255))
+    draw = ImageDraw.Draw(img)
 
     for i, line in enumerate(lines):
         infos, positions = shape_runs(line)
         line_w = sum(pos.x_advance for pos in positions) // 64
-
         if align == "center":
-            x_cursor = (width_px - line_w) // 2
+            pen_x = (width_px - line_w) // 2
         elif align == "right":
-            x_cursor = width_px - line_w - int(left_padding_mm * dpi / 25.4)
+            pen_x = width_px - line_w - int(left_padding_mm * dpi / 25.4)
         else:
-            x_cursor = int(left_padding_mm * dpi / 25.4) + 2
-
-        baseline_y = pad_top_px + i * line_h_px + asc_px
+            pen_x = int(left_padding_mm * dpi / 25.4)
+        base_y = i * line_h + ascender
 
         for info, pos in zip(infos, positions):
             gid = info.codepoint
-            x_offset = pos.x_offset // 64
-            y_offset = pos.y_offset // 64
-            x_advance = pos.x_advance // 64
-
             face.load_glyph(gid, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_NORMAL)
-            slot = face.glyph
-            bitmap = slot.bitmap
+            bm = face.glyph.bitmap
+            if bm.width > 0 and bm.rows > 0:
+                buf = bytes(bm.buffer)
+                gm = PILImage.frombytes("L", (bm.width, bm.rows), buf)
+                tint = PILImage.new("RGBA", (bm.width, bm.rows), (*color_rgb, 255))
+                tint.putalpha(gm)
+                gx = pen_x + pos.x_offset // 64 + face.glyph.bitmap_left
+                gy = base_y - (pos.y_offset // 64 + face.glyph.bitmap_top)
+                img.alpha_composite(tint, (gx, gy))
+            pen_x += pos.x_advance // 64
 
-            if bitmap.width > 0 and bitmap.rows > 0:
-                bx = x_cursor + x_offset + slot.bitmap_left
-                by = baseline_y - slot.bitmap_top - y_offset
-
-                if bx >= 0 and by >= 0 and bx + bitmap.width <= width_px and by + bitmap.rows <= total_h_px:
-                    glyph_buf = bytes(bitmap.buffer)
-                    glyph_img = PILImage.frombytes("L", (bitmap.width, bitmap.rows), glyph_buf)
-                    colored_img = PILImage.new("RGBA", (bitmap.width, bitmap.rows), (color_rgb[0], color_rgb[1], color_rgb[2], 255))
-                    img.paste(colored_img, (bx, by), glyph_img)
-
-            x_cursor += x_advance
-
-    return img, lines, width_px, total_h_px
+    return img, lines, width_px, total_h
 
 
-def _render_hindi_pillow_raqm(
+def render_hindi_flowable(
     text: str,
-    font_path: str,
-    font_size_pt: float,
-    width_px: int,
-    avail_w_px: int,
-    left_padding_mm: float,
-    color_rgb: Tuple[int, int, int],
-    bg_rgb: Tuple[int, int, int],
-    line_spacing: float,
-    align: str,
-    dpi: int,
-) -> Tuple[PILImage.Image, List[str], int, int]:
-    font_size_px = int(font_size_pt * dpi / 72)
-    font = ImageFont.truetype(font_path, font_size_px, layout_engine=ImageFont.Layout.RAQM)
-
-    def measure(t: str) -> int:
-        bbox = font.getbbox(t)
-        return bbox[2] - bbox[0]
-
-    words = text.split()
-    lines = []
-    current = ""
-    for word in words:
-        test = current + " " + word if current else word
-        if measure(test) <= avail_w_px:
-            current = test
-        else:
-            if current:
-                lines.append(current)
-                current = word
-            else:
-                lines.append(word)
-                current = ""
-    if current:
-        lines.append(current)
-    if not lines:
-        lines = [text]
-
-    line_h_px = int(font_size_px * line_spacing)
-    total_h_px = len(lines) * line_h_px + int(font_size_px * 0.4)
-
-    img = PILImage.new("RGBA", (width_px, total_h_px), (255, 255, 255, 0))
-    draw = ImageDraw.Draw(img)
-
-    for i, line in enumerate(lines):
-        lw = measure(line)
-        if align == "center":
-            x = (width_px - lw) // 2
-        elif align == "right":
-            x = width_px - lw - int(left_padding_mm * dpi / 25.4)
-        else:
-            x = int(left_padding_mm * dpi / 25.4) + 2
-        y = i * line_h_px + int(font_size_px * 0.1)
-        draw.text((x, y), line, font=font, fill=(color_rgb[0], color_rgb[1], color_rgb[2], 255))
-
-    return img, lines, width_px, total_h_px
-
-
-def hindi_to_image(
-    text: str,
-    width_mm: float = 182,
-    font_size_pt: float = 11,
-    bold: bool = False,
-    color: str = "#1E293B",
-    bg: str = "white",
-    line_spacing: float = 1.45,
+    font_size_pt: float = 10.0,
+    width_pt: float = 523.0,
+    is_bold: bool = False,
+    color_rgb: Tuple[int, int, int] = (15, 23, 42),
+    bg_rgb: Tuple[int, int, int] = (255, 255, 255),
     align: str = "left",
-    left_padding_mm: float = 0,
-) -> _HindiTextFlowable:
-    clean_text = _strip_html(text)
-    if not clean_text:
-        clean_text = " "
+    left_padding_mm: float = 0.0,
+) -> Flowable:
+    """Return a Flowable containing shaped Hindi with underlying selectable text."""
+    clean = _strip_html(text)
+    if not clean:
+        return Spacer(width_pt, 2 * pt)
 
-    # Use Mukta-SemiBold for bold/headings for crisp, perfectly formed strokes
-    font_filename = "Mukta-SemiBold.ttf" if bold else "Mukta-Regular.ttf"
-    font_path = os.path.join(FONTS_DIR, font_filename)
-    if not os.path.exists(font_path):
-        font_path = os.path.join(FONTS_DIR, "Mukta-Regular.ttf")
+    fname = "Mukta-Bold.ttf" if is_bold else "Mukta-Regular.ttf"
+    fpath = os.path.join(FONTS_DIR, fname)
+    dpi = 220
+    scale = dpi / 72.0
+    w_px = int(width_pt * scale)
+    pad_px = int(left_padding_mm * mm * scale)
+    avail_w = w_px - pad_px * 2
 
-    dpi = 300
-    width_px = int(width_mm * dpi / 25.4)
-    avail_w_px = width_px - int(left_padding_mm * dpi / 25.4) - 4
+    img, lines, iw, ih = _render_hindi_hb_ft(
+        clean, fpath, font_size_pt, w_px, avail_w,
+        left_padding_mm, color_rgb, bg_rgb, 1.35, align, dpi
+    )
 
-    def parse_color(h: str) -> Tuple[int, int, int]:
-        if not h:
-            return (30, 41, 59)
-        s = str(h).strip().lower()
-        if s in ("white", "transparent", "#ffffff", "ffffff", "0xffffff"):
-            return (255, 255, 255)
-        if s in ("black", "#000000", "000000", "0x000000"):
-            return (0, 0, 0)
-        if s.startswith("0x"):
-            s = s[2:]
-        elif s.startswith("#"):
-            s = s[1:]
-        if len(s) == 3:
-            s = "".join(c * 2 for c in s)
-        try:
-            return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
-        except Exception:
-            return (30, 41, 59)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
 
-    color_rgb = parse_color(color)
-    bg_rgb = parse_color(bg)
+    draw_w = width_pt
+    draw_h = ih / scale
 
-    if _HAS_HB_FT:
-        img, lines, w_px, h_px = _render_hindi_hb_ft(
-            clean_text, font_path, font_size_pt, width_px, avail_w_px,
-            left_padding_mm, color_rgb, bg_rgb, line_spacing, align, dpi
-        )
-    elif _HAS_RAQM:
-        img, lines, w_px, h_px = _render_hindi_pillow_raqm(
-            clean_text, font_path, font_size_pt, width_px, avail_w_px,
-            left_padding_mm, color_rgb, bg_rgb, line_spacing, align, dpi
-        )
-    else:
-        font = ImageFont.truetype(font_path, int(font_size_pt * dpi / 72))
-        img = PILImage.new("RGBA", (width_px, int(font_size_pt * 2 * dpi / 72)), (255, 255, 255, 0))
-        lines = [clean_text]
-        w_px, h_px = img.size
-
-    h_hash = hashlib.sha256((clean_text + f"{font_size_pt}_{bold}_{color_rgb}_{bg_rgb}_{width_mm}").encode("utf-8")).hexdigest()[:10]
-    tmp_dir = Path(tempfile.gettempdir()) / "alp_hindi_cache"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    tmp_path = str(tmp_dir / f"hindi_{h_hash}.png")
-    img.save(tmp_path, format="PNG", dpi=(dpi, dpi))
-
-    pdf_width = width_mm * mm
-    pdf_height = (h_px / w_px) * pdf_width
-    rl_img = Image(tmp_path, width=pdf_width, height=pdf_height)
-
+    img_f = Image(buf, width=draw_w, height=draw_h)
     layer = {
-        "path": (pdf_width, pdf_height),
         "lines": lines,
-        "font_name": ("Mukta-Bold" if bold else "Mukta"),
-        "size_pt": float(font_size_pt),
-        "line_spacing": float(line_spacing),
+        "path": (draw_w, draw_h),
+        "size_pt": font_size_pt,
+        "font_name": "Mukta-Bold" if is_bold else "Mukta",
         "align": align,
-        "left_pad_mm": float(left_padding_mm),
+        "left_pad_mm": left_padding_mm,
     }
-    return _HindiTextFlowable(rl_img, layer)
+    return _HindiTextFlowable(img_f, layer)
 
 
-def mixed_para(text: str, style_name: str, base_style: ParagraphStyle, **kw: Any) -> Flowable:
-    """Safely render text: if Devanagari is present, route to HarfBuzz shaped renderer."""
-    clean_text = _strip_html(text)
-    st = ParagraphStyle(style_name, parent=base_style, **kw)
-    if DEVANAGARI_RE.search(clean_text):
-        bold = ("Bold" in st.fontName or "SemiBold" in st.fontName or "Bold" in base_style.fontName)
-        width_mm = kw.pop("width_mm", 182)
-        bg = kw.pop("bg", "white")
-        align = {TA_CENTER: "center", TA_RIGHT: "right"}.get(st.alignment, "left")
-        col = kw.get("textColor", "#0F2B48")
-        hex_col = col.hexval() if hasattr(col, "hexval") else str(col)
-        return hindi_to_image(
-            clean_text,
-            width_mm=width_mm,
-            font_size_pt=st.fontSize,
-            bold=bold,
-            color=hex_col,
-            bg=bg,
-            align=align,
-        )
-    return Paragraph(_safe(clean_text), st)
+# --- DYNAMIC IMPORTANT DAYS DATABASE (12 MONTHS) ---
+IMPORTANT_DAYS_BY_MONTH: Dict[str, List[str]] = {
+    "january": [
+        "9 January: Pravasi Bharatiya Divas (Non-Resident Indian Day)",
+        "10 January: World Hindi Day (Vishwa Hindi Diwas)",
+        "12 January: National Youth Day (Swami Vivekananda Jayanti)",
+        "15 January: Indian Army Day",
+        "24 January: National Girl Child Day",
+        "25 January: National Voters' Day",
+        "26 January: Republic Day of India / International Customs Day",
+        "30 January: Martyrs' Day (Shaheed Diwas - Mahatma Gandhi Smriti)",
+    ],
+    "february": [
+        "2 February: World Wetlands Day (Ramsar Convention)",
+        "4 February: World Cancer Day",
+        "10 February: World Pulses Day (FAO)",
+        "13 February: National Women's Day (Sarojini Naidu)",
+        "24 February: Central Excise Day / PM-KISAN Launch Anniversary",
+        "28 February: National Science Day (Raman Effect)",
+    ],
+    "march": [
+        "3 March: World Wildlife Day",
+        "8 March: International Women's Day",
+        "15 March: World Consumer Rights Day",
+        "21 March: International Day of Forests",
+        "22 March: World Water Day (Leveraging Water for Peace)",
+        "23 March: World Meteorological Day / Shaheed Diwas",
+        "24 March: World Tuberculosis (TB) Day",
+    ],
+    "april": [
+        "7 April: World Health Day (WHO Foundation 1948)",
+        "14 April: Dr. B.R. Ambedkar Jayanti / National Water Day",
+        "18 April: World Heritage Day",
+        "21 April: National Civil Services Day",
+        "22 April: Earth Day (International Mother Earth Day)",
+        "24 April: National Panchayati Raj Day (73rd Amendment)",
+    ],
+    "may": [
+        "1 May: International Labour Day",
+        "3 May: World Press Freedom Day",
+        "11 May: National Technology Day (Pokhran-II)",
+        "20 May: World Bee Day (FAO)",
+        "22 May: International Day for Biological Diversity",
+        "31 May: World No Tobacco Day",
+    ],
+    "june": [
+        "1 June: World Milk Day (FAO)",
+        "5 June: World Environment Day (UNEP)",
+        "7 June: World Food Safety Day (FAO/WHO)",
+        "17 June: World Day to Combat Desertification and Drought",
+        "21 June: International Day of Yoga (UN)",
+        "23 June: United Nations Public Service Day",
+        "29 June: National Statistics Day (Prof. P.C. Mahalanobis)",
+    ],
+    "july": [
+        "1 July: National Doctor's Day / GST Day / SBI Foundation Day",
+        "11 July: World Population Day",
+        "12 July: NABARD Foundation Day (Established 12 July 1982)",
+        "16 July: ICAR Foundation Day (Established 16 July 1929)",
+        "20 July: World Chess Day / International Moon Day",
+        "26 July: Kargil Vijay Diwas",
+        "28 July: World Nature Conservation Day / World Hepatitis Day",
+        "29 July: International Tiger Day",
+    ],
+    "august": [
+        "7 August: National Handloom Day / National Javelin Day",
+        "9 August: International Day of the World's Indigenous Peoples",
+        "10 August: World Biofuel Day",
+        "12 August: International Youth Day",
+        "15 August: Independence Day of India",
+        "20 August: Sadbhavana Diwas",
+        "23 August: National Space Day (Chandrayaan-3 Landing)",
+        "29 August: National Sports Day (Major Dhyan Chand)",
+    ],
+    "september": [
+        "1-7 September: National Nutrition Week (Rashtriya Poshan Maah)",
+        "5 September: National Teachers' Day (Dr. S. Radhakrishnan)",
+        "8 September: International Literacy Day (UNESCO)",
+        "14 September: National Hindi Diwas",
+        "15 September: Engineers' Day (M. Visvesvaraya) / International Democracy Day",
+        "16 September: World Ozone Day (Montreal Protocol)",
+        "21 September: International Day of Peace",
+        "27 September: World Tourism Day",
+        "28 September: World Rabies Day",
+    ],
+    "october": [
+        "1 October: International Day of Older Persons / National Voluntary Blood Donation Day",
+        "2 October: Gandhi Jayanti / Lal Bahadur Shastri Jayanti / International Day of Non-Violence",
+        "4 October: World Animal Day",
+        "5 October: World Teachers' Day / National Dolphin Day",
+        "7 October: World Cotton Day",
+        "8 October: Indian Air Force Day (IAF)",
+        "9 October: World Post Day",
+        "11 October: International Day of the Girl Child",
+        "15 October: World Students' Day (Dr. A.P.J. Abdul Kalam) / National Women Farmers Day",
+        "16 October: World Food Day (FAO Foundation Day, 1945)",
+        "20 October: National Solidarity Day / World Statistics Day",
+        "24 October: United Nations Day / World Polio Day / ITBP Raising Day",
+        "31 October: National Unity Day (Rashtriya Ekta Diwas - Sardar Vallabhbhai Patel)",
+    ],
+    "november": [
+        "5 November: World Tsunami Awareness Day",
+        "7 November: National Cancer Awareness Day",
+        "9 November: National Legal Services Day",
+        "11 November: National Education Day (Maulana Abul Kalam Azad)",
+        "14 November: Children's Day / World Diabetes Day",
+        "15 November: Janjatiya Gaurav Divas (Bhagwan Birsa Munda)",
+        "19 November: World Toilet Day / National Integration Day",
+        "21 November: World Fisheries Day",
+        "26 November: Constitution Day (Samvidhan Divas) / National Milk Day (Dr. Verghese Kurien)",
+    ],
+    "december": [
+        "1 December: World AIDS Day",
+        "2 December: National Pollution Control Day / World Computer Literacy Day",
+        "3 December: International Day of Persons with Disabilities / National Agricultural Education Day",
+        "4 December: Indian Navy Day",
+        "5 December: World Soil Day (FAO)",
+        "7 December: Armed Forces Flag Day",
+        "10 December: Human Rights Day",
+        "14 December: National Energy Conservation Day",
+        "18 December: Minorities Rights Day",
+        "22 December: National Mathematics Day (Srinivasa Ramanujan)",
+        "23 December: Kisan Diwas (National Farmers' Day - Chaudhary Charan Singh)",
+        "24 December: National Consumer Rights Day",
+        "25 December: Good Governance Day (Sushasan Divas - Atal Bihari Vajpayee)",
+    ],
+}
 
 
-def get_or_create_news_image(item: Dict[str, Any], idx: int) -> Optional[Flowable]:
-    """Retrieve an existing image or generate a clean editorial infographic for top/important news."""
-    # 1. Existing local image file
-    ip = item.get("image_path")
-    if ip and os.path.exists(ip):
-        try:
-            return Image(ip, width=PAGE_W - 28*mm, height=44*mm)
-        except Exception:
-            pass
-
-    # 2. Only generate infographic for top/important stories (to keep PDF fast, uncluttered & high-impact)
-    score = item.get("importance_score", 0)
-    if idx > 6 and score < 18:
-        return None
-
-    cat_label = item.get("category", "National").upper()
-    hl_en = _safe(item.get("headline_en", "")).lstrip("> ")
-    hl_hi = _strip_html(item.get("headline_hi", "")).lstrip("> ")
-
-    if not hl_en:
-        return None
-
-    ck = CAT_MAP.get(item.get("category", "National"), "national")
-    cat_color = CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])["color"]
-    cat_hex = cat_color.hexval()
-    if cat_hex.startswith("0x"):
-        cat_hex = "#" + cat_hex[2:]
-
-    h_hash = hashlib.sha256((hl_en + str(cat_hex)).encode("utf-8")).hexdigest()[:12]
-    tmp_dir = Path(tempfile.gettempdir()) / "alp_infographics"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    card_path = str(tmp_dir / f"card_{h_hash}.png")
-
-    if not os.path.exists(card_path):
-        try:
-            pop_bold_p = os.path.join(FONTS_DIR, "Poppins-Bold.ttf")
-            pop_reg_p = os.path.join(FONTS_DIR, "Poppins-Regular.ttf")
-            muk_semi_p = os.path.join(FONTS_DIR, "Mukta-SemiBold.ttf")
-
-            w, h = 1800, 440
-            img = PILImage.new("RGBA", (w, h), (248, 250, 252, 255))
-            draw = ImageDraw.Draw(img)
-
-            def parse_hex(c_str: str) -> Tuple[int, int, int, int]:
-                s = c_str.lstrip("#")
-                return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16), 255)
-
-            cat_col = parse_hex(cat_hex)
-
-            # Outer border & left category bar
-            draw.rounded_rectangle([4, 4, w - 5, h - 5], radius=16, outline=(226, 232, 240, 255), width=3)
-            draw.rounded_rectangle([4, 4, 22, h - 5], radius=5, fill=cat_col)
-
-            # Category Pill
-            f_cat = ImageFont.truetype(pop_bold_p, 26)
-            draw.rounded_rectangle([40, 24, 440, 74], radius=8, fill=cat_col)
-            draw.text((55, 32), cat_label[:26].upper(), font=f_cat, fill=(255, 255, 255, 255))
-
-            # Top Right Category Tag (Clean, No Promo Text)
-            f_badge = ImageFont.truetype(pop_bold_p, 20)
-            draw.rounded_rectangle([w - 280, 24, w - 40, 74], radius=8, fill=(241, 245, 249, 255), outline=(203, 213, 225, 255), width=2)
-            draw.text((w - 250, 36), "EXAM FOCUS", font=f_badge, fill=(71, 85, 105, 255))
-
-            # English Headline (Wrapped)
-            f_title = ImageFont.truetype(pop_bold_p, 32)
-            words = hl_en.split()
-            lines = []
-            curr = ""
-            for wd in words:
-                test = (curr + " " + wd).strip()
-                if len(test) > 56:
-                    lines.append(curr)
-                    curr = wd
-                else:
-                    curr = test
-            if curr:
-                lines.append(curr)
-
-            y_pos = 98
-            for l in lines[:2]:
-                draw.text((42, y_pos), l, font=f_title, fill=(15, 23, 42, 255))
-                y_pos += 44
-
-            # Hindi text preview (Shaped via HarfBuzz)
-            if hl_hi:
-                hi_img, _, _, _ = _render_hindi_hb_ft(hl_hi[:90], muk_semi_p, 13, 1700, 1680, 0, (22, 101, 52), (255, 255, 255), 1.25, "left", 150)
-                img.paste(hi_img, (42, y_pos + 6), hi_img)
-
-            # Bottom Watermark Branding
-            f_sub = ImageFont.truetype(pop_reg_p, 20)
-            draw.text((42, h - 38), "Agri Learning Point  |  Comprehensive Exam Study Blueprint", font=f_sub, fill=(100, 116, 139, 255))
-
-            img.save(card_path, format="PNG")
-        except Exception:
-            return None
-
-    try:
-        return Image(card_path, width=PAGE_W - 28*mm, height=44*mm)
-    except Exception:
-        return None
+def get_important_days_for_date(date_str: str) -> List[str]:
+    d_low = str(date_str or "").lower()
+    for month_name, days in IMPORTANT_DAYS_BY_MONTH.items():
+        if month_name in d_low:
+            return days
+    m_iso = re.search(r"-(0[1-9]|1[0-2])-", d_low)
+    if m_iso:
+        months_list = list(IMPORTANT_DAYS_BY_MONTH.keys())
+        idx = int(m_iso.group(1)) - 1
+        if 0 <= idx < len(months_list):
+            return IMPORTANT_DAYS_BY_MONTH[months_list[idx]]
+    return IMPORTANT_DAYS_BY_MONTH["october"]
 
 
-# --- MINIMAL RUNNING HEADER & FOOTER CANVAS ---
-class NumberedCanvas(canvas.Canvas):
+# --- TWO-PASS CANVAS FOR HEADERS, FOOTERS & RUNNING METADATA ---
+class ExamGeniusCanvas(canvas.Canvas):
+    """Draws running header, divider, and footer across all pages except the cover."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._saved_page_states = []
+        self._saved_page_states: List[Dict[str, Any]] = []
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
@@ -951,684 +579,539 @@ class NumberedCanvas(canvas.Canvas):
         num_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
-            self.draw_page_number(num_pages)
+            if self._pageNumber > 1:
+                self.draw_page_decorations(num_pages)
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
 
-    def draw_page_number(self, page_count: int):
-        if self._pageNumber > 1:
-            self.saveState()
-            self.setFont(FONT_REGULAR, 7.5)
-            self.setFillColor(HexColor("#64748B"))
-            # Top-right header page number
-            self.drawRightString(PAGE_W - 14*mm, PAGE_H - 10*mm, f"Page {self._pageNumber} of {page_count}")
-            self.restoreState()
+    def draw_page_decorations(self, total_pages: int):
+        self.saveState()
+        w = PAGE_W
+        h = PAGE_H
+        left_m = 36 * pt
+        right_m = w - 36 * pt
+
+        # Top Running Header
+        header_y = h - 26 * pt
+        self.setFont(FONT_SEMI, 8)
+        self.setFillColor(COLORS["primary"])
+        self.drawString(left_m, header_y, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS (BILINGUAL)")
+
+        self.setFont(FONT_REGULAR, 7.5)
+        self.setFillColor(COLORS["muted_text"])
+        self.drawRightString(right_m, header_y, "UPSSSC AGTA • IBPS AFO • ICAR • NABARD • STATE PCS")
+
+        # Top Hairline Divider
+        self.setStrokeColor(COLORS["border_light"])
+        self.setLineWidth(0.75)
+        self.line(left_m, header_y - 4 * pt, right_m, header_y - 4 * pt)
+
+        # Bottom Running Footer
+        footer_y = 22 * pt
+        self.line(left_m, footer_y + 10 * pt, right_m, footer_y + 10 * pt)
+
+        self.setFont(FONT_SEMI, 7.5)
+        self.setFillColor(COLORS["primary"])
+        self.drawString(left_m, footer_y, "Agri Learning Point — YouTube: Agri Learning Point")
+
+        self.setFont(FONT_REGULAR, 7.5)
+        self.setFillColor(COLORS["muted_text"])
+        self.drawCentredString(w / 2.0, footer_y, "Telegram: @agrilearningpoint  |  Quiz: @agriquizworld")
+
+        page_str = f"Page {self._pageNumber} of {total_pages}"
+        self.setFont(FONT_SEMI, 7.5)
+        self.setFillColor(COLORS["primary"])
+        self.drawRightString(right_m, footer_y, page_str)
+
+        self.restoreState()
 
 
-def header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
-    """Institute coaching standard header, faint central watermark, and 3-channel footer."""
-    canvas_obj.saveState()
+# --- STYLESHEET SETUP ---
+def get_pdf_styles() -> Dict[str, ParagraphStyle]:
+    styles = getSampleStyleSheet()
+    return {
+        "cover_super": ParagraphStyle("CoverSuper", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=11, leading=15, textColor=COLORS["secondary"], alignment=TA_CENTER),
+        "cover_title": ParagraphStyle("CoverTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=26, leading=30, textColor=COLORS["primary"], alignment=TA_CENTER),
+        "cover_sub": ParagraphStyle("CoverSub", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=14, leading=18, textColor=COLORS["accent_green"], alignment=TA_CENTER),
+        "cover_date": ParagraphStyle("CoverDate", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13, leading=16, textColor=COLORS["white"], alignment=TA_CENTER),
+        "cover_badge": ParagraphStyle("CoverBadge", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=9, leading=12, textColor=COLORS["primary"], alignment=TA_CENTER),
+        "cover_bullet": ParagraphStyle("CoverBullet", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=14, textColor=COLORS["dark_text"], alignment=TA_LEFT),
 
-    # 1. Top Running Header Box (Exact Exam Genius / Institute Standard)
-    canvas_obj.setStrokeColor(HexColor("#0F2B48"))
-    canvas_obj.setLineWidth(1.0)
-    canvas_obj.roundRect(14*mm, PAGE_H - 22*mm, PAGE_W - 28*mm, 12*mm, 3, fill=0, stroke=1)
+        "section_tag": ParagraphStyle("SectionTag", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8, leading=10, textColor=COLORS["badge_text"], alignment=TA_LEFT),
+        "topic_headline": ParagraphStyle("TopicHeadline", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15, textColor=COLORS["primary"], alignment=TA_LEFT),
 
-    canvas_obj.setFont(FONT_BOLD, 8.5)
-    canvas_obj.setFillColor(HexColor("#0F2B48"))
-    canvas_obj.drawString(18*mm, PAGE_H - 14.5*mm, "No. 1 PLATFORM FOR AGRI & ALLIED EXAMS")
+        "ques_en": ParagraphStyle("QuesEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10.5, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
+        "option_text": ParagraphStyle("OptionText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
+        "answer_text": ParagraphStyle("AnswerText", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10, leading=13, textColor=HexColor("#065F46"), alignment=TA_LEFT),
 
-    canvas_obj.setFont(FONT_SEMI, 7.0)
-    canvas_obj.setFillColor(HexColor("#166534"))
-    canvas_obj.drawString(18*mm, PAGE_H - 19.5*mm, "UPSSSC AGTA | IBPS AFO | ICAR | NABARD | UPSC | STATE PCS")
+        "block_head": ParagraphStyle("BlockHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9.5, leading=13, textColor=COLORS["primary"], alignment=TA_LEFT),
+        "bullet_en": ParagraphStyle("BulletEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=13, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=8),
+        "static_fact_en": ParagraphStyle("StaticFactEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8.5, leading=12, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=6),
 
-    canvas_obj.setFont(FONT_SEMI, 7.8)
-    canvas_obj.setFillColor(HexColor("#0F2B48"))
-    tg_visit = "visit: https://t.me/agrilearningpoint"
-    v_w = stringWidth(tg_visit, FONT_SEMI, 7.8)
-    v_x = PAGE_W - 22*mm - v_w
-    canvas_obj.drawString(v_x, PAGE_H - 16.5*mm, tg_visit)
-    canvas_obj.linkURL("https://t.me/agrilearningpoint", (v_x, PAGE_H - 19*mm, v_x + v_w, PAGE_H - 13*mm), relative=0)
+        "index_title": ParagraphStyle("IndexTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=14, leading=18, textColor=COLORS["primary"], alignment=TA_CENTER),
+        "index_col_head": ParagraphStyle("IndexColHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["white"], alignment=TA_CENTER),
+        "index_cell": ParagraphStyle("IndexCell", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8, leading=10.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
+        "index_cell_c": ParagraphStyle("IndexCellC", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8, leading=10.5, textColor=COLORS["primary"], alignment=TA_CENTER),
 
-    # Circular badge on top right
-    canvas_obj.setStrokeColor(HexColor("#0F2B48"))
-    canvas_obj.setLineWidth(0.8)
-    canvas_obj.circle(PAGE_W - 17.5*mm, PAGE_H - 16*mm, 3.2*mm, stroke=1, fill=0)
-    canvas_obj.setFont(FONT_BOLD, 5.0)
-    canvas_obj.setFillColor(HexColor("#0F2B48"))
-    canvas_obj.drawCentredString(PAGE_W - 17.5*mm, PAGE_H - 17.2*mm, "ALP")
-
-    # 2. Subtle Faint Central Watermark
-    canvas_obj.saveState()
-    canvas_obj.translate(PAGE_W / 2.0, PAGE_H / 2.0)
-    canvas_obj.rotate(35)
-    canvas_obj.setFont(FONT_BOLD, 36)
-    canvas_obj.setFillColor(HexColor("#0F2B48"), alpha=0.035)
-    canvas_obj.drawCentredString(0, 0, "AGRI LEARNING POINT")
-    canvas_obj.restoreState()
-
-    # 3. Bottom Divider Line
-    canvas_obj.setStrokeColor(HexColor("#E2E8F0"))
-    canvas_obj.setLineWidth(0.6)
-    canvas_obj.line(14*mm, 13*mm, PAGE_W - 14*mm, 13*mm)
-
-    # 4. Clean 3-Channel Contact Bar (Strictly ONLY User's Verified Channels)
-    c_y = 7.5 * mm
-    canvas_obj.setFont(FONT_REGULAR, 7.5)
-    canvas_obj.setFillColor(HexColor("#334155"))
-
-    yt_str = "▶ YouTube: Agri Learning Point"
-    yt_w = stringWidth(yt_str, FONT_REGULAR, 7.5)
-    yt_x = 18 * mm
-    canvas_obj.drawString(yt_x, c_y, yt_str)
-    canvas_obj.linkURL("https://youtube.com/@agrilearningpoint", (yt_x, c_y - 2, yt_x + yt_w, c_y + 9), relative=0)
-
-    canvas_obj.drawCentredString(yt_x + yt_w + 6*mm, c_y, "•")
-
-    tg1_str = "✈ Telegram: @agrilearningpoint"
-    tg1_w = stringWidth(tg1_str, FONT_REGULAR, 7.5)
-    tg1_x = yt_x + yt_w + 12 * mm
-    canvas_obj.drawString(tg1_x, c_y, tg1_str)
-    canvas_obj.linkURL("https://t.me/agrilearningpoint", (tg1_x, c_y - 2, tg1_x + tg1_w, c_y + 9), relative=0)
-
-    canvas_obj.drawCentredString(tg1_x + tg1_w + 6*mm, c_y, "•")
-
-    tg2_str = "✎ Daily Quiz: @agriquizworld"
-    tg2_w = stringWidth(tg2_str, FONT_REGULAR, 7.5)
-    tg2_x = tg1_x + tg1_w + 12 * mm
-    canvas_obj.drawString(tg2_x, c_y, tg2_str)
-    canvas_obj.linkURL("https://t.me/agriquizworld", (tg2_x, c_y - 2, tg2_x + tg2_w, c_y + 9), relative=0)
-
-    canvas_obj.restoreState()
+        "key_cell": ParagraphStyle("KeyCell", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["body_text"], alignment=TA_CENTER),
+        "key_cell_bold": ParagraphStyle("KeyCellBold", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["accent_green"], alignment=TA_CENTER),
+    }
 
 
-def cover_header_footer(canvas_obj: canvas.Canvas, doc: Any) -> None:
-    """Executive Cover Page Header & Footer."""
-    canvas_obj.saveState()
-
-    # Top Brand Header Band
-    canvas_obj.setFillColor(HexColor("#0F2B48"))
-    canvas_obj.rect(0, PAGE_H - 26*mm, PAGE_W, 26*mm, fill=1, stroke=0)
-
-    canvas_obj.setFillColor(white)
-    canvas_obj.setFont(FONT_BOLD, 13)
-    canvas_obj.drawCentredString(PAGE_W / 2, PAGE_H - 14*mm, "AGRI LEARNING POINT")
-
-    canvas_obj.setFont(FONT_REGULAR, 7.5)
-    canvas_obj.setFillColor(HexColor("#94A3B8"))
-    canvas_obj.drawCentredString(PAGE_W / 2, PAGE_H - 20*mm, "EXCELLENCE IN AGRICULTURE & ALL COMPETITIVE EXAMS")
-
-    # Bottom Footer Divider Line
-    canvas_obj.setStrokeColor(HexColor("#E2E8F0"))
-    canvas_obj.setLineWidth(0.6)
-    canvas_obj.line(14*mm, 13*mm, PAGE_W - 14*mm, 13*mm)
-
-    # 3 Official Channels Footer
-    c_y = 7.5 * mm
-    canvas_obj.setFont(FONT_REGULAR, 7.5)
-    canvas_obj.setFillColor(HexColor("#334155"))
-
-    yt_str = "▶ YouTube: Agri Learning Point"
-    yt_w = stringWidth(yt_str, FONT_REGULAR, 7.5)
-    yt_x = 18 * mm
-    canvas_obj.drawString(yt_x, c_y, yt_str)
-    canvas_obj.linkURL("https://youtube.com/@agrilearningpoint", (yt_x, c_y - 2, yt_x + yt_w, c_y + 9), relative=0)
-
-    canvas_obj.drawCentredString(yt_x + yt_w + 6*mm, c_y, "•")
-
-    tg1_str = "✈ Telegram: @agrilearningpoint"
-    tg1_w = stringWidth(tg1_str, FONT_REGULAR, 7.5)
-    tg1_x = yt_x + yt_w + 12 * mm
-    canvas_obj.drawString(tg1_x, c_y, tg1_str)
-    canvas_obj.linkURL("https://t.me/agrilearningpoint", (tg1_x, c_y - 2, tg1_x + tg1_w, c_y + 9), relative=0)
-
-    canvas_obj.drawCentredString(tg1_x + tg1_w + 6*mm, c_y, "•")
-
-    tg2_str = "✎ Daily Quiz: @agriquizworld"
-    tg2_w = stringWidth(tg2_str, FONT_REGULAR, 7.5)
-    tg2_x = tg1_x + tg1_w + 12 * mm
-    canvas_obj.drawString(tg2_x, c_y, tg2_str)
-    canvas_obj.linkURL("https://t.me/agriquizworld", (tg2_x, c_y - 2, tg2_x + tg2_w, c_y + 9), relative=0)
-
-    canvas_obj.restoreState()
+STYLES = get_pdf_styles()
 
 
-# --- CLOSING PREPARATION KIT ---
-def build_closing_kit(date_str: str) -> Flowable:
-    """Builds a rich coaching revision kit at the end of the document."""
-    items: List[Flowable] = []
-    items.append(Paragraph("<b>AGRI LEARNING POINT — COMPLETE EXAM SUCCESS SUITE</b>", ParagraphStyle("ck_title", fontName=FONT_BOLD, fontSize=11.5, leading=15, textColor=COLORS["primary_navy"], alignment=TA_CENTER)))
-    items.append(Paragraph("Target Exams: UPSSSC AGTA • IBPS AFO • ICAR • NABARD • FCI • STATE PCS", ParagraphStyle("ck_sub", fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["primary_green"], alignment=TA_CENTER)))
-    items.append(Spacer(1, 2.5*mm))
+# --- STORY HELPER FUNCTIONS ---
+def _extract_explanation_points(item: Dict[str, Any], mcq: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Extract substantive bilingual explanation bullet pairs without headline repetition."""
+    pairs: List[Tuple[str, str]] = []
+    seen: List[str] = []
 
-    # 3 Column features
-    row = [
-        [
-            Paragraph("<b>• Daily Current Affairs</b><br/><font size='7.5' color='#5B6673'>Morning bilingual PDF with verified facts &amp; MCQs.</font>", STYLES["static_text"]),
-            Paragraph("<b>• Daily Telegram Quizzes</b><br/><font size='7.5' color='#5B6673'>Timed quizzes on @agriquizworld for exam practice.</font>", STYLES["static_text"]),
-            Paragraph("<b>• Agriculture Notes</b><br/><font size='7.5' color='#5B6673'>Agronomy, Soil Science, Horticulture &amp; Schemes.</font>", STYLES["static_text"]),
-        ]
-    ]
-    t = Table(row, colWidths=[59*mm, 59*mm, 59*mm])
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-        ("INNERGRID", (0, 0), (-1, -1), 0.3, COLORS["border_light"]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
-    ]))
-    items.append(t)
-    items.append(Spacer(1, 2.5*mm))
+    def is_dup(txt: str) -> bool:
+        low = txt.lower()
+        return any(low in s.lower() or s.lower() in low for s in seen)
 
-    # Channels pill (ONLY User's 3 official channels)
-    ch_box = [
-        [
-            Paragraph('<b>Telegram Channel:</b> <font color="#0F2B48"><u>https://t.me/agrilearningpoint</u></font>', ParagraphStyle("cb1", fontName=FONT_REGULAR, fontSize=8, leading=11, alignment=TA_CENTER)),
-            Paragraph('<b>Daily Quiz Channel:</b> <font color="#0F2B48"><u>https://t.me/agriquizworld</u></font>', ParagraphStyle("cb2", fontName=FONT_REGULAR, fontSize=8, leading=11, alignment=TA_CENTER)),
-        ]
-    ]
-    t_ch = Table(ch_box, colWidths=[88*mm, 88*mm])
-    t_ch.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
-    ]))
-    items.append(t_ch)
-    items.append(Spacer(1, 3*mm))
+    # 1. Key Points
+    kp_ens = item.get("key_points_en") or []
+    kp_his = item.get("key_points_hi") or []
+    for idx, kpe in enumerate(kp_ens):
+        clean_en = _clean_text_for_display(kpe)
+        if not clean_en or len(clean_en) < 20 or is_dup(clean_en):
+            continue
+        clean_hi = ""
+        if idx < len(kp_his):
+            c_hi = _clean_text_for_display(kp_his[idx])
+            if DEVANAGARI_RE.search(c_hi):
+                clean_hi = c_hi
+        seen.append(clean_en)
+        pairs.append((clean_en, clean_hi))
+        if len(pairs) >= 3:
+            break
 
-    # Closing Devanagari message via HarfBuzz shaped engine (Satisfies test_pdf_hindi contract: 'मिलते')
-    msg_hi = "धन्यवाद ! मिलते हैं अगली दैनिक डोज के साथ — आपकी सफलता ही हमारा संकल्प है।"
-    items.append(hindi_to_image(msg_hi, width_mm=178, font_size_pt=11, bold=True, color="#166534", bg="white", align="center"))
-    items.append(Spacer(1, 1.5*mm))
-    items.append(Paragraph("<b>Agri Learning Point — By Satyam Sir</b>", ParagraphStyle("alp_sign", fontName=FONT_BOLD, fontSize=9, leading=11, textColor=COLORS["primary_navy"], alignment=TA_CENTER)))
-    items.append(Paragraph(f"© 2026 Agri Learning Point | Edition {date_str} | For Educational &amp; Competitive Exam Use Only", ParagraphStyle("discl", fontName=FONT_REGULAR, fontSize=6.5, leading=8, textColor=COLORS["muted_text"], alignment=TA_CENTER)))
+    # 2. Detailed Explanation
+    det_en = _clean_text_for_display(item.get("detailed_explanation_en", ""))
+    if det_en and len(det_en) > 30 and not is_dup(det_en):
+        det_hi = _clean_text_for_display(item.get("detailed_explanation_hi", ""))
+        c_hi = det_hi if DEVANAGARI_RE.search(det_hi) else ""
+        seen.append(det_en)
+        pairs.append((det_en, c_hi))
 
-    box = Table([[items]], colWidths=[PAGE_W - 28*mm])
-    box.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), white),
-        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["border_light"]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("ROUNDEDCORNERS", [4, 4, 4, 4]),
-    ]))
-    return KeepTogether([box])
+    # 3. MCQ explanation
+    if len(pairs) < 2:
+        m_en = _clean_text_for_display(mcq.get("explanation_en", ""))
+        if m_en and len(m_en) > 20 and not is_dup(m_en):
+            m_hi = _clean_text_for_display(mcq.get("explanation_hi", ""))
+            c_hi = m_hi if DEVANAGARI_RE.search(m_hi) else ""
+            seen.append(m_en)
+            pairs.append((m_en, c_hi))
+
+    return pairs[:3]
 
 
-# =============================================================================
-# CANONICAL GENERATOR: CLEAN, MOBILE-FRIENDLY BILINGUAL COACHING FORMAT
-# =============================================================================
-def generate_pdf(
-    content: Dict[str, Any],
-    mcqs: List[Dict[str, Any]],
-    output_path: Optional[str] = None,
-) -> str:
-    """Production PDF generator producing a clean, mobile-friendly current affairs booklet."""
-    raw_items = content.get("items", [])
-    items = [
-        it for it in raw_items
-        if len(_strip_html(it.get("headline_en", "")).lstrip("> ")) >= 10
-        and not RAW_FILE_RE.search(it.get("headline_en", ""))
-    ]
-    if not items and not mcqs:
-        raise ValueError("REFUSING to build PDF: 0 selected news items (quality gate, never fill/invent)")
+def _extract_static_gk_pairs(item: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Extract clean bilingual static facts."""
+    pairs: List[Tuple[str, str]] = []
+    sf = item.get("static_facts") or {}
+    if isinstance(sf, dict):
+        for k, v in sf.items():
+            k_clean = _clean_text_for_display(k)
+            v_clean = _clean_text_for_display(v)
+            if k_clean and v_clean:
+                en = f"• {k_clean}: {v_clean}"
+                pairs.append((en, ""))
+
+    ef_en = _clean_text_for_display(item.get("exam_fact_en", ""))
+    ef_hi = _clean_text_for_display(item.get("exam_fact_hi", ""))
+    if ef_en and len(ef_en) > 15:
+        hi = ef_hi if DEVANAGARI_RE.search(ef_hi) else ""
+        pairs.append((f"• परीक्षा तथ्य / Exam Fact: {ef_en}", f"• परीक्षा तथ्य: {hi}" if hi else ""))
+
+    return pairs[:4]
+
+
+# --- MAIN PDF GENERATION ENGINE ---
+def generate_pdf(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path: Optional[str] = None) -> str:
+    """Generate professional Exam Genius-grade Current Affairs PDF."""
+    items = content.get("items") or []
     if not items:
-        items = raw_items
+        raise ValueError("Empty edition: Refusing to generate PDF with zero items.")
 
-    job = content.get("job", {})
-    date_str = job.get("date_display", "") or job.get("date", "20 October 2026")
-    jtype = job.get("type", "daily")
-    label = {
-        "daily": "Daily Current Affairs",
-        "weekly": "Weekly Best-of Current Affairs",
-        "monthly": "Monthly Best-of Current Affairs",
-    }.get(jtype, "Daily Current Affairs")
+    job_info = content.get("job") or {}
+    date_display = job_info.get("date_display") or datetime.now().strftime("%d %B %Y")
+    job_id = job_info.get("id") or f"daily_{datetime.now().strftime('%Y-%m-%d')}"
 
     if output_path is None:
-        output_path = os.path.join(OUTPUT_DIR, f"{job.get('id', 'daily_edition')}.pdf")
-
-    # Target typography: Institute coaching standard matched to reference booklet
-    styles = getSampleStyleSheet()
-    st_q_en = ParagraphStyle("BQEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13.5, leading=18.5, textColor=HexColor("#0F2B48"), spaceBefore=4, spaceAfter=2)
-    st_opt = ParagraphStyle("BOpt", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11.5, leading=16, textColor=HexColor("#1E293B"), leftIndent=6, spaceAfter=2)
-    st_body_en = ParagraphStyle("BBodyEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11, leading=15.5, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=2)
-    st_point_blue = ParagraphStyle("BPointBlue", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11, leading=15.5, textColor=HexColor("#0369A1"), leftIndent=4, spaceAfter=1.5)
-    st_point_black = ParagraphStyle("BPointBlack", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11, leading=15.5, textColor=HexColor("#1E293B"), leftIndent=4, spaceAfter=1.5)
-    st_deep_dive_h = ParagraphStyle("BDeepH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13.5, leading=18, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=3, spaceAfter=3)
-    st_oneliner_h = ParagraphStyle("BOneH", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13.5, leading=18, textColor=HexColor("#0F2B48"), alignment=TA_CENTER, spaceBefore=3, spaceAfter=3)
+        output_path = os.path.join(OUTPUT_DIR, f"{job_id}.pdf")
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
-        leftMargin=14*mm,
-        rightMargin=14*mm,
-        topMargin=22*mm,
-        bottomMargin=16*mm,
-        title=f"Agri Learning Point - {label} - {date_str}",
-        author="Agri Learning Point (Satyam Sir)",
-        subject=f"{label} - bilingual exam current affairs, {date_str}",
-        creator="Agri Learning Point production pipeline",
-        keywords="current affairs, Hindi, English, AGTA, AFO, ICAR, NABARD, FCI, IBPS",
+        leftMargin=36 * pt,
+        rightMargin=36 * pt,
+        topMargin=38 * pt,
+        bottomMargin=36 * pt,
     )
 
     story: List[Flowable] = []
 
     # =========================================================================
-    # 1. COVER PAGE (Clean, Executive Coaching Layout)
+    # PAGE 1: EXAM GENIUS STYLE COVER PAGE
     # =========================================================================
-    story.append(Spacer(1, 14*mm))
+    story.append(Spacer(PRINT_W, 10 * pt))
+    story.append(Paragraph("AGRI LEARNING POINT — YOUR ULTIMATE GUIDE TO AGRICULTURE & ALL COMPETITIVE EXAMS", STYLES["cover_super"]))
+    story.append(Spacer(PRINT_W, 12 * pt))
 
-    logo_path = os.path.join(BASE_DIR, "assets", "logo.png")
-    if os.path.exists(logo_path):
-        try:
-            story.append(Image(logo_path, width=26*mm, height=26*mm))
-        except Exception:
-            pass
-    story.append(Spacer(1, 2*mm))
+    story.append(Paragraph("AGRI LEARNING POINT", STYLES["cover_title"]))
+    story.append(Spacer(PRINT_W, 4 * pt))
+    story.append(Paragraph("Presents", STYLES["cover_super"]))
+    story.append(Spacer(PRINT_W, 4 * pt))
+    story.append(Paragraph("GENIUS CURRENT AFFAIRS", STYLES["cover_sub"]))
+    story.append(Spacer(PRINT_W, 4 * pt))
+    story.append(Paragraph("IN BILINGUAL (हिन्दी + ENGLISH)", STYLES["cover_super"]))
+    story.append(Spacer(PRINT_W, 12 * pt))
 
-    story.append(Paragraph("AGRI LEARNING POINT", ParagraphStyle("cp_t1", fontName=FONT_BOLD, fontSize=24, leading=28, textColor=HexColor("#0F2B48"), alignment=TA_CENTER)))
-    story.append(Spacer(1, 1*mm))
-    story.append(Paragraph(label.upper(), ParagraphStyle("cp_t2", fontName=FONT_SEMI, fontSize=14, leading=18, textColor=HexColor("#166534"), alignment=TA_CENTER)))
-    story.append(Spacer(1, 1*mm))
-    story.append(Paragraph(f"Bilingual Study Edition  •  {date_str}", ParagraphStyle("cp_t3", fontName=FONT_REGULAR, fontSize=9.5, leading=13, textColor=HexColor("#64748B"), alignment=TA_CENTER)))
-    story.append(Spacer(1, 3*mm))
-
-    # Target exam pills
-    pill_text = "TARGET EXAMS:  UPSSSC AGTA  •  IBPS AFO  •  ICAR  •  NABARD  •  FCI  •  STATE PCS  •  ALL AGRI EXAMS"
-    t_pill = Table([[Paragraph(f"<b>{pill_text}</b>", STYLES["cover_pill"])]], colWidths=[PAGE_W - 28*mm])
-    t_pill.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+    # Date Banner
+    date_banner_data = [[Paragraph(f"EDITION DATE: {date_display.upper()}", STYLES["cover_date"])]]
+    date_banner = Table(date_banner_data, colWidths=[PRINT_W])
+    date_banner.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["primary"]),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
-    ]))
-    story.append(t_pill)
-    story.append(Spacer(1, 3*mm))
-
-    # Today's Highlights Box (Satisfies substantive page density on Cover)
-    top_items = sorted(items, key=lambda x: -x.get("importance_score", 0))
-    hl_rows: List[List[Flowable]] = [
-        [
-            mixed_para("TODAY'S EXAM HEADLINES • आज के प्रमुख समाचार", "hl_top", STYLES["static_label"], fontSize=9, leading=12, textColor=white, bg="#0F2B48", width_mm=(PAGE_W/mm - 28 - 38)),
-            Paragraph('<b><font color="white" size="8">CATEGORY</font></b>', ParagraphStyle("hl_cat_h", parent=STYLES["static_label"], fontSize=8, leading=10, alignment=TA_CENTER)),
-        ]
-    ]
-
-    for it in top_items[:7]:
-        clean_hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
-        cat_key = CAT_MAP.get(it.get("category", "National"), "national")
-        cat_info = CATEGORY_STYLE.get(cat_key, CATEGORY_STYLE["national"])
-        hl_rows.append([
-            Paragraph(f"•  <b>{clean_hl}</b>", ParagraphStyle("hl_item", parent=STYLES["static_text"], fontSize=8, leading=11)),
-            Paragraph(f'<font size="6.5" color="{cat_info["color"].hexval()}"><b>{cat_info["label"]}</b></font>', ParagraphStyle("hl_cat", parent=STYLES["static_text"], fontSize=6.5, leading=8.5, alignment=TA_CENTER)),
-        ])
-
-    t_hl = Table(hl_rows, colWidths=[PAGE_W - 28*mm - 38*mm, 38*mm])
-    t_hl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary_navy"]),
-        ("BOX", (0, 0), (-1, -1), 0.6, COLORS["border_light"]),
-        ("INNERGRID", (0, 0), (-1, -1), 0.25, COLORS["border_light"]),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
     ]))
-    story.append(t_hl)
-    story.append(Spacer(1, 2.5*mm))
+    story.append(date_banner)
+    story.append(Spacer(PRINT_W, 14 * pt))
 
-    # Stats bar
-    stats_data = [
-        [
-            Paragraph(f"<b>• Selected Stories:</b> {len(items)}", STYLES["static_text"]),
-            Paragraph(f"<b>• Practice MCQs:</b> {len(mcqs)}", STYLES["static_text"]),
-            Paragraph("<b>• Static GK:</b> Included", STYLES["static_text"]),
-            Paragraph("<b>• Telegram:</b> @agrilearningpoint", STYLES["static_text"]),
-        ]
+    # Target Exams Bar
+    exam_badges = [
+        "UPSSSC AGTA", "IBPS AFO", "ICAR JRF/SRF", "NABARD GRADE-A",
+        "FCI MANAGER", "STATE AGRICULTURE SUPERVISOR", "UPSC & STATE PCS"
     ]
-    t_stats = Table(stats_data, colWidths=[43*mm, 43*mm, 42*mm, 50*mm])
-    t_stats.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
+    badge_data = [[Paragraph(f"<b>TARGET EXAMS:</b> {' • '.join(exam_badges)}", STYLES["cover_badge"])]]
+    badge_table = Table(badge_data, colWidths=[PRINT_W])
+    badge_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
+        ("BOX", (0, 0), (-1, -1), 1, COLORS["badge_text"]),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
-    story.append(t_stats)
-    story.append(Spacer(1, 4*mm))
+    story.append(badge_table)
+    story.append(Spacer(PRINT_W, 16 * pt))
+
+    # Features Box
+    features = [
+        ("• Genuine Rolling 24-Hour Coverage", "Strictly verified news from PIB, ICAR, MEA, MoAFW, RBI & National Dailies."),
+        ("• Mobile-First Educational Structure", "Every question is paired with its verified answer, bilingual explanation & static GK."),
+        ("• Standard 5-Option Practice MCQs", "Designed for negative-marking competitive exams with high-probability distractors."),
+        ("• Deep Institutional Static GK", "Headquarters, establishment years, nodal ministries, and relevant agricultural acts."),
+    ]
+    feat_rows = []
+    for f_title, f_desc in features:
+        p = Paragraph(f"<b>{_safe(f_title)}:</b> {_safe(f_desc)}", STYLES["cover_bullet"])
+        feat_rows.append([p])
+    feat_table = Table(feat_rows, colWidths=[PRINT_W])
+    feat_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
+        ("BOX", (0, 0), (-1, -1), 1, COLORS["border_light"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(feat_table)
+    story.append(Spacer(PRINT_W, 18 * pt))
+
+    # Important Days of the Month Quick Callout
+    sample_days = get_important_days_for_date(date_display)
+    day_rows = [[Paragraph(f"<b>IMPORTANT EXAM DAYS & OBSERVANCES ({date_display}):</b>", STYLES["section_tag"])]]
+    for d in sample_days[:4]:
+        day_rows.append([Paragraph(f"• {_safe(d)}", STYLES["cover_bullet"])])
+    day_table = Table(day_rows, colWidths=[PRINT_W])
+    day_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), HexColor("#FEF3C7")),
+        ("BOX", (0, 0), (-1, -1), 1, COLORS["gold_accent"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(day_table)
+    story.append(Spacer(PRINT_W, 18 * pt))
+
+    # Social Channels Bar
+    social_text = "<b>YouTube:</b> Agri Learning Point   |   <b>Telegram:</b> @agrilearningpoint   |   <b>Daily Quiz:</b> @agriquizworld"
+    social_data = [[Paragraph(social_text, STYLES["cover_badge"])]]
+    social_table = Table(social_data, colWidths=[PRINT_W])
+    social_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(social_table)
+
     story.append(PageBreak())
 
     # =========================================================================
-    # 2. INDEX & OVERVIEW TABLE (Satisfies test_pdf_hindi contract: 'INDEX • विषय-सूची')
+    # PAGE 2: INDEX / TODAY'S EXAM HEADLINES
     # =========================================================================
-    story.append(mixed_para("INDEX • विषय-सूची", "idx_h", STYLES["headline_en"], fontSize=13, leading=17, textColor=COLORS["primary_navy"]))
-    story.append(Spacer(1, 2*mm))
+    story.append(Paragraph("INDEX & TODAY'S EXAM HEADLINES • विषय-सूची", STYLES["index_title"]))
+    story.append(Paragraph(f"दैनिक समसामयिकी विषय-सूची • महत्वपूर्ण दिवस एवं परीक्षा तथ्य • {date_display}", STYLES["cover_super"]))
+    story.append(Spacer(PRINT_W, 10 * pt))
 
-    idx_rows: List[List[Flowable]] = [
-        [
-            Paragraph("<b>#</b>", ParagraphStyle("idx_num_h", parent=STYLES["static_label"], fontSize=8.5, leading=11, alignment=TA_CENTER)),
-            Paragraph("<b>TOPIC / HEADLINE</b>", ParagraphStyle("idx_top_h", parent=STYLES["static_label"], fontSize=8.5, leading=11)),
-            Paragraph("<b>SECTION</b>", ParagraphStyle("idx_sec_h", parent=STYLES["static_label"], fontSize=8.5, leading=11, alignment=TA_CENTER)),
-        ]
-    ]
-    for idx_n, it in enumerate(items, 1):
-        clean_t = _strip_html(it.get("headline_en", "")).lstrip("> ")
-        ck = CAT_MAP.get(it.get("category", "National"), "national")
-        banner_info = CATEGORY_STYLE.get(ck, CATEGORY_STYLE["national"])
-        idx_rows.append([
-            Paragraph(f"<b>{idx_n}</b>", ParagraphStyle("idx_n", parent=STYLES["static_text"], fontSize=8, leading=10, alignment=TA_CENTER)),
-            Paragraph(clean_t, ParagraphStyle("idx_t", parent=STYLES["static_text"], fontSize=8, leading=10.5)),
-            Paragraph(f'<font size="7" color="{banner_info["color"].hexval()}"><b>{banner_info["label"]}</b></font>', ParagraphStyle("idx_s", parent=STYLES["static_text"], fontSize=7, leading=9, alignment=TA_CENTER)),
+    index_rows = [[
+        Paragraph("Q#", STYLES["index_col_head"]),
+        Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
+        Paragraph("CATEGORY", STYLES["index_col_head"]),
+    ]]
+
+    for idx, it in enumerate(items, 1):
+        hl = _clean_text_for_display(it.get("headline_en", ""))
+        cat = str(it.get("category", "General")).upper()
+        if not hl:
+            continue
+        index_rows.append([
+            Paragraph(f"Q{idx}", STYLES["index_cell_c"]),
+            Paragraph(_safe(hl), STYLES["index_cell"]),
+            Paragraph(_safe(cat), STYLES["index_cell_c"]),
         ])
 
-    idx_tbl = Table(idx_rows, colWidths=[10*mm, PAGE_W - 28*mm - 48*mm, 38*mm])
-    idx_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
-        ("INNERGRID", (0, 0), (-1, -1), 0.25, COLORS["border_light"]),
+    index_table = Table(index_rows, colWidths=[36 * pt, 375 * pt, 112 * pt])
+    index_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
-    story.append(idx_tbl)
-    story.append(Spacer(1, 4*mm))
-
-    # Exam Blueprint Table & Syllabus Alignment Guide
-    guide_rows = [
-        [
-            Paragraph("<b>» EXAM RELEVANCE &amp; SYLLABUS ALIGNMENT</b>", ParagraphStyle("gr_h", fontName=FONT_BOLD, fontSize=9, leading=12, textColor=COLORS["primary_navy"])),
-            Paragraph("<b>DAILY STUDY MANDATE</b>", ParagraphStyle("gr_m", fontName=FONT_BOLD, fontSize=9, leading=12, textColor=COLORS["primary_green"], alignment=TA_RIGHT)),
-        ],
-        [
-            Paragraph(
-                "• <b>Agriculture Exams (AGTA / AFO / ICAR / BHO):</b> Prioritise crop statistics, new ICAR released cultivars, Minimum Support Prices (MSP) notifications, fertilizer subsidies, and Ministry of Agriculture central schemes.<br/>"
-                "• <b>Banking &amp; Regulatory (NABARD / RBI Grade B / IBPS SO):</b> High focus on Priority Sector Lending (PSL) quotas, RIDF rural infrastructure capital, priority credit schemes, and RBI monetary policy reviews.<br/>"
-                "• <b>General Competitive (UPSC / SSC CGL / Railway / State PCS):</b> Focus on constitutional bodies, static facts, international summits, national rankings, and scientific breakthroughs.",
-                ParagraphStyle("gr_body", fontName=FONT_REGULAR, fontSize=8, leading=11, textColor=COLORS["body_text"])
-            ),
-            Paragraph(
-                "<b>1. Daily Reading:</b> Master bilingual paired pointers (मुख्य बिंदु).<br/>"
-                "<b>2. Memorization:</b> Drill key data points (स्थैतिक तथ्य) &amp; exam takeaways (परीक्षा तथ्य).<br/>"
-                f"<b>3. MCQ Solving:</b> Practice all {len(mcqs)} exam-standard questions (बहुविकल्पीय अभ्यास प्रश्न).<br/>"
-                "<b>4. Telegram Live Quiz:</b> Test speed at 9:00 PM on @agriquizworld.",
-                ParagraphStyle("gr_steps", fontName=FONT_REGULAR, fontSize=8, leading=11, textColor=COLORS["dark_text"])
-            )
-        ]
-    ]
-    t_guide = Table(guide_rows, colWidths=[114*mm, 68*mm])
-    t_guide.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), white),
-        ("BOX", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.4, COLORS["border_light"]),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("ROUNDEDCORNERS", [3, 3, 3, 3]),
-    ]))
-    story.append(t_guide)
+    story.append(index_table)
     story.append(PageBreak())
 
     # =========================================================================
-    # 3. PRACTICE MCQs SECTION BANNER (Satisfies test_pdf_hindi contract: 'बहुविकल्पीय')
+    # PAGES 3+: SELF-CONTAINED EXAM GENIUS EDUCATIONAL UNITS
     # =========================================================================
-    story.append(mixed_para("PRACTICE MCQs • बहुविकल्पीय अभ्यास प्रश्न", "mcq_sec_h", STYLES["headline_en"], fontSize=14, leading=18, textColor=HexColor("#0F2B48")))
-    story.append(Spacer(1, 2.5*mm))
-
-    # =========================================================================
-    # 3. INNER CONTENT: QUESTION-FIRST CARDS (Exact Institute / Exam Genius Model)
-    # =========================================================================
-    items_by_event = {it.get("event_id"): it for it in items if isinstance(it, dict) and it.get("event_id")}
-
-    for m_idx, m in enumerate(mcqs, 1):
-        q_num = m.get("q_num", m_idx)
-        ev_id = m.get("event_id")
-        item = items_by_event.get(ev_id)
-        if not item:
-            item = items[(m_idx - 1) % len(items)] if items else {}
-
-        clean_q_en = _clean_text_for_display(m.get("question_en", ""))
-        clean_q_hi = _clean_text_for_display(m.get("question_hi", ""))
-
-        # 1. Clean Question Header: 'Ques : ...' / 'प्रश्न: ...'
-        q_header_en = f"Q{q_num}. {clean_q_en}"
-        q_header_hi = f"प्रश्न {q_num}: {clean_q_hi}" if clean_q_hi else ""
-
-        story.append(Paragraph(f"<b>{q_header_en}</b>", st_q_en))
-        if clean_q_hi:
-            story.append(hindi_to_image(q_header_hi, width_mm=182, font_size_pt=13.5, bold=True, color="#0F2B48", bg="white"))
-        story.append(Spacer(1, 2*mm))
-
-        # 2. Options (A, B, C, D, E) formatted as: A) ... / ...
-        opts = m.get("options", [])
-        for o_idx, opt in enumerate(opts):
-            lbl = chr(65 + o_idx)
-            clean_opt = _clean_text_for_display(str(opt))
-            opt_line = f"<b>{lbl})</b>  {clean_opt}"
-            story.append(mixed_para(opt_line, f"opt_{q_num}_{lbl}", st_opt, fontSize=11.5, leading=16, textColor=HexColor("#1E293B")))
-        story.append(Spacer(1, 2.5*mm))
-
-        # 3. Clean Answer Line: Answer: Option B
-        correct_ans = str(m.get("correct", "A")).upper().strip()
-        ans_box_data = [[Paragraph(f"<b>Answer: Option {correct_ans}</b>", ParagraphStyle("ans_p", fontName=FONT_BOLD, fontSize=12, leading=16, textColor=COLORS["primary_green"]))]]
-        t_ans = Table(ans_box_data, colWidths=[PAGE_W - 28*mm])
-        t_ans.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green"]),
-            ("BOX", (0, 0), (-1, -1), 0.6, COLORS["border_green"]),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-            ("ROUNDEDCORNERS", [3, 3, 3, 3]),
-        ]))
-        story.append(t_ans)
-        story.append(Spacer(1, 2.5*mm))
-
-        # 4. Explanation Section Header: Explanation (व्याख्या):
-        story.append(mixed_para("Explanation (व्याख्या):", f"exp_h_{q_num}", STYLES["headline_en"], fontSize=12.5, leading=16.5, textColor=HexColor("#0F2B48")))
-        story.append(Spacer(1, 1.5*mm))
-
-        # 5. Clean Bilingual Explanation Points
-        pairs = _get_clean_explanation_pairs(item, m)
-        bullet_colors = ["#0369A1", "#1E293B"]
-
-        for p_idx, (en_pt, hi_pt) in enumerate(pairs):
-            col_hex = bullet_colors[p_idx % len(bullet_colors)]
-            p_style = st_point_blue if col_hex == "#0369A1" else st_point_black
-
-            story.append(Paragraph(f"•  {en_pt}", p_style))
-            if hi_pt:
-                story.append(hindi_to_image(f"• {hi_pt}", width_mm=182, font_size_pt=11, bold=False, color=col_hex, bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1.5*mm))
-
-        # 6. Static GK Section (Satisfies test_pdf_hindi contract: 'स्थैतिक तथ्य')
-        static_gk_pairs = item.get("static_gk_pairs") or (item.get("static_facts") or {}).get("_static_gk_pairs") or []
-        static_facts = item.get("static_facts") or {}
-
-        if static_gk_pairs or static_facts:
-            story.append(Spacer(1, 1.5*mm))
-            story.append(mixed_para("Static GK (स्थैतिक सामान्य ज्ञान • स्थैतिक तथ्य):", f"sgk_h_{q_num}", STYLES["headline_en"], fontSize=12.5, leading=16.5, textColor=HexColor("#0F2B48")))
-            story.append(Spacer(1, 1*mm))
-
-            if static_gk_pairs:
-                for sgk_idx, (en_gk, hi_gk) in enumerate(static_gk_pairs[:6]):
-                    story.append(Paragraph(f"•  {en_gk}", st_point_blue if sgk_idx % 2 == 0 else st_point_black))
-                    if hi_gk:
-                        story.append(hindi_to_image(f"• {hi_gk}", width_mm=182, font_size_pt=11, bold=False, color=("#0369A1" if sgk_idx % 2 == 0 else "#1E293B"), bg="white", left_padding_mm=2))
-                    story.append(Spacer(1, 1*mm))
-            else:
-                for k, v in list(static_facts.items())[:5]:
-                    if k.startswith("_"):
-                        continue
-                    k_clean = _clean_text_for_display(str(k))
-                    v_clean = _clean_text_for_display(str(v))
-                    story.append(Paragraph(f"•  <b>{k_clean}:</b> {v_clean}", st_body_en))
-                    story.append(Spacer(1, 1*mm))
-
-        story.append(Spacer(1, 3.5*mm))
-        story.append(HRFlowable(width="100%", thickness=0.4, color=COLORS["border_light"], spaceAfter=3*mm, spaceBefore=1*mm))
-        story.append(CondPageBreak(110*mm))
-
-    # =========================================================================
-    # 4. THEMATIC DEEP DIVES
-    # =========================================================================
-    by_cat: Dict[str, List[Dict[str, Any]]] = {}
-    for it in items:
-        ck = CAT_MAP.get(it.get("category", "National"), "national")
-        by_cat.setdefault(ck, []).append(it)
-
-    category_titles = {
-        "banking": "Recent News Headlines Related to Banking & RBI",
-        "agriculture": "Recent News Headlines Related to Agriculture & Allied",
-        "national": "Recent News Headlines Related to National Affairs & Summits",
-        "international": "Recent News Headlines Related to International Affairs",
-        "science": "Recent News Headlines Related to Science & Defence",
+    mcq_by_num: Dict[int, Dict[str, Any]] = {
+        m.get("q_num", i): m for i, m in enumerate(mcqs, 1)
     }
 
-    for ck, cat_items in by_cat.items():
-        if cat_items:
-            title = category_titles.get(ck, f"Recent News Headlines Related to {ck.title()}")
-            story.append(CondPageBreak(80*mm))
-            story.append(Paragraph(f"<b>{title}</b>", st_deep_dive_h))
-            story.append(Spacer(1, 2*mm))
+    total_units = max(len(items), len(mcqs))
 
-            for it in cat_items[:6]:
-                h_e = _safe(it.get("headline_en", "")).lstrip("> ")
-                h_h = _strip_html(it.get("headline_hi", "")).lstrip("> ")
-                if h_e:
-                    story.append(Paragraph(f"•  <b>{h_e}</b>", st_body_en))
-                if h_h:
-                    story.append(hindi_to_image(f"• {h_h}", width_mm=182, font_size_pt=11, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-                for kp_e, kp_h in zip(it.get("key_points_en", [])[:2], it.get("key_points_hi", [])[:2]):
-                    if kp_e:
-                        story.append(Paragraph(f"   - {_safe(kp_e)}", st_body_en))
-                    if kp_h:
-                        story.append(hindi_to_image(f"   - {_strip_html(kp_h)}", width_mm=182, font_size_pt=10.5, bold=False, color="#64748B", bg="white", left_padding_mm=5))
-                story.append(Spacer(1, 1.5*mm))
+    for q_idx in range(1, total_units + 1):
+        if q_idx > 1:
+            story.append(PageBreak())
 
-            story.append(Spacer(1, 3.5*mm))
+        it = items[q_idx - 1] if q_idx <= len(items) else items[(q_idx - 1) % len(items)]
+        m = mcq_by_num.get(q_idx) or (mcqs[q_idx - 1] if q_idx <= len(mcqs) else {})
 
-    # =========================================================================
-    # 5. IMPORTANT DAYS SECTION
-    # =========================================================================
-    sample_days = get_important_days_for_date(date_str)
-    story.append(CondPageBreak(80*mm))
-    story.append(Paragraph("<b>Important days :</b>", st_deep_dive_h))
-    story.append(Spacer(1, 2*mm))
-    for day in sample_days:
-        story.append(Paragraph(f"•  {day}", st_body_en))
-        story.append(Spacer(1, 1*mm))
-    story.append(Spacer(1, 3.5*mm))
+        cat = str(it.get("category", "National")).upper()
+        headline_en = _clean_text_for_display(it.get("headline_en", ""))
+        source_name = (it.get("source") or {}).get("name") or "Verified National Source"
+        source_url = (it.get("source") or {}).get("url") or "https://t.me/agrilearningpoint"
 
-    # =========================================================================
-    # 6. ONE-LINERS SECTION
-    # =========================================================================
-    one_liners = content.get("one_liners") or []
-    story.append(CondPageBreak(80*mm))
-    story.append(mixed_para("CATEGORY-WISE ONE-LINERS • श्रेणीवार मुख्य तथ्य", "ol_sec_h", STYLES["headline_en"], fontSize=12.5, leading=16, textColor=COLORS["primary_navy"]))
-    story.append(Spacer(1, 1.5*mm))
-    story.append(Paragraph("<b>IMPORTANT ONE - LINER Current Affairs</b>", st_oneliner_h))
-    story.append(Spacer(1, 2*mm))
+        unit_elements: List[Flowable] = []
 
-    for ol in (one_liners[:10] if one_liners else items[:10]):
-        text_en = ol.get("text_en") or ol.get("headline_en") or ""
-        if text_en:
-            story.append(Paragraph(f"•  <b>{_safe(text_en)}</b>", st_body_en))
-            story.append(Spacer(1, 1.5*mm))
-
-    story.append(CondPageBreak(80*mm))
-    story.append(hindi_to_image("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", width_mm=182, font_size_pt=13.5, bold=True, color="#0F2B48", align="center"))
-    story.append(Spacer(1, 2.5*mm))
-
-    for ol in (one_liners[:10] if one_liners else items[:10]):
-        text_hi = ol.get("text_hi") or ol.get("headline_hi") or ""
-        if text_hi:
-            story.append(hindi_to_image(f"• {_strip_html(text_hi)}", width_mm=182, font_size_pt=11, bold=False, color="#1E293B", bg="white", left_padding_mm=2))
-            story.append(Spacer(1, 1.5*mm))
-
-    # =========================================================================
-    # 7. FINAL REVISION CAPSULE
-    # =========================================================================
-    rev_rows: List[List[Flowable]] = [[
-        Paragraph("<b>DEVELOPMENT / TOPIC</b>", ParagraphStyle("rev_h1", parent=STYLES["static_label"], fontSize=8, leading=10, textColor=white)),
-        Paragraph("<b>KEY FACT / FIGURE TO REMEMBER</b>", ParagraphStyle("rev_h2", parent=STYLES["static_label"], fontSize=8, leading=10, textColor=white)),
-    ]]
-    rev_count = 0
-    for it in items:
-        if rev_count >= 18:
-            break
-        hl = _strip_html(it.get("headline_en", "")).lstrip("> ")
-        facts = it.get("static_facts") or {}
-        fact = next((v for k, v in facts.items() if k.startswith("Fact")), "")
-        if not fact:
-            fact = it.get("exam_fact_en") or next(iter(facts.values()), "")
-        clean_fact = _strip_html(fact)
-        if not hl or not clean_fact:
-            continue
-        rev_rows.append([
-            Paragraph(hl, ParagraphStyle("rev_t", parent=STYLES["static_text"], fontSize=7.5, leading=10)),
-            Paragraph(clean_fact, ParagraphStyle("rev_f", parent=STYLES["static_text"], fontSize=7.5, leading=10, textColor=COLORS["primary_green"])),
-        ])
-        rev_count += 1
-
-    if rev_count:
-        story.append(Spacer(1, 2.5*mm))
-        story.append(CondPageBreak(70*mm))
-        story.append(mixed_para("FINAL REVISION CAPSULE • अंतिम पुनरावृत्ति", "rev_h", STYLES["headline_en"], fontSize=13, leading=16.5, textColor=COLORS["primary_navy"]))
-        story.append(Paragraph("High-yield facts, figures and organisations from today's edition — revise in one glance.",
-                               ParagraphStyle("rev_sub", fontName=FONT_REGULAR, fontSize=8, leading=10.5, textColor=COLORS["muted_text"])))
-        story.append(Spacer(1, 2*mm))
-        rev_tbl = Table(rev_rows, colWidths=[(PAGE_W - 28*mm) * 0.55, (PAGE_W - 28*mm) * 0.45], repeatRows=1)
-        rev_tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary_navy"]),
-            ("BOX", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
-            ("INNERGRID", (0, 0), (-1, -1), 0.25, COLORS["border_light"]),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [white, COLORS["card_bg"]]),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+        # 1. Header Pill Bar
+        pill_text = f"<b>[ {cat} ]</b>   •   <b>Topic:</b> {_safe(headline_en)}"
+        pill_data = [[Paragraph(pill_text, STYLES["section_tag"])]]
+        pill_table = Table(pill_data, colWidths=[PRINT_W])
+        pill_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
+            ("BOX", (0, 0), (-1, -1), 0.5, COLORS["badge_text"]),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
-        story.append(rev_tbl)
-        story.append(Spacer(1, 3*mm))
+        unit_elements.append(pill_table)
+        unit_elements.append(Spacer(PRINT_W, 6 * pt))
+
+        # 2. Question (English + Hindi)
+        q_en = _clean_text_for_display(m.get("question_en", ""))
+        if not q_en:
+            q_en = f"What key development was announced regarding {headline_en}?"
+        unit_elements.append(Paragraph(f"<b>Q{q_idx}. Ques {q_idx}:</b> {_safe(q_en)}", STYLES["ques_en"]))
+        unit_elements.append(Spacer(PRINT_W, 2 * pt))
+
+        q_hi = _clean_text_for_display(m.get("question_hi", ""))
+        if q_hi and DEVANAGARI_RE.search(q_hi):
+            unit_elements.append(render_hindi_flowable(f"बहुविकल्पीय प्रश्न {q_idx}: {q_hi}", font_size_pt=10.0, width_pt=PRINT_W, is_bold=True))
+            unit_elements.append(Spacer(PRINT_W, 4 * pt))
+
+        # 3. 5 Options (A, B, C, D, E)
+        raw_options = m.get("options") or ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5"]
+        while len(raw_options) < 5:
+            raw_options.append("None of the above")
+
+        letters = ["A", "B", "C", "D", "E"]
+        opt_rows = []
+        for ltr, opt in zip(letters, raw_options[:5]):
+            clean_opt = _clean_text_for_display(opt)
+            opt_p = Paragraph(f"<b>{ltr})</b> {_safe(clean_opt)}", STYLES["option_text"])
+            opt_rows.append([opt_p])
+
+        opt_table = Table(opt_rows, colWidths=[PRINT_W])
+        opt_table.setStyle(TableStyle([
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+        ]))
+        unit_elements.append(opt_table)
+        unit_elements.append(Spacer(PRINT_W, 5 * pt))
+
+        # 4. Answer Callout Box
+        correct_ltr = str(m.get("correct") or "A").strip().upper()
+        if correct_ltr not in letters:
+            correct_ltr = "A"
+
+        ans_data = [[
+            Paragraph(f"<b>Answer: Option {correct_ltr}</b>   (उत्तर: विकल्प {correct_ltr})", STYLES["answer_text"])
+        ]]
+        ans_table = Table(ans_data, colWidths=[PRINT_W])
+        ans_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green_bg"]),
+            ("BOX", (0, 0), (-1, -1), 1, COLORS["border_green"]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        unit_elements.append(ans_table)
+        unit_elements.append(Spacer(PRINT_W, 6 * pt))
+
+        # 5. Explanation Section (व्याख्या)
+        unit_elements.append(Paragraph("<b>Explanation | व्याख्या (मुख्य बिंदु) :</b>", STYLES["block_head"]))
+        unit_elements.append(Spacer(PRINT_W, 3 * pt))
+
+        expl_pairs = _extract_explanation_points(it, m)
+        for ep_en, ep_hi in expl_pairs:
+            unit_elements.append(Paragraph(f"• {_safe(ep_en)}", STYLES["bullet_en"]))
+            if ep_hi and DEVANAGARI_RE.search(ep_hi):
+                unit_elements.append(render_hindi_flowable(f"• मुख्य बिंदु: {ep_hi}", font_size_pt=9.0, width_pt=PRINT_W - 8 * pt, left_padding_mm=2.5))
+            unit_elements.append(Spacer(PRINT_W, 2.5 * pt))
+
+        # 6. Static GK Box (स्थैतिक सामान्य ज्ञान)
+        static_pairs = _extract_static_gk_pairs(it)
+        if static_pairs:
+            sgk_rows = [[Paragraph("<b>Static GK | स्थैतिक तथ्य एवं सामान्य ज्ञान :</b>", STYLES["block_head"])]]
+            for s_en, s_hi in static_pairs:
+                sgk_rows.append([Paragraph(_safe(s_en), STYLES["static_fact_en"])])
+                if s_hi and DEVANAGARI_RE.search(s_hi):
+                    h_f = render_hindi_flowable(s_hi, font_size_pt=8.5, width_pt=PRINT_W - 16 * pt, left_padding_mm=2.0)
+                    sgk_rows.append([h_f])
+
+            sgk_table = Table(sgk_rows, colWidths=[PRINT_W])
+            sgk_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
+                ("BOX", (0, 0), (-1, -1), 0.75, COLORS["card_border"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]))
+            unit_elements.append(Spacer(PRINT_W, 3 * pt))
+            unit_elements.append(sgk_table)
+
+        # 7. Source & Attribution
+        src_text = f"<b>Source:</b> {_safe(source_name)}   |   <b>Official Link:</b> {_safe(source_url)}"
+        unit_elements.append(Spacer(PRINT_W, 3 * pt))
+        unit_elements.append(Paragraph(src_text, STYLES["section_tag"]))
+
+        # Thin divider before next educational unit
+        unit_elements.append(Spacer(PRINT_W, 6 * pt))
+        unit_elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS["border_light"]))
+        unit_elements.append(Spacer(PRINT_W, 10 * pt))
+
+        story.extend(unit_elements)
 
     # =========================================================================
-    # 8. CLOSING REVISION KIT (ONLY 3 Verified Channels)
+    # FINAL PAGE: RAPID REVISION ANSWER KEY
     # =========================================================================
-    story.append(CondPageBreak(70*mm))
-    story.append(build_closing_kit(date_str))
+    story.append(PageBreak())
+    story.append(Paragraph("RAPID REVISION ANSWER KEY • त्वरित उत्तर कुंजी", STYLES["index_title"]))
+    story.append(Paragraph(f"Agri Learning Point • Daily Bilingual Edition • {date_display}", STYLES["cover_super"]))
+    story.append(Spacer(PRINT_W, 12 * pt))
 
-    # Build Document
-    doc.build(story, canvasmaker=NumberedCanvas, onFirstPage=cover_header_footer, onLaterPages=header_footer)
-    print(f"[OK] Clean mobile-friendly PDF generated successfully: {output_path}")
+    key_rows = [[
+        Paragraph("Q#", STYLES["index_col_head"]),
+        Paragraph("ANSWER", STYLES["index_col_head"]),
+        Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
+        Paragraph("CATEGORY", STYLES["index_col_head"]),
+    ]]
+
+    for q_idx in range(1, total_units + 1):
+        it = items[q_idx - 1] if q_idx <= len(items) else items[-1]
+        m = mcq_by_num.get(q_idx) or (mcqs[q_idx - 1] if q_idx <= len(mcqs) else {})
+        ans = str(m.get("correct") or "A").strip().upper()
+        hl = _clean_text_for_display(it.get("headline_en", ""))
+        cat = str(it.get("category", "General")).upper()
+
+        key_rows.append([
+            Paragraph(f"Q{q_idx}", STYLES["key_cell"]),
+            Paragraph(f"<b>Option {ans}</b>", STYLES["key_cell_bold"]),
+            Paragraph(_safe(hl[:85]), STYLES["index_cell"]),
+            Paragraph(_safe(cat), STYLES["key_cell"]),
+        ])
+
+    key_table = Table(key_rows, colWidths=[36 * pt, 65 * pt, 320 * pt, 102 * pt])
+    key_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(key_table)
+
+    # Strategy & Exam Preparation Guidance Box
+    story.append(Spacer(PRINT_W, 14 * pt))
+    guide_title = Paragraph("<b>COMPETITIVE EXAM REVISION & PREPARATION STRATEGY:</b>", STYLES["section_tag"])
+    tips = [
+        "1. Active Recall: First attempt all 20+ MCQs independently without checking the answer callout.",
+        "2. Institutional Static GK: Review nodal ministries, establishment years, and headquarters mentioned in each box.",
+        "3. Agricultural Core: Pay special focus to ICAR institutes, MSP declarations, and central government farmer welfare schemes.",
+        "4. Daily Quizzes: Participate in daily current affairs timed quizzes on Telegram: @agriquizworld.",
+        "5. Official Source Verification: Every fact in this booklet is verified against primary government and agency records.",
+        "6. Study Resources: प्रतिदिन नए अभ्यास प्रश्न और संपूर्ण अध्ययन सामग्री हमारे टेलीग्राम चैनल पर नियमित रूप से मिलते हैं।",
+    ]
+    guide_rows = [[guide_title]]
+    for tip in tips:
+        guide_rows.append([Paragraph(f"• {_safe(tip)}", STYLES["cover_bullet"])])
+    guide_table = Table(guide_rows, colWidths=[PRINT_W])
+    guide_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
+        ("BOX", (0, 0), (-1, -1), 1, COLORS["badge_text"]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(guide_table)
+
+    # Build PDF with Two-Pass ExamGeniusCanvas
+    doc.build(story, canvasmaker=ExamGeniusCanvas)
     return output_path
 
 
 if __name__ == "__main__":
-    import argparse
     import json
-    ap = argparse.ArgumentParser(description="ALP Mobile-Friendly Current Affairs PDF Generator")
-    ap.add_argument("--content", required=True, help="path to data/content/<job_id>.json")
-    ap.add_argument("--mcq", required=True, help="path to data/mcq/<job_id>_validated.json")
-    ap.add_argument("--out", default=None)
-    a = ap.parse_args()
-    with open(a.content, encoding="utf-8") as f:
-        content_data = json.load(f)
-    with open(a.mcq, encoding="utf-8") as f:
-        mcqs_data = json.load(f)
-    generate_pdf(content_data, mcqs_data, a.out)
+    data_file = os.path.join(BASE_DIR, "data", "content", "daily_2026-10-24.json")
+    mcq_file = os.path.join(BASE_DIR, "data", "mcq", "daily_2026-10-24.json")
+    if not os.path.exists(mcq_file):
+        mcq_file = os.path.join(BASE_DIR, "data", "content", "mcqs_daily_2026-10-24.json")
+    if os.path.exists(data_file):
+        with open(data_file, "r", encoding="utf-8") as f:
+            c = json.load(f)
+        m = []
+        if os.path.exists(mcq_file):
+            with open(mcq_file, "r", encoding="utf-8") as f:
+                m = json.load(f)
+        out = generate_pdf(c, m)
+        print("Generated Exam Genius PDF:", out)

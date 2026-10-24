@@ -728,47 +728,47 @@
     "checkpoint_run_id": "39880421572"
   },
   "daily_2026-10-24": {
-    "started_at": "2026-10-24T07:07:49.922722+00:00",
+    "started_at": "2026-10-24T07:53:51.156394+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-24.json": {
         "stage": "01_source_fetch",
-        "sha256": "6834e1a356c3875bdb4c14caef2f7ee52e3de781c8818d112849bb08e8897bd3"
+        "sha256": "0e6761b9e367a94282d5f524a4e3e6e45df8b7278f9c64b3fd395ebe8fa41b53"
       },
       "data/verified/daily_2026-10-24.json": {
         "stage": "04_fact_verification",
-        "sha256": "b8c9c247c8d4b15b43a8016aa11fccda4bf102ec32f9cb8bfde14f60fb3f90d7"
+        "sha256": "24095c27a26d3158bfda8eca16e30d0165ea72d9c7a48b7787eff25a1392edc4"
       },
       "data/dedup/daily_2026-10-24.json": {
         "stage": "05_deduplication",
-        "sha256": "ded5e184671d9503cd5a15341806f6a977e20831c679edb83d92d9369dc97263"
+        "sha256": "3ef66a1070865f6371bc26579aaaabaece96064638f89f1d26ed31b52a3dc152"
       },
       "data/scored/daily_2026-10-24.json": {
         "stage": "06_news_importance",
-        "sha256": "9aa08bf1dab15bc38fbe93227294a8e9e6482bffa9d551d326464b8ae5491d5e"
+        "sha256": "1fb279153b36f6be61cc0f76b576f5b2b9411ba4fd08c2dfff0a25c3f35fd1f5"
       },
       "data/selected/daily_2026-10-24.json": {
         "stage": "10_final_news_selection",
-        "sha256": "fe0bee93c05b392feec411771fdcd0273d1e21aa1daadfacee8e1284f8bbb2b7"
+        "sha256": "135ca8aad3300331663c2e8d9fb12d730d94089667ca184c0fe975dda8668daf"
       },
       "data/content/daily_2026-10-24.json": {
         "stage": "12_content_editor",
-        "sha256": "6211c8a0faee90ee740f099b04d4945a1bfc8ce6a6c471d9655644022b1b5d49"
+        "sha256": "ad8a56fbdaf8e7d7f2cd872911d73d1d60d945b82951967dc9959cf39c03eba9"
       },
       "data/mcq/daily_2026-10-24.json": {
         "stage": "16_mcq_generator",
-        "sha256": "5f7fe8a611315541e37732df26020fb4d0e87d5df86b1503b201365a426f5277"
+        "sha256": "cdcdd50bffa8680a49b11fba84e8d63fd5ffd5326cfe9a31f501f7a12b25da57"
       },
       "output/daily_2026-10-24.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "05cb1dff4d434d10fe49d65820dd02091fac895c8a73af1b6701daf62a5a4c5b"
+        "sha256": "0900f9ea5a00e587a71ccf7a713c552923e5c8c590439251a22223e51dd9d2f1"
       },
       "logs/qa/daily_2026-10-24_qa.json": {
         "stage": "19_pdf_qa",
-        "sha256": "4099eba611b46922880e4f73af2157de62c7c79f6e93736cde2ad24725dece53"
+        "sha256": "8fb6b4940669188dd7b422e866a7694cd1ef8d5253f08c0a470ab83482d3e45d"
       },
       "logs/qa/daily_2026-10-24_health.json": {
         "stage": "24_final_health_audit",
-        "sha256": "80a236b6832bb5d00d3a62771a8ef2d742c00c634d73f25be05b29613c058957"
+        "sha256": "a0546c55c369b36fe9fb00b56f42845aae9fa7eff1d9dd143c1e8951f4b4be11"
       }
     },
     "run_attempts": 1,
@@ -777,11 +777,11 @@
     "job_date": "2026-10-24",
     "dry_run": true,
     "window": {
-      "start": "2026-10-23T12:37:49.916862+05:30",
-      "end": "2026-10-24T12:37:49.916862+05:30"
+      "start": "2026-10-23T13:23:51.148737+05:30",
+      "end": "2026-10-24T13:23:51.148737+05:30"
     },
     "status": "success",
-    "updated_at": "2026-10-24T07:13:28.768518+00:00",
+    "updated_at": "2026-10-24T07:59:09.745790+00:00",
     "last_success_stage": "24_final_health_audit"
   }
 }
