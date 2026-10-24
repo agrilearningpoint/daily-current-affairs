@@ -166,6 +166,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # Stored repository key: enables the router to continue clean Hindi
+          # translation when a free provider reaches its daily rate limit.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ALP_LLM: ${{ vars.OPENAI_MODEL || 'gpt-4o-mini' }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
