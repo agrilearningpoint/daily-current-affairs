@@ -447,6 +447,73 @@ _AI_IMPORT_FAILED = False
 _TRANSLATION_CACHE = {}
 
 
+def _prefill_headline_translation_cache(items):
+    """Translate the edition's headlines in one request when an AI router exists.
+
+    Free providers frequently meter requests more tightly than tokens.  Sending one
+    small, indexed JSON job prevents a 15-item daily edition from failing merely
+    because its fifteenth otherwise-valid headline hits a request-per-minute limit.
+    Individual translation remains as the safe fallback if the batch response is
+    unavailable or malformed.
+    """
+    titles = []
+    seen = set()
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        title = _plain_headline(item.get("headline_en"))
+        facts = item.get("raw_facts") or ""
+        if (not title or len(title) < 15 or len(title.split()) < 3
+                or RAW_FILE_RE.search(title) or UNUSABLE_EVIDENCE_RE.search(title)
+                or UNUSABLE_EVIDENCE_RE.search(facts) or title in seen
+                or ("headline", title) in _TRANSLATION_CACHE):
+            continue
+        seen.add(title)
+        titles.append(title)
+
+    if not titles:
+        return 0
+
+    try:
+        from pipeline.ai_router import is_configured, route
+        if not is_configured():
+            return 0
+        prompt = json.dumps({"headlines": titles}, ensure_ascii=False)
+        answer = route(
+            prompt,
+            task="bilingual_headline_batch",
+            needs_hindi=True,
+            response_format={"type": "json_object"},
+            system_prompt=(
+                "You are an expert Hindi editor for Indian competitive-exam current affairs. "
+                "Translate every English headline into clear, natural Hindi written wholly in "
+                "Devanagari, preserving all names, numbers, dates and acronyms. Do not add facts, "
+                "commentary, markdown, or source links. Return JSON only in exactly this shape: "
+                "{\"translations\":[\"Hindi for headline 1\", \"Hindi for headline 2\"]}. "
+                "The translations array must have exactly the same order and length as headlines."
+            ),
+        )
+        data = json.loads((answer or "").strip())
+        translations = data.get("translations") if isinstance(data, dict) else None
+        if not isinstance(translations, list) or len(translations) != len(titles):
+            raise ValueError("batch response did not preserve headline count")
+    except Exception as exc:
+        logger.warning("[Translation] headline batch unavailable: %s", exc)
+        return 0
+
+    saved = 0
+    for title, hindi in zip(titles, translations):
+        hindi = _norm_ws(str(hindi or ""))
+        # Do not let a JSON-shaped but English/mangled reply pass strict QA.
+        if len(re.findall(r"[\u0900-\u097F]", hindi)) < 3:
+            logger.warning("[Translation] rejected non-Hindi batch value for: %s", title[:70])
+            continue
+        _TRANSLATION_CACHE[("headline", title)] = (hindi, "ai_translator", 1.0)
+        saved += 1
+    logger.info("[Translation] prefilled %d/%d headline translations in one AI request", saved, len(titles))
+    return saved
+
+
 def _get_ai_translate_fn():
     global _AI_TRANSLATE_FN, _AI_IMPORT_FAILED
     if _AI_TRANSLATE_FN is not None:
@@ -694,6 +761,7 @@ def _build_entry(it, stats):
 def build_content(items, job_meta):
     items = list(items or [])
     logger.info("[Content Builder] Building content for %d items...", len(items))
+    _prefill_headline_translation_cache(items)
     stats = {"total_items": len(items), "ai_passed": 0, "ai_failed": 0,
              "deterministic_fallback": 0, "untranslated": 0, "skipped_items": 0}
     out = []
