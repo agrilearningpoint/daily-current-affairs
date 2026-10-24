@@ -728,47 +728,27 @@
     "checkpoint_run_id": "39880421572"
   },
   "daily_2026-10-24": {
-    "started_at": "2026-10-24T14:50:45.421168+00:00",
+    "started_at": "2026-10-24T15:09:24.553657+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-24.json": {
         "stage": "01_source_fetch",
-        "sha256": "324b3ac22f9b005d729e666840904413b339119ea6410eb416d98a727dd24b33"
+        "sha256": "ee201ffae64aac960a58223f6b4d3b24b0d6df4c2b3de2a54dbd575e7edb6caa"
       },
       "data/verified/daily_2026-10-24.json": {
         "stage": "04_fact_verification",
-        "sha256": "dde9b1d02f1212008f6a7465c1cb0732cd24564e32797bd299b9017400f34e63"
+        "sha256": "73853bb21bd608544dec94f3fd7f3c9da93a37228701b2daadfa199e7f1b3091"
       },
       "data/dedup/daily_2026-10-24.json": {
         "stage": "05_deduplication",
-        "sha256": "ec70d036feed19e909d869d2cb0750029074d1381b8756a3a0158be13aa7eede"
+        "sha256": "2eacca23bdc69b77701ae1947076dfe52b01fbf3f154b7f15fde5bd5cf3016ef"
       },
       "data/scored/daily_2026-10-24.json": {
         "stage": "06_news_importance",
-        "sha256": "ac41e9cde13a619e62eaf93f821a32ed45a9a3ff66bcb228640946da4b2b1712"
+        "sha256": "85ef06e290c1947429e1d3029fc066f1e4c18a2cf318cf7ba3bb61c0dab03c98"
       },
       "data/selected/daily_2026-10-24.json": {
         "stage": "10_final_news_selection",
-        "sha256": "8d4239f73b74d07f0beeee9ff3f12a0e6bdd6fbfb7ee69b810a8666f23ef40f5"
-      },
-      "data/content/daily_2026-10-24.json": {
-        "stage": "12_content_editor",
-        "sha256": "77641a4c498ac257e9b473ef0a7317df32d5c6c768060daa116bb1108be0e78f"
-      },
-      "data/mcq/daily_2026-10-24.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "675716f08b9de968569bc5c9fbcf30ced9aaafca59cf852b28e7de70549594f1"
-      },
-      "output/daily_2026-10-24.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "6546528a51d4f87b40b1f074a88272005168fd5b6e161470650d4f9467e0aaeb"
-      },
-      "logs/qa/daily_2026-10-24_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "fe743fe2a530057179f925f0de5b3d8b39e10e2f679b6e97c7656939350de19b"
-      },
-      "logs/qa/daily_2026-10-24_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "09e49fd2bf637d979be3b306e8e757ca61d68b854bd96ceec4f26a6bb9f0ba45"
+        "sha256": "fcf20249e73bf8f997f70341d39a27fce612d17a633b95baac58d52323ebe700"
       }
     },
     "run_attempts": 1,
@@ -777,13 +757,15 @@
     "job_date": "2026-10-24",
     "dry_run": false,
     "window": {
-      "start": "2026-10-23T20:20:45.419919+05:30",
-      "end": "2026-10-24T20:20:45.419919+05:30"
+      "start": "2026-10-23T20:39:24.552976+05:30",
+      "end": "2026-10-24T20:39:24.552976+05:30"
     },
-    "github_run_id": "40104253422",
-    "status": "success",
-    "updated_at": "2026-10-24T14:53:42.555965+00:00",
-    "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "40104253422"
+    "github_run_id": "40105615883",
+    "status": "failed",
+    "updated_at": "2026-10-24T15:15:27.814510+00:00",
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): O     | pipeline.ai_translator | [Translator] trying provider nvidia\n2026-10-24 15:15:23 | WARNING  | pipeline.content | [Translation] AI unavailable for task=general (validation failed: ['gemini: HTTP 404', 'groq: HTTP 404', 'deepseek: HTTP 402', 'openrouter: HTTP 402', 'nvidia: HTTP 410'])\n2026-10-24 15:15:23 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=0 fallback=0 untranslated=187 (AI success 0.0%)\n2026-10-24 15:15:23 | WARNING  | pipeline.content | [Content Builder] 187 translations need review (AI did not pass)\n2026-10-24 15:15:23 | INFO     | pipeline.content | [Content Builder] Completeness: 0/28 items complete (avg words EN: 287.3, HI: 287.3)\n2026-10-24 15:15:23 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "40105615883"
   }
 }
