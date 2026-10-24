@@ -61,6 +61,10 @@ RAW_FILE_RE = re.compile(
 # study edition, even when a valid RSS headline is available.
 JUNK_ARTICLE_TEXT_RE = re.compile(
     r"(?:you\s+(?:do\s+not|don't)\s+have\s+(?:an\s+)?active\s+subscription|"
+    # Curly apostrophes can be mojibake in fetched publisher HTML, so these
+    # phrase-level guards deliberately do not depend on the apostrophe.
+    r"active\s+subscription|subscribed\s+with\s+another\s+email|"
+    r"need\s+help\s+with\s+your\s+subscription|logout\s+and\s+login\s+with\s+that\s+one|"
     r"subscription\s+benefits|unlock\s+this\s+with\s+subscription|"
     r"sign\s+in\s+to\s+continue|subscribe\s+to\s+continue|"
     r"enable\s+(?:cookies|javascript)\s+to\s+continue|"
@@ -68,10 +72,25 @@ JUNK_ARTICLE_TEXT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A few publisher pages prepend account UI to the article text.  Strip only
+# this tightly-scoped sequence; the following article body is still useful
+# evidence and should not be discarded just because its first sentence is UI.
+PUBLISHER_UI_PREFIX_RE = re.compile(
+    r"you\s+.{0,45}?active\s+subscription\s*\.?\s*"
+    r"subscribed\s+with\s+another\s+email\s*\?\s*"
+    r"logout\s+and\s+login\s+with\s+that\s+one\s*\.?\s*"
+    r"need\s+help\s+with\s+your\s+subscription\s*\?",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def strip_publisher_ui(text: str) -> str:
+    return PUBLISHER_UI_PREFIX_RE.sub(" ", text or "").strip()
+
 
 def is_usable_article_text(text: str) -> bool:
     """Reject boilerplate/paywall responses that are not news evidence."""
-    cleaned = sanitize_feed_text(text)
+    cleaned = strip_publisher_ui(sanitize_feed_text(text))
     return bool(cleaned) and not bool(JUNK_ARTICLE_TEXT_RE.search(cleaned))
 
 
@@ -285,11 +304,12 @@ def extract_article_text(url: str, timeout: int = 5) -> str:
         for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "aside"]):
             tag.decompose()
         paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
-        meaningful = [
-            p for p in paragraphs
-            if len(p) > 30 and is_usable_article_text(p)
-            and not any(w in p.lower() for w in ("copyright", "all rights reserved", "terms of use"))
-        ]
+        meaningful = []
+        for paragraph in paragraphs:
+            p = strip_publisher_ui(paragraph)
+            if (len(p) > 30 and is_usable_article_text(p)
+                    and not any(w in p.lower() for w in ("copyright", "all rights reserved", "terms of use"))):
+                meaningful.append(p)
         text = " ".join(meaningful)
         return " ".join(text.split())[:3000]
     except Exception:
@@ -347,7 +367,7 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         if h in seen_hashes:
             continue
         seen_hashes.add(h)
-        summary = sanitize_feed_text(getattr(entry, "summary", "") or "")
+        summary = strip_publisher_ui(sanitize_feed_text(getattr(entry, "summary", "") or ""))
         if not is_usable_article_text(summary):
             summary = ""
         # If summary is thin or identical to title, attempt substantive paragraph extraction

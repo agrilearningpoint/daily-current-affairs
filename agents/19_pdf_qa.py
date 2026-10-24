@@ -524,6 +524,20 @@ def check_editorial_quality(report: QAReport, text: str) -> None:
     if 'Which ministry / organisation is responsible for implementing "- \'' in text:
         report.add("error", "broken_mcq_template", "PDF contains broken/robotic MCQ template with bare hyphen")
 
+    # Publisher paywall/account UI must never become a study fact. This is an
+    # error (not a warning) so it blocks Telegram publication, including
+    # mojibake variants of a curly apostrophe in "don't".
+    paywall_ui = re.search(
+        r"(?:active\s+subscription|subscribed\s+with\s+another\s+email|"
+        r"need\s+help\s+with\s+your\s+subscription|logout\s+and\s+login\s+with\s+that\s+one)",
+        text,
+        re.IGNORECASE,
+    )
+    if paywall_ui:
+        report.add("error", "paywall_ui_leakage",
+                   "PDF contains publisher subscription/account UI text",
+                   sample=paywall_ui.group(0))
+
 
 def check_text_content(report: QAReport, text: str) -> None:
     report.total_chars = len(text)

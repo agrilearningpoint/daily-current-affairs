@@ -64,10 +64,24 @@ HEADLINE_PREFIX = ">> "
 RAW_FILE_RE = re.compile(r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)", re.IGNORECASE)
 UNUSABLE_EVIDENCE_RE = re.compile(
     r"(?:you\s+(?:do\s+not|don't)\s+have\s+(?:an\s+)?active\s+subscription|"
+    r"active\s+subscription|subscribed\s+with\s+another\s+email|"
+    r"need\s+help\s+with\s+your\s+subscription|logout\s+and\s+login\s+with\s+that\s+one|"
     r"subscription\s+benefits|unlock\s+this\s+with\s+subscription|"
     r"sign\s+in\s+to\s+continue|subscribe\s+to\s+continue|access\s+denied|captcha)",
     re.IGNORECASE,
 )
+PUBLISHER_UI_PREFIX_RE = re.compile(
+    r"you\s+.{0,45}?active\s+subscription\s*\.?\s*"
+    r"subscribed\s+with\s+another\s+email\s*\?\s*"
+    r"logout\s+and\s+login\s+with\s+that\s+one\s*\.?\s*"
+    r"need\s+help\s+with\s+your\s+subscription\s*\?",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _strip_publisher_ui(text):
+    """Remove a known account banner while preserving the actual article body."""
+    return _norm_ws(PUBLISHER_UI_PREFIX_RE.sub(" ", text or ""))
 MIN_OPTIONS = 4              # standard exam MCQ = 4 options (A-D); 5 allowed
 MAX_OPTIONS = 5
 SIMILARITY_LIMIT = 0.85      # text options more similar than this are rejected
@@ -703,7 +717,8 @@ def _build_entry(it, stats):
     work = dict(it)
     work["headline_en"] = title
     work["event_id"] = event_id
-    raw_facts = it.get("raw_facts") or ""
+    raw_facts = _strip_publisher_ui(it.get("raw_facts") or "")
+    work["raw_facts"] = raw_facts
     if UNUSABLE_EVIDENCE_RE.search(title) or UNUSABLE_EVIDENCE_RE.search(raw_facts):
         logger.warning("[Content Builder] skipped paywall/boilerplate evidence: %s", event_id)
         return None

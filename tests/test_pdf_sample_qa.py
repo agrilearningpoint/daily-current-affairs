@@ -119,6 +119,13 @@ def test_sample_pdf_has_no_broken_glyphs(sample_pdf):
         assert bad not in text, f"font-unsupported symbol leaked into PDF: {bad!r}"
 
 
+def test_qa_rejects_subscription_ui_leakage():
+    qa = _load_pdf_qa()
+    report = qa.QAReport(pdf_path="test.pdf")
+    qa.check_editorial_quality(report, "You donâ€™t have any Active Subscription. Subscribed with another email?")
+    assert any(issue.code == "paywall_ui_leakage" and issue.severity == "error" for issue in report.issues)
+
+
 def test_bundled_fonts_do_not_cover_decorative_symbols_so_guard_is_required():
     """Documents *why* the glyph guard exists: these symbols are NOT in the fonts.
 

@@ -44,3 +44,18 @@ def test_headline_batch_rejects_non_hindi_values(monkeypatch):
 
     assert count == 0
     assert not content._TRANSLATION_CACHE
+
+
+def test_subscription_ui_is_rejected_even_with_a_mojibake_apostrophe():
+    assert content.UNUSABLE_EVIDENCE_RE.search("You donâ€™t have any Active Subscription")
+
+
+def test_subscription_prefix_is_stripped_but_article_body_is_retained():
+    raw = (
+        "You donâ€™t have any Active Subscription. Subscribed with another email? "
+        "Logout and Login with that one. Need help with your subscription? "
+        "The Union Cabinet approved a new agriculture scheme for farmers."
+    )
+    clean = content._strip_publisher_ui(raw)
+    assert "Active Subscription" not in clean
+    assert clean == "The Union Cabinet approved a new agriculture scheme for farmers."
