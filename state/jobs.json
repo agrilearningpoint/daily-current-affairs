@@ -775,13 +775,14 @@
     "job_id": "daily_2026-10-24",
     "job_type": "daily",
     "job_date": "2026-10-24",
-    "dry_run": true,
+    "dry_run": false,
     "window": {
       "start": "2026-10-23T13:23:51.148737+05:30",
       "end": "2026-10-24T13:23:51.148737+05:30"
     },
-    "status": "success",
-    "updated_at": "2026-10-24T07:59:09.745790+00:00",
-    "last_success_stage": "24_final_health_audit"
+    "status": "running",
+    "updated_at": "2026-10-24T12:06:50.804785+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "github_run_id": "40092553082"
   }
 }
