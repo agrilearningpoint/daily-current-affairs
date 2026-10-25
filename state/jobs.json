@@ -846,7 +846,7 @@
     "checkpoint_run_id": "40146898483"
   },
   "weekly_2026-10-25": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "weekly_2026-10-25",
     "job_type": "weekly",
     "job_date": "2026-10-25",
@@ -856,7 +856,22 @@
       "end": "2026-10-25T23:59:59.999999+05:30"
     },
     "github_run_id": "40164399108",
-    "status": "running",
-    "updated_at": "2026-10-25T05:08:17.048161+00:00"
+    "status": "failed",
+    "updated_at": "2026-10-25T05:11:45.910335+00:00",
+    "started_at": "2026-10-25T05:08:19.052998+00:00",
+    "artifacts": {
+      "data/selected/weekly_2026-10-25.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "190a1b5fae52424ab505e99687a4f49a165068e333e7c9f7d3459bb9b8bb66ae"
+      },
+      "data/scored/weekly_2026-10-25.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "79c94cbe33eba8e1773a797b19c841e00068581ae19b049236165fdc9dac0b3a"
+      }
+    },
+    "last_success_stage": "20_weekly_editor",
+    "last_error": "12_content_editor: failed after 3 attempt(s): 04'])\n2026-10-25 10:41:43 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-25 10:41:43 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-25 10:41:43 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=3 fallback=0 untranslated=29 (AI success 9.4%)\n2026-10-25 10:41:43 | WARNING  | pipeline.content | [Content Builder] 29 translations need review (AI did not pass)\n2026-10-25 10:41:43 | WARNING  | pipeline.content | [Content Builder] 3 items skipped\n2026-10-25 10:41:43 | INFO     | pipeline.content | [Content Builder] Completeness: 3/32 items complete (avg words EN: 105.7, HI: 14.9)\n2026-10-25 10:41:43 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "40164399108"
   }
 }
