@@ -846,7 +846,7 @@
     "checkpoint_run_id": "40146898483"
   },
   "weekly_2026-10-25": {
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "weekly_2026-10-25",
     "job_type": "weekly",
     "job_date": "2026-10-25",
@@ -856,8 +856,8 @@
       "end": "2026-10-25T23:59:59.999999+05:30"
     },
     "github_run_id": "40225351249",
-    "status": "running",
-    "updated_at": "2026-10-25T19:19:44.578868+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-25T19:20:04.857714+00:00",
     "started_at": "2026-10-25T05:08:19.052998+00:00",
     "artifacts": {
       "data/selected/weekly_2026-10-25.json": {
@@ -882,8 +882,8 @@
       }
     },
     "last_success_stage": "18_pdf_design",
-    "checkpoint_run_id": "40213059707",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): r markers:  34\nDuplicate Qs:    1\nURLs:            0\nImages:          66\nBlank pages:     none\nSubstantive pgs: 36 (min page chars 553)\nNear-empty pgs:  [3]\nStories missing: 2 (e.g. 'Compensation released to farmers in Tiruvarur for ‘prevented sowing’')\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [3]\n  [ERROR] [untitled_content] PDF contains 'Untitled' headline or placeholder string\n  [WARN] [duplicate_questions] 1 duplicate question(s) detected\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [story_missing_from_pdf] 2/33 selected stories not found in the PDF\n========================================================================\n\n2026-10-25 22:14:33 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "checkpoint_run_id": "40225351249",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): r markers:  34\nDuplicate Qs:    1\nURLs:            0\nImages:          66\nBlank pages:     none\nSubstantive pgs: 36 (min page chars 553)\nNear-empty pgs:  [3]\nStories missing: 2 (e.g. 'Compensation released to farmers in Tiruvarur for ‘prevented sowing’')\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [3]\n  [ERROR] [untitled_content] PDF contains 'Untitled' headline or placeholder string\n  [WARN] [duplicate_questions] 1 duplicate question(s) detected\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [story_missing_from_pdf] 2/33 selected stories not found in the PDF\n========================================================================\n\n2026-10-26 00:50:03 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa"
   }
 }
