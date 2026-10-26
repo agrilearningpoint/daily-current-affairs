@@ -63,7 +63,7 @@ Markdown versions (`*.md`) are generated alongside for quick review/diffing.
 
 ## Regenerating
 
-Question banks live in [`data/`](data/) as plain JSON. Edit/add a bank, then:
+Question banks live in [`question-banks/`](question-banks/) as plain JSON. Edit/add a bank, then:
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate

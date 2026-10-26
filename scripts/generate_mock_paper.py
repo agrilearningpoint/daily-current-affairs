@@ -10,7 +10,7 @@ Reuses the canonical Devanagari shaping pipeline of src/generate_pdf.py
 (HarfBuzz + FreeType) so Hindi text is correctly shaped, searchable and
 selectable inside the PDF.
 
-Outputs, for every JSON bank in docs/mock-papers/data/:
+Outputs, for every JSON bank in docs/mock-papers/question-banks/:
     docs/mock-papers/<slug>.pdf   — print-ready bilingual paper + answer key
     docs/mock-papers/<slug>.md    — review-friendly Markdown source
 
@@ -51,7 +51,7 @@ from reportlab.platypus import (  # noqa: E402
 
 from src.generate_pdf import COLORS, render_hindi_flowable  # noqa: E402
 
-DATA_DIR = REPO_ROOT / "docs" / "mock-papers" / "data"
+DATA_DIR = REPO_ROOT / "docs" / "mock-papers" / "question-banks"
 OUT_DIR = REPO_ROOT / "docs" / "mock-papers"
 LOGO = REPO_ROOT / "assets" / "logo.png"
 
