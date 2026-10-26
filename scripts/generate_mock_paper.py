@@ -148,77 +148,75 @@ def info_box(rows: List[List[str]]) -> Table:
     return t
 
 
+def _hindi_list(items: List[str], width: float, size: float = 8.6):
+    """Shaped Hindi options/lines in ONE flowable (keeps the block tight)."""
+    return [hi_para(text, size, width) for text in items]
+
+
 def options_block(q: Dict[str, Any], hindi: bool) -> Table:
-    """English options in two columns; Hindi options one per row (shaped images)."""
+    """Options as a single tight vertical list."""
     opts = q["opts_hi"] if hindi else q["opts_en"]
     letters = OPT_LETTERS[: len(opts)]
-    rows = []
     if hindi:
-        for i in range(0, len(opts), 2):
-            row = []
-            for j in range(i, min(i + 2, len(opts))):
-                row.append(hi_para(f"({letters[j]})  {opts[j]}", 8.8, COL_W - 10))
-            while len(row) < 2:
-                row.append("")
-            rows.append(row)
-        col_widths = [COL_W, COL_W]
-    else:
-        for i in range(0, len(opts), 2):
-            row = []
-            for j in range(i, min(i + 2, len(opts))):
-                row.append(Paragraph(f"({letters[j]})&nbsp;&nbsp;{opts[j]}", S["opt"]))
-            while len(row) < 2:
-                row.append("")
-            rows.append(row)
-        col_widths = [COL_W, COL_W]
-    t = Table(rows, colWidths=col_widths)
+        # one tight running line: (a) ... (b) ... (c) ... — standard Hindi paper style
+        joined = "     ".join(f"({l}) {t}" for l, t in zip(letters, opts))
+        return [hi_para(joined, 8.8, FRAME_W)]
+    rows = [[Paragraph(f"({l})&nbsp;&nbsp;{t}", S["opt"])] for l, t in zip(letters, opts)]
+    t = Table(rows, colWidths=[FRAME_W])
     t.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 1),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
     ]))
     return t
 
 
-def question_block(q: Dict[str, Any]) -> KeepTogether:
-    parts: List[Any] = [
-        Paragraph(
+def question_block(q: Dict[str, Any], show_subject: bool = True) -> KeepTogether:
+    parts: List[Any] = []
+    if show_subject:
+        parts.append(Paragraph(
             f"Q{q['n']}. <font color='#0D7A42' size=7.5>{q['subject_en'].upper()}</font>",
             S["tag"],
-        ),
-        Paragraph(q["q_en"], S["q"]),
-        Spacer(1, 2),
-        hi_para(q["q_hi"], 9.4, FRAME_W, bold=False),
-        Spacer(1, 3),
-        options_block(q, hindi=False),
-        Spacer(1, 1),
-        options_block(q, hindi=True),
-        Spacer(1, 2),
-        rule(space_before=1, space_after=5),
-    ]
+        ))
+        parts.append(Paragraph(q["q_en"], S["q"]))
+    else:
+        parts.append(Paragraph(f"<b>Q{q['n']}.</b> {q['q_en']}", S["q"]))
+    parts.append(Spacer(1, 2))
+    parts.append(hi_para(q["q_hi"], 9.4, FRAME_W, bold=False))
+    parts.append(Spacer(1, 3))
+    for block in (options_block(q, hindi=False), options_block(q, hindi=True)):
+        if isinstance(block, list):
+            parts.extend(block)
+        else:
+            parts.append(block)
+    parts += [Spacer(1, 2), rule(space_before=1, space_after=5)]
     return KeepTogether(parts)
 
 
-def answer_rows(questions: List[Dict[str, Any]]) -> Table:
-    header = [Paragraph("<b>Q</b>", S["cell"]), Paragraph("<b>Ans</b>", S["cell"]),
-              Paragraph("<b>Topic</b>", S["cell"]),
-              Paragraph("<b>Explanation (English) / व्याख्या (हिन्दी)</b>", S["cell"])]
-    data = [header]
+def answer_rows(questions: List[Dict[str, Any]], show_subject: bool = True,
+               hindi: bool = True) -> Table:
+    head_cells = [Paragraph("<b>Q</b>", S["cell"]), Paragraph("<b>Ans</b>", S["cell"])]
+    if show_subject:
+        head_cells.append(Paragraph("<b>Topic</b>", S["cell"]))
+    head_cells.append(Paragraph("<b>Explanation</b>" + (" / व्याख्या" if hindi else ""), S["cell"]))
+    data = [head_cells]
     for q in questions:
-        expl = [
-            Paragraph(q["exp_en"], S["cell"]),
-            Spacer(1, 1),
-            hi_para(q["exp_hi"], 8.6, FRAME_W - 140),
-        ]
-        data.append([
-            Paragraph(str(q["n"]), S["cell"]),
-            Paragraph(q["ans"].upper(), S["ans"]),
-            Paragraph(f"{q['subject_en']}", S["small"]),
-            expl,
-        ])
-    t = Table(data, colWidths=[28, 26, 72, FRAME_W - 126], repeatRows=1)
+        expl: List[Any] = [Paragraph(q["exp_en"], S["cell"])]
+        if hindi and q.get("exp_hi"):
+            expl += [Spacer(1, 1), hi_para(q["exp_hi"], 8.6, FRAME_W - 140)]
+        row = [Paragraph(str(q["n"]), S["cell"]), Paragraph(q["ans"].upper(), S["ans"])]
+        if show_subject:
+            row.append(Paragraph(q["subject_en"], S["small"]))
+        row.append(expl)
+        data.append(row)
+
+    if show_subject:
+        widths = [28, 26, 72, FRAME_W - 126]
+    else:
+        widths = [28, 28, FRAME_W - 56]
+    t = Table(data, colWidths=widths, repeatRows=1)
     style = [
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("BACKGROUND", (0, 0), (-1, 0), LIGHT),
@@ -279,6 +277,8 @@ class PaperDoc(BaseDocTemplate):
 # ─────────────────────────────────────────────────────────────────────────────
 def build_pdf(bank: Dict[str, Any], out_path: Path) -> Path:
     qs = bank["questions"]
+    show_subject = bank.get("show_subject", True)
+    hindi_key = bank.get("answer_key_language", "both") != "en"
     marks_per_q = 2  # professional knowledge carries 2 marks per question
     total_marks = len(qs) * marks_per_q
     label = f"SET {bank['set']}"
@@ -338,15 +338,16 @@ def build_pdf(bank: Dict[str, Any], out_path: Path) -> Path:
     flow.append(Paragraph(f"{len(qs)} questions · {total_marks} marks · bilingual", S["small"]))
     flow.append(rule(thickness=1.1, color=GREEN, space_after=8))
     for q in qs:
-        flow.append(question_block(q))
+        flow.append(question_block(q, show_subject))
     flow.append(PageBreak())
 
     # ── answer key ────────────────────────────────────────────────────────
-    flow.append(Paragraph("Answer Key with Explanations / उत्तर कुंजी एवं व्याख्या", S["h2"]))
+    key_title = "Answer Key with Explanations" + (" / उत्तर कुंजी एवं व्याख्या" if hindi_key else "")
+    flow.append(Paragraph(key_title, S["h2"]))
     flow.append(Paragraph("Tick your score: +2 for a correct answer, −0.5 for a wrong one "
                           "(professional knowledge carries double marks).", S["small"]))
     flow.append(rule(thickness=1.1, color=GOLD, space_after=8))
-    flow.append(answer_rows(qs))
+    flow.append(answer_rows(qs, show_subject, hindi_key))
 
     doc.build(flow)
     return out_path
@@ -357,6 +358,8 @@ def build_pdf(bank: Dict[str, Any], out_path: Path) -> Path:
 # ─────────────────────────────────────────────────────────────────────────────
 def build_markdown(bank: Dict[str, Any]) -> str:
     qs = bank["questions"]
+    show_subject = bank.get("show_subject", True)
+    hindi_key = bank.get("answer_key_language", "both") != "en"
     lines = [
         f"# {bank['title_en']} — Set {bank['set']}",
         "",
@@ -371,7 +374,10 @@ def build_markdown(bank: Dict[str, Any]) -> str:
         "",
     ]
     for q in qs:
-        lines.append(f"### Q{q['n']}. [{q['subject_en']} / {q['subject_hi']}]")
+        head = f"### Q{q['n']}."
+        if show_subject:
+            head += f" [{q['subject_en']} / {q['subject_hi']}]"
+        lines.append(head)
         lines.append("")
         lines.append(q["q_en"])
         lines.append("")
@@ -381,11 +387,21 @@ def build_markdown(bank: Dict[str, Any]) -> str:
             letter = OPT_LETTERS[i]
             lines.append(f"- **({letter})** {en} / {hi}")
         lines.append("")
-    lines += ["---", "", "## Answer Key / उत्तर कुंजी", "",
-              "| Q | Ans | Topic | Explanation | व्याख्या |", "|---|---|---|---|---|"]
+    lines += ["---", "", "## Answer Key" + (" / उत्तर कुंजी" if hindi_key else "")]
+    if show_subject:
+        lines += ["", "| Q | Ans | Topic | Explanation" + (" | व्याख्या |" if hindi_key else " |"),
+                  "|---|---|---|---|" + ("---|" if hindi_key else "")]
+    else:
+        lines += ["", "| Q | Ans | Explanation" + (" | व्याख्या |" if hindi_key else " |"),
+                  "|---|---|---|" + ("---|" if hindi_key else "")]
     for q in qs:
-        lines.append(f"| {q['n']} | **{q['ans'].upper()}** | {q['subject_en']} | "
-                     f"{q['exp_en']} | {q['exp_hi']} |")
+        cells = [str(q["n"]), f"**{q['ans'].upper()}**"]
+        if show_subject:
+            cells.append(q["subject_en"])
+        cells.append(q["exp_en"].replace("|", "/"))
+        if hindi_key:
+            cells.append((q.get("exp_hi") or "").replace("|", "/"))
+        lines.append("| " + " | ".join(cells) + " |")
     lines.append("")
     return "\n".join(lines)
 
@@ -393,6 +409,7 @@ def build_markdown(bank: Dict[str, Any]) -> str:
 def validate(bank: Dict[str, Any], path: Path) -> None:
     """Fail loudly on a malformed question bank (wrong answer letter, missing fields)."""
     problems = []
+    hindi_key = bank.get("answer_key_language", "both") != "en"
     for q in bank["questions"]:
         n = q.get("n")
         if q.get("ans") not in OPT_LETTERS[: len(q.get("opts_en", []))]:
@@ -400,9 +417,13 @@ def validate(bank: Dict[str, Any], path: Path) -> None:
         for lang in ("en", "hi"):
             if len(q.get(f"opts_{lang}", [])) != len(q.get("opts_en", [])):
                 problems.append(f"Q{n}: option count mismatch in {lang}")
-            for field in (f"q_{lang}", f"exp_{lang}"):
+            for field in (f"q_{lang}", f"opts_{lang}"):
                 if not q.get(field):
                     problems.append(f"Q{n}: missing {field}")
+            if not q.get("exp_en"):
+                problems.append(f"Q{n}: missing exp_en")
+            if hindi_key and lang == "hi" and not q.get("exp_hi"):
+                problems.append(f"Q{n}: missing exp_hi")
     if problems:
         raise SystemExit(f"{path.name}: " + "; ".join(problems))
 

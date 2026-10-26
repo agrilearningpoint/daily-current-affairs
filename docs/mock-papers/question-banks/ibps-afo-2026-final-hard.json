@@ -1,0 +1,1113 @@
+{
+  "exam": "IBPS AFO (Agriculture Field Officer) Scale-I — CRP SPL-XVI",
+  "stage": "Mains — Professional Knowledge (Objective)",
+  "set": "FINAL",
+  "show_subject": false,
+  "answer_key_language": "en",
+  "title_en": "Agriculture Professional Knowledge — Final Hard Mock",
+  "title_hi": "कृषि व्यावसायिक ज्ञान — फाइनल हार्ड मॉक",
+  "pattern_en": "50 Questions | 100 Marks | 40 Minutes | 5 options (A–E) | Negative marking: 1/4th of the marks assigned to the question",
+  "pattern_hi": "50 प्रश्न | 100 अंक | 40 मिनट | 5 विकल्प (A–E) | नेगेटिव मार्किंग: प्रश्न के निर्धारित अंकों का 1/4 भाग",
+  "questions": [
+    {
+      "n": 1,
+      "subject_en": "Plant Nutrition",
+      "q_en": "A crop shows interveinal chlorosis on the youngest leaves while the older leaves remain green. The nutrient most likely deficient is:",
+      "q_hi": "एक फसल में सबसे नई पत्तियों पर शिराओं के बीच पीलापन दिख रहा है जबकि पुरानी पत्तियाँ हरी हैं। सर्वाधिक संभावित कमी किस पोषक तत्व की है?",
+      "opts_en": [
+        "Calcium",
+        "Magnesium",
+        "Nitrogen",
+        "Potassium",
+        "Phosphorus"
+      ],
+      "opts_hi": [
+        "कैल्शियम",
+        "मैग्नीशियम",
+        "नाइट्रोजन",
+        "पोटैशियम",
+        "फॉस्फोरस"
+      ],
+      "ans": "a",
+      "exp_en": "Calcium is phloem-immobile (along with Fe, Zn, Mn, Cu, B, Mo), so its deficiency appears first on young leaves. Mg, N, P and K are phloem-mobile, so their deficiency shows first on older leaves — Mg deficiency also shows interveinal chlorosis, but on older leaves."
+    },
+    {
+      "n": 2,
+      "subject_en": "Soil Physics",
+      "q_en": "The pF value of field capacity (suction 0.33 bar) is approximately:",
+      "q_hi": "क्षेत्र धारिता (फील्ड कैपेसिटी, सक्शन 0.33 बार) का pF मान लगभग है:",
+      "opts_en": [
+        "1.5",
+        "2.54",
+        "3.5",
+        "4.5",
+        "5.5"
+      ],
+      "opts_hi": [
+        "1.5",
+        "2.54",
+        "3.5",
+        "4.5",
+        "5.5"
+      ],
+      "ans": "b",
+      "exp_en": "Field capacity = 0.33 bar = 10^2.54 cm of water, so pF 2.54. Permanent wilting point (−15 bar) is pF 4.2, hygroscopic coefficient pF 4.5 and saturation pF 0."
+    },
+    {
+      "n": 3,
+      "subject_en": "Soil Physics",
+      "q_en": "The pF value of the hygroscopic coefficient is:",
+      "q_hi": "आर्द्रताग्राही गुणांक (हाइग्रोस्कोपिक कोएफिशिएंट) का pF मान है:",
+      "opts_en": [
+        "1.25",
+        "2.50",
+        "4.50",
+        "2.80",
+        "4.20"
+      ],
+      "opts_hi": [
+        "1.25",
+        "2.50",
+        "4.50",
+        "2.80",
+        "4.20"
+      ],
+      "ans": "c",
+      "exp_en": "Hygroscopic coefficient = pF 4.5 (about 31 bar). For reference: field capacity pF 2.54, permanent wilting point pF 4.2, and capillary/moisture equivalent is around pF 2.7–2.8."
+    },
+    {
+      "n": 4,
+      "subject_en": "Soil Physics",
+      "q_en": "In a neutron moisture meter, the detector used to sense thermalised neutrons is:",
+      "q_hi": "न्यूट्रॉन मॉइस्चर मीटर में उष्मीकृत न्यूट्रॉनों को संसूचित (डिटेक्ट) करने वाला उपकरण होता है:",
+      "opts_en": [
+        "Am–Be source",
+        "BF3 proportional counter",
+        "Gypsum block",
+        "Tensiometer",
+        "Thermocouple psychrometer"
+      ],
+      "opts_hi": [
+        "Am–Be स्रोत",
+        "BF3 आनुपातिक काउंटर",
+        "जिप्सम ब्लॉक",
+        "टेंशियोमीटर",
+        "थर्मोकपल साइक्रोमीटर"
+      ],
+      "ans": "b",
+      "exp_en": "The Am–Be source emits fast neutrons; hydrogen in soil thermalises them and a boron trifluoride (BF3) proportional counter detects the thermalised flux. Gypsum blocks and tensiometers measure matric suction, not neutron flux."
+    },
+    {
+      "n": 5,
+      "subject_en": "Soil Science",
+      "q_en": "The 'Akiochi' (autumn decline) disorder of rice in degraded paddy soils is primarily caused by the toxicity of:",
+      "q_hi": "अवनत धान मृदा में धान का 'अकियोची' (शरद ऋतु क्षय) विकार मुख्यतः किसकी विषाक्तता से होता है?",
+      "opts_en": [
+        "Hydrogen sulphide",
+        "Aluminium",
+        "Boron",
+        "Chloride",
+        "Manganese"
+      ],
+      "opts_hi": [
+        "हाइड्रोजन सल्फाइड",
+        "एल्युमिनियम",
+        "बोरॉन",
+        "क्लोराइड",
+        "मैंगनीज़"
+      ],
+      "ans": "a",
+      "exp_en": "Akiochi occurs in poorly drained, degraded paddy soils where sulphate reduction produces H2S, which damages rice roots and induces iron deficiency. Drainage, mid-season drying and iron/manganese management reduce its severity."
+    },
+    {
+      "n": 6,
+      "subject_en": "Soil Science",
+      "q_en": "A soil sample shows pH 9.2, EC 1.2 dS/m, ESP 22% and a dispersed surface crust with white efflorescence. The soil is best classified as:",
+      "q_hi": "एक मृदा नमूने का pH 9.2, EC 1.2 dS/m, ESP 22% है तथा सतह पर फैली पर्त व सफेद शोरा जमा है। यह मृदा सर्वोत्तम रूप से किस प्रकार की है?",
+      "opts_en": [
+        "Saline soil",
+        "Sodic (alkali) soil",
+        "Acidic soil",
+        "Saline–sodic soil",
+        "Laterite soil"
+      ],
+      "opts_hi": [
+        "लवणीय मृदा",
+        "सोडिक (क्षारीय) मृदा",
+        "अम्लीय मृदा",
+        "लवणीय–सोडिक मृदा",
+        "लेटराइट मृदा"
+      ],
+      "ans": "b",
+      "exp_en": "Sodic soil: pH > 8.5, ESP > 15%, EC < 4 dS/m and dispersed structure; reclaimed with gypsum. Saline soil has EC > 4 dS/m, pH < 8.5, ESP < 15% and a flocculated structure, and is reclaimed by leaching."
+    },
+    {
+      "n": 7,
+      "subject_en": "Soil Science",
+      "q_en": "Lime requirement of an acidic soil is estimated mainly from its content of:",
+      "q_hi": "अम्लीय मृदा की चूना आवश्यकता मुख्यतः किसकी मात्रा से आँकी जाती है?",
+      "opts_en": [
+        "Exchangeable Al3+ and H+ (total acidity)",
+        "Exchangeable sodium",
+        "Available phosphorus",
+        "Organic carbon",
+        "Electrical conductivity"
+      ],
+      "opts_hi": [
+        "विनिमेय Al3+ एवं H+ (कुल अम्लता)",
+        "विनिमेय सोडियम",
+        "उपलब्ध फॉस्फोरस",
+        "जैविक कार्बन",
+        "विद्युत चालकता"
+      ],
+      "ans": "a",
+      "exp_en": "Lime requirement is based on exchangeable/total acidity (Al3+ + H+) and is measured by buffer-pH (SMP) or titration methods; exchangeable sodium relates to gypsum requirement of sodic soils."
+    },
+    {
+      "n": 8,
+      "subject_en": "Soil Microbiology",
+      "q_en": "Adding a selected microbial inoculum to soil to accelerate the degradation of a pollutant is called:",
+      "q_hi": "किसी प्रदूषक के अपघटन को तेज करने के लिए चयनित सूक्ष्मजीव निवेश मृदा में मिलाना कहलाता है:",
+      "opts_en": [
+        "Biostimulation",
+        "Bioaugmentation",
+        "Phytoremediation",
+        "Bioleaching",
+        "Bioventing"
+      ],
+      "opts_hi": [
+        "बायोस्टिमुलेशन",
+        "बायोऑगमेंटेशन",
+        "फाइटोरेमेडिएशन",
+        "बायोलीचिंग",
+        "बायोवेंटिंग"
+      ],
+      "ans": "b",
+      "exp_en": "Bioaugmentation = addition of specific microorganisms. Biostimulation = stimulating indigenous microbes by adding nutrients/oxygen; phytoremediation uses plants."
+    },
+    {
+      "n": 9,
+      "subject_en": "Agronomy",
+      "q_en": "Puddling in paddy fields is done primarily to:",
+      "q_hi": "धान के खेत में पडलिंग मुख्यतः किस उद्देश्य से की जाती है?",
+      "opts_en": [
+        "Increase infiltration rate",
+        "Destroy soil structure and reduce percolation losses",
+        "Improve aeration of the root zone",
+        "Control weeds through desiccation",
+        "Increase soil bulk density permanently"
+      ],
+      "opts_hi": [
+        "अंतःस्रवण दर बढ़ाना",
+        "मृदा संरचना नष्ट करके रिसाव हानि घटाना",
+        "जड़ क्षेत्र का वायु-संचार सुधारना",
+        "शुष्कन से खरपतवार नियंत्रण",
+        "मृदा थोक घनत्व स्थायी रूप से बढ़ाना"
+      ],
+      "ans": "b",
+      "exp_en": "Puddling destroys aggregates and creates a less permeable plough pan, reducing percolation and helping standing water. Its downside is poor structure for the following crop, which is why zero tillage/raised beds are promoted after paddy."
+    },
+    {
+      "n": 10,
+      "subject_en": "Agronomy",
+      "q_en": "Lint index in cotton is the weight of lint obtained from:",
+      "q_hi": "कपास में लिंट इंडेक्स कितने बीजों से प्राप्त लिंट का भार है?",
+      "opts_en": [
+        "50 seeds",
+        "100 seeds",
+        "200 seeds",
+        "400 seeds",
+        "800 seeds"
+      ],
+      "opts_hi": [
+        "50 बीज",
+        "100 बीज",
+        "200 बीज",
+        "400 बीज",
+        "800 बीज"
+      ],
+      "ans": "b",
+      "exp_en": "Lint index = weight of lint (g) from 100 seeds; ginning outturn (%) = (lint weight ÷ seed cotton weight) × 100. Seed index is the weight of 100 fuzzy seeds."
+    },
+    {
+      "n": 11,
+      "subject_en": "Agronomy",
+      "q_en": "Baby corn is harvested at:",
+      "q_hi": "बेबी कॉर्न की कटाई किस अवस्था पर की जाती है?",
+      "opts_en": [
+        "Before tasselling",
+        "At the dough stage",
+        "2–3 days after silking, before fertilisation",
+        "At physiological maturity",
+        "At 50% moisture in grain"
+      ],
+      "opts_hi": [
+        "टैसलिंग से पहले",
+        "दाना भरने (डो) अवस्था पर",
+        "सिल्किंग के 2–3 दिन बाद, निषेचन से पहले",
+        "कायिक परिपक्वता पर",
+        "दाने में 50% नमी पर"
+      ],
+      "ans": "c",
+      "exp_en": "Baby corn cobs are picked 2–3 days after silking, before fertilisation, when the cob is 5–10 cm and the silk has just emerged; delayed harvest makes the cob fibrous."
+    },
+    {
+      "n": 12,
+      "subject_en": "Plant Physiology",
+      "q_en": "The unit of Specific Leaf Area (SLA) is:",
+      "q_hi": "विशिष्ट पर्ण क्षेत्र (SLA) की इकाई है:",
+      "opts_en": [
+        "cm",
+        "g/cm2",
+        "cm2/g",
+        "kg/ha",
+        "cm/cm2"
+      ],
+      "opts_hi": [
+        "सेमी",
+        "g/cm2",
+        "cm2/g",
+        "किग्रा/हेक्टेयर",
+        "सेमी/cm2"
+      ],
+      "ans": "c",
+      "exp_en": "SLA = leaf area ÷ leaf dry mass (cm2/g). Its reciprocal is Specific Leaf Weight (SLW, g/cm2); high SLA indicates thin, broader leaves."
+    },
+    {
+      "n": 13,
+      "subject_en": "Soil & Water Conservation",
+      "q_en": "Removal of excess soil water using the bio-energy of deep-rooted plants is termed:",
+      "q_hi": "गहरी जड़ वाले पौधों की जैव-ऊर्जा से अतिरिक्त मृदा जल निकालने को कहते हैं:",
+      "opts_en": [
+        "Eco-drainage",
+        "Bio-drainage",
+        "Vertical drainage",
+        "Interceptor drainage",
+        "Sub-surface drainage"
+      ],
+      "opts_hi": [
+        "इको-ड्रेनेज",
+        "बायो-ड्रेनेज",
+        "वर्टिकल ड्रेनेज",
+        "इंटरसेप्टर ड्रेनेज",
+        "उप-सतही ड्रेनेज"
+      ],
+      "ans": "b",
+      "exp_en": "Bio-drainage uses fast-growing deep-rooted trees (e.g. Eucalyptus, Acacia, Casuarina) that transpire large volumes of water, lowering the water table in waterlogged, saline areas."
+    },
+    {
+      "n": 14,
+      "subject_en": "Agroforestry",
+      "q_en": "Which of the following is known as a 'fertilizer tree' in agroforestry?",
+      "q_hi": "कृषि वानिकी में निम्नलिखित में से किसे 'उर्वरक वृक्ष' कहा जाता है?",
+      "opts_en": [
+        "Coconut",
+        "Gliricidia",
+        "Mango",
+        "Banana",
+        "Casuarina"
+      ],
+      "opts_hi": [
+        "नारियल",
+        "ग्लिरिसीडिया",
+        "आम",
+        "केला",
+        "कैसुरिना"
+      ],
+      "ans": "b",
+      "exp_en": "Gliricidia sepium is a nitrogen-fixing legume tree whose loppings are used as green leaf manure; other fertilizer trees include Leucaena, Sesbania and Subabul."
+    },
+    {
+      "n": 15,
+      "subject_en": "Agroforestry",
+      "q_en": "The most desirable characteristic of trees grown in alley cropping is:",
+      "q_hi": "एली क्रॉपिंग में उगाए जाने वाले वृक्षों का सर्वाधिक वांछनीय गुण है:",
+      "opts_en": [
+        "Shallow, spreading roots",
+        "Nitrogen fixation",
+        "Very dense canopy",
+        "Long rotation and slow growth",
+        "High water demand"
+      ],
+      "opts_hi": [
+        "उथली, फैली जड़ें",
+        "नाइट्रोजन स्थिरीकरण",
+        "बहुत घना कैनोपी",
+        "लंबा चक्र व धीमी वृद्धि",
+        "अधिक जल आवश्यकता"
+      ],
+      "ans": "b",
+      "exp_en": "Alley cropping uses leguminous trees (Gliricidia, Leucaena, Sesbania) that fix nitrogen and are pruned periodically to supply mulch and nutrients; deep roots avoid competition with the intercrop."
+    },
+    {
+      "n": 16,
+      "subject_en": "Agronomy",
+      "q_en": "Which crop is used as a trap crop for the red hairy caterpillar in groundnut?",
+      "q_hi": "मूँगफली में लाल रोमिल सुंडी के लिए ट्रैप फसल के रूप में कौन-सी फसल प्रयोग होती है?",
+      "opts_en": [
+        "Cowpea",
+        "Maize",
+        "Rice",
+        "Potato",
+        "Wheat"
+      ],
+      "opts_hi": [
+        "लोबिया (काउपी)",
+        "मक्का",
+        "धान",
+        "आलू",
+        "गेहूँ"
+      ],
+      "ans": "a",
+      "exp_en": "Cowpea is a preferred trap crop: moths lay eggs on cowpea rows, which are then sprayed or destroyed, protecting the main groundnut crop."
+    },
+    {
+      "n": 17,
+      "subject_en": "Irrigation",
+      "q_en": "Among surface, sprinkler and drip systems, the highest water application efficiency is generally obtained in:",
+      "q_hi": "सतही, स्प्रिंकलर और टपक सिंचाई में सर्वाधिक जल अनुप्रयोग दक्षता सामान्यतः किसमें मिलती है?",
+      "opts_en": [
+        "Furrow irrigation",
+        "Check basin irrigation",
+        "Sprinkler irrigation",
+        "Drip irrigation",
+        "Flood irrigation"
+      ],
+      "opts_hi": [
+        "नाली सिंचाई",
+        "चेक बेसिन सिंचाई",
+        "स्प्रिंकलर सिंचाई",
+        "टपक सिंचाई",
+        "बाढ़ सिंचाई"
+      ],
+      "ans": "d",
+      "exp_en": "Drip applies water directly to the root zone with about 90% application efficiency, compared with about 70–80% for sprinkler and 35–50% for surface methods."
+    },
+    {
+      "n": 18,
+      "subject_en": "Agronomy",
+      "q_en": "A rainfed farmer faces a delay of 4–6 weeks in monsoon onset. The most appropriate contingent measure is:",
+      "q_hi": "एक वर्षा-आधारित किसान को मानसून 4–6 सप्ताह देर से मिलता है। सर्वाधिक उपयुक्त आपातकालीन उपाय है:",
+      "opts_en": [
+        "Sow the long-duration variety with a higher seed rate",
+        "Switch to short-duration varieties of a suitable crop with a shorter growing period",
+        "Apply heavy nitrogen before sowing",
+        "Delay sowing until the next season",
+        "Abandon all inputs and wait for rain"
+      ],
+      "opts_hi": [
+        "लंबी अवधि की किस्म अधिक बीज दर से बोना",
+        "कम अवधि वाली उपयुक्त फसल की लघु-अवधि किस्मों पर स्विच करना",
+        "बुवाई से पहले भारी नाइट्रोजन देना",
+        "अगले मौसम तक बुवाई टालना",
+        "सभी निवेश छोड़कर वर्षा की प्रतीक्षा करना"
+      ],
+      "ans": "b",
+      "exp_en": "Contingent crop planning substitutes long-duration crops with short-duration/alternate crops and varieties that fit the shortened season, so that the crop matures before terminal moisture stress."
+    },
+    {
+      "n": 19,
+      "subject_en": "Genetics & Plant Breeding",
+      "q_en": "Which rice variety is known as the 'miracle rice of India'?",
+      "q_hi": "किस धान किस्म को 'भारत का चमत्कारी चावल' कहा जाता है?",
+      "opts_en": [
+        "IR-8",
+        "Jaya",
+        "Pusa Basmati-1",
+        "Swarna",
+        "MTU-1010"
+      ],
+      "opts_hi": [
+        "IR-8",
+        "जया",
+        "पूसा बासमती-1",
+        "स्वर्णा",
+        "MTU-1010"
+      ],
+      "ans": "b",
+      "exp_en": "Jaya (Taichung Native 1 × T-141) was India's first high-yielding semi-dwarf rice variety, released in 1968 and called the miracle rice of India; IR-8 is known as the miracle rice of the world."
+    },
+    {
+      "n": 20,
+      "subject_en": "Agronomy",
+      "q_en": "Leaf Colour Chart (LCC) is used for:",
+      "q_hi": "लीफ कलर चार्ट (LCC) का उपयोग किसके लिए किया जाता है?",
+      "opts_en": [
+        "Need-based nitrogen top dressing in rice",
+        "Detecting zinc deficiency in wheat",
+        "Assessing soil salinity",
+        "Estimating irrigation water requirement",
+        "Grading of horticultural produce"
+      ],
+      "opts_hi": [
+        "धान में आवश्यकता आधारित नाइट्रोजन टॉप ड्रेसिंग",
+        "गेहूँ में जिंक की कमी पहचानना",
+        "मृदा लवणता आँकना",
+        "सिंचाई जल आवश्यकता आँकना",
+        "बागवानी उपज की श्रेणीकरण"
+      ],
+      "ans": "a",
+      "exp_en": "LCC compares the colour of the topmost fully opened leaf with graded green strips; nitrogen is applied only when the reading falls below the critical value, improving nitrogen use efficiency in rice."
+    },
+    {
+      "n": 21,
+      "subject_en": "Horticulture",
+      "q_en": "The quincunx system of planting accommodates how many times more plants than the square system of the same spacing?",
+      "q_hi": "समान दूरी वाले वर्गाकार रोपण की तुलना में क्विंकंक्स (पंचकोण) रोपण प्रणाली में कितने गुना अधिक पौधे लगाए जा सकते हैं?",
+      "opts_en": [
+        "1.5 times",
+        "2 times",
+        "3 times",
+        "4 times",
+        "Same number"
+      ],
+      "opts_hi": [
+        "1.5 गुना",
+        "2 गुना",
+        "3 गुना",
+        "4 गुना",
+        "समान संख्या"
+      ],
+      "ans": "b",
+      "exp_en": "Quincunx is a square system with a filler tree at the centre of each square, so the plant population becomes almost double (2 ×). Fillers are removed as the main trees grow."
+    },
+    {
+      "n": 22,
+      "subject_en": "Horticulture",
+      "q_en": "Kew, Queen and Mauritius are commercial varieties of:",
+      "q_hi": "क्यू, क्वीन तथा मॉरीशस किस फल की व्यावसायिक किस्में हैं?",
+      "opts_en": [
+        "Pineapple",
+        "Litchi",
+        "Guava",
+        "Sapota",
+        "Papaya"
+      ],
+      "opts_hi": [
+        "अनानास",
+        "लीची",
+        "अमरूद",
+        "चीकू",
+        "पपीता"
+      ],
+      "ans": "a",
+      "exp_en": "Kew (the commercial canning variety), Queen and Mauritius are pineapple varieties; Giant Kew is the most widely planted cultivar in India."
+    },
+    {
+      "n": 23,
+      "subject_en": "Horticulture",
+      "q_en": "Red Delicious is a variety of:",
+      "q_hi": "रेड डेलिशियस किसकी किस्म है?",
+      "opts_en": [
+        "Apple",
+        "Mango",
+        "Banana",
+        "Guava",
+        "Cherry"
+      ],
+      "opts_hi": [
+        "सेब",
+        "आम",
+        "केला",
+        "अमरूद",
+        "चेरी"
+      ],
+      "ans": "a",
+      "exp_en": "Red Delicious, Royal Delicious and Golden Delicious are apple varieties; apple needs about 1,000–1,500 chilling hours, which is why it is grown in high hills."
+    },
+    {
+      "n": 24,
+      "subject_en": "Horticulture",
+      "q_en": "The optimum soil pH range for grape cultivation is:",
+      "q_hi": "अंगूर की खेती के लिए उपयुक्त मृदा pH परासर है:",
+      "opts_en": [
+        "4.0–4.5",
+        "4.5–5.5",
+        "5.5–6.5",
+        "6.5–7.5",
+        "7.5–8.5"
+      ],
+      "opts_hi": [
+        "4.0–4.5",
+        "4.5–5.5",
+        "5.5–6.5",
+        "6.5–7.5",
+        "7.5–8.5"
+      ],
+      "ans": "c",
+      "exp_en": "Grape prefers a pH of about 5.5–6.5 with good drainage; it is sensitive to free lime and to waterlogging, and is commercially grown in Nashik, Sangli and Solapur."
+    },
+    {
+      "n": 25,
+      "subject_en": "Horticulture",
+      "q_en": "Planting seedlings at a spacing closer than the normal recommended spacing is called:",
+      "q_hi": "सामान्य अनुशंसित दूरी से कम दूरी पर पौध रोपित करना कहलाता है:",
+      "opts_en": [
+        "High density planting",
+        "Square system",
+        "Hexagonal system",
+        "Triangular system",
+        "Filler planting"
+      ],
+      "opts_hi": [
+        "उच्च घनत्व रोपण",
+        "वर्गाकार प्रणाली",
+        "षट्कोणीय प्रणाली",
+        "त्रिकोणीय प्रणाली",
+        "फिलर रोपण"
+      ],
+      "ans": "a",
+      "exp_en": "High density planting (HDP) uses closer spacing and dwarf/compact canopies to raise plant population and early yields per hectare; ultra-high density planting is used in apple and guava."
+    },
+    {
+      "n": 26,
+      "subject_en": "Horticulture",
+      "q_en": "Button mushroom (Agaricus bisporus) is harvested at the:",
+      "q_hi": "बटन मशरूम (Agaricus bisporus) की कटाई किस अवस्था पर की जाती है?",
+      "opts_en": [
+        "Button stage, before the veil breaks",
+        "Fully opened cap stage",
+        "Pinhead stage",
+        "Stage of spore discharge",
+        "Stage when the cap turns brown"
+      ],
+      "opts_hi": [
+        "बटन अवस्था, पर्दा (वील) खुलने से पहले",
+        "पूर्ण खुली टोपी अवस्था",
+        "पिनहेड अवस्था",
+        "बीजाणु निकलने की अवस्था",
+        "टोपी भूरी होने की अवस्था"
+      ],
+      "ans": "a",
+      "exp_en": "Button mushroom is harvested at the button stage, when the veil is intact and the cap is still closed; post-harvest browning is checked by sulphite treatment, low temperature and modified atmosphere."
+    },
+    {
+      "n": 27,
+      "subject_en": "Plant Pathology",
+      "q_en": "The 'ooze test' in plant disease diagnosis is used to detect:",
+      "q_hi": "पादप रोग निदान में 'ऊज़ टेस्ट' किसके संसूचन के लिए प्रयोग होता है?",
+      "opts_en": [
+        "Bacterial infection",
+        "Fungal infection",
+        "Viral infection",
+        "Viroid infection",
+        "Nematode infection"
+      ],
+      "opts_hi": [
+        "जीवाणु संक्रमण",
+        "कवक संक्रमण",
+        "वायरस संक्रमण",
+        "वाइरॉइड संक्रमण",
+        "सूत्रकृमि संक्रमण"
+      ],
+      "ans": "a",
+      "exp_en": "In the ooze test, a diseased tissue piece is suspended in water; milky bacterial streaming from the cut end confirms bacterial disease. Fungal and viral infections do not ooze in this manner."
+    },
+    {
+      "n": 28,
+      "subject_en": "Plant Pathology",
+      "q_en": "The downy mildew genus in which secondary and tertiary sporangiophore branches arise at right angles to the main axis is:",
+      "q_hi": "वह डाउनी मिल्ड्यू वंश जिसमें द्वितीयक एवं तृतीयक शाखाएँ मुख्य अक्ष से समकोण पर निकलती हैं, है:",
+      "opts_en": [
+        "Plasmopara",
+        "Sclerospora",
+        "Bremia",
+        "Pseudoperonospora",
+        "Peronospora"
+      ],
+      "opts_hi": [
+        "प्लाज्मोपारा",
+        "स्क्लेरोस्पोरा",
+        "ब्रेमिया",
+        "स्यूडोपेरोनोस्पोरा",
+        "पेरोनोस्पोरा"
+      ],
+      "ans": "a",
+      "exp_en": "Plasmopara (e.g. P. viticola on grape) has branches at right angles to the main axis; Peronospora has dichotomous branching, Bremia has swollen branch tips, and Sclerospora has stout, short branches."
+    },
+    {
+      "n": 29,
+      "subject_en": "Plant Pathology",
+      "q_en": "Ufra disease of rice is caused by a:",
+      "q_hi": "धान का उफ्रा रोग किसके कारण होता है?",
+      "opts_en": [
+        "Bacterium",
+        "Nematode",
+        "Virus",
+        "Fungus",
+        "Phytoplasma"
+      ],
+      "opts_hi": [
+        "जीवाणु",
+        "सूत्रकृमि",
+        "वायरस",
+        "कवक",
+        "फाइटोप्लाज्मा"
+      ],
+      "ans": "b",
+      "exp_en": "Ufra is caused by the stem nematode Ditylenchus angustus; affected panicles remain in the boot or emerge deformed with distorted grain. Tungro, by contrast, is a virus spread by green leafhopper."
+    },
+    {
+      "n": 30,
+      "subject_en": "Plant Pathology",
+      "q_en": "Damping-off of tomato seedlings in nursery beds is most commonly caused by:",
+      "q_hi": "नर्सरी क्यारियों में टमाटर के पौधों का डैंपिंग ऑफ सर्वाधिक सामान्यतः किससे होता है?",
+      "opts_en": [
+        "Pythium aphanidermatum",
+        "Alternaria solani",
+        "Fusarium oxysporum f. sp. lycopersici",
+        "Phytophthora infestans",
+        "Xanthomonas campestris"
+      ],
+      "opts_hi": [
+        "पाइथियम एफानिडर्मेटम",
+        "अल्टरनेरिया सोलानी",
+        "फ्यूजेरियम ऑक्सीस्पोरम",
+        "फाइटोफ्थोरा इन्फेस्टैंस",
+        "ज़ैंथोमोनास कैम्पेस्ट्रिस"
+      ],
+      "ans": "a",
+      "exp_en": "Pythium aphanidermatum (a water mould) causes pre- and post-emergence damping-off in warm, wet nursery beds. Raising beds, drenching with Trichoderma or metalaxyl and avoiding overwatering are the main controls."
+    },
+    {
+      "n": 31,
+      "subject_en": "Plant Pathology",
+      "q_en": "Citrus greening (HLB) is caused by:",
+      "q_hi": "सिट्रस ग्रीनिंग (HLB) किससे होता है?",
+      "opts_en": [
+        "Candidatus Liberibacter asiaticus, transmitted by the citrus psyllid",
+        "Xanthomonas citri, transmitted by wind-driven rain",
+        "Citrus tristeza virus, transmitted by aphids",
+        "Phytophthora nicotianae, soil-borne",
+        "Spiroplasma citri, seed-borne"
+      ],
+      "opts_hi": [
+        "कैंडिडेटस लिबेरिबैक्टर एशियाटिकस, सिट्रस सिलिड द्वारा संचरित",
+        "ज़ैंथोमोनास सिट्री, हवा-वर्षा से",
+        "सिट्रस ट्रिस्टेज़ा वायरस, माहू से",
+        "फाइटोफ्थोरा निकोटियानी, मृदा-जनित",
+        "स्पाइरोप्लाज्मा सिट्री, बीज-जनित"
+      ],
+      "ans": "a",
+      "exp_en": "HLB is a phloem-limited bacterial disease caused by Candidatus Liberibacter spp.; in India the Asian form is spread by Diaphorina citri. There is no cure — control relies on disease-free nursery stock and vector management."
+    },
+    {
+      "n": 32,
+      "subject_en": "Entomology",
+      "q_en": "Beauveria bassiana is used in biological control as an:",
+      "q_hi": "ब्यूवेरिया बेसियाना का जैविक नियंत्रण में उपयोग किस रूप में होता है?",
+      "opts_en": [
+        "Entomopathogenic fungus",
+        "Bacterial insecticide",
+        "Egg parasitoid",
+        "Nematode",
+        "Insect growth regulator"
+      ],
+      "opts_hi": [
+        "कीट-रोगजनक कवक",
+        "जीवाणु कीटनाशी",
+        "अंड परजीवी",
+        "सूत्रकृमि",
+        "कीट वृद्धि नियामक"
+      ],
+      "ans": "a",
+      "exp_en": "Beauveria bassiana is a white-muscardine fungus that infects larvae and adults of many pests, including cotton bollworm. Metarhizium anisopliae is the green-muscardine fungus; Bt is the bacterial insecticide."
+    },
+    {
+      "n": 33,
+      "subject_en": "Entomology",
+      "q_en": "The guava pest whose female lays eggs on the soft skin of ripening fruit and whose maggots bore into the pulp is:",
+      "q_hi": "वह अमरूद कीट जिसकी मादा पकते फल की कोमल त्वचा पर अंडे देती है और उसके मैगट गूदे में छेद करते हैं, है:",
+      "opts_en": [
+        "Fruit fly (Bactrocera dorsalis)",
+        "Mealy bug",
+        "Whitefly",
+        "Thrips",
+        "Bark-eating caterpillar"
+      ],
+      "opts_hi": [
+        "फल मक्खी (बैक्ट्रोसेरा डॉर्सेलिस)",
+        "मिली बग",
+        "सफेद मक्खी",
+        "थ्रिप्स",
+        "छाल-भक्षी सुंडी"
+      ],
+      "ans": "a",
+      "exp_en": "Bactrocera dorsalis (oriental fruit fly) attacks guava, mango and peach. Control uses methyl eugenol pheromone traps, field sanitation and bagging of fruit."
+    },
+    {
+      "n": 34,
+      "subject_en": "Entomology",
+      "q_en": "The term 'epizootic' is associated with:",
+      "q_hi": "'एपिज़ूटिक' शब्द किससे संबद्ध है?",
+      "opts_en": [
+        "An epidemic of disease in an insect population",
+        "A severe nutrient deficiency in crops",
+        "A pesticide-resistant pest strain",
+        "A sudden increase in soil microbial biomass",
+        "A plant disease caused by viroids"
+      ],
+      "opts_hi": [
+        "कीट जनसंख्या में रोग की महामारी",
+        "फसल में गंभीर पोषक कमी",
+        "कीटनाशक-प्रतिरोधी कीट नस्ल",
+        "मृदा सूक्ष्मजीव बायोमास में अचानक वृद्धि",
+        "वाइरॉइड जनित पादप रोग"
+      ],
+      "ans": "a",
+      "exp_en": "An epizootic is a disease outbreak in an animal/insect population (the animal equivalent of an epidemic). Such outbreaks by pathogens like Beauveria or NPV are used in microbial control."
+    },
+    {
+      "n": 35,
+      "subject_en": "Sericulture",
+      "q_en": "The secretory organ of the silkworm located at the junction of the midgut and hindgut is:",
+      "q_hi": "रेशम कीट में मध्यांत्र एवं पश्चांत्र के संधि स्थल पर स्थित स्रावी अंग है:",
+      "opts_en": [
+        "Malpighian tubules",
+        "Proboscis",
+        "Nephridia",
+        "Green glands",
+        "Silk glands"
+      ],
+      "opts_hi": [
+        "मैल्पीघियन नलिकाएँ",
+        "प्रोबोसिस",
+        "नेफ्रिडिया",
+        "हरित ग्रंथियाँ",
+        "रेशम ग्रंथियाँ"
+      ],
+      "ans": "a",
+      "exp_en": "Malpighian tubules are the excretory organs of insects, opening at the midgut–hindgut junction. Silk glands, in contrast, open through the spinneret in the head."
+    },
+    {
+      "n": 36,
+      "subject_en": "Entomology",
+      "q_en": "Kusum (Schleichera oleosa) is a host tree of:",
+      "q_hi": "कुसुम (Schleichera oleosa) किसका आश्रय वृक्ष है?",
+      "opts_en": [
+        "Lac insect",
+        "Silkworm (Bombyx mori)",
+        "Honeybee",
+        "Cochineal insect",
+        "Stick insect"
+      ],
+      "opts_hi": [
+        "लाख कीट",
+        "रेशम कीट (Bombyx mori)",
+        "मधुमक्खी",
+        "कोचीनियल कीट",
+        "स्टिक कीट"
+      ],
+      "ans": "a",
+      "exp_en": "Kusum, palas (Butea monosperma) and ber (Ziziphus mauritiana) are the major host trees of the lac insect Kerria lacca; kusum lac is valued for its superior colour."
+    },
+    {
+      "n": 37,
+      "subject_en": "Genetics",
+      "q_en": "A mutation that changes the DNA sequence but does not alter the sequence of amino acids in the protein is called:",
+      "q_hi": "वह उत्परिवर्तन जो DNA अनुक्रम बदल देता है परंतु प्रोटीन में अमीनो अम्ल अनुक्रम नहीं बदलता, कहलाता है:",
+      "opts_en": [
+        "Silent mutation",
+        "Nonsense mutation",
+        "Missense mutation",
+        "Frameshift mutation",
+        "Reverse mutation"
+      ],
+      "opts_hi": [
+        "साइलेंट उत्परिवर्तन",
+        "नॉनसेंस उत्परिवर्तन",
+        "मिससेंस उत्परिवर्तन",
+        "फ्रेमशिफ्ट उत्परिवर्तन",
+        "रिवर्स उत्परिवर्तन"
+      ],
+      "ans": "a",
+      "exp_en": "Silent (synonymous) mutations exploit the degeneracy of the genetic code — the new codon codes for the same amino acid. Nonsense creates a stop codon, missense substitutes an amino acid, and frameshift shifts the reading frame."
+    },
+    {
+      "n": 38,
+      "subject_en": "Plant Breeding",
+      "q_en": "Variation arising from any form of cell or tissue culture is known as:",
+      "q_hi": "किसी भी प्रकार के कोशिका या ऊतक संवर्धन से उत्पन्न विभिन्नता कहलाती है:",
+      "opts_en": [
+        "Somaclonal variation",
+        "Somatic hybridisation",
+        "Genetic engineering",
+        "Mutation breeding",
+        "Polyploidy"
+      ],
+      "opts_hi": [
+        "सोमाक्लोनल विभिन्नता",
+        "कायिक संकरण",
+        "आनुवंशिक अभियांत्रिकी",
+        "उत्परिवर्तन प्रजनन",
+        "बहुगुणिता"
+      ],
+      "ans": "a",
+      "exp_en": "Somaclonal variation is the heritable variation recovered from callus or cell cultures, often due to chromosome rearrangements and methylation changes; it has been used to select disease-resistant lines."
+    },
+    {
+      "n": 39,
+      "subject_en": "Plant Breeding",
+      "q_en": "High heritability coupled with high genetic advance indicates the predominance of:",
+      "q_hi": "उच्च वंशागतिकता के साथ उच्च आनुवंशिक प्रगति किसकी प्रधानता दर्शाती है?",
+      "opts_en": [
+        "Additive gene action",
+        "Dominance gene action",
+        "Epistatic gene action",
+        "Over-dominance",
+        "Strong environmental influence"
+      ],
+      "opts_hi": [
+        "योगात्मक जीन क्रिया",
+        "प्रभावी जीन क्रिया",
+        "एपिस्टेटिक जीन क्रिया",
+        "अति-प्रभाविता",
+        "प्रबल पर्यावरणीय प्रभाव"
+      ],
+      "ans": "a",
+      "exp_en": "High heritability with high genetic advance shows that additive variance governs the trait, so simple selection is effective. High heritability with low genetic advance indicates non-additive (dominance/epistatic) control."
+    },
+    {
+      "n": 40,
+      "subject_en": "Genetics",
+      "q_en": "The Norin-10 gene, which underpinned the Green Revolution in wheat, confers:",
+      "q_hi": "गेहूँ में हरित क्रांति का आधार बने नोरिन-10 जीन का गुण है:",
+      "opts_en": [
+        "Reduced plant height (dwarfness)",
+        "Rust resistance",
+        "High protein content",
+        "Photoinsensitivity alone",
+        "Heat tolerance"
+      ],
+      "opts_hi": [
+        "पौध की कम ऊँचाई (बौनापन)",
+        "रतुआ प्रतिरोध",
+        "उच्च प्रोटीन",
+        "केवल प्रकाश-असंवेदनशीलता",
+        "ऊष्मा सहनशीलता"
+      ],
+      "ans": "a",
+      "exp_en": "Norin-10 from the Japanese variety Norin 10 (via Gaines) carries reduced-height genes Rht-B1b/Rht-D1b that shorten the stem, resist lodging and let high nitrogen doses raise yield."
+    },
+    {
+      "n": 41,
+      "subject_en": "Seed Science",
+      "q_en": "Epigeal germination, in which cotyledons are lifted above the soil surface, occurs in:",
+      "q_hi": "अधिभूमि (एपिजियल) अंकुरण, जिसमें बीजपत्र मृदा सतह से ऊपर उठ जाते हैं, होता है:",
+      "opts_en": [
+        "Soybean",
+        "Maize",
+        "Wheat",
+        "Rice",
+        "Mango"
+      ],
+      "opts_hi": [
+        "सोयाबीन",
+        "मक्का",
+        "गेहूँ",
+        "धान",
+        "आम"
+      ],
+      "ans": "a",
+      "exp_en": "Soybean, cotton, castor and papaya show epigeal germination (hypocotyl elongates). Maize, wheat and rice are hypogeal, where the cotyledon stays below ground."
+    },
+    {
+      "n": 42,
+      "subject_en": "Plant Physiology",
+      "q_en": "Gibberellins were first isolated from the fungus responsible for the 'foolish seedling' disease of rice, namely:",
+      "q_hi": "धान के 'फूलिश सीडलिंग' रोग के कारक कवक से गिबरेलिन सर्वप्रथम पृथक किए गए, जो है:",
+      "opts_en": [
+        "Gibberella fujikuroi",
+        "Fusarium oxysporum",
+        "Rhizopus nigricans",
+        "Aspergillus niger",
+        "Penicillium notatum"
+      ],
+      "opts_hi": [
+        "गिबरेला फ्यूजीकुरोई",
+        "फ्यूजेरियम ऑक्सीस्पोरम",
+        "राइजोपस नाइग्रिकान्स",
+        "एस्परजिलस नाइजर",
+        "पेनिसिलियम नोटेटम"
+      ],
+      "ans": "a",
+      "exp_en": "Gibberella fujikuroi (Fusarium moniliforme) causes bakanae/foolish seedling disease; its gibberellic acid causes excessive stem elongation. GA3 is now the most widely used commercial gibberellin."
+    },
+    {
+      "n": 43,
+      "subject_en": "Animal Husbandry",
+      "q_en": "Which Indian buffalo breed is preferred globally for dairy genetic improvement because of high milk and fat yield?",
+      "q_hi": "उच्च दूध एवं वसा उपज के कारण विश्व स्तर पर डेयरी आनुवंशिक सुधार हेतु कौन-सी भारतीय भैंस नस्ल पसंद की जाती है?",
+      "opts_en": [
+        "Murrah",
+        "Surti",
+        "Nagpuri",
+        "Jaffarabadi",
+        "Bhadawari"
+      ],
+      "opts_hi": [
+        "मुर्रा",
+        "सुरती",
+        "नागपुरी",
+        "जाफराबादी",
+        "भदावरी"
+      ],
+      "ans": "a",
+      "exp_en": "Murrah (Haryana–Punjab belt) is the world's most sought-after dairy buffalo breed, with average fat around 7%. Best milch animals give 15–20 litres/day; Bhadawari is known for very high fat."
+    },
+    {
+      "n": 44,
+      "subject_en": "Animal Husbandry",
+      "q_en": "The gestation period of sheep is about:",
+      "q_hi": "भेड़ का गर्भाधान काल लगभग है:",
+      "opts_en": [
+        "115 ± 3 days",
+        "135 ± 5 days",
+        "147 ± 3 days",
+        "228 ± 5 days",
+        "280 ± 3 days"
+      ],
+      "opts_hi": [
+        "115 ± 3 दिन",
+        "135 ± 5 दिन",
+        "147 ± 3 दिन",
+        "228 ± 5 दिन",
+        "280 ± 3 दिन"
+      ],
+      "ans": "c",
+      "exp_en": "Sheep: about 147 days (≈5 months). Goat: 150 days, cattle: 280 days, buffalo: 310 days and camel: 390 days."
+    },
+    {
+      "n": 45,
+      "subject_en": "Fisheries",
+      "q_en": "The scientific name of the tiger shrimp (tiger prawn) is:",
+      "q_hi": "टाइगर झींगा (टाइगर प्रॉन) का वैज्ञानिक नाम है:",
+      "opts_en": [
+        "Penaeus monodon",
+        "Penaeus vannamei",
+        "Macrobrachium rosenbergii",
+        "Scylla serrata",
+        "Labeo rohita"
+      ],
+      "opts_hi": [
+        "पेनियस मोनोडॉन",
+        "पेनियस वन्नामेई",
+        "मैक्रोब्रैकियम रोजेनबर्गी",
+        "स्काइला सेराटा",
+        "लाबियो रोहिता"
+      ],
+      "ans": "a",
+      "exp_en": "Penaeus monodon is the black tiger shrimp (brackish water); P. vannamei is the exotic whiteleg shrimp, M. rosenbergii is freshwater prawn (scampi) and Scylla serrata is the mud crab."
+    },
+    {
+      "n": 46,
+      "subject_en": "Extension",
+      "q_en": "In Rogers' adoption–diffusion model, the 'laggards' are:",
+      "q_hi": "रोजर्स के अंगीकरण–विसरण मॉडल में 'लेगार्ड्स' हैं:",
+      "opts_en": [
+        "The last group to adopt an innovation, being traditional and resistance to change",
+        "The first group of innovators",
+        "Early majority farmers",
+        "Opinion leaders of the village",
+        "Change agents of the department"
+      ],
+      "opts_hi": [
+        "नवाचार अपनाने वाला अंतिम समूह, जो परंपरागत व परिवर्तन-विरोधी है",
+        "नवप्रवर्तकों का पहला समूह",
+        "अग्रिम बहुसंख्यक किसान",
+        "ग्राम के विचार नेतृत्वकर्ता",
+        "विभाग के परिवर्तन एजेंट"
+      ],
+      "ans": "a",
+      "exp_en": "Rogers classes: innovators (2.5%), early adopters (13.5%), early majority (34%), late majority (34%) and laggards (16%) — the last to adopt, most resistant to change."
+    },
+    {
+      "n": 47,
+      "subject_en": "Agricultural Economics",
+      "q_en": "Since 2018-19, the minimum support price is fixed at 1.5 times which cost concept?",
+      "q_hi": "2018-19 से न्यूनतम समर्थन मूल्य किस लागत संकल्पना की 1.5 गुनी पर निर्धारित किया जाता है?",
+      "opts_en": [
+        "Cost A2 + Family Labour (A2+FL)",
+        "Cost A2 only",
+        "Cost C2",
+        "Cost C3",
+        "Cost B1"
+      ],
+      "opts_hi": [
+        "लागत A2 + पारिवारिक श्रम (A2+FL)",
+        "केवल लागत A2",
+        "लागत C2",
+        "लागत C3",
+        "लागत B1"
+      ],
+      "ans": "a",
+      "exp_en": "Since 2018-19, MSP is fixed at 1.5 times Cost A2+FL (paid-out cost plus imputed family labour). Farmer organisations demand 1.5 × C2 (which includes imputed rent and interest); the Kisan Long March raised this."
+    },
+    {
+      "n": 48,
+      "subject_en": "Agricultural Economics",
+      "q_en": "A farmer sets up a processing unit with fixed cost of ₹6,00,000, selling price ₹200 per unit and variable cost ₹120 per unit. The break-even quantity is:",
+      "q_hi": "एक किसान ₹6,00,000 की स्थिर लागत वाला प्रसंस्करण इकाई लगाता है; विक्रय मूल्य ₹200 प्रति इकाई तथा परिवर्ती लागत ₹120 प्रति इकाई है। ब्रेक-ईवन मात्रा है:",
+      "opts_en": [
+        "3,000 units",
+        "4,500 units",
+        "6,000 units",
+        "7,500 units",
+        "9,000 units"
+      ],
+      "opts_hi": [
+        "3,000 इकाई",
+        "4,500 इकाई",
+        "6,000 इकाई",
+        "7,500 इकाई",
+        "9,000 इकाई"
+      ],
+      "ans": "d",
+      "exp_en": "BEP = Fixed cost ÷ (Price − Variable cost) = 6,00,000 ÷ (200 − 120) = 6,00,000 ÷ 80 = 7,500 units. Beyond 7,500 units every extra unit adds ₹80 of contribution."
+    },
+    {
+      "n": 49,
+      "subject_en": "Agriculture Schemes",
+      "q_en": "Under PM-KUSUM, the Central Financial Assistance for solar irrigation pumps (Component-B) is about:",
+      "q_hi": "पीएम-कुसुम के अंतर्गत सौर सिंचाई पंप (घटक-B) पर केंद्रीय वित्तीय सहायता लगभग है:",
+      "opts_en": [
+        "30% of the benchmark cost",
+        "45% of the benchmark cost",
+        "60% of the benchmark cost",
+        "75% of the benchmark cost",
+        "90% of the benchmark cost"
+      ],
+      "opts_hi": [
+        "बेंचमार्क लागत का 30%",
+        "बेंचमार्क लागत का 45%",
+        "बेंचमार्क लागत का 60%",
+        "बेंचमार्क लागत का 75%",
+        "बेंचमार्क लागत का 90%"
+      ],
+      "ans": "a",
+      "exp_en": "PM-KUSUM Component-B gives 30% Central Financial Assistance, 30% state subsidy and the remaining about 40% as a bank loan to the farmer. Components A (solar plants on barren land) and C (solarisation of existing pumps) have different provisions."
+    },
+    {
+      "n": 50,
+      "subject_en": "Agriculture Schemes",
+      "q_en": "Pradhan Mantri Kisan Maandhan Yojana assures a minimum monthly pension to small and marginal farmers of:",
+      "q_hi": "प्रधानमंत्री किसान मानधन योजना लघु एवं सीमांत किसानों को न्यूनतम मासिक पेंशन का आश्वासन देती है:",
+      "opts_en": [
+        "₹2,000",
+        "₹3,000",
+        "₹4,000",
+        "₹5,000",
+        "₹6,000"
+      ],
+      "opts_hi": [
+        "₹2,000",
+        "₹3,000",
+        "₹4,000",
+        "₹5,000",
+        "₹6,000"
+      ],
+      "ans": "b",
+      "exp_en": "PM-KMY gives a minimum assured pension of ₹3,000 per month after 60 years of age to small and marginal farmers (up to 2 ha), with a matching central contribution; it is administered by LIC."
+    }
+  ]
+}

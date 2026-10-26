@@ -38,13 +38,22 @@ post under **IBPS CRP SPL-XVI (2026 cycle)**.
 
 | Set | File | Pattern simulated | Questions / Marks |
 |---|---|---|---|
-| A | `afo-2026-set-a-mains-pk.pdf` | Mains Professional Knowledge | 50 Q / 100 marks / 40 min |
+| **FINAL** | `afo-2026-final-hard.pdf` | **Mains PK — hard, PYQ-calibrated, 5 options (A–E), English-only answer key** | **50 Q / 100 marks / 40 min** |
+| A | `afo-2026-set-a-mains-pk.pdf` | Mains Professional Knowledge (bilingual key) | 50 Q / 100 marks / 40 min |
 | B | `afo-2026-set-b-prelims-pk.pdf` | Prelims Professional Knowledge | 25 Q / 50 marks / 20 min |
+
+> The FINAL paper has **no subject headings inside the question paper** (pure exam
+> look) and an **English-only answer key**; subject labels are kept only in the
+> question-bank JSON for internal review.
 
 Each PDF contains: cover + instructions → bilingual questions (English first,
 Hindi below, same option layout) → **answer key with bilingual explanations**.
 
 Markdown versions (`*.md`) are generated alongside for quick review/diffing.
+
+### FINAL paper subject distribution (PYQ-calibrated)
+Agronomy 11 · Soil Science 8 · Horticulture 6 · Plant Pathology 7 · Entomology 6 ·
+Genetics & Breeding 4 · Agri Economics 3 · Schemes/Finance 3 · Irrigation 3
 
 ### Set A subject distribution (mirrors recent AFO papers)
 | Subject | Qs |
