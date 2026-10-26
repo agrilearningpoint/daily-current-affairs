@@ -354,6 +354,186 @@ def build_pdf(bank: Dict[str, Any], out_path: Path) -> Path:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MOBILE EDITION — A5, single column, large type, card answer key
+# ─────────────────────────────────────────────────────────────────────────────
+M_W, M_H = 420, 595          # A5 portrait, fits phone width nicely
+M_MARGIN = 13 * mm
+M_FRAME_W = M_W - 2 * M_MARGIN
+M_FRAME_H = M_H - 2 * M_MARGIN - 10 * mm
+
+MS = {
+    "brand": ParagraphStyle("mb_brand", fontName="Poppins-Bold", fontSize=9, leading=11,
+                            textColor=colors.white),
+    "kicker": ParagraphStyle("mb_kicker", fontName="Poppins-SemiBold", fontSize=9, leading=12,
+                             textColor=GREEN),
+    "title": ParagraphStyle("mb_title", fontName="Poppins-Bold", fontSize=18, leading=22,
+                            textColor=NAVY),
+    "sub": ParagraphStyle("mb_sub", fontName="Poppins", fontSize=10, leading=14, textColor=MUTED),
+    "chip": ParagraphStyle("mb_chip", fontName="Poppins-SemiBold", fontSize=8.6, leading=11,
+                           textColor=NAVY),
+    "qno": ParagraphStyle("mb_qno", fontName="Poppins-Bold", fontSize=11, leading=13,
+                          textColor=GREEN, spaceAfter=3),
+    "q": ParagraphStyle("mb_q", fontName="Poppins-SemiBold", fontSize=11.5, leading=15.5,
+                        textColor=SLATE, spaceAfter=3),
+    "opt": ParagraphStyle("mb_opt", fontName="Poppins", fontSize=10.5, leading=14.5,
+                          textColor=SLATE),
+    "anshead": ParagraphStyle("mb_anshead", fontName="Poppins-Bold", fontSize=11, leading=14,
+                              textColor=NAVY),
+    "exp": ParagraphStyle("mb_exp", fontName="Poppins", fontSize=10, leading=14, textColor=SLATE),
+    "foot": ParagraphStyle("mb_foot", fontName="Poppins", fontSize=7.6, leading=10,
+                           textColor=MUTED),
+}
+
+
+class MobileDoc(BaseDocTemplate):
+    def __init__(self, filename: str, title: str, set_label: str, **kw):
+        super().__init__(filename, pagesize=(M_W, M_H), leftMargin=M_MARGIN,
+                         rightMargin=M_MARGIN, topMargin=M_MARGIN, bottomMargin=M_MARGIN,
+                         title=title, author=BRAND, subject=TAGLINE, **kw)
+        self.set_label = set_label
+        frame = Frame(M_MARGIN, M_MARGIN, M_FRAME_W, M_FRAME_H + 5 * mm, id="m",
+                      leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+        self.addPageTemplates([PageTemplate(id="m", frames=[frame], onPage=self._decorate)])
+
+    def _decorate(self, canv, doc):
+        canv.saveState()
+        canv.setFillColor(NAVY)
+        canv.rect(0, M_H - 9 * mm, M_W, 9 * mm, stroke=0, fill=1)
+        canv.setFillColor(colors.white)
+        canv.setFont("Poppins-Bold", 8)
+        canv.drawString(M_MARGIN, M_H - 6 * mm, BRAND)
+        canv.setFont("Poppins", 7)
+        canv.setFillColor(colors.HexColor("#A7F3D0"))
+        canv.drawRightString(M_W - M_MARGIN, M_H - 6 * mm, "AFO · Professional Knowledge")
+        canv.setStrokeColor(BORDER)
+        canv.setLineWidth(0.5)
+        canv.line(M_MARGIN, 9 * mm, M_W - M_MARGIN, 9 * mm)
+        canv.setFillColor(MUTED)
+        canv.setFont("Poppins", 7)
+        canv.drawCentredString(M_W / 2, 5.6 * mm, f"{doc.page}")
+        canv.restoreState()
+
+
+def m_card(flow: List[Any], q: Dict[str, Any]) -> None:
+    """One question as a self-contained mobile card."""
+    rows = [[Paragraph(f"Q{q['n']}", MS["qno"]), Paragraph(q["q_en"], MS["q"])]]
+    inner: List[Any] = [Paragraph(q["q_en"], MS["q"]), hi_para(q["q_hi"], 10.8, M_FRAME_W - 16)]
+    inner.append(Spacer(1, 5))
+    for letter, text in zip(OPT_LETTERS[: len(q["opts_en"])], q["opts_en"]):
+        inner.append(Paragraph(f'<font color="#0D7A42"><b>({letter})</b></font>&nbsp;&nbsp;{text}',
+                               MS["opt"]))
+    inner.append(Spacer(1, 3))
+    hi_joined = "     ".join(f"({l}) {t}" for l, t in
+                             zip(OPT_LETTERS[: len(q["opts_hi"])], q["opts_hi"]))
+    inner += [hi_para(hi_joined, 10.2, M_FRAME_W - 16)]
+
+    t = Table([[Paragraph(f"<b>Q{q['n']}.</b>", MS["qno"]), inner]],
+              colWidths=[26, M_FRAME_W - 26])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.5, BORDER),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 9),
+    ]))
+    flow.append(t)
+
+
+def m_answer_card(flow: List[Any], q: Dict[str, Any]) -> None:
+    head = Table([[Paragraph(f"<b>Q{q['n']}.</b>", MS["qno"]),
+                   Paragraph(f"<b>Answer: {q['ans'].upper()}</b>", MS["anshead"])]],
+                 colWidths=[30, M_FRAME_W - 30])
+    head.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    box = Table([[head], [Paragraph(q["exp_en"], MS["exp"])]], colWidths=[M_FRAME_W])
+    box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F6FBF7")),
+        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#BBE7CB")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    flow.append(KeepTogether([box, Spacer(1, 7)]))
+
+
+def chip_row(items: List[str]) -> Table:
+    cells = [[Paragraph(i, MS["chip"])] for i in items]
+    t = Table([cells], colWidths=[M_FRAME_W / len(items)] * len(items))
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#ECFDF5")),
+        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#BBE7CB")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.white),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2), ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    return t
+
+
+def build_mobile_pdf(bank: Dict[str, Any], out_path: Path) -> Path:
+    qs = bank["questions"]
+    show_subject = bank.get("show_subject", True)
+    marks = len(qs) * 2
+    label = f"SET {bank['set']}"
+    doc = MobileDoc(str(out_path), title=f"{bank['title_en']} (Mobile)", set_label=label)
+    flow: List[Any] = []
+
+    # ── cover ────────────────────────────────────────────────────────────
+    if LOGO.exists():
+        logo = Image(str(LOGO), width=24 * mm, height=24 * mm)
+        logo.hAlign = "LEFT"
+        flow += [logo, Spacer(1, 3)]
+    flow.append(Paragraph(BRAND, MS["kicker"]))
+    flow.append(Paragraph(bank["title_en"], MS["title"]))
+    flow.append(hi_para(bank["title_hi"], 13, M_FRAME_W, bold=True))
+    flow.append(Spacer(1, 3))
+    flow.append(Paragraph(f"{label} · {bank['exam']}", MS["sub"]))
+    flow.append(Spacer(1, 8))
+    flow.append(chip_row([f"{len(qs)} Q", f"{marks} Marks", "40 min", "A–E"]))
+    flow.append(Spacer(1, 8))
+    flow.append(Paragraph(bank["pattern_en"], MS["exp"]))
+    flow.append(Spacer(1, 4))
+    flow += [hi_para(bank["pattern_hi"], 10, M_FRAME_W), Spacer(1, 8)]
+    tips = [
+        "One question per card — scroll, attempt, move on.",
+        "Options are listed vertically so nothing is cut off on a phone.",
+        "Answer key with one-line reasoning starts after the last question.",
+        "Mains merit = Professional Knowledge score only (80:20 with interview).",
+    ]
+    flow.append(Paragraph("<b>How to use / कैसे पढ़ें</b>", MS["anshead"]))
+    flow.append(Spacer(1, 3))
+    for tip in tips:
+        flow.append(Paragraph(f"•&nbsp;&nbsp;{tip}", MS["exp"]))
+    flow += [Spacer(1, 6),
+             Paragraph("उत्तर कुंजी अंत में है — पूरा पेपर हल करने के बाद देखें।", MS["exp"])]
+    flow.append(PageBreak())
+
+    # ── questions ────────────────────────────────────────────────────────
+    flow.append(Paragraph(f"{label} — Questions", MS["title"]))
+    flow.append(Paragraph(f"{len(qs)} questions · {marks} marks · bilingual", MS["sub"]))
+    flow.append(Spacer(1, 4))
+    for q in qs:
+        m_card(flow, q)
+    flow.append(PageBreak())
+
+    # ── answer key ───────────────────────────────────────────────────────
+    flow.append(Paragraph("Answer Key", MS["title"]))
+    flow.append(Paragraph(f"{len(qs)} answers · +2 correct · −0.5 wrong", MS["sub"]))
+    flow.append(Spacer(1, 6))
+    for q in qs:
+        m_answer_card(flow, q)
+
+    doc.build(flow)
+    return out_path
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MARKDOWN
 # ─────────────────────────────────────────────────────────────────────────────
 def build_markdown(bank: Dict[str, Any]) -> str:
@@ -435,6 +615,8 @@ def slugify(name: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Render IBPS AFO mock papers")
     ap.add_argument("--only", help="Render only banks whose filename contains this text")
+    ap.add_argument("--mobile", action="store_true", default=None,
+                    help="Also render the mobile (A5) edition")
     args = ap.parse_args()
 
     banks = sorted(DATA_DIR.glob("*.json"))
@@ -454,6 +636,10 @@ def main() -> int:
         build_pdf(bank, pdf_path)
         print(f"✔ {bank['set']} → {pdf_path.relative_to(REPO_ROOT)} "
               f"({len(bank['questions'])} Q) + {md_path.relative_to(REPO_ROOT)}")
+        if args.mobile:
+            mob_path = OUT_DIR / f"{slug}-mobile.pdf"
+            build_mobile_pdf(bank, mob_path)
+            print(f"   📱 mobile → {mob_path.relative_to(REPO_ROOT)}")
     return 0
 
 

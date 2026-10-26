@@ -46,6 +46,24 @@ post under **IBPS CRP SPL-XVI (2026 cycle)**.
 > look) and an **English-only answer key**; subject labels are kept only in the
 > question-bank JSON for internal review.
 
+### 📱 Mobile edition
+
+`afo-2026-final-hard-mobile.pdf` — same 50 questions, re-typeset for phones:
+
+| Print edition (A4) | Mobile edition (A5) |
+|---|---|
+| Two-column-ish dense layout, 16 pages | Single column, 38 pages |
+| Small 9–10 pt type | 10.5–11.5 pt type, generous leading |
+| Answer key as a wide table | One answer card per question (answer + reasoning) |
+| Best for printing | Best for reading on a phone, no pinch-zoom |
+
+Render it with:
+
+```bash
+python scripts/generate_mock_paper.py --mobile            # A4 + mobile for all banks
+python scripts/generate_mock_paper.py --only final --mobile
+```
+
 Each PDF contains: cover + instructions → bilingual questions (English first,
 Hindi below, same option layout) → **answer key with bilingual explanations**.
 
