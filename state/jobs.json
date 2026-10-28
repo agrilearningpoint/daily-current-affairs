@@ -1005,7 +1005,7 @@
     "checkpoint_run_id": "40433514587"
   },
   "daily_2026-10-28": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "daily_2026-10-28",
     "job_type": "daily",
     "job_date": "2026-10-28",
@@ -1015,7 +1015,34 @@
       "end": "2026-10-28T07:06:01.590500+05:30"
     },
     "github_run_id": "40615955065",
-    "status": "running",
-    "updated_at": "2026-10-28T01:36:01.591077+00:00"
+    "status": "failed",
+    "updated_at": "2026-10-28T01:39:58.501468+00:00",
+    "started_at": "2026-10-28T01:36:03.476727+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-10-28.json": {
+        "stage": "01_source_fetch",
+        "sha256": "42d1ca02de6493cc0347ef18f970cb292b07454ae37d7fd6506f5baf7d44f305"
+      },
+      "data/verified/daily_2026-10-28.json": {
+        "stage": "04_fact_verification",
+        "sha256": "1a921994bb08002548b0c9c49ac09a181ac40e915ab3a3d638013350abe6b081"
+      },
+      "data/dedup/daily_2026-10-28.json": {
+        "stage": "05_deduplication",
+        "sha256": "2f031e8f0ce863dce380114acc3a5a3528db53b264cd621dfd16e1a2831591c7"
+      },
+      "data/scored/daily_2026-10-28.json": {
+        "stage": "06_news_importance",
+        "sha256": "d0441feef54ad8be6aa2db032c9d3685b0fb633f5c42e94818044d0b8b400a69"
+      },
+      "data/selected/daily_2026-10-28.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "8d1f841a9ad548fd39580dd4b0e579624efafe4c1cbb52f26e6545ebd4491d7b"
+      }
+    },
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): or] trying provider nvidia\n2026-10-28 01:39:54 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['gemini: validation failed', 'groq: validation failed', 'deepseek: HTTP 402', 'openrouter: HTTP 402', 'mistral: rate limited', 'nvidia: HTTP 404'])\n2026-10-28 01:39:54 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=14 fallback=0 untranslated=1 (AI success 93.3%)\n2026-10-28 01:39:54 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-28 01:39:54 | INFO     | pipeline.content | [Content Builder] Completeness: 14/15 items complete (avg words EN: 276.4, HI: 12.6)\n2026-10-28 01:39:54 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "40615955065"
   }
 }
