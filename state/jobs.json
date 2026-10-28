@@ -1005,7 +1005,7 @@
     "checkpoint_run_id": "40433514587"
   },
   "daily_2026-10-28": {
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-10-28",
     "job_type": "daily",
     "job_date": "2026-10-28",
@@ -1015,8 +1015,8 @@
       "end": "2026-10-28T07:06:01.590500+05:30"
     },
     "github_run_id": "40620440742",
-    "status": "running",
-    "updated_at": "2026-10-28T02:21:53.488532+00:00",
+    "status": "failed",
+    "updated_at": "2026-10-28T02:23:30.688594+00:00",
     "started_at": "2026-10-28T01:36:03.476727+00:00",
     "artifacts": {
       "data/raw/daily_2026-10-28.json": {
@@ -1041,8 +1041,8 @@
       }
     },
     "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): or] trying provider nvidia\n2026-10-28 01:39:54 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['gemini: validation failed', 'groq: validation failed', 'deepseek: HTTP 402', 'openrouter: HTTP 402', 'mistral: rate limited', 'nvidia: HTTP 404'])\n2026-10-28 01:39:54 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=14 fallback=0 untranslated=1 (AI success 93.3%)\n2026-10-28 01:39:54 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-28 01:39:54 | INFO     | pipeline.content | [Content Builder] Completeness: 14/15 items complete (avg words EN: 276.4, HI: 12.6)\n2026-10-28 01:39:54 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "last_error": "12_content_editor: failed after 3 attempt(s): or] trying provider nvidia\n2026-10-28 02:23:26 | WARNING  | pipeline.content | [Translation] AI unavailable for task=headline (validation failed: ['gemini: validation failed', 'groq: validation failed', 'deepseek: HTTP 402', 'openrouter: HTTP 402', 'mistral: rate limited', 'nvidia: HTTP 404'])\n2026-10-28 02:23:26 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=14 fallback=0 untranslated=1 (AI success 93.3%)\n2026-10-28 02:23:26 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-28 02:23:26 | INFO     | pipeline.content | [Content Builder] Completeness: 14/15 items complete (avg words EN: 276.4, HI: 12.5)\n2026-10-28 02:23:26 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
     "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "40615955065"
+    "checkpoint_run_id": "40620440742"
   }
 }
