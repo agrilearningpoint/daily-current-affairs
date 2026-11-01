@@ -652,6 +652,75 @@ def _translate_tracked(text, task, stats, flags):
     return hindi
 
 
+def _prefill_body_translation_cache(lines, task="body"):
+    """Translate one story's body lines (key points, exam fact, explanation
+    sentences) in a single indexed JSON request.
+
+    Each returned value must pass the same fail-closed validator used for single
+    translations (Devanagari present, numbers and acronyms preserved, sane length);
+    anything else is left out of the cache so ``_translate_tracked`` falls back to
+    the per-line path (and, in strict mode, to ``untranslated``).
+    """
+    todo = []
+    for line in lines or []:
+        line = _norm_ws(line)
+        if line and (task, line) not in _TRANSLATION_CACHE and line not in todo:
+            todo.append(line)
+    if not todo:
+        return 0
+    try:
+        from pipeline.ai_router import is_configured, route
+        if not is_configured():
+            return 0
+        answer = route(
+            json.dumps({"lines": todo}, ensure_ascii=False),
+            task="bilingual_body_batch",
+            needs_hindi=True,
+            response_format={"type": "json_object"},
+            system_prompt=(
+                "You are an expert Hindi editor for Indian competitive-exam current affairs. "
+                "Translate every English line into clear, natural Hindi written wholly in "
+                "Devanagari, preserving all names, numbers, dates and acronyms exactly. Do not add "
+                "facts, commentary, markdown or links. Return JSON only in exactly this shape: "
+                "{\"translations\":[\"Hindi for line 1\", \"Hindi for line 2\"]} with the same "
+                "order and length as lines."
+            ),
+        )
+        data = json.loads((answer or "").strip())
+        translations = data.get("translations") if isinstance(data, dict) else None
+        if not isinstance(translations, list) or len(translations) != len(todo):
+            raise ValueError("batch response did not preserve line count")
+    except Exception as exc:
+        logger.warning("[Translation] body batch unavailable: %s", exc)
+        return 0
+    try:
+        from pipeline.ai_translator import _validate
+    except Exception:  # pragma: no cover - translator module missing
+        return 0
+    saved = 0
+    for en, hi in zip(todo, translations):
+        hi = _norm_ws(str(hi or ""))
+        ok, conf, issues = _validate(en, hi)
+        if not ok:
+            logger.warning("[Translation] rejected batch body line (%s): %s", issues, en[:70])
+            continue
+        _TRANSLATION_CACHE[(task, en)] = (hi, "ai_translator", conf)
+        saved += 1
+    logger.info("[Translation] prefilled %d/%d body lines in one AI request", saved, len(todo))
+    return saved
+
+
+def _translate_explanation(det_en, stats, flags):
+    """Sentence-wise Hindi for the detailed explanation (keeps EN/HI pairs aligned)."""
+    sents = split_sentences(det_en) or ([det_en] if det_en else [])
+    out = []
+    for s in sents:
+        hi = _translate_tracked(s, "body", stats, flags)
+        if hi:
+            out.append(hi.rstrip(" .\u0964"))
+    return ("\u0964 ".join(out) + "\u0964") if out else ""
+
+
 def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:
     """Build a factual, non-fabricated explanation strictly from sourced material.
 
@@ -695,7 +764,10 @@ def _build_category_one_liners(items: List[Dict[str, Any]]) -> List[Dict[str, An
         en = _plain_headline(it.get("headline_en", ""))
         hi = _plain_headline(it.get("headline_hi", ""))
         cat = it.get("category") or "National"
-        fact = next(iter((it.get("static_facts") or {}).values()), "")
+        # Never use private keys such as "_static_gk_pairs" (a list of tuples)
+        # as the one-liner's key fact - it printed raw Python into the PDF.
+        fact = next((v for k, v in (it.get("static_facts") or {}).items()
+                     if isinstance(k, str) and not k.startswith("_") and isinstance(v, (str, int, float))), "")
         if en and hi:
             one_liners.append({
                 "category": cat,
@@ -728,20 +800,23 @@ def _build_entry(it, stats):
     ef = exam_fact(work)
 
     flags = []
-    # A daily booklet needs concise, correct Hindi - not hundreds of separate
-    # translation calls that exhaust a free-tier provider mid-edition.  The
-    # renderer shows at most two key-point pairs, so translate exactly those
-    # three student-facing blocks (headline + two revision facts).
     headline_hi = _translate_tracked(title, "headline", stats, flags)
-    key_points_hi = ["" for _ in kps]
-    exam_fact_hi = ""
 
     title_en = polish_with_ai(title, raw_facts)
     kps_en = [polish_with_ai(p, raw_facts) for p in kps]
 
     # Detailed explanation (bilingual)
     det_en = it.get("detailed_explanation_en") or _build_detailed_explanation(title_en, raw_facts, kps_en, sf, ef)
-    det_hi = it.get("detailed_explanation_hi") or ""
+
+    # Hindi body: one batched request per story (free-tier request limits), then
+    # per-line translation for anything the batch did not validate.  Every line
+    # still goes through translate_with_ai_or_fallback, so ALP_TRANSLATION_STRICT
+    # keeps the fail-closed behaviour (English left as-is and flagged for review).
+    det_sents = split_sentences(det_en) if not it.get("detailed_explanation_hi") else []
+    _prefill_body_translation_cache(list(kps_en) + ([ef] if ef else []) + det_sents, task="body")
+    key_points_hi = [_translate_tracked(p, "body", stats, flags) for p in kps_en]
+    exam_fact_hi = _translate_tracked(ef, "body", stats, flags) if ef else ""
+    det_hi = it.get("detailed_explanation_hi") or _translate_explanation(det_en, stats, flags)
 
     # Entities and numbers
     orgs = [e for e in _extract_entities(raw_facts + " " + title_en) if len(e) > 3][:4]
@@ -1176,11 +1251,17 @@ def _build_item_candidates(ci, pools, all_items):
 
 
 
-def generate_mcqs(content_items, target=None):
+def generate_mcqs(content_items, target=None, llm_mcqs=None):
     """
     Round-robin over items so the day's MCQs are spread across all news
     (1st MCQ of every item, then the 2nd of every item ...) until `target[1]`.
+
+    ``llm_mcqs`` ({event_id: mcq}) comes from pipeline.mcq_schema.generate_llm_mcqs.
+    An item with a validated LLM MCQ gets exactly that one question (the
+    reference format is one unit per story); other items fall back to the
+    deterministic templates below.
     """
+    llm_mcqs = llm_mcqs or {}
     content_items = [c for c in (content_items or []) if isinstance(c, dict)]
     if not content_items:
         return []
@@ -1193,6 +1274,10 @@ def generate_mcqs(content_items, target=None):
     pools = _build_pools(content_items)
     per_item = []
     for ci in content_items:
+        llm = llm_mcqs.get(str(ci.get("event_id", "")))
+        if llm:
+            per_item.append([llm])
+            continue
         try:
             per_item.append(_build_item_candidates(ci, pools, content_items))
         except Exception:
@@ -1275,8 +1360,11 @@ def validate_mcqs(mcqs, content_items):
         qkey = _qkey(m.get("question_en"))
         if qkey in seen_q:
             errs.append("duplicate question")
-        if any("none of these" in o.lower() for o in opts):
+        if any(re.search(r"none of (the )?(these|above)", o, re.I) for o in opts):
             errs.append("auto 'none of these' not allowed")
+        if m.get("type") == "llm-schema" or m.get("options_hi"):
+            from pipeline.mcq_schema import schema_errors
+            errs.extend(schema_errors(m, src_by_event.get(m.get("event_id"), "")))
         if len(m.get("question_en") or "") < 20:
             errs.append("question too short")
         if any(len(o) > 130 for o in opts):

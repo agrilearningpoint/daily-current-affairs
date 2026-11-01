@@ -339,10 +339,13 @@ def _render_hindi_hb_ft(
     if not lines:
         lines = [text]
 
-    ascender = face.size.ascender // 64
-    descender = face.size.descender // 64
-    line_h = int((ascender - descender) * line_spacing)
-    total_h = line_h * len(lines) + int(6 * dpi / 72)
+    # Mukta's hhea ascender/descender span ~1.7 em, which made every Hindi line
+    # about twice as tall as its English partner.  Use em-based metrics instead:
+    # upper matras/reph reach ~1.0 em above the baseline, lower matras ~0.4 em below.
+    em_px = font_size_pt * dpi / 72.0
+    ascender = int(round(em_px * 1.05))
+    line_h = int(round(em_px * max(line_spacing, 1.0) * 1.12))
+    total_h = line_h * (len(lines) - 1) + ascender + int(round(em_px * 0.45)) + int(2 * dpi / 72)
 
     img = PILImage.new("RGBA", (width_px, max(total_h, 1)), (bg_rgb[0], bg_rgb[1], bg_rgb[2], 0 if bg_rgb == (255, 255, 255) else 255))
     draw = ImageDraw.Draw(img)
@@ -706,19 +709,25 @@ def get_pdf_styles() -> Dict[str, ParagraphStyle]:
         "section_tag": ParagraphStyle("SectionTag", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8, leading=10, textColor=COLORS["badge_text"], alignment=TA_LEFT),
         "topic_headline": ParagraphStyle("TopicHeadline", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15, textColor=COLORS["primary"], alignment=TA_LEFT),
 
-        "ques_en": ParagraphStyle("QuesEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10.5, leading=14.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
-        "option_text": ParagraphStyle("OptionText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=13.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "answer_text": ParagraphStyle("AnswerText", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=10, leading=13, textColor=HexColor("#065F46"), alignment=TA_LEFT),
+        "ques_en": ParagraphStyle("QuesEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12, leading=16.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
+        "option_text": ParagraphStyle("OptionText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT),
+        "answer_text": ParagraphStyle("AnswerText", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11, leading=14, textColor=HexColor("#065F46"), alignment=TA_LEFT),
 
-        "block_head": ParagraphStyle("BlockHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9.5, leading=13, textColor=COLORS["primary"], alignment=TA_LEFT),
-        "bullet_en": ParagraphStyle("BulletEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9, leading=13, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=8),
-        "static_fact_en": ParagraphStyle("StaticFactEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8.5, leading=12, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=6),
+        "block_head": ParagraphStyle("BlockHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11, leading=15, textColor=COLORS["primary"], alignment=TA_LEFT),
+        "bullet_en": ParagraphStyle("BulletEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT),
+        "static_fact_en": ParagraphStyle("StaticFactEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=6),
 
         "index_title": ParagraphStyle("IndexTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=14, leading=18, textColor=COLORS["primary"], alignment=TA_CENTER),
         "index_col_head": ParagraphStyle("IndexColHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["white"], alignment=TA_CENTER),
         "index_cell": ParagraphStyle("IndexCell", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8, leading=10.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
         "index_cell_c": ParagraphStyle("IndexCellC", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8, leading=10.5, textColor=COLORS["primary"], alignment=TA_CENTER),
 
+        "box_title": ParagraphStyle("BoxTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15.5, textColor=HexColor("#0B3D7A"), alignment=TA_LEFT),
+        "box_text": ParagraphStyle("BoxText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14, textColor=COLORS["body_text"], alignment=TA_LEFT),
+        "ques_hi": ParagraphStyle("QuesHI", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12, leading=16.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
+        "hi_body": ParagraphStyle("HiBody", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_hindi"], alignment=TA_LEFT),
+        "oneliner_title": ParagraphStyle("OneLinerTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=20, textColor=HexColor("#0B3D7A"), alignment=TA_CENTER),
+        "oneliner": ParagraphStyle("OneLiner", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11, leading=15.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
         "key_cell": ParagraphStyle("KeyCell", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["body_text"], alignment=TA_CENTER),
         "key_cell_bold": ParagraphStyle("KeyCellBold", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["accent_green"], alignment=TA_CENTER),
     }
@@ -728,73 +737,367 @@ STYLES = get_pdf_styles()
 
 
 # --- STORY HELPER FUNCTIONS ---
+# --- EXPLANATION / STATIC GK EXTRACTION ---
+MAX_EXPLANATION_POINTS = 5
+MAX_STATIC_GK_POINTS = 6
+_HI_SENT_SPLIT_RE = re.compile(r"(?<=[।!?])\s+|(?<=\.)\s+(?=[\u0900-\u097F])")
+_EN_SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9₹\"'(])")
+
+
+def _split_en(text: str) -> List[str]:
+    return [s.strip() for s in _EN_SENT_SPLIT_RE.split(text or "") if s.strip()]
+
+
+def _split_hi(text: str) -> List[str]:
+    return [s.strip() for s in _HI_SENT_SPLIT_RE.split(text or "") if s.strip()]
+
+
+def _hi_or_blank(text: Any) -> str:
+    c = _clean_text_for_display(text)
+    return c if DEVANAGARI_RE.search(c) else ""
+
+
 def _extract_explanation_points(item: Dict[str, Any], mcq: Dict[str, Any]) -> List[Tuple[str, str]]:
-    """Extract substantive bilingual explanation bullet pairs without headline repetition."""
+    """Up to 5 bilingual explanation sentences (EN line + its HI line).
+
+    Prefers the MCQ's own ``explanation_pairs`` (LLM schema, already validated in
+    stage 17); otherwise builds them from the item's key points, the detailed
+    explanation (sentence-aligned when EN/HI sentence counts match) and finally
+    the MCQ's one-line explanation.  No more 2-point cap and no 'मुख्य बिंदु' prefix.
+    """
     pairs: List[Tuple[str, str]] = []
     seen: List[str] = []
 
+    def _toks(txt: str) -> set:
+        return set(re.findall(r"[a-z0-9₹]+", txt.lower())) - {"the", "a", "an", "of", "for", "and", "in", "to", "is", "at", "on", "by", "will", "be"}
+
     def is_dup(txt: str) -> bool:
         low = txt.lower()
-        return any(low in s.lower() or s.lower() in low for s in seen)
+        t = _toks(low)
+        for s in seen:
+            if low in s or s in low:
+                return True
+            st = _toks(s)
+            if t and st and len(t & st) / min(len(t), len(st)) >= 0.6:
+                return True
+        return False
 
-    # 1. Key Points
+    def add(en: Any, hi: Any, min_len: int = 20) -> None:
+        en_c = _clean_text_for_display(en)
+        if not en_c or len(en_c) < min_len or is_dup(en_c) or len(pairs) >= MAX_EXPLANATION_POINTS:
+            return
+        seen.append(en_c.lower())
+        pairs.append((en_c, _hi_or_blank(hi)))
+
+    # The MCQ's own pairs were validated in stage 17: keep them as written
+    # (only exact repeats dropped), no similarity de-duplication.
+    for p in (mcq or {}).get("explanation_pairs") or []:
+        if isinstance(p, dict):
+            en_c = _clean_text_for_display(p.get("en", ""))
+            if en_c and en_c.lower() not in seen and len(pairs) < MAX_EXPLANATION_POINTS:
+                seen.append(en_c.lower())
+                pairs.append((en_c, _hi_or_blank(p.get("hi", ""))))
+    if pairs:
+        return pairs
+
     kp_ens = item.get("key_points_en") or []
     kp_his = item.get("key_points_hi") or []
     for idx, kpe in enumerate(kp_ens):
-        clean_en = _clean_text_for_display(kpe)
-        if not clean_en or len(clean_en) < 20 or is_dup(clean_en):
-            continue
-        clean_hi = ""
-        if idx < len(kp_his):
-            c_hi = _clean_text_for_display(kp_his[idx])
-            if DEVANAGARI_RE.search(c_hi):
-                clean_hi = c_hi
-        seen.append(clean_en)
-        pairs.append((clean_en, clean_hi))
-        if len(pairs) >= 2:
-            break
+        add(kpe, kp_his[idx] if idx < len(kp_his) else "")
 
-    # 2. Detailed Explanation
     det_en = _clean_text_for_display(item.get("detailed_explanation_en", ""))
-    if det_en and len(det_en) > 30 and not is_dup(det_en):
-        det_hi = _clean_text_for_display(item.get("detailed_explanation_hi", ""))
-        c_hi = det_hi if DEVANAGARI_RE.search(det_hi) else ""
-        seen.append(det_en)
-        pairs.append((det_en, c_hi))
+    det_hi = _clean_text_for_display(item.get("detailed_explanation_hi", ""))
+    en_s, hi_s = _split_en(det_en), _split_hi(det_hi)
+    if en_s and len(en_s) == len(hi_s):
+        for e, h in zip(en_s, hi_s):
+            add(e, h)
+    elif det_en and len(pairs) < MAX_EXPLANATION_POINTS:
+        add(det_en, det_hi, min_len=30)
 
-    # 3. MCQ explanation
-    if len(pairs) < 2:
-        m_en = _clean_text_for_display(mcq.get("explanation_en", ""))
-        if m_en and len(m_en) > 20 and not is_dup(m_en):
-            m_hi = _clean_text_for_display(mcq.get("explanation_hi", ""))
-            c_hi = m_hi if DEVANAGARI_RE.search(m_hi) else ""
-            seen.append(m_en)
-            pairs.append((m_en, c_hi))
-
-    # Two verified points are clearer on a phone screen than a dense wall of text.
-    return pairs[:2]
+    if mcq:
+        add(mcq.get("explanation_en", ""), mcq.get("explanation_hi", ""))
+    return pairs[:MAX_EXPLANATION_POINTS]
 
 
-def _extract_static_gk_pairs(item: Dict[str, Any]) -> List[Tuple[str, str]]:
-    """Extract clean bilingual static facts."""
+def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]] = None) -> List[Tuple[str, str]]:
+    """Up to 6 Static GK pairs as ('Label – Value', 'लेबल – मान').
+
+    Source order: the MCQ's ``static_gk`` (LLM schema: label/value in EN+HI),
+    ``item['static_gk_pairs']`` (verified pairs from pipeline.static_gk_db), and
+    only as a fallback the ``static_facts`` dict.  Private keys (``_static_gk_pairs``
+    and anything starting with ``_``) are never printed.
+    """
     pairs: List[Tuple[str, str]] = []
-    sf = item.get("static_facts") or {}
-    if isinstance(sf, dict):
-        for k, v in sf.items():
-            k_clean = _clean_text_for_display(k)
-            v_clean = _clean_text_for_display(v)
-            if k_clean and v_clean:
-                en = f"• {k_clean}: {v_clean}"
-                pairs.append((en, ""))
+    seen: set = set()
 
-    ef_en = _clean_text_for_display(item.get("exam_fact_en", ""))
-    ef_hi = _clean_text_for_display(item.get("exam_fact_hi", ""))
-    if ef_en and len(ef_en) > 15:
-        hi = ef_hi if DEVANAGARI_RE.search(ef_hi) else ""
-        pairs.append((f"• परीक्षा तथ्य / Exam Fact: {ef_en}", f"• परीक्षा तथ्य: {hi}" if hi else ""))
+    def _add(en: Any, hi: Any) -> None:
+        en_c = _clean_text_for_display(en)
+        if not en_c or en_c.lower() in seen or len(pairs) >= MAX_STATIC_GK_POINTS:
+            return
+        if en_c.startswith("[") or en_c.startswith("("):  # stringified list/tuple
+            return
+        seen.add(en_c.lower())
+        pairs.append((en_c, _hi_or_blank(hi)))
 
-    # Keep the static-GK box compact and revision-friendly.
-    return pairs[:3]
+    for g in (mcq or {}).get("static_gk") or []:
+        if isinstance(g, dict) and g.get("label_en") and g.get("value_en"):
+            hi = ""
+            if g.get("label_hi") and g.get("value_hi"):
+                hi = f"{g['label_hi']} – {g['value_hi']}"
+            _add(f"{g['label_en']} – {g['value_en']}", hi)
+
+    for p in item.get("static_gk_pairs") or []:
+        if isinstance(p, dict):
+            _add(p.get("en", ""), p.get("hi", ""))
+        elif isinstance(p, (list, tuple)) and p:
+            _add(p[0], p[1] if len(p) > 1 else "")
+        elif isinstance(p, str):
+            _add(p, "")
+
+    if not pairs:
+        sf = item.get("static_facts") or {}
+        if isinstance(sf, dict):
+            for k, v in sf.items():
+                if not isinstance(k, str) or k.startswith("_") or not isinstance(v, (str, int, float)):
+                    continue
+                k_clean = _clean_text_for_display(k)
+                v_clean = _clean_text_for_display(v)
+                if k_clean and v_clean:
+                    _add(f"{k_clean} – {v_clean}", "")
+
+    if len(pairs) < 4:
+        ef_en = _clean_text_for_display(item.get("exam_fact_en", ""))
+        if ef_en and len(ef_en) > 15:
+            hi = _hi_or_blank(item.get("exam_fact_hi", ""))
+            _add(f"Exam Fact – {ef_en}", f"परीक्षा तथ्य – {hi}" if hi else "")
+
+    return pairs[:MAX_STATIC_GK_POINTS]
+
+
+# --- BILINGUAL RENDERING HELPERS ---
+# ReportLab's Paragraph cannot shape Devanagari (the ि matra lands after the
+# consonant: विषय -> वषिय).  Every string containing Devanagari therefore goes
+# through render_hindi_flowable (HarfBuzz) via text_flowable()/bi_line().
+PDF_SHOW_INDEX = os.getenv("ALP_PDF_INDEX", "0").strip().lower() in ("1", "true", "yes", "on")
+PDF_SHOW_ANSWER_KEY = os.getenv("ALP_PDF_ANSWER_KEY", "0").strip().lower() in ("1", "true", "yes", "on")
+PDF_STATIC_HEADLINE_BOXES = os.getenv("ALP_PDF_STATIC_HEADLINE_BOXES", "0").strip().lower() in ("1", "true", "yes", "on")
+
+HINDI_SIZE_SCALE = float(os.getenv("ALP_PDF_HINDI_SCALE", "1.12"))
+HEADLINE_BOX_BG = HexColor("#DCEBFB")
+HEADLINE_BOX_BORDER = HexColor("#9CC3EE")
+HEADLINE_BOX_RADIUS = 14 * pt
+_LETTERS = ["A", "B", "C", "D", "E"]
+_NONE_OF_ABOVE_RE = re.compile(r"none of (the )?(above|these)|उपर्युक्त में से कोई नहीं", re.IGNORECASE)
+
+
+def _rgb(color: Color) -> Tuple[int, int, int]:
+    return (int(round(color.red * 255)), int(round(color.green * 255)), int(round(color.blue * 255)))
+
+
+def text_flowable(text: str, style: ParagraphStyle, width: float = PRINT_W,
+                  bg: Color = COLORS["white"], left_pad_mm: float = 0.0,
+                  markup: Optional[str] = None) -> Flowable:
+    """Paragraph for Latin-only text, HarfBuzz-shaped image+text layer for anything with Devanagari.
+
+    ``markup`` is optional ReportLab markup used only on the Latin path (e.g. <b>).
+    """
+    clean = _clean_text_for_display(text)
+    if DEVANAGARI_RE.search(clean):
+        align = {TA_CENTER: "center", TA_RIGHT: "right"}.get(style.alignment, "left")
+        # Mukta's x-height is ~12% smaller than Poppins', so scale Hindi up to
+        # look the same size as its English partner line (as in the reference).
+        return render_hindi_flowable(
+            clean, font_size_pt=round(style.fontSize * HINDI_SIZE_SCALE, 2), width_pt=width,
+            is_bold=style.fontName == FONT_BOLD or (markup or "").startswith("<b>"),
+            color_rgb=_rgb(style.textColor), bg_rgb=_rgb(bg), align=align,
+            left_padding_mm=left_pad_mm,
+        )
+    return Paragraph(markup if markup is not None else _safe(clean), style)
+
+
+def bi_line(en: str, hi: str, style_en: ParagraphStyle, style_hi: Optional[ParagraphStyle] = None,
+            width: float = PRINT_W, bg: Color = COLORS["white"], bullet: str = "• ",
+            hi_pad_mm: float = 2.5) -> List[Flowable]:
+    """One bilingual fact: the English line, then its Hindi line underneath."""
+    out: List[Flowable] = []
+    en_c = _clean_text_for_display(en)
+    if en_c:
+        out.append(text_flowable(bullet + en_c, style_en, width=width, bg=bg,
+                                 markup=f"{_safe(bullet)}{_safe(en_c)}"))
+    hi_c = _hi_or_blank(hi)
+    if hi_c:
+        out.append(text_flowable(hi_c, style_hi or style_en, width=width, bg=bg, left_pad_mm=hi_pad_mm))
+    return out
+
+
+class RoundedBox(Flowable):
+    """Light-blue rounded panel ('Recent News Headlines Related to ...'), splittable across pages."""
+
+    def __init__(self, children: List[Flowable], width: float = PRINT_W, bg: Color = HEADLINE_BOX_BG,
+                 border: Color = HEADLINE_BOX_BORDER, radius: float = HEADLINE_BOX_RADIUS,
+                 pad: float = 12 * pt, gap: float = 3 * pt):
+        super().__init__()
+        self.children = children
+        self.width = width
+        self.bg, self.border, self.radius, self.pad, self.gap = bg, border, radius, pad, gap
+        self._sizes: List[Tuple[float, float]] = []
+
+    def _inner_w(self) -> float:
+        return self.width - 2 * self.pad
+
+    def wrap(self, availWidth, availHeight):
+        self._sizes = [c.wrap(self._inner_w(), availHeight) for c in self.children]
+        h = sum(s[1] for s in self._sizes) + self.gap * max(len(self.children) - 1, 0) + 2 * self.pad
+        self.height = h
+        return self.width, h
+
+    def split(self, availWidth, availHeight):
+        if not self._sizes:
+            self.wrap(availWidth, availHeight)
+        if self.height <= availHeight or len(self.children) < 2:
+            return []
+        used, cut = 2 * self.pad, 0
+        for i, (_, ch) in enumerate(self._sizes):
+            if used + ch > availHeight:
+                break
+            used += ch + self.gap
+            cut = i + 1
+        if cut == 0 or cut >= len(self.children):
+            return []
+        mk = lambda kids: RoundedBox(kids, self.width, self.bg, self.border, self.radius, self.pad, self.gap)
+        return [mk(self.children[:cut]), mk(self.children[cut:])]
+
+    def draw(self):
+        c = self.canv
+        c.saveState()
+        c.setFillColor(self.bg)
+        c.setStrokeColor(self.border)
+        c.setLineWidth(0.8)
+        c.roundRect(0, 0, self.width, self.height, self.radius, stroke=1, fill=1)
+        c.restoreState()
+        y = self.height - self.pad
+        for child, (_, ch) in zip(self.children, self._sizes):
+            y -= ch
+            child.drawOn(c, self.pad, y)
+            y -= self.gap
+
+
+def _headline_box(title: str, rows: List[Tuple[str, str]]) -> Optional[RoundedBox]:
+    rows = [(e, h) for e, h in rows if _clean_text_for_display(e)]
+    if not rows:
+        return None
+    inner = PRINT_W - 24 * pt
+    kids: List[Flowable] = [text_flowable(title, STYLES["box_title"], width=inner, bg=HEADLINE_BOX_BG,
+                                          markup=f"<b>{_safe(title)}</b>")]
+    for en, hi in rows:
+        kids.extend(bi_line(en, hi, STYLES["box_text"], width=inner, bg=HEADLINE_BOX_BG))
+    return RoundedBox(kids)
+
+
+def _unit_theme(item: Dict[str, Any], mcq: Dict[str, Any]) -> str:
+    theme = _clean_text_for_display((mcq or {}).get("theme") or item.get("theme") or item.get("category") or "")
+    return theme or "National"
+
+
+def _one_liner_for(item: Dict[str, Any], mcq: Dict[str, Any], content: Dict[str, Any]) -> Tuple[str, str]:
+    ol = (mcq or {}).get("one_liner") or {}
+    if isinstance(ol, dict) and ol.get("en"):
+        return _clean_text_for_display(ol.get("en")), _hi_or_blank(ol.get("hi"))
+    for row in content.get("one_liners") or []:
+        if isinstance(row, dict) and row.get("event_id") and row.get("event_id") == item.get("event_id"):
+            return _clean_text_for_display(row.get("text_en")), _hi_or_blank(row.get("text_hi"))
+    return (_clean_text_for_display(re.sub(r"^\s*>>\s*", "", str(item.get("headline_en", "")))),
+            _hi_or_blank(re.sub(r"^\s*>>\s*", "", str(item.get("headline_hi", "")))))
+
+
+def _plan_headline_boxes(units, content) -> Dict[int, RoundedBox]:
+    """Group today's units by theme; after the last unit of a theme with 2+ stories, place its box.
+
+    Built from the edition's own verified stories.  The curated (dated) entries in
+    pipeline.static_gk_db.RECENT_HEADLINES_BILINGUAL_DB are only used when
+    ALP_PDF_STATIC_HEADLINE_BOXES=1, because they are not tied to this edition's window.
+    """
+    groups: Dict[str, List[int]] = {}
+    for idx, (it, ms) in enumerate(units):
+        groups.setdefault(_unit_theme(it, ms[0]).lower(), []).append(idx)
+    boxes: Dict[int, RoundedBox] = {}
+    for key, idxs in groups.items():
+        theme = _unit_theme(units[idxs[0]][0], units[idxs[0]][1][0])
+        box = None
+        if len(idxs) >= 2:
+            rows = [_one_liner_for(units[i][0], units[i][1][0], content) for i in idxs]
+            box = _headline_box(f"Recent News Headlines Related to {theme} :", rows)
+        elif PDF_STATIC_HEADLINE_BOXES:
+            try:
+                from pipeline.static_gk_db import lookup_recent_headlines_box
+                it = units[idxs[0]][0]
+                db = lookup_recent_headlines_box(str(it.get("headline_en", "")), str(it.get("category", "")))
+                if db:
+                    box = _headline_box(db.get("box_title", ""), [(h.get("en", ""), h.get("hi", "")) for h in db.get("headlines", [])])
+            except Exception:
+                box = None
+        if box is not None:
+            boxes[idxs[-1]] = box
+    return boxes
+
+
+def _bilingual_options(m: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Five (en, hi) options.  Never pads with 'None of the above'."""
+    out: List[Tuple[str, str]] = []
+    raw = m.get("options_bi")
+    if isinstance(raw, list) and raw and isinstance(raw[0], dict):
+        out = [(_clean_text_for_display(o.get("en")), _hi_or_blank(o.get("hi"))) for o in raw]
+    else:
+        opts = m.get("options") or []
+        his = m.get("options_hi") or []
+        for i, o in enumerate(opts):
+            if isinstance(o, dict):
+                out.append((_clean_text_for_display(o.get("en")), _hi_or_blank(o.get("hi"))))
+                continue
+            en, hi = _clean_text_for_display(o), (his[i] if i < len(his) else "")
+            if not hi and " / " in en:
+                left, right = en.split(" / ", 1)
+                if DEVANAGARI_RE.search(right):
+                    en, hi = left.strip(), right
+            out.append((en, _hi_or_blank(hi)))
+    return [(e, h) for e, h in out if e and not _NONE_OF_ABOVE_RE.search(e)][:5]
+
+
+def _option_line(letter: str, en: str, hi: str) -> Flowable:
+    if hi and _canon_cmp(hi) != _canon_cmp(en):
+        return text_flowable(f"{letter}) {en} / {hi}", STYLES["option_text"], left_pad_mm=1.5)
+    return text_flowable(f"{letter}) {en}", STYLES["option_text"], markup=f"<b>{letter})</b> {_safe(en)}")
+
+
+def _canon_cmp(s: str) -> str:
+    return re.sub(r"\s+", "", str(s or "")).lower()
+
+
+def _pair_units(items: List[Dict[str, Any]], mcqs: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], List[Dict[str, Any]]]]:
+    """One unit per news item, carrying that item's own MCQs.
+
+    MCQs are matched to items by ``event_id``; when MCQs carry no event ids
+    they are paired one-to-one by position.  Items are never recycled (no
+    modulo wrap-around), so a headline can never appear under another story's
+    question, and an item with no MCQ is skipped.
+    """
+    items = [i for i in (items or []) if isinstance(i, dict)]
+    mcqs = [m for m in (mcqs or []) if isinstance(m, dict) and m]
+    by_event: Dict[str, List[Dict[str, Any]]] = {}
+    for m in mcqs:
+        ev = str(m.get("event_id") or "")
+        if ev:
+            by_event.setdefault(ev, []).append(m)
+    units: List[Tuple[Dict[str, Any], List[Dict[str, Any]]]] = []
+    if by_event:
+        for it in items:
+            ms = by_event.get(str(it.get("event_id") or ""))
+            if ms:
+                units.append((it, ms))
+    else:
+        for it, m in zip(items, mcqs):
+            units.append((it, [m]))
+    return units
 
 
 def _format_display_date(date_str: str | None) -> str:
@@ -836,10 +1139,13 @@ def generate_pdf(
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
-        leftMargin=36 * pt,
-        rightMargin=36 * pt,
-        topMargin=38 * pt,
-        bottomMargin=36 * pt,
+        # The platypus Frame adds 6pt padding on each side; 30pt margins give a
+        # usable width of exactly PRINT_W at x=36pt, so Paragraphs, tables and
+        # shaped-Hindi images all start on the same left edge.
+        leftMargin=30 * pt,
+        rightMargin=30 * pt,
+        topMargin=62 * pt,     # clears the 50pt running-header band (index title was clipped)
+        bottomMargin=42 * pt,  # clears the 31pt footer band
     )
 
     story: List[Flowable] = []
@@ -857,7 +1163,7 @@ def generate_pdf(
     story.append(Spacer(PRINT_W, 4 * pt))
     story.append(Paragraph("GENIUS CURRENT AFFAIRS", STYLES["cover_sub"]))
     story.append(Spacer(PRINT_W, 4 * pt))
-    story.append(Paragraph("IN BILINGUAL (हिन्दी + ENGLISH)", STYLES["cover_super"]))
+    story.append(text_flowable("IN BILINGUAL (हिन्दी + ENGLISH)", STYLES["cover_super"]))
     story.append(Spacer(PRINT_W, 12 * pt))
 
     # Date Banner
@@ -946,69 +1252,57 @@ def generate_pdf(
     story.append(PageBreak())
 
     # =========================================================================
-    # PAGE 2: INDEX / TODAY'S EXAM HEADLINES
+    # OPTIONAL INDEX (reference PDF has none; enable with ALP_PDF_INDEX=1)
     # =========================================================================
-    story.append(Paragraph("INDEX & TODAY'S EXAM HEADLINES • विषय-सूची", STYLES["index_title"]))
-    story.append(Paragraph(f"दैनिक समसामयिकी विषय-सूची • महत्वपूर्ण दिवस एवं परीक्षा तथ्य • {date_display}", STYLES["cover_super"]))
-    story.append(Spacer(PRINT_W, 10 * pt))
-
-    index_rows = [[
-        Paragraph("Q#", STYLES["index_col_head"]),
-        Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
-        Paragraph("CATEGORY", STYLES["index_col_head"]),
-    ]]
-
-    for idx, it in enumerate(items, 1):
-        hl = _clean_text_for_display(it.get("headline_en", ""))
-        cat = str(it.get("category", "General")).upper()
-        if not hl:
-            continue
-        index_rows.append([
-            Paragraph(f"Q{idx}", STYLES["index_cell_c"]),
-            Paragraph(_safe(hl), STYLES["index_cell"]),
-            Paragraph(_safe(cat), STYLES["index_cell_c"]),
-        ])
-
-    index_table = Table(index_rows, colWidths=[36 * pt, 375 * pt, 112 * pt])
-    index_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(index_table)
-    story.append(PageBreak())
+    units = _pair_units(items, mcqs)
+    if PDF_SHOW_INDEX:
+        story.append(text_flowable("INDEX & TODAY'S EXAM HEADLINES • विषय-सूची", STYLES["index_title"]))
+        story.append(text_flowable(f"दैनिक समसामयिकी विषय-सूची • महत्वपूर्ण दिवस एवं परीक्षा तथ्य • {date_display}", STYLES["cover_super"]))
+        story.append(Spacer(PRINT_W, 10 * pt))
+        index_rows = [[
+            Paragraph("Q#", STYLES["index_col_head"]),
+            Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
+            Paragraph("CATEGORY", STYLES["index_col_head"]),
+        ]]
+        for idx, (it, _m) in enumerate(units, 1):
+            hl = _clean_text_for_display(it.get("headline_en", ""))
+            if not hl:
+                continue
+            index_rows.append([
+                Paragraph(f"Q{idx}", STYLES["index_cell_c"]),
+                Paragraph(_safe(hl), STYLES["index_cell"]),
+                Paragraph(_safe(str(it.get("category", "General")).upper()), STYLES["index_cell_c"]),
+            ])
+        index_table = Table(index_rows, colWidths=[36 * pt, 375 * pt, 112 * pt], repeatRows=1)
+        index_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(index_table)
+        story.append(PageBreak())
 
     # =========================================================================
-    # PAGES 3+: SELF-CONTAINED EXAM GENIUS EDUCATIONAL UNITS
+    # MCQ UNITS: Ques / प्रश्न, 5 bilingual options, answer, explanation, Static GK
     # =========================================================================
-    mcq_by_num: Dict[int, Dict[str, Any]] = {
-        m.get("q_num", i): m for i, m in enumerate(mcqs, 1)
-    }
+    q_counter = 0
+    answer_key: List[Tuple[int, str, Dict[str, Any]]] = []
+    boxes = _plan_headline_boxes(units, content)
+    card_bg = COLORS["card_bg"]
 
-    total_units = max(len(items), len(mcqs))
-
-    for q_idx in range(1, total_units + 1):
-        if q_idx > 1:
-            story.append(PageBreak())
-
-        it = items[q_idx - 1] if q_idx <= len(items) else items[(q_idx - 1) % len(items)]
-        m = mcq_by_num.get(q_idx) or (mcqs[q_idx - 1] if q_idx <= len(mcqs) else {})
-
+    for u_idx, (it, unit_mcqs) in enumerate(units):
         cat = str(it.get("category", "National")).upper()
         headline_en = _clean_text_for_display(it.get("headline_en", ""))
+        static_pairs = _extract_static_gk_pairs(it, unit_mcqs[0])
 
-        unit_elements: List[Flowable] = []
-
-        # 1. Header Pill Bar
-        pill_text = f"<b>[ {cat} ]</b>   •   <b>Topic:</b> {_safe(headline_en)}"
-        pill_data = [[Paragraph(pill_text, STYLES["section_tag"])]]
-        pill_table = Table(pill_data, colWidths=[PRINT_W])
-        pill_table.setStyle(TableStyle([
+        pill = Table([[Paragraph(f"<b>[ {_safe(cat)} ]</b>   •   <b>Topic:</b> {_safe(headline_en)}", STYLES["section_tag"])]],
+                     colWidths=[PRINT_W])
+        pill.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
             ("BOX", (0, 0), (-1, -1), 0.5, COLORS["badge_text"]),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
@@ -1016,167 +1310,166 @@ def generate_pdf(
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
-        unit_elements.append(pill_table)
-        unit_elements.append(Spacer(PRINT_W, 6 * pt))
+        first_in_unit = True
 
-        # 2. Question (English + Hindi)
-        q_en = _clean_text_for_display(m.get("question_en", ""))
-        if not q_en:
-            q_en = f"What key development was announced regarding {headline_en}?"
-        unit_elements.append(Paragraph(f"<b>Q{q_idx}.</b> {_safe(q_en)}", STYLES["ques_en"]))
-        unit_elements.append(Spacer(PRINT_W, 2 * pt))
+        for m in unit_mcqs:
+            q_en = _clean_text_for_display(m.get("question_en", ""))
+            if not q_en:
+                continue  # never invent a question stem for an MCQ without one
+            q_counter += 1
+            q_idx = q_counter
 
-        q_hi = _clean_text_for_display(m.get("question_hi", ""))
-        if q_hi and DEVANAGARI_RE.search(q_hi):
-            unit_elements.append(render_hindi_flowable(f"बहुविकल्पीय प्रश्न {q_idx}: {q_hi}", font_size_pt=10.0, width_pt=PRINT_W, is_bold=True))
-            unit_elements.append(Spacer(PRINT_W, 4 * pt))
+            block: List[Flowable] = []
+            if not first_in_unit:
+                block.append(Spacer(PRINT_W, 8 * pt))
+            if first_in_unit:
+                block += [pill, Spacer(PRINT_W, 6 * pt)]
+            block.append(text_flowable(f"Q{q_idx}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{q_idx}.</b> {_safe(q_en)}"))
+            q_hi = _hi_or_blank(m.get("question_hi", ""))
+            if q_hi:
+                block.append(Spacer(PRINT_W, 2 * pt))
+                block.append(text_flowable(f"प्रश्न {q_idx}: {q_hi}", STYLES["ques_hi"]))
+            block.append(Spacer(PRINT_W, 4 * pt))
 
-        # 3. 5 Options (A, B, C, D, E)
-        raw_options = m.get("options") or ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5"]
-        while len(raw_options) < 5:
-            raw_options.append("None of the above")
+            options = _bilingual_options(m)
+            for ltr, (o_en, o_hi) in zip(_LETTERS, options):
+                block.append(_option_line(ltr, o_en, o_hi))
+                block.append(Spacer(PRINT_W, 1.5 * pt))
+            block.append(Spacer(PRINT_W, 4 * pt))
 
-        letters = ["A", "B", "C", "D", "E"]
-        opt_rows = []
-        for ltr, opt in zip(letters, raw_options[:5]):
-            clean_opt = _clean_text_for_display(opt)
-            opt_p = Paragraph(f"<b>{ltr})</b> {_safe(clean_opt)}", STYLES["option_text"])
-            opt_rows.append([opt_p])
+            correct_ltr = str(m.get("correct") or "").strip().upper()
+            if correct_ltr not in _LETTERS[:len(options)]:
+                correct_ltr = "A"
+            ans = Table([[Paragraph(f"<b>Answer: Option {correct_ltr}</b>", STYLES["answer_text"])]], colWidths=[PRINT_W])
+            ans.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green_bg"]),
+                ("BOX", (0, 0), (-1, -1), 1, COLORS["border_green"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            block.append(ans)
+            # Question + options + answer never split across pages.
+            story.append(KeepTogether(block))
+            story.append(Spacer(PRINT_W, 6 * pt))
+            answer_key.append((q_idx, correct_ltr, it))
 
-        opt_table = Table(opt_rows, colWidths=[PRINT_W])
-        opt_table.setStyle(TableStyle([
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
-        ]))
-        unit_elements.append(opt_table)
-        unit_elements.append(Spacer(PRINT_W, 5 * pt))
+            expl = _extract_explanation_points(it, m if (m.get("explanation_pairs") or first_in_unit) else {})
+            if not first_in_unit and not m.get("explanation_pairs"):
+                expl = [(e, h) for e, h in [(_clean_text_for_display(m.get("explanation_en")), m.get("explanation_hi", ""))] if e]
+            if expl:
+                head = text_flowable("Explanation | व्याख्या:", STYLES["block_head"])
+                first_pair = bi_line(*expl[0], STYLES["bullet_en"], STYLES["hi_body"])
+                story.append(KeepTogether([head, Spacer(PRINT_W, 3 * pt)] + first_pair))
+                story.append(Spacer(PRINT_W, 2.5 * pt))
+                for ep_en, ep_hi in expl[1:]:
+                    story.extend(bi_line(ep_en, ep_hi, STYLES["bullet_en"], STYLES["hi_body"]))
+                    story.append(Spacer(PRINT_W, 2.5 * pt))
+            first_in_unit = False
 
-        # 4. Answer Callout Box
-        correct_ltr = str(m.get("correct") or "A").strip().upper()
-        if correct_ltr not in letters:
-            correct_ltr = "A"
-
-        ans_data = [[
-            Paragraph(f"<b>Answer: Option {correct_ltr}</b>   (उत्तर: विकल्प {correct_ltr})", STYLES["answer_text"])
-        ]]
-        ans_table = Table(ans_data, colWidths=[PRINT_W])
-        ans_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), COLORS["light_green_bg"]),
-            ("BOX", (0, 0), (-1, -1), 1, COLORS["border_green"]),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        unit_elements.append(ans_table)
-        unit_elements.append(Spacer(PRINT_W, 6 * pt))
-
-        # 5. Explanation Section (व्याख्या)
-        unit_elements.append(Paragraph("<b>Explanation | व्याख्या (मुख्य बिंदु) :</b>", STYLES["block_head"]))
-        unit_elements.append(Spacer(PRINT_W, 3 * pt))
-
-        expl_pairs = _extract_explanation_points(it, m)
-        for ep_en, ep_hi in expl_pairs:
-            unit_elements.append(Paragraph(f"• {_safe(ep_en)}", STYLES["bullet_en"]))
-            if ep_hi and DEVANAGARI_RE.search(ep_hi):
-                unit_elements.append(render_hindi_flowable(f"• मुख्य बिंदु: {ep_hi}", font_size_pt=9.0, width_pt=PRINT_W - 8 * pt, left_padding_mm=2.5))
-            unit_elements.append(Spacer(PRINT_W, 2.5 * pt))
-
-        # 6. Static GK Box (स्थैतिक सामान्य ज्ञान)
-        static_pairs = _extract_static_gk_pairs(it)
         if static_pairs:
-            sgk_rows = [[Paragraph("<b>Static GK | स्थैतिक तथ्य एवं सामान्य ज्ञान :</b>", STYLES["block_head"])]]
+            inner = PRINT_W - 16 * pt
+            sgk_rows = [[text_flowable("Static GK (स्थैतिक सामान्य ज्ञान):", STYLES["block_head"], width=inner, bg=card_bg)]]
             for s_en, s_hi in static_pairs:
-                sgk_rows.append([Paragraph(_safe(s_en), STYLES["static_fact_en"])])
-                if s_hi and DEVANAGARI_RE.search(s_hi):
-                    h_f = render_hindi_flowable(s_hi, font_size_pt=8.5, width_pt=PRINT_W - 16 * pt, left_padding_mm=2.0)
-                    sgk_rows.append([h_f])
-
+                for f in bi_line(s_en, s_hi, STYLES["static_fact_en"], STYLES["hi_body"], width=inner, bg=card_bg):
+                    sgk_rows.append([f])
             sgk_table = Table(sgk_rows, colWidths=[PRINT_W])
             sgk_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
+                ("BACKGROUND", (0, 0), (-1, -1), card_bg),
                 ("BOX", (0, 0), (-1, -1), 0.75, COLORS["card_border"]),
                 ("LEFTPADDING", (0, 0), (-1, -1), 8),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ]))
-            unit_elements.append(Spacer(PRINT_W, 3 * pt))
-            unit_elements.append(sgk_table)
+            story.append(Spacer(PRINT_W, 3 * pt))
+            story.append(sgk_table)
 
         # Evidence remains in pipeline data; public PDFs intentionally have no source URLs.
-        unit_elements.append(Spacer(PRINT_W, 6 * pt))
-        unit_elements.append(HRFlowable(width="100%", thickness=0.5, color=COLORS["border_light"]))
-        unit_elements.append(Spacer(PRINT_W, 10 * pt))
-
-        story.extend(unit_elements)
+        story.append(Spacer(PRINT_W, 8 * pt))
+        if u_idx in boxes:
+            story.append(boxes[u_idx])
+            story.append(Spacer(PRINT_W, 8 * pt))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=COLORS["border_light"]))
+        story.append(Spacer(PRINT_W, 10 * pt))
 
     # =========================================================================
-    # FINAL PAGE: RAPID REVISION ANSWER KEY
+    # IMPORTANT ONE-LINER PAGES (English, then Hindi) — as in the reference
     # =========================================================================
-    story.append(PageBreak())
-    story.append(Paragraph("RAPID REVISION ANSWER KEY • त्वरित उत्तर कुंजी", STYLES["index_title"]))
-    story.append(Paragraph(f"Agri Learning Point • Daily Bilingual Edition • {date_display}", STYLES["cover_super"]))
-    story.append(Spacer(PRINT_W, 12 * pt))
+    one_liners = [_one_liner_for(it, ms[0], content) for it, ms in units]
+    one_liners = [(e, h) for e, h in one_liners if e]
+    if one_liners:
+        story.append(PageBreak())
+        story.append(Paragraph("<b>IMPORTANT ONE - LINER Current Affairs</b>", STYLES["oneliner_title"]))
+        story.append(Spacer(PRINT_W, 10 * pt))
+        for n, (en, _hi) in enumerate(one_liners, 1):
+            story.append(text_flowable(f"{n}. {en}", STYLES["oneliner"], markup=f"<b>{n}.</b> {_safe(en)}"))
+            story.append(Spacer(PRINT_W, 6 * pt))
+        if any(h for _e, h in one_liners):
+            story.append(PageBreak())
+            story.append(text_flowable("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", STYLES["oneliner_title"]))
+            story.append(Spacer(PRINT_W, 10 * pt))
+            for n, (_en, hi) in enumerate(one_liners, 1):
+                if hi:
+                    story.append(text_flowable(f"{n}. {hi}", STYLES["oneliner"]))
+                    story.append(Spacer(PRINT_W, 6 * pt))
 
-    key_rows = [[
-        Paragraph("Q#", STYLES["index_col_head"]),
-        Paragraph("ANSWER", STYLES["index_col_head"]),
-        Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
-        Paragraph("CATEGORY", STYLES["index_col_head"]),
-    ]]
+    # =========================================================================
+    # OPTIONAL ANSWER KEY (enable with ALP_PDF_ANSWER_KEY=1)
+    # =========================================================================
+    if PDF_SHOW_ANSWER_KEY and answer_key:
+        story.append(PageBreak())
+        story.append(text_flowable("RAPID REVISION ANSWER KEY • त्वरित उत्तर कुंजी", STYLES["index_title"]))
+        story.append(Paragraph(f"Agri Learning Point • Daily Bilingual Edition • {_safe(date_display)}", STYLES["cover_super"]))
+        story.append(Spacer(PRINT_W, 12 * pt))
+        key_rows = [[
+            Paragraph("Q#", STYLES["index_col_head"]),
+            Paragraph("ANSWER", STYLES["index_col_head"]),
+            Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
+            Paragraph("CATEGORY", STYLES["index_col_head"]),
+        ]]
+        for q_idx, ans_l, it in answer_key:
+            key_rows.append([
+                Paragraph(f"Q{q_idx}", STYLES["key_cell"]),
+                Paragraph(f"<b>Option {ans_l}</b>", STYLES["key_cell_bold"]),
+                Paragraph(_safe(_clean_text_for_display(it.get("headline_en", ""))[:85]), STYLES["index_cell"]),
+                Paragraph(_safe(str(it.get("category", "General")).upper()), STYLES["key_cell"]),
+            ])
+        key_table = Table(key_rows, colWidths=[36 * pt, 65 * pt, 320 * pt, 102 * pt], repeatRows=1)
+        key_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(key_table)
 
-    for q_idx in range(1, total_units + 1):
-        it = items[q_idx - 1] if q_idx <= len(items) else items[-1]
-        m = mcq_by_num.get(q_idx) or (mcqs[q_idx - 1] if q_idx <= len(mcqs) else {})
-        ans = str(m.get("correct") or "A").strip().upper()
-        hl = _clean_text_for_display(it.get("headline_en", ""))
-        cat = str(it.get("category", "General")).upper()
-
-        key_rows.append([
-            Paragraph(f"Q{q_idx}", STYLES["key_cell"]),
-            Paragraph(f"<b>Option {ans}</b>", STYLES["key_cell_bold"]),
-            Paragraph(_safe(hl[:85]), STYLES["index_cell"]),
-            Paragraph(_safe(cat), STYLES["key_cell"]),
-        ])
-
-    key_table = Table(key_rows, colWidths=[36 * pt, 65 * pt, 320 * pt, 102 * pt])
-    key_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(key_table)
-
-    # Strategy & Exam Preparation Guidance Box
-    story.append(Spacer(PRINT_W, 14 * pt))
-    guide_title = Paragraph("<b>COMPETITIVE EXAM REVISION & PREPARATION STRATEGY:</b>", STYLES["section_tag"])
-    tips = [
-        "1. Active Recall: First attempt all 20+ MCQs independently without checking the answer callout.",
-        "2. Institutional Static GK: Review nodal ministries, establishment years, and headquarters mentioned in each box.",
-        "3. Agricultural Core: Pay special focus to ICAR institutes, MSP declarations, and central government farmer welfare schemes.",
-        "4. Daily Quizzes: Participate in daily current affairs timed quizzes on Telegram: @agriquizworld.",
-        "5. Official Source Verification: Every fact in this booklet is verified against primary government and agency records.",
-        "6. Study Resources: प्रतिदिन नए अभ्यास प्रश्न और संपूर्ण अध्ययन सामग्री हमारे टेलीग्राम चैनल पर नियमित रूप से मिलते हैं।",
-    ]
-    guide_rows = [[guide_title]]
-    for tip in tips:
-        guide_rows.append([Paragraph(f"• {_safe(tip)}", STYLES["cover_bullet"])])
-    guide_table = Table(guide_rows, colWidths=[PRINT_W])
-    guide_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 1, COLORS["badge_text"]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
-    story.append(guide_table)
+        story.append(Spacer(PRINT_W, 14 * pt))
+        tips = [
+            f"1. Active Recall: First attempt all {q_counter} MCQs independently without checking the answer callout.",
+            "2. Institutional Static GK: Review nodal ministries, establishment years, and headquarters mentioned in each box.",
+            "3. Agricultural Core: Pay special focus to ICAR institutes, MSP declarations, and central government farmer welfare schemes.",
+            "4. Daily Quizzes: Participate in daily current affairs timed quizzes on Telegram: @agriquizworld.",
+            "5. Study Resources: प्रतिदिन नए अभ्यास प्रश्न और संपूर्ण अध्ययन सामग्री हमारे टेलीग्राम चैनल पर नियमित रूप से मिलते हैं।",
+        ]
+        inner = PRINT_W - 20 * pt
+        guide_rows = [[Paragraph("<b>COMPETITIVE EXAM REVISION & PREPARATION STRATEGY:</b>", STYLES["section_tag"])]]
+        for tip in tips:
+            guide_rows.append([text_flowable(f"• {tip}", STYLES["cover_bullet"], width=inner, bg=card_bg)])
+        guide_table = Table(guide_rows, colWidths=[PRINT_W])
+        guide_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), card_bg),
+            ("BOX", (0, 0), (-1, -1), 1, COLORS["badge_text"]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(guide_table)
 
     # Build PDF with Two-Pass ExamGeniusCanvas
     global CURRENT_COVER_DATE

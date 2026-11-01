@@ -471,6 +471,7 @@ _ONE_LINERS: list[dict[str, Any]] = [
 _MCQS: list[dict[str, Any]] = [
     {
         "q_num": 1,
+        "event_id": "sample-agri-1",
         "question_en": "The Union Cabinet approved a scheme worth how much for the modernisation of 500 primary agricultural credit societies?",
         "question_hi": "केंद्रीय मंत्रिमंडल ने 500 प्राथमिक कृषि साख समितियों के आधुनिकीकरण के लिए कितनी राशि की योजना को मंज़ूरी दी?",
         "options": ["₹950 crore", "₹1,100 crore", "₹1,250 crore", "₹1,400 crore", "₹1,600 crore"],
@@ -481,6 +482,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 2,
+        "event_id": "sample-agri-1",
         "question_en": "Who is the implementing agency for the approved modernisation scheme for primary agricultural credit societies?",
         "question_hi": "प्राथमिक कृषि साख समितियों की स्वीकृत आधुनिकीकरण योजना की कार्यान्वयन एजेंसी कौन है?",
         "options": ["SIDBI", "NABARD", "RBI", "SEBI", "NABCONS"],
@@ -491,6 +493,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 3,
+        "event_id": "sample-banking-1",
         "question_en": "In its latest monetary policy review, the RBI kept the repo rate unchanged at:",
         "question_hi": "अपनी नवीनतम मौद्रिक नीति समीक्षा में आरबीआई ने रेपो दर को किस स्तर पर अपरिवर्तित रखा?",
         "options": ["6.00 per cent", "6.25 per cent", "6.50 per cent", "6.75 per cent", "7.00 per cent"],
@@ -501,6 +504,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 4,
+        "event_id": "sample-science-1",
         "question_en": "Which fuel combination is used in a semi-cryogenic engine?",
         "question_hi": "सेमी-क्रायोजेनिक इंजन में किस ईंधन संयोजन का उपयोग होता है?",
         "options": [
@@ -517,6 +521,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 5,
+        "event_id": "sample-env-1",
         "question_en": "India's cumulative installed solar capacity crossed which milestone in September 2026?",
         "question_hi": "सितंबर 2026 में भारत की कुल स्थापित सौर क्षमता ने कौन-सा आँकड़ा पार किया?",
         "options": ["60 GW", "70 GW", "80 GW", "90 GW", "100 GW"],
@@ -527,6 +532,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 6,
+        "event_id": "sample-intl-1",
         "question_en": "The joint WHO-FAO action plan targets what reduction in antimicrobial use in agriculture by 2030?",
         "question_hi": "संयुक्त डब्ल्यूएचओ-एफएओ कार्य योजना 2030 तक कृषि में रोगाणुरोधी उपयोग में कितनी कमी का लक्ष्य रखती है?",
         "options": ["10 per cent", "20 per cent", "30 per cent", "40 per cent", "50 per cent"],
@@ -537,6 +543,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 7,
+        "event_id": "sample-econ-1",
         "question_en": "Retail inflation eased to which level in September 2026?",
         "question_hi": "सितंबर 2026 में खुदरा मुद्रास्फीति किस स्तर तक घटी?",
         "options": ["3.8 per cent", "4.2 per cent", "4.9 per cent", "5.2 per cent", "5.6 per cent"],
@@ -547,6 +554,7 @@ _MCQS: list[dict[str, Any]] = [
     },
     {
         "q_num": 8,
+        "event_id": "sample-national-1",
         "question_en": "Under PM-KISAN, how much does an eligible farmer family receive per year?",
         "question_hi": "पीएम-किसान के अंतर्गत पात्र किसान परिवार को प्रतिवर्ष कितनी राशि मिलती है?",
         "options": ["₹4,000", "₹5,000", "₹6,000", "₹8,000", "₹10,000"],
@@ -555,7 +563,175 @@ _MCQS: list[dict[str, Any]] = [
         "explanation_hi": "पीएम-किसान में प्रतिवर्ष ₹6,000 तीन समान किस्तों में ₹2,000 के रूप में मिलते हैं।",
         "exam_point": "PM-KISAN is a central sector scheme launched on 24 February 2019.",
     },
+    {
+        "q_num": 9,
+        "event_id": "sample-defence-1",
+        "question_en": "From which test range did DRDO flight-test the indigenous long-range cruise missile?",
+        "question_hi": "डीआरडीओ ने स्वदेशी लंबी दूरी की क्रूज़ मिसाइल का उड़ान परीक्षण किस परीक्षण रेंज से किया?",
+        "options": ["Integrated Test Range, Chandipur", "Satish Dhawan Space Centre, Sriharikota", "Pokhran Field Firing Range", "Thumba Equatorial Launching Station", "Abdul Kalam Island, Balasore"],
+        "correct": "A",
+        "explanation_en": "The cruise missile was flight-tested from the Integrated Test Range at Chandipur, Odisha.",
+        "explanation_hi": "क्रूज़ मिसाइल का उड़ान परीक्षण ओडिशा के चांदीपुर स्थित एकीकृत परीक्षण रेंज से किया गया।",
+        "exam_point": "DRDO was established in 1958 and is headquartered in New Delhi.",
+    },
+    {
+        "q_num": 10,
+        "event_id": "sample-sports-1",
+        "question_en": "In which event did India win gold with a games record at the Asian Games?",
+        "question_hi": "एशियाई खेलों में भारत ने किस स्पर्धा में खेल रिकॉर्ड के साथ स्वर्ण जीता?",
+        "options": ["50m rifle three positions", "10m air rifle mixed team", "25m rapid fire pistol", "Trap mixed team", "10m air pistol men"],
+        "correct": "B",
+        "explanation_en": "India won gold in the 10 metre air rifle mixed team event with a new games record.",
+        "explanation_hi": "भारत ने 10 मीटर एयर राइफल मिश्रित टीम स्पर्धा में नए खेल रिकॉर्ड के साथ स्वर्ण जीता।",
+        "exam_point": "The Olympic Council of Asia conducts the Asian Games every four years.",
+    },
+    {
+        "q_num": 11,
+        "event_id": "sample-award-1",
+        "question_en": "Which body awards the Nobel Prize in Economic Sciences?",
+        "question_hi": "अर्थशास्त्र का नोबेल पुरस्कार कौन-सी संस्था प्रदान करती है?",
+        "options": ["Norwegian Nobel Committee", "Karolinska Institute", "Royal Swedish Academy of Sciences", "Swedish Academy", "Nobel Foundation Board"],
+        "correct": "C",
+        "explanation_en": "The Royal Swedish Academy of Sciences awards the Nobel Prize in Economic Sciences, announced in Stockholm each October.",
+        "explanation_hi": "अर्थशास्त्र का नोबेल पुरस्कार रॉयल स्वीडिश एकेडमी ऑफ साइंसेज प्रदान करती है, जिसकी घोषणा प्रत्येक अक्टूबर स्टॉकहोम में होती है।",
+        "exam_point": "The 2026 prize recognised work on economic inequality.",
+    },
+    {
+        "q_num": 12,
+        "event_id": "sample-appoint-1",
+        "question_en": "The Secretary of the Department of Agricultural Research and Education also serves as the Director General of which body?",
+        "question_hi": "कृषि अनुसंधान एवं शिक्षा विभाग के सचिव किस संस्था के महानिदेशक भी होते हैं?",
+        "options": ["NABARD", "APEDA", "FCI", "ICAR", "NAFED"],
+        "correct": "D",
+        "explanation_en": "The DARE Secretary also serves as the Director General of the Indian Council of Agricultural Research.",
+        "explanation_hi": "डेयर के सचिव भारतीय कृषि अनुसंधान परिषद के महानिदेशक भी होते हैं।",
+        "exam_point": "ICAR was established on 16 July 1929 and is headquartered in New Delhi.",
+    },
+    {
+        "q_num": 13,
+        "event_id": "sample-health-1",
+        "question_en": "What health cover does Ayushman Bharat PM-JAY provide per family per year?",
+        "question_hi": "आयुष्मान भारत पीएम-जेएवाई प्रति परिवार प्रतिवर्ष कितना स्वास्थ्य कवर देती है?",
+        "options": ["₹1 lakh", "₹2 lakh", "₹3 lakh", "₹4 lakh", "₹5 lakh"],
+        "correct": "E",
+        "explanation_en": "PM-JAY provides cashless cover of ₹5 lakh per family per year for secondary and tertiary hospitalisation.",
+        "explanation_hi": "पीएम-जेएवाई द्वितीयक एवं तृतीयक अस्पताल उपचार के लिए प्रति परिवार प्रतिवर्ष ₹5 लाख का कैशलेस कवर देती है।",
+        "exam_point": "Ayushman Bharat PM-JAY was launched on 23 September 2018.",
+    },
+    {
+        "q_num": 14,
+        "event_id": "sample-national-2",
+        "question_en": "Who was the first Chief Justice of India?",
+        "question_hi": "भारत के पहले मुख्य न्यायाधीश कौन थे?",
+        "options": ["M. Patanjali Sastri", "H. J. Kania", "Mehr Chand Mahajan", "B. K. Mukherjea", "S. R. Das"],
+        "correct": "B",
+        "explanation_en": "H. J. Kania was the first Chief Justice of India when the Supreme Court was established on 26 January 1950.",
+        "explanation_hi": "26 जनवरी 1950 को सर्वोच्च न्यायालय की स्थापना के समय एच. जे. कानिया भारत के पहले मुख्य न्यायाधीश थे।",
+        "exam_point": "The Supreme Court of India was established on 26 January 1950.",
+    },
 ]
+
+
+# --- Reference-format enrichment (LLM MCQ schema fields) -------------------
+# Hindi option text (A-E), a headline-box theme and verified bilingual Static GK
+# for the first MCQ of each story.  Mirrors what stage 16 produces from the
+# per-item JSON schema (see pipeline/mcq_schema.py).
+_OPTIONS_HI: dict[int, list[str]] = {
+    1: ["₹950 करोड़", "₹1,100 करोड़", "₹1,250 करोड़", "₹1,400 करोड़", "₹1,600 करोड़"],
+    2: ["सिडबी", "नाबार्ड", "भारतीय रिज़र्व बैंक", "सेबी", "नैबकॉन्स"],
+    3: ["6.00 प्रतिशत", "6.25 प्रतिशत", "6.50 प्रतिशत", "6.75 प्रतिशत", "7.00 प्रतिशत"],
+    4: ["द्रव हाइड्रोजन और द्रव ऑक्सीजन", "द्रव ऑक्सीजन और केरोसिन", "ठोस प्रणोदक और द्रव ऑक्सीजन",
+        "नाइट्रोजन टेट्रॉक्साइड और हाइड्राज़ीन", "द्रव मीथेन और द्रव ऑक्सीजन"],
+    5: ["60 गीगावाट", "70 गीगावाट", "80 गीगावाट", "90 गीगावाट", "100 गीगावाट"],
+    6: ["10 प्रतिशत", "20 प्रतिशत", "30 प्रतिशत", "40 प्रतिशत", "50 प्रतिशत"],
+    7: ["3.8 प्रतिशत", "4.2 प्रतिशत", "4.9 प्रतिशत", "5.2 प्रतिशत", "5.6 प्रतिशत"],
+    8: ["₹4,000", "₹5,000", "₹6,000", "₹8,000", "₹10,000"],
+    9: ["एकीकृत परीक्षण रेंज, चांदीपुर", "सतीश धवन अंतरिक्ष केंद्र, श्रीहरिकोटा", "पोखरण फील्ड फायरिंग रेंज",
+        "थुंबा भूमध्यरेखीय प्रक्षेपण केंद्र", "अब्दुल कलाम द्वीप, बालासोर"],
+    10: ["50 मीटर राइफल थ्री पोज़िशन", "10 मीटर एयर राइफल मिश्रित टीम", "25 मीटर रैपिड फायर पिस्टल",
+         "ट्रैप मिश्रित टीम", "10 मीटर एयर पिस्टल पुरुष"],
+    11: ["नॉर्वेजियन नोबेल समिति", "कैरोलिंस्का संस्थान", "रॉयल स्वीडिश एकेडमी ऑफ साइंसेज",
+         "स्वीडिश एकेडमी", "नोबेल फाउंडेशन बोर्ड"],
+    12: ["नाबार्ड", "एपीडा", "भारतीय खाद्य निगम", "भारतीय कृषि अनुसंधान परिषद", "नेफेड"],
+    13: ["₹1 लाख", "₹2 लाख", "₹3 लाख", "₹4 लाख", "₹5 लाख"],
+    14: ["एम. पतंजलि शास्त्री", "एच. जे. कानिया", "मेहर चंद महाजन", "बी. के. मुखर्जी", "एस. आर. दास"],
+}
+
+_THEMES: dict[str, str] = {
+    "sample-agri-1": "Agriculture", "sample-national-1": "Agriculture", "sample-appoint-1": "Agriculture",
+    "sample-banking-1": "Banking & Economy", "sample-econ-1": "Banking & Economy",
+    "sample-science-1": "Science & Defence", "sample-defence-1": "Science & Defence",
+    "sample-sports-1": "Awards & Sports", "sample-award-1": "Awards & Sports",
+    "sample-env-1": "Health & Environment", "sample-intl-1": "Health & Environment",
+    "sample-health-1": "Health & Environment", "sample-national-2": "National",
+}
+
+
+def _gk(*rows: tuple[str, str, str, str]) -> list[dict[str, str]]:
+    return [{"label_en": a, "value_en": b, "label_hi": c, "value_hi": d} for a, b, c, d in rows]
+
+
+_STATIC_GK: dict[str, list[dict[str, str]]] = {
+    "sample-agri-1": _gk(("Institution", "NABARD", "संस्था", "नाबार्ड"),
+                         ("Established", "12 July 1982", "स्थापना", "12 जुलाई 1982"),
+                         ("Headquarters", "Mumbai, Maharashtra", "मुख्यालय", "मुंबई, महाराष्ट्र"),
+                         ("Parent body", "Ministry of Finance", "मूल निकाय", "वित्त मंत्रालय")),
+    "sample-banking-1": _gk(("Institution", "Reserve Bank of India", "संस्था", "भारतीय रिज़र्व बैंक"),
+                            ("Established", "1 April 1935", "स्थापना", "1 अप्रैल 1935"),
+                            ("Headquarters", "Mumbai, Maharashtra", "मुख्यालय", "मुंबई, महाराष्ट्र"),
+                            ("MPC members", "6", "एमपीसी सदस्य", "6")),
+    "sample-science-1": _gk(("Organisation", "ISRO", "संगठन", "इसरो"),
+                            ("Established", "15 August 1969", "स्थापना", "15 अगस्त 1969"),
+                            ("Headquarters", "Bengaluru, Karnataka", "मुख्यालय", "बेंगलुरु, कर्नाटक"),
+                            ("Test facility", "Mahendragiri, Tamil Nadu", "परीक्षण केंद्र", "महेंद्रगिरि, तमिलनाडु")),
+    "sample-env-1": _gk(("Mission", "National Solar Mission", "मिशन", "राष्ट्रीय सौर मिशन"),
+                        ("Launched", "11 January 2010", "शुरुआत", "11 जनवरी 2010"),
+                        ("Ministry", "New and Renewable Energy", "मंत्रालय", "नवीन एवं नवीकरणीय ऊर्जा"),
+                        ("Installed solar capacity", "Over 90 GW", "स्थापित सौर क्षमता", "90 गीगावाट से अधिक")),
+    "sample-intl-1": _gk(("WHO established", "7 April 1948", "डब्ल्यूएचओ स्थापना", "7 अप्रैल 1948"),
+                         ("WHO headquarters", "Geneva, Switzerland", "डब्ल्यूएचओ मुख्यालय", "जिनेवा, स्विट्ज़रलैंड"),
+                         ("FAO established", "16 October 1945", "एफएओ स्थापना", "16 अक्टूबर 1945"),
+                         ("FAO headquarters", "Rome, Italy", "एफएओ मुख्यालय", "रोम, इटली")),
+    "sample-econ-1": _gk(("Index", "Consumer Price Index (Combined)", "सूचकांक", "उपभोक्ता मूल्य सूचकांक (संयुक्त)"),
+                         ("Released by", "National Statistical Office, MoSPI", "जारीकर्ता", "राष्ट्रीय सांख्यिकी कार्यालय, MoSPI"),
+                         ("Base year", "2012", "आधार वर्ष", "2012"),
+                         ("RBI target", "4 per cent (±2)", "आरबीआई लक्ष्य", "4 प्रतिशत (±2)")),
+    "sample-national-1": _gk(("Scheme", "PM-KISAN", "योजना", "पीएम-किसान"),
+                             ("Launched", "24 February 2019", "शुरुआत", "24 फरवरी 2019"),
+                             ("Ministry", "Agriculture and Farmers Welfare", "मंत्रालय", "कृषि एवं किसान कल्याण"),
+                             ("Benefit", "₹6,000 per year", "लाभ", "₹6,000 प्रति वर्ष")),
+    "sample-defence-1": _gk(("Organisation", "DRDO", "संगठन", "डीआरडीओ"),
+                            ("Established", "1958", "स्थापना", "1958"),
+                            ("Headquarters", "New Delhi", "मुख्यालय", "नई दिल्ली"),
+                            ("Test range", "Chandipur, Odisha", "परीक्षण रेंज", "चांदीपुर, ओडिशा")),
+    "sample-sports-1": _gk(("Event", "Asian Games 2026", "आयोजन", "एशियाई खेल 2026"),
+                           ("Host", "Aichi-Nagoya, Japan", "मेज़बान", "आइची-नागोया, जापान"),
+                           ("Governing body", "Olympic Council of Asia", "शासी निकाय", "एशिया ओलंपिक परिषद"),
+                           ("Event won", "10m Air Rifle Mixed Team", "जीता गया इवेंट", "10 मीटर एयर राइफल मिश्रित टीम")),
+    "sample-award-1": _gk(("Awarded by", "Royal Swedish Academy of Sciences", "प्रदानकर्ता", "रॉयल स्वीडिश एकेडमी ऑफ साइंसेज"),
+                          ("Instituted", "1968", "स्थापना", "1968"),
+                          ("Announced in", "Stockholm, Sweden", "घोषणा स्थल", "स्टॉकहोम, स्वीडन")),
+    "sample-appoint-1": _gk(("Institution", "ICAR", "संस्था", "भारतीय कृषि अनुसंधान परिषद"),
+                            ("Established", "16 July 1929", "स्थापना", "16 जुलाई 1929"),
+                            ("Headquarters", "New Delhi", "मुख्यालय", "नई दिल्ली"),
+                            ("Ministry", "Agriculture and Farmers Welfare", "मंत्रालय", "कृषि एवं किसान कल्याण")),
+    "sample-health-1": _gk(("Scheme", "Ayushman Bharat PM-JAY", "योजना", "आयुष्मान भारत पीएम-जय"),
+                           ("Launched", "23 September 2018", "शुरुआत", "23 सितंबर 2018"),
+                           ("Ministry", "Health and Family Welfare", "मंत्रालय", "स्वास्थ्य एवं परिवार कल्याण"),
+                           ("Cover", "₹5 lakh per family per year", "कवर", "₹5 लाख प्रति परिवार प्रति वर्ष")),
+    "sample-national-2": _gk(("Institution", "Supreme Court of India", "संस्था", "भारत का सर्वोच्च न्यायालय"),
+                             ("Established", "26 January 1950", "स्थापना", "26 जनवरी 1950"),
+                             ("Location", "New Delhi", "स्थान", "नई दिल्ली"),
+                             ("First Chief Justice", "H. J. Kania", "प्रथम मुख्य न्यायाधीश", "एच. जे. कानिया")),
+}
+
+_seen_events: set[str] = set()
+for _m in _MCQS:
+    _m["options_hi"] = _OPTIONS_HI[_m["q_num"]]
+    _m["theme"] = _THEMES.get(_m["event_id"], "National")
+    if _m["event_id"] not in _seen_events:
+        _seen_events.add(_m["event_id"])
+        _m["static_gk"] = _STATIC_GK.get(_m["event_id"], [])
 
 
 def build_sample_content() -> dict[str, Any]:

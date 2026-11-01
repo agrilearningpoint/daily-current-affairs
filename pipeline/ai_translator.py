@@ -252,6 +252,21 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
 # --------------------------------------------------------------------------- #
 # Validation
 # --------------------------------------------------------------------------- #
+_DEVANAGARI_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+_BARE_NUM_RE = re.compile(r"\d+(?:[,\d]*\d)?(?:\.\d+)?")
+
+
+def _numeric_values(text: str) -> set:
+    """Bare numeric values in text (1,250 == 1250; Devanagari digits normalised)."""
+    vals = set()
+    for n in _BARE_NUM_RE.findall((text or "").translate(_DEVANAGARI_DIGITS)):
+        v = n.replace(",", "")
+        if "." in v:
+            v = v.rstrip("0").rstrip(".") or "0"
+        vals.add(v)
+    return vals
+
+
 def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     """
     Quality gate:
@@ -269,11 +284,14 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
         issues.append("no Devanagari characters")
 
     # Numbers check
-    en_nums = set(_NUM_RE.findall(english))
-    hi_nums = set(_NUM_RE.findall(hindi))
-    missing_nums = en_nums - hi_nums
+    # Compare the numeric VALUES, not the English unit words: a correct
+    # translation writes "6.50 प्रतिशत" / "₹1,250 करोड़", never "6.50 per cent".
+    # Still fail-closed: every number in the English must appear in the Hindi.
+    en_vals = _numeric_values(" ".join(_NUM_RE.findall(english)))
+    hi_vals = _numeric_values(hindi)
+    missing_nums = en_vals - hi_vals
     if missing_nums:
-        issues.append(f"missing numbers: {list(missing_nums)[:3]}")
+        issues.append(f"missing numbers: {sorted(missing_nums)[:3]}")
 
     # Acronym check (uppercase 2-8 chars)
     en_acr = set(re.findall(r"\b[A-Z]{2,8}\b", english))

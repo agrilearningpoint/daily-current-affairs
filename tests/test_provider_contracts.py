@@ -38,16 +38,19 @@ def test_setup_and_translation_use_the_same_provider_registry(monkeypatch):
 
 def test_groq_default_uses_a_current_model(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "diagnostic-groq-not-a-credential")
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")  # no live catalog lookups in unit tests
     monkeypatch.delenv("GROQ_MODEL", raising=False)
 
     groq = next(provider for provider in ai_router._build_default_providers()
                 if provider.name == "groq")
 
-    assert groq.model == "llama-3.3-70b-versatile"
+    # llama-3.3-70b-versatile was retired by Groq on 2026-08-16.
+    assert groq.model == "openai/gpt-oss-120b"
 
 
 def test_nvidia_default_endpoint_and_model(monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "diagnostic-nvidia-not-a-credential")
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")  # no live catalog lookups in unit tests
     monkeypatch.delenv("NVIDIA_MODEL", raising=False)
 
     nvidia = next(provider for provider in ai_router._build_default_providers()
