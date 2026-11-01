@@ -647,6 +647,46 @@ def check_glyph_integrity(report: QAReport, text: str) -> None:
                    samples=unsupported)
 
 
+# Visible matra-reordering artefacts produced when ReportLab draws Devanagari
+# without shaping (e.g. विषय -> वषिय, स्थैतिक -> स्थैतकि).
+BROKEN_MATRA_SAMPLES = ("वषिय", "मलिते", "महत्वपूरण", "स्थैतकि", "वकिल्प", "बदिु", "वयाख्या")
+
+
+def check_devanagari_shaping(report: QAReport, doc: "fitz.Document", text: str) -> None:
+    """Every visible Devanagari glyph must come from the HarfBuzz-shaped image path.
+
+    src/generate_pdf.py draws Hindi as a shaped image plus an *invisible*
+    (render mode 3) text layer.  Visible Devanagari text spans therefore mean a
+    string bypassed render_hindi_flowable/bi_line and went through a plain
+    ReportLab Paragraph, which misplaces the ि matra.
+    """
+    broken = [w for w in BROKEN_MATRA_SAMPLES if w in text]
+    if broken:
+        report.add("error", "broken_devanagari_matras",
+                   f"Unshaped Devanagari artefacts in PDF text: {broken}", samples=broken)
+    pages: List[int] = []
+    for idx, page in enumerate(doc, 1):
+        trace = getattr(page, "get_texttrace", None)
+        if trace is None:
+            return  # pypdf fallback adapter: render modes unavailable
+        try:
+            spans = trace()
+        except Exception:
+            continue
+        for sp in spans:
+            if sp.get("type", 0) == 3:  # invisible text layer over the shaped image
+                continue
+            chars = "".join(chr(c[0]) for c in sp.get("chars", ()) if c and c[0] > 0)
+            if DEVANAGARI_RE.search(chars):
+                pages.append(idx)
+                break
+    if pages:
+        report.add("error", "unshaped_devanagari",
+                   f"Devanagari drawn as plain (unshaped) text on pages {pages[:5]} "
+                   "— route it through render_hindi_flowable/bi_line",
+                   pages=pages)
+
+
 def check_html_leakage(report: QAReport, text: str) -> None:
     """Detect raw HTML tags leaking into the PDF text layer."""
     leaks = HTML_TAG_RE.findall(text)
@@ -730,6 +770,7 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
         check_text_content(report, text)
         check_editorial_quality(report, text)
         check_glyph_integrity(report, text)
+        check_devanagari_shaping(report, doc, text)
         check_html_leakage(report, text)
         check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)

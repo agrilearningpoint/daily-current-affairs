@@ -51,29 +51,16 @@ SKIP_HEALTHCHECK = os.getenv("ORCHESTRATOR_SKIP_HEALTHCHECK", "0") == "1"
 
 
 # --------------------------------------------------------------------------- #
-PROVIDERS = [
-    {"name": "gemini", "env_keys": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-     "url": "https://generativelanguage.googleapis.com/v1beta/models",
-     "model": os.getenv("GEMINI_MODEL", "gemini-1.5-flash"), "priority": 10},
-    {"name": "groq", "env_keys": ["GROQ_API_KEY"],
-     "url": "https://api.groq.com/openai/v1/chat/completions",
-     "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"), "priority": 20},
-    {"name": "deepseek", "env_keys": ["DEEPSEEK_API_KEY"],
-     "url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/") + "/chat/completions",
-     "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"), "priority": 25},
-    {"name": "openai", "env_keys": ["OPENAI_API_KEY"],
-     "url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/chat/completions",
-     "model": os.getenv("ALP_LLM", "gpt-4o-mini"), "priority": 30},
-    {"name": "mistral", "env_keys": ["MISTRAL_API_KEY"],
-     "url": "https://api.mistral.ai/v1/chat/completions",
-     "model": os.getenv("MISTRAL_MODEL", "mistral-small-latest"), "priority": 50},
-    {"name": "nvidia", "env_keys": ["NVIDIA_API_KEY"],
-     "url": "https://integrate.api.nvidia.com/v1/chat/completions",
-     "model": os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"), "priority": 60},
-    {"name": "ollama", "env_keys": ["OLLAMA_API_KEY", "OLLAMA_BASE_URL"],
-     "url": (os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/v1/chat/completions"),
-     "model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"), "priority": 70},
-]
+def provider_defaults() -> List[Dict[str, Any]]:
+    """Provider names/endpoints/models, derived from the router's single registry.
+
+    The old hard-coded table here still pointed at retired models
+    (llama-3.3-70b-versatile, gemini-1.5-flash); keeping one source of truth in
+    pipeline.ai_router._build_default_providers() stops the two drifting apart.
+    """
+    from pipeline.ai_router import _build_default_providers
+    return [{"name": p.name, "url": p.url, "model": p.model, "priority": p.priority}
+            for p in _build_default_providers()]
 
 
 # --------------------------------------------------------------------------- #

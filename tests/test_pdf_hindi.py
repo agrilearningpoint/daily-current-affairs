@@ -28,7 +28,12 @@ def test_mixed_para_hindi_shaping():
     repo_root = pathlib.Path(__file__).resolve().parents[1]
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
+    import src.generate_pdf as gp
     from src.generate_pdf import generate_pdf
+    # Index and answer key are optional (the reference PDF has neither); turn
+    # them on here so their Hindi headings are covered by this regression test.
+    gp.PDF_SHOW_INDEX = True
+    gp.PDF_SHOW_ANSWER_KEY = True
     content = {
         "job": {"id":"test_hindi_regression","type":"daily","date":"2026-10-06","date_display":"06 October 2026"},
         "items": [{
@@ -36,9 +41,9 @@ def test_mixed_para_hindi_shaping():
             "category":"Agriculture",
             "headline_en":">> Test",
             "headline_hi":">> टेस्ट",
-            "key_points_en":["P1"], "key_points_hi":["मुख्य बिंदु टेस्ट"],
+            "key_points_en":["Point one of this regression story is long enough"], "key_points_hi":["मुख्य बिंदु टेस्ट"],
             "static_facts":{"K":"V"},
-            "exam_fact_en":"E","exam_fact_hi":"परीक्षा तथ्य",
+            "exam_fact_en":"Exam fact sentence for the test","exam_fact_hi":"परीक्षा तथ्य",
             "source":{"name":"PIB","url":"https://pib.gov.in"},
             "importance_score":80, "image_path":""
         }]
@@ -46,7 +51,11 @@ def test_mixed_para_hindi_shaping():
     mcqs=[{"q_num":1,"question_en":"Q?","question_hi":"प्रश्न?","options":["A","B","C","D"],"correct":"A","explanation_en":"Exp","explanation_hi":"व्याख्या","exam_point":""}]
     with tempfile.TemporaryDirectory() as td:
         out = os.path.join(td, "hindi_test.pdf")
-        pdf = generate_pdf(content, mcqs, output_path=out)
+        try:
+            pdf = generate_pdf(content, mcqs, output_path=out)
+        finally:
+            gp.PDF_SHOW_INDEX = False
+            gp.PDF_SHOW_ANSWER_KEY = False
         full = ""
         try:
             import pymupdf as fitz
@@ -58,11 +67,12 @@ def test_mixed_para_hindi_shaping():
             full = "\n".join(p.extract_text() or "" for p in reader.pages)
         # Must contain correct forms via hidden text layer
         assert "विषय-सूची" in full, "INDEX Hindi broken: expected विषय-सूची"
-        assert ("श्रेणीवार मुख्य तथ्य" in full or "महत्वपूर्ण" in full), "One-liners heading Hindi broken"
+        assert "महत्वपूर्ण वन-लाइनर" in full, "One-liners heading Hindi broken"
         assert "मुख्य बिंदु" in full, "Key Points Hindi broken"
-        assert "स्थैतिक तथ्य" in full, "Static Facts Hindi broken"
+        assert "स्थैतिक सामान्य ज्ञान" in full, "Static GK Hindi broken"
         assert "परीक्षा तथ्य" in full, "Exam Fact Hindi broken"
-        assert "बहुविकल्पीय" in full, "MCQ Hindi broken"
+        assert "प्रश्न 1" in full, "MCQ Hindi broken"
+        assert "व्याख्या" in full, "Explanation heading Hindi broken"
         assert "मिलते" in full, "Back cover मिलते broken"
         # Must NOT contain broken glyph orders
         assert "वषिय" not in full, "Broken glyph वषिय found (विषय→वषिय)"

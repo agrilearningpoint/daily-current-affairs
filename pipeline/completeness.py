@@ -91,6 +91,12 @@ def validate_item_completeness(item: Dict[str, Any], report: CompletenessReport)
     det_en = item.get("detailed_explanation_en") or ""
     det_hi = item.get("detailed_explanation_hi") or ""
 
+    # A list of empty strings ([""] * n) is truthy; count only real text.
+    kps_en = [k for k in kps_en if isinstance(k, str) and k.strip()]
+    kps_hi = [k for k in kps_hi if isinstance(k, str) and k.strip()]
+    det_en = det_en.strip() if isinstance(det_en, str) else ""
+    det_hi = det_hi.strip() if isinstance(det_hi, str) else ""
+
     if not kps_en and not det_en:
         report.add("error", "missing_content_en", "Item has neither key points nor detailed explanation in English", event_id)
         return False

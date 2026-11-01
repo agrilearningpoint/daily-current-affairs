@@ -27,8 +27,19 @@ class Agent:
         logging.info(f"[{self.name}] Generating MCQs for {n_items} items...")
         
         # Generate MCQs using existing method
-        from pipeline.content import generate_mcqs
-        all_mcqs = generate_mcqs(items)
+        from pipeline.content import _own_text, generate_mcqs
+        from pipeline.mcq_schema import generate_llm_mcqs, llm_mode_enabled
+
+        # Reference format: one LLM-written bilingual MCQ per story (JSON schema,
+        # validated per item); stories the LLM cannot do fall back to templates.
+        llm_mcqs = {}
+        if llm_mode_enabled():
+            try:
+                llm_mcqs = generate_llm_mcqs(items, _own_text)
+            except Exception as exc:
+                logging.warning(f"[{self.name}] LLM MCQ schema pass failed, using templates: {exc}")
+        self.context["mcqs_llm_schema"] = len(llm_mcqs)
+        all_mcqs = generate_mcqs(items, llm_mcqs=llm_mcqs)
         
         logging.info(f"[{self.name}] Generated {len(all_mcqs)} raw MCQs")
         
