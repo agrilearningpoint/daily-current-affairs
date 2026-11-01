@@ -26,6 +26,7 @@ def test_repeated_transient_failures_cool_down_provider(monkeypatch):
 
 def test_fact_llm_stops_after_consecutive_misses(monkeypatch):
     mod = _load_fact_module()
+    monkeypatch.setattr(mod, "DISABLE_LLM", False)
     calls = []
     monkeypatch.setattr(mod, "llm_score", lambda a: (calls.append(1), (0.0, ["llm_unavailable"]))[1])
     monkeypatch.setattr("pipeline.ai_router.is_configured", lambda: True)
