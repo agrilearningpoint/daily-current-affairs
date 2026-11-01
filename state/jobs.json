@@ -1240,6 +1240,29 @@
     "last_success_stage": "24_final_health_audit",
     "checkpoint_run_id": "41156826933"
   },
+  "daily_2026-11-01": {
+    "started_at": "2026-11-01T08:15:14.745859+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-01.json": {
+        "stage": "01_source_fetch",
+        "sha256": "c043830a474d903e43aa08c88e54a49613148848ba22e1d9ec9c7092e62a6497"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-11-01",
+    "job_type": "daily",
+    "job_date": "2026-11-01",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-31T13:45:14.744149+05:30",
+      "end": "2026-11-01T13:45:14.744149+05:30"
+    },
+    "github_run_id": "41288021590",
+    "status": "running",
+    "updated_at": "2026-11-01T08:59:56.284974+00:00",
+    "last_success_stage": "01_source_fetch",
+    "checkpoint_run_id": "41288021590"
+  },
   "monthly_2026-11-01": {
     "run_attempts": 2,
     "job_id": "monthly_2026-11-01",
@@ -1327,28 +1350,5 @@
     },
     "last_success_stage": "24_final_health_audit",
     "checkpoint_run_id": "41281700782"
-  },
-  "daily_2026-11-01": {
-    "started_at": "2026-11-01T08:15:14.745859+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-11-01.json": {
-        "stage": "01_source_fetch",
-        "sha256": "c043830a474d903e43aa08c88e54a49613148848ba22e1d9ec9c7092e62a6497"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-11-01",
-    "job_type": "daily",
-    "job_date": "2026-11-01",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-31T13:45:14.744149+05:30",
-      "end": "2026-11-01T13:45:14.744149+05:30"
-    },
-    "github_run_id": "41288021590",
-    "status": "running",
-    "updated_at": "2026-11-01T08:59:56.284974+00:00",
-    "last_success_stage": "01_source_fetch",
-    "checkpoint_run_id": "41288021590"
   }
 }
