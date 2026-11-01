@@ -1341,7 +1341,7 @@
     "checkpoint_run_id": "41281250827"
   },
   "weekly_2026-11-01": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "weekly_2026-11-01",
     "job_type": "weekly",
     "job_date": "2026-11-01",
@@ -1351,7 +1351,40 @@
       "end": "2026-11-01T23:59:59.999999+05:30"
     },
     "github_run_id": "41281700782",
-    "status": "running",
-    "updated_at": "2026-11-01T06:39:44.415487+00:00"
+    "status": "success",
+    "updated_at": "2026-11-01T06:41:21.284481+00:00",
+    "started_at": "2026-11-01T06:39:46.474976+00:00",
+    "artifacts": {
+      "data/selected/weekly_2026-11-01.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "f01d1717f1c1d2529f9bf54edef4f38fe7bfd7acfd9139d1727b7d361fa83997"
+      },
+      "data/scored/weekly_2026-11-01.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "ada736cfe95654b5ce56b1f5b3e002bc5ab676992e961d032e8422435e8c180c"
+      },
+      "data/content/weekly_2026-11-01.json": {
+        "stage": "12_content_editor",
+        "sha256": "571c29fe10071c5516fd32d6233967538551b27f23b14892ba0f18bb0d48048f"
+      },
+      "data/mcq/weekly_2026-11-01.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "a6ff08a70586b28d0fa1d1b1496b53ba488c079468d2b541205332294de76d91"
+      },
+      "output/weekly_2026-11-01.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "44e5bc674186ffaebc7e86576a4b3627570649cdff73c4c3d52bf9e6ce8fffa6"
+      },
+      "logs/qa/weekly_2026-11-01_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "539f0f90ddc4cac94a80b1e8417a41b7dda5741e201dea9f487c912fe369ca87"
+      },
+      "logs/qa/weekly_2026-11-01_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "f299f98bdc839cc26bcc6c03f839ea3a54b0f89fe48e3c2747b97dfb520f30fb"
+      }
+    },
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "41281700782"
   }
 }

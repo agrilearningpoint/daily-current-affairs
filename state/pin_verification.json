@@ -288,6 +288,15 @@
       "file_sha256": "ce179979df88e4acfbc76ba16ea0b1a13d0a3f67da5b08dc1c68610f400b5499",
       "status": "verified",
       "verified_at": "2026-11-01T01:26:37.712625+00:00"
+    },
+    "ad82e7deca8ad62d78413eff": {
+      "job_id": "weekly_2026-11-01",
+      "chat_id": "-1004485392227",
+      "message_id": 178,
+      "pinned_message_id": 178,
+      "file_sha256": "44e5bc674186ffaebc7e86576a4b3627570649cdff73c4c3d52bf9e6ce8fffa6",
+      "status": "verified",
+      "verified_at": "2026-11-01T06:41:19.570672+00:00"
     }
   }
 }
