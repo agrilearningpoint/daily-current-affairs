@@ -1298,5 +1298,19 @@
     },
     "last_success_stage": "24_final_health_audit",
     "checkpoint_run_id": "41260920327"
+  },
+  "monthly_2026-11-01": {
+    "run_attempts": 0,
+    "job_id": "monthly_2026-11-01",
+    "job_type": "monthly",
+    "job_date": "2026-11-01",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-01T00:00:00+05:30",
+      "end": "2026-10-31T23:59:59.999999+05:30"
+    },
+    "github_run_id": "41281250827",
+    "status": "running",
+    "updated_at": "2026-11-01T06:33:06.718636+00:00"
   }
 }
