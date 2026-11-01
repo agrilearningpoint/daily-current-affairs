@@ -50,6 +50,14 @@ logger = logging.getLogger("pipeline.ai_router")
 # Config
 # --------------------------------------------------------------------------- #
 TIMEOUT = int(os.getenv("AI_ROUTER_TIMEOUT", "60"))
+# Short per-task timeouts for high-volume, optional calls (one call per article).
+_TASK_TIMEOUTS = {
+    "fact_verification": int(os.getenv("AI_ROUTER_TIMEOUT_FACT", "20")),
+}
+# A provider that times out / 5xx's this many times in a row is cooled down so
+# every later call in the stage does not wait on it again.
+TRANSIENT_STRIKES = int(os.getenv("AI_ROUTER_TRANSIENT_STRIKES", "2"))
+TRANSIENT_COOLDOWN = int(os.getenv("AI_ROUTER_TRANSIENT_COOLDOWN", "600"))
 MAX_CALLS_PER_HOUR = int(os.getenv("AI_ROUTER_MAX_CALLS_PER_HOUR", "500"))
 CACHE_SIZE = int(os.getenv("AI_ROUTER_CACHE_SIZE", "1000"))
 DISABLED = os.getenv("AI_ROUTER_DISABLED", "0") == "1"
@@ -82,6 +90,7 @@ class Provider:
     rpd_limit: int = 1000            # requests per day
     last_error: Optional[str] = None
     disabled_until: float = 0.0
+    consecutive_transient: int = 0
     call_times: deque = field(default_factory=lambda: deque(maxlen=5000))
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -501,7 +510,7 @@ def _call_provider(
         }
 
     try:
-        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        r = requests.post(url, headers=headers, json=payload, timeout=_TASK_TIMEOUTS.get(task, TIMEOUT))
     except requests.Timeout:
         return None, FailureType.TRANSIENT
     except requests.RequestException as exc:
@@ -603,6 +612,7 @@ def route(
         )
 
         if content is not None:
+            provider.consecutive_transient = 0
             _CACHE.put(ck, content)
             logger.info("[Router] ✔ %s responded (task=%s, %d chars)",
                         provider.name, task, len(content))
@@ -631,6 +641,11 @@ def route(
             provider.mark_disabled("model not found", 86400)
         elif failure == FailureType.RATE_LIMIT:
             provider.mark_disabled("rate limited", 120)
+        elif failure == FailureType.TRANSIENT:
+            provider.consecutive_transient += 1
+            if provider.consecutive_transient >= TRANSIENT_STRIKES:
+                provider.consecutive_transient = 0
+                provider.mark_disabled("repeated timeouts/5xx", TRANSIENT_COOLDOWN)
         # TRANSIENT / MALFORMED / BAD_REQUEST → just try next provider
 
     logger.error("[Router] All providers failed. Last error: %s", last_error)

@@ -71,6 +71,33 @@ OUTPUT_DIR = REPO_ROOT / "data" / "verified"
 MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.3"))
 MIN_VERIFIED_COUNT = int(os.getenv("MIN_VERIFIED_COUNT", "1"))
 DISABLE_LLM = os.getenv("ALP_DISABLE_LLM_VERIFY", "0") == "1"
+# LLM verification is optional scoring. Cap its wall-clock share of the stage so
+# slow or rate-limited providers can never push the stage past ALP_STAGE_TIMEOUT.
+LLM_BUDGET_SECONDS = float(os.getenv("ALP_FACT_LLM_BUDGET", "300"))
+LLM_MAX_CONSECUTIVE_MISSES = int(os.getenv("ALP_FACT_LLM_MAX_MISSES", "3"))
+_LLM_STATE = {"started": None, "misses": 0, "off_reason": ""}
+
+
+def _llm_allowed() -> bool:
+    if _LLM_STATE["off_reason"]:
+        return False
+    if _LLM_STATE["started"] is None:
+        _LLM_STATE["started"] = time.time()
+    if time.time() - _LLM_STATE["started"] > LLM_BUDGET_SECONDS:
+        _LLM_STATE["off_reason"] = f"time budget {LLM_BUDGET_SECONDS:.0f}s used"
+        logger.warning("LLM verification stopped: %s; continuing heuristic+cross_source", _LLM_STATE["off_reason"])
+        return False
+    return True
+
+
+def _llm_record(flags: List[str]) -> None:
+    if "llm_unavailable" in flags:
+        _LLM_STATE["misses"] += 1
+        if _LLM_STATE["misses"] >= LLM_MAX_CONSECUTIVE_MISSES and not _LLM_STATE["off_reason"]:
+            _LLM_STATE["off_reason"] = f"{_LLM_STATE['misses']} consecutive provider failures"
+            logger.warning("LLM verification stopped: %s; continuing heuristic+cross_source", _LLM_STATE["off_reason"])
+    else:
+        _LLM_STATE["misses"] = 0
 
 
 # Regexes
@@ -332,8 +359,9 @@ def verify_article(
     llm_s = 0.0
     llm_flags: List[str] = []
     from pipeline.ai_router import is_configured
-    if not DISABLE_LLM and is_configured():
+    if not DISABLE_LLM and is_configured() and _llm_allowed():
         llm_s, llm_flags = llm_score(article)
+        _llm_record(llm_flags)
 
     # Weighted combination
     if llm_s > 0:
