@@ -1300,7 +1300,7 @@
     "checkpoint_run_id": "41260920327"
   },
   "monthly_2026-11-01": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "monthly_2026-11-01",
     "job_type": "monthly",
     "job_date": "2026-11-01",
@@ -1310,7 +1310,34 @@
       "end": "2026-10-31T23:59:59.999999+05:30"
     },
     "github_run_id": "41281250827",
-    "status": "running",
-    "updated_at": "2026-11-01T06:33:06.718636+00:00"
+    "status": "failed",
+    "updated_at": "2026-11-01T06:38:45.609539+00:00",
+    "started_at": "2026-11-01T06:33:08.942429+00:00",
+    "artifacts": {
+      "data/selected/monthly_2026-11-01.json": {
+        "stage": "21_monthly_editor",
+        "sha256": "73beadca683f73bf752f6883ef4caf66c4b4d09d06570f4482f8f389d48b9b8e"
+      },
+      "data/scored/monthly_2026-11-01.json": {
+        "stage": "21_monthly_editor",
+        "sha256": "897c99396c94d118263599fcfa00a1ac605056658d37c273751734b6cfea1b63"
+      },
+      "data/content/monthly_2026-11-01.json": {
+        "stage": "12_content_editor",
+        "sha256": "5767fc48417cdbb6adb6f712cbe048db86d3cfeaf77e5c988b1bbcdb265810cd"
+      },
+      "data/mcq/monthly_2026-11-01.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "8793953323a23ac01d51dc8af248c187edbf0f0e427d96574ca79c6e1a91c773"
+      },
+      "output/monthly_2026-11-01.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "a14446ce4ae461467dc17d2e7918b96e5aee7dd03ce6cd040b9ce84e02d4d290"
+      }
+    },
+    "last_success_stage": "18_pdf_design",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): :      8638 (13.3%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            39\nAnswer markers:  48\nDuplicate Qs:    0\nURLs:            0\nImages:          70\nBlank pages:     none\nSubstantive pgs: 44 (min page chars 732)\nNear-empty pgs:  none\nStories missing: 1 (e.g. 'Compensation released to farmers in Tiruvarur for ‘prevented sowing’')\n\n--- Issues ---\n  [ERROR] [untitled_content] PDF contains 'Untitled' headline or placeholder string\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [story_missing_from_pdf] 1/39 selected stories not found in the PDF\n========================================================================\n\n2026-11-01 12:08:43 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "failed_stage": "19_pdf_qa",
+    "checkpoint_run_id": "41281250827"
   }
 }
