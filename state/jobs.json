@@ -1240,6 +1240,45 @@
     "last_success_stage": "24_final_health_audit",
     "checkpoint_run_id": "41156826933"
   },
+  "daily_2026-11-01": {
+    "started_at": "2026-11-01T09:08:26.387946+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-01.json": {
+        "stage": "01_source_fetch",
+        "sha256": "6c7816b93b243a8270295826151e32adc0a1680816644db9235ef36ed84b2d03"
+      },
+      "data/verified/daily_2026-11-01.json": {
+        "stage": "04_fact_verification",
+        "sha256": "9a89175c59259db8293ff6c14efd13f944bce0caafa7a64e31784122ec2564d8"
+      },
+      "data/dedup/daily_2026-11-01.json": {
+        "stage": "05_deduplication",
+        "sha256": "47a516429d8c1599ac568381257b10b1137fdd0c1650b26cc44ca875fc5e3286"
+      },
+      "data/scored/daily_2026-11-01.json": {
+        "stage": "06_news_importance",
+        "sha256": "e04f187b9eb19bd80aecf63ba55f352f112ee0290570190ee22a3dc921663631"
+      },
+      "data/selected/daily_2026-11-01.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "b20ee791a1bd5d094f5d6c0c767352cb223aac6f220021d0ab1773ec3f5b2ad6"
+      }
+    },
+    "run_attempts": 1,
+    "job_id": "daily_2026-11-01",
+    "job_type": "daily",
+    "job_date": "2026-11-01",
+    "dry_run": false,
+    "window": {
+      "start": "2026-10-31T14:38:26.386603+05:30",
+      "end": "2026-11-01T14:38:26.386603+05:30"
+    },
+    "github_run_id": "41291748235",
+    "status": "running",
+    "updated_at": "2026-11-01T09:16:07.424464+00:00",
+    "last_success_stage": "11_importance_memory",
+    "checkpoint_run_id": "41291748235"
+  },
   "monthly_2026-11-01": {
     "run_attempts": 2,
     "job_id": "monthly_2026-11-01",
@@ -1327,44 +1366,5 @@
     },
     "last_success_stage": "24_final_health_audit",
     "checkpoint_run_id": "41281700782"
-  },
-  "daily_2026-11-01": {
-    "started_at": "2026-11-01T09:08:26.387946+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-11-01.json": {
-        "stage": "01_source_fetch",
-        "sha256": "6c7816b93b243a8270295826151e32adc0a1680816644db9235ef36ed84b2d03"
-      },
-      "data/verified/daily_2026-11-01.json": {
-        "stage": "04_fact_verification",
-        "sha256": "9a89175c59259db8293ff6c14efd13f944bce0caafa7a64e31784122ec2564d8"
-      },
-      "data/dedup/daily_2026-11-01.json": {
-        "stage": "05_deduplication",
-        "sha256": "47a516429d8c1599ac568381257b10b1137fdd0c1650b26cc44ca875fc5e3286"
-      },
-      "data/scored/daily_2026-11-01.json": {
-        "stage": "06_news_importance",
-        "sha256": "e04f187b9eb19bd80aecf63ba55f352f112ee0290570190ee22a3dc921663631"
-      },
-      "data/selected/daily_2026-11-01.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "b20ee791a1bd5d094f5d6c0c767352cb223aac6f220021d0ab1773ec3f5b2ad6"
-      }
-    },
-    "run_attempts": 1,
-    "job_id": "daily_2026-11-01",
-    "job_type": "daily",
-    "job_date": "2026-11-01",
-    "dry_run": false,
-    "window": {
-      "start": "2026-10-31T14:38:26.386603+05:30",
-      "end": "2026-11-01T14:38:26.386603+05:30"
-    },
-    "github_run_id": "41291748235",
-    "status": "running",
-    "updated_at": "2026-11-01T09:16:07.424464+00:00",
-    "last_success_stage": "11_importance_memory",
-    "checkpoint_run_id": "41291748235"
   }
 }
