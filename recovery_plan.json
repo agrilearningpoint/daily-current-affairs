@@ -1,15 +1,10 @@
 {
-  "generated_at": "2026-11-01T08:01:30.386793+00:00",
+  "generated_at": "2026-11-01T14:58:37.308353+00:00",
   "stuck_running": [],
   "recent_failed_final": [
-    "daily_2026-11-01",
     "monthly_2026-11-01"
   ],
   "actions": [
-    {
-      "job_id": "daily_2026-11-01",
-      "action": "retry"
-    },
     {
       "job_id": "monthly_2026-11-01",
       "action": "retry"
