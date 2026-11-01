@@ -33,7 +33,7 @@ def call_groq(prompt, model="openai/gpt-oss-20b"):
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"].strip(), f"groq/{model}"
 
-def call_openrouter(prompt, model="google/gemini-flash-1.5"):
+def call_openrouter(prompt, model="google/gemma-4-31b-it:free"):
     key = _env("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY missing")
@@ -44,7 +44,7 @@ def call_openrouter(prompt, model="google/gemini-flash-1.5"):
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"].strip(), f"openrouter/{model}"
 
-def call_mistral(prompt, model="mistral-large-latest"):
+def call_mistral(prompt, model="mistral-small-latest"):
     key = _env("MISTRAL_API_KEY")
     if not key:
         raise RuntimeError("MISTRAL_API_KEY missing")
@@ -56,7 +56,11 @@ def call_mistral(prompt, model="mistral-large-latest"):
     return r.json()["choices"][0]["message"]["content"].strip(), f"mistral/{model}"
 
 def call_nvidia(prompt, model=None):
-    model = model or _env("NVIDIA_MODEL") or "meta/llama-3.3-70b-instruct"
+    configured = _env("NVIDIA_MODEL")
+    if not configured or configured.strip().lower() == "auto":
+        from pipeline.ai_router import _PREFERRED_MODELS
+        configured = _PREFERRED_MODELS["nvidia"][0]
+    model = model or configured
     key = _env("NVIDIA_API_KEY")
     if not key:
         raise RuntimeError("NVIDIA_API_KEY missing")
