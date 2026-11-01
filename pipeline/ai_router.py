@@ -116,13 +116,59 @@ class Provider:
 # Live model discovery is deliberately best-effort.  Provider catalogues change
 # more often than this repository, so model IDs must not be treated as a
 # permanent part of the workflow configuration.
+#
+# Every *_MODEL variable accepts the value "auto" (the workflow default).  With
+# "auto" the router asks the provider's own /models catalogue which models are
+# live and picks the first entry of the free-first preference list below that
+# is still advertised.  An explicit model ID is kept only while the provider
+# still advertises it; when it is retired the same preference list is used.
+# Preference lists were checked against each provider's official docs and
+# model catalogues on 2026-11-01.
 _MODEL_DISCOVERY_TIMEOUT = 8
+AUTO_MODEL = "auto"
 _PREFERRED_MODELS = {
-    "gemini": ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"),
-    "groq": ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"),
-    "nvidia": ("meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct",
-               "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # ai.google.dev/gemini-api/docs/pricing: free tier text models.
+    "gemini": ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash",
+               "gemini-3.6-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash",
+               "gemini-3-flash-preview"),
+    # console.groq.com/docs/models: production text models (free plan).
+    "groq": ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"),
+    # api-docs.deepseek.com: paid only; deepseek-chat is no longer listed.
+    "deepseek": ("deepseek-flash", "deepseek-v4-pro"),
+    "openai": ("gpt-4o-mini",),
+    "generic-openai": ("gpt-4o-mini",),
+    # openrouter.ai/api/v1/models: zero-price ":free" variants only.
+    "openrouter": ("google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
+                   "google/gemma-4-26b-a4b-it:free", "nvidia/nemotron-3.5-lightning:free",
+                   "openrouter/free"),
+    # docs.mistral.ai models overview (free Experiment plan).
+    "mistral": ("mistral-small-latest", "ministral-8b-latest", "mistral-large-latest"),
+    # integrate.api.nvidia.com/v1/models (free build.nvidia.com endpoints).
+    "nvidia": ("deepseek-ai/deepseek-v4.1-flash", "moonshotai/kimi-k2.6",
+               "nvidia/nemotron-3-super-120b-a12b", "mistralai/mistral-large-4-1t-a52b",
+               "google/gemma-4-31b-it", "openai/gpt-oss-20b"),
+    # ollama.com/api/tags (Ollama Cloud).
+    "ollama": ("gpt-oss:120b", "gemma4:31b", "deepseek-v4.1-flash", "gpt-oss:20b"),
 }
+# Free-only providers: never select a model that bills per token.
+_FREE_ONLY = {"openrouter"}
+_NON_TEXT_MODEL = re.compile(
+    r"(?:embed|rerank|guard|safety|moderation|vision|-vl|audio|image|tts|transcribe|"
+    r"whisper|live|lyria|veo|robotics|omni|parse|reward|ocr|clip|orpheus|detector)",
+    re.I,
+)
+
+
+def is_auto_model(value: Optional[str]) -> bool:
+    return not value or value.strip().lower() == AUTO_MODEL
+
+
+def _env_model(var: str, provider_name: str) -> str:
+    """Configured model for a provider; "auto"/empty resolves to the first preference."""
+    value = (os.getenv(var) or "").strip()
+    if is_auto_model(value):
+        return _PREFERRED_MODELS.get(provider_name, ("",))[0]
+    return value
 
 
 def _catalog_url(provider: Provider) -> str:
@@ -132,6 +178,17 @@ def _catalog_url(provider: Provider) -> str:
     if marker in provider.url:
         return provider.url.split(marker, 1)[0] + "/models"
     return ""
+
+
+def _is_free_listing(model: Dict[str, Any]) -> bool:
+    mid = str(model.get("id", ""))
+    if mid.endswith(":free") or mid == "openrouter/free":
+        return True
+    pricing = model.get("pricing") or {}
+    try:
+        return float(pricing.get("prompt", 1)) == 0 and float(pricing.get("completion", 1)) == 0
+    except (TypeError, ValueError):
+        return False
 
 
 def _live_model_ids(provider: Provider) -> List[str]:
@@ -154,8 +211,11 @@ def _live_model_ids(provider: Provider) -> List[str]:
             models = data.get("models", [])
             return [str(m.get("name", "")).removeprefix("models/") for m in models
                     if "generateContent" in (m.get("supportedGenerationMethods") or [])]
-        return [str(m.get("id", "")) for m in data.get("data", []) if m.get("id")]
-    except (requests.RequestException, ValueError, TypeError) as exc:
+        items = data.get("data", []) or data.get("models", [])
+        if provider.name in _FREE_ONLY:
+            items = [m for m in items if _is_free_listing(m)]
+        return [str(m.get("id") or m.get("name") or "") for m in items if (m.get("id") or m.get("name"))]
+    except (requests.RequestException, ValueError, TypeError, AttributeError) as exc:
         logger.info("[Router] %s model catalogue lookup skipped: %s", provider.name, type(exc).__name__)
         return []
 
@@ -171,8 +231,8 @@ def _choose_live_model(provider: Provider, available: List[str], exclude: set[st
     for preferred in _PREFERRED_MODELS.get(provider.name, ()):
         if preferred in candidates:
             return preferred
-    text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini)", m, re.I)
-                   and not re.search(r"(?:embed|rerank|guard|vision|audio|image)", m, re.I)]
+    text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini|gemma|nemotron|flash)", m, re.I)
+                   and not _NON_TEXT_MODEL.search(m)]
     return sorted(text_models or candidates)[0]
 
 
@@ -182,7 +242,7 @@ def _refresh_provider_model(provider: Provider, exclude: set[str] | None = None)
         return False
     old = provider.model
     provider.model = chosen
-    logger.info("[Router] %s automatically switched retired model %s -> %s", provider.name, old, chosen)
+    logger.info("[Router] %s automatically switched model %s -> %s", provider.name, old, chosen)
     return True
 
 
@@ -190,117 +250,78 @@ def _refresh_provider_model(provider: Provider, exclude: set[str] | None = None)
 # Provider discovery
 # --------------------------------------------------------------------------- #
 def _build_default_providers() -> List[Provider]:
-    """Build provider list from env vars, in priority order."""
+    """Build provider list from env vars, in priority order.
+
+    Free-tier providers come first; DeepSeek (paid only) is the last resort.
+    """
     providers: List[Provider] = []
 
-    # Gemini (highest priority — per aapke .env.example)
+    def add(provider: Provider) -> None:
+        _refresh_provider_model(provider)
+        providers.append(provider)
+
     gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if gem_key:
-        provider = Provider(
-            name="gemini",
-            url="https://generativelanguage.googleapis.com/v1beta/models",
-            key=gem_key,
-            # 1.5 Flash was retired from the public endpoint; use a current
-            # generateContent-compatible default unless a secret overrides it.
-            model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-            priority=10, rpm_limit=60, rpd_limit=1500,
-        )
-        _refresh_provider_model(provider)
-        providers.append(provider)
+        add(Provider(name="gemini", url="https://generativelanguage.googleapis.com/v1beta/models",
+                     key=gem_key, model=_env_model("GEMINI_MODEL", "gemini"),
+                     priority=10, rpm_limit=60, rpd_limit=1500))
 
-    # Groq (fast fallback)
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
-        provider = Provider(
-            name="groq",
-            url="https://api.groq.com/openai/v1/chat/completions",
-            key=groq_key,
-            # Groq retired llama-3.3-70b-versatile on 2026-08-16.
-            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
-            priority=20, rpm_limit=30, rpd_limit=14400,
-        )
-        _refresh_provider_model(provider)
-        providers.append(provider)
-
-    # DeepSeek (high-quality bilingual reasoning & translation)
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
-    if deepseek_key:
-        base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
-        providers.append(Provider(
-            name="deepseek",
-            url=f"{base}/chat/completions",
-            key=deepseek_key,
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
-            priority=25, rpm_limit=60, rpd_limit=10000,
-        ))
-
-    # OpenAI (also used for polish)
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key:
-        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        providers.append(Provider(
-            name="openai",
-            url=f"{base}/chat/completions",
-            key=openai_key,
-            model=os.getenv("ALP_LLM", "gpt-4o-mini"),
-            priority=30, rpm_limit=500, rpd_limit=10000,
-        ))
-
-    # Generic OpenAI-compatible (LLM_API_URL + LLM_API_KEY)
-    generic_url = os.getenv("LLM_API_URL")
-    generic_key = os.getenv("LLM_API_KEY")
-    if generic_url and generic_key:
-        providers.append(Provider(
-            name="generic-openai",
-            url=generic_url,
-            key=generic_key,
-            model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
-            priority=40, rpm_limit=60, rpd_limit=5000,
-        ))
-
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        providers.append(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
-                                  key=openrouter_key, model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
-                                  priority=45, rpm_limit=60, rpd_limit=5000))
-
-    # Mistral (final fallback)
-    mistral_key = os.getenv("MISTRAL_API_KEY")
-    if mistral_key:
-        providers.append(Provider(
-            name="mistral",
-            url="https://api.mistral.ai/v1/chat/completions",
-            key=mistral_key,
-            model=os.getenv("MISTRAL_MODEL", "mistral-small-latest"),
-            priority=50, rpm_limit=60, rpd_limit=5000,
-        ))
+        add(Provider(name="groq", url="https://api.groq.com/openai/v1/chat/completions",
+                     key=groq_key, model=_env_model("GROQ_MODEL", "groq"),
+                     priority=20, rpm_limit=30, rpd_limit=14400))
 
     nvidia_key = os.getenv("NVIDIA_API_KEY")
     if nvidia_key:
-        provider = Provider(
-            name="nvidia",
-            url="https://integrate.api.nvidia.com/v1/chat/completions",
-            key=nvidia_key,
-            model=os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"),
-            priority=60, rpm_limit=30, rpd_limit=5000,
-        )
-        _refresh_provider_model(provider)
-        providers.append(provider)
+        add(Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
+                     key=nvidia_key, model=_env_model("NVIDIA_MODEL", "nvidia"),
+                     priority=25, rpm_limit=30, rpd_limit=5000))
 
-    # Ollama (local/remote OpenAI-compatible server when configured)
-    ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL")
+    mistral_key = os.getenv("MISTRAL_API_KEY")
+    if mistral_key:
+        add(Provider(name="mistral", url="https://api.mistral.ai/v1/chat/completions",
+                     key=mistral_key, model=_env_model("MISTRAL_MODEL", "mistral"),
+                     priority=30, rpm_limit=60, rpd_limit=5000))
+
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        add(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
+                     key=openrouter_key, model=_env_model("OPENROUTER_MODEL", "openrouter"),
+                     priority=35, rpm_limit=60, rpd_limit=5000))
+
+    # Ollama: OLLAMA_API_KEY alone means Ollama Cloud (https://ollama.com).
     ollama_key = os.getenv("OLLAMA_API_KEY")
+    ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or (
+        "https://ollama.com" if ollama_key else "")
     if ollama_url:
         endpoint = ollama_url.rstrip("/")
         if not endpoint.endswith("/chat/completions"):
             endpoint = f"{endpoint}/v1/chat/completions" if not endpoint.endswith("/v1") else f"{endpoint}/chat/completions"
-        providers.append(Provider(
-            name="ollama",
-            url=endpoint,
-            key=ollama_key or "ollama",
-            model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
-            priority=70, rpm_limit=30, rpd_limit=5000,
-        ))
+        add(Provider(name="ollama", url=endpoint, key=ollama_key or "ollama",
+                     model=_env_model("OLLAMA_MODEL", "ollama"),
+                     priority=40, rpm_limit=30, rpd_limit=5000))
+
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        add(Provider(name="openai", url=f"{base}/chat/completions", key=openai_key,
+                     model=_env_model("ALP_LLM", "openai"),
+                     priority=50, rpm_limit=500, rpd_limit=10000))
+
+    generic_url = os.getenv("LLM_API_URL")
+    generic_key = os.getenv("LLM_API_KEY")
+    if generic_url and generic_key:
+        add(Provider(name="generic-openai", url=generic_url, key=generic_key,
+                     model=_env_model("LLM_MODEL", "generic-openai"),
+                     priority=55, rpm_limit=60, rpd_limit=5000))
+
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    if deepseek_key:
+        base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
+        add(Provider(name="deepseek", url=f"{base}/chat/completions", key=deepseek_key,
+                     model=_env_model("DEEPSEEK_MODEL", "deepseek"),
+                     priority=90, rpm_limit=60, rpd_limit=10000))
 
     providers.sort(key=lambda p: p.priority)
     return providers
@@ -418,6 +439,7 @@ def _classify_error(status: int, body: str) -> str:
     if status == 429:
         return FailureType.RATE_LIMIT
     if status in (401, 402, 403):
+        # 402 = no credit / paid model; treated like auth: provider is out for the run.
         return FailureType.AUTH_ERROR
     if status in (404, 410):
         return FailureType.MODEL_ERROR
@@ -604,7 +626,7 @@ def route(
         # Failure handling
         last_error = f"{provider.name}: {failure}"
         if failure == FailureType.AUTH_ERROR:
-            provider.mark_disabled("auth error", 3600)
+            provider.mark_disabled("auth/credit error", 86400)
         elif failure == FailureType.MODEL_ERROR:
             provider.mark_disabled("model not found", 86400)
         elif failure == FailureType.RATE_LIMIT:

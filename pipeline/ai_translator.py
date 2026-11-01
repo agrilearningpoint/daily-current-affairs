@@ -92,10 +92,59 @@ class _LRUCache:
 
 _CACHE = _LRUCache()
 _RATE_LIMITED_PROVIDERS = set()
+# A 429 is usually a per-minute limit, so a provider is parked for a cooldown
+# instead of the whole edition.  Credit/auth/model errors (401/402/403/404)
+# park it for the rest of the run.
+_COOLDOWN_UNTIL: Dict[str, float] = {}
+RATE_LIMIT_COOLDOWN = int(os.getenv("ALP_TRANSLATION_RATE_LIMIT_COOLDOWN", "65"))
+_HARD_FAIL_STATUSES = {401, 402, 403, 404, 410}
 
 
 class ProviderRateLimited(Exception):
-    """Signal that the current provider should be skipped for this edition."""
+    """Signal that the current provider should be parked for a cooldown."""
+
+    def __init__(self, name: str, retry_after: float | None = None):
+        super().__init__(name)
+        self.retry_after = retry_after
+
+
+_WAIT_BUDGET = [float(os.getenv("ALP_TRANSLATION_WAIT_BUDGET", "0"))]
+
+
+def _wait_for_cooldown(providers: List[Dict[str, Any]]) -> bool:
+    """When every provider is only cooling down, wait (within a run budget) for the first."""
+    names = [p["name"] for p in providers]
+    if not names or not all(n in _RATE_LIMITED_PROVIDERS for n in names):
+        return False
+    pending = [_COOLDOWN_UNTIL[n] for n in names if n in _COOLDOWN_UNTIL]
+    if not pending:
+        return False  # all parked for the run (credit/auth/model errors)
+    delay = max(0.0, min(pending) - time.time())
+    if delay > _WAIT_BUDGET[0]:
+        return False
+    _WAIT_BUDGET[0] -= delay
+    logger.info("[Translator] all providers cooling down; waiting %.0fs", delay)
+    time.sleep(delay)
+    return True
+
+
+def _provider_parked(name: str) -> bool:
+    if name not in _RATE_LIMITED_PROVIDERS:
+        return False
+    until = _COOLDOWN_UNTIL.get(name)
+    if until is not None and time.time() >= until:
+        _RATE_LIMITED_PROVIDERS.discard(name)
+        _COOLDOWN_UNTIL.pop(name, None)
+        return False
+    return True
+
+
+def _park_provider(name: str, seconds: float | None) -> None:
+    _RATE_LIMITED_PROVIDERS.add(name)
+    if seconds is None:
+        _COOLDOWN_UNTIL.pop(name, None)  # parked for the whole run
+    else:
+        _COOLDOWN_UNTIL[name] = time.time() + max(1.0, seconds)
 
 
 class ProviderRequestFailed(Exception):
@@ -164,6 +213,7 @@ def reset_provider_cache() -> None:
     global _PROVIDERS_CACHE
     _PROVIDERS_CACHE = None
     _RATE_LIMITED_PROVIDERS.clear()
+    _COOLDOWN_UNTIL.clear()
 
 
 # --------------------------------------------------------------------------- #
@@ -227,7 +277,12 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
 
     if r.status_code == 429:
         logger.warning("[Translator] %s rate-limited (429)", provider["name"])
-        raise ProviderRateLimited(provider["name"])
+        retry_after = None
+        try:
+            retry_after = float((getattr(r, "headers", None) or {}).get("retry-after"))
+        except (TypeError, ValueError):
+            retry_after = None
+        raise ProviderRateLimited(provider["name"], retry_after)
     try:
         r.raise_for_status()
     except requests.HTTPError as exc:
@@ -345,17 +400,36 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
 
     system, user = _build_prompt(text, task)
     provider_issues: List[str] = []
+    result = _translate_with(providers, text, task, key, system, user, provider_issues)
+    if result is None and _wait_for_cooldown(providers):
+        provider_issues = []
+        result = _translate_with(providers, text, task, key, system, user, provider_issues)
+    if result is not None:
+        return result
 
+    # All providers failed
+    result = {
+        "translated_hi": "",
+        "passed": False,
+        "confidence": 0.0,
+        "provider": "all-failed",
+        "issues": provider_issues or ["no usable providers available"],
+    }
+    _CACHE.put(key, result)
+    return result
+
+
+def _translate_with(providers, text, task, key, system, user, provider_issues):
     for provider in providers:
-        if provider["name"] in _RATE_LIMITED_PROVIDERS:
-            logger.info("[Translator] skipping %s after an earlier rate limit", provider["name"])
+        if _provider_parked(provider["name"]):
+            logger.info("[Translator] skipping %s (parked after rate limit / credit error)", provider["name"])
             continue
         logger.info("[Translator] trying provider %s", provider["name"])
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 hindi = _call_provider(provider, system, user)
-            except ProviderRateLimited:
-                _RATE_LIMITED_PROVIDERS.add(provider["name"])
+            except ProviderRateLimited as exc:
+                _park_provider(provider["name"], max(RATE_LIMIT_COOLDOWN, exc.retry_after or 0))
                 provider_issues.append(f"{provider['name']}: rate limited")
                 logger.info("[Translator] moving to the next configured provider")
                 break
@@ -363,6 +437,8 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                 if exc.retryable and attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
+                if any(str(exc) == f"HTTP {code}" for code in _HARD_FAIL_STATUSES):
+                    _park_provider(provider["name"], None)
                 provider_issues.append(f"{provider['name']}: {exc}")
                 break
 
@@ -384,17 +460,7 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
                 logger.warning("[Translator] %s validation failed: %s",
                                provider["name"], issues)
                 break  # try next provider
-
-    # All providers failed
-    result = {
-        "translated_hi": "",
-        "passed": False,
-        "confidence": 0.0,
-        "provider": "all-failed",
-        "issues": provider_issues or ["no usable providers available"],
-    }
-    _CACHE.put(key, result)
-    return result
+    return None
 
 
 def clear_cache() -> None:

@@ -29,11 +29,11 @@ def test_setup_and_translation_use_the_same_provider_registry(monkeypatch):
     expected = ai_router._build_default_providers()
     actual = orchestrator().load_keys()
     assert [item["name"] for item in actual] == [item.name for item in expected] == [
-        "generic-openai", "openrouter", "nvidia"
+        "nvidia", "openrouter", "generic-openai"  # free tiers first
     ]
     assert [item["model"] for item in actual] == [item.model for item in expected]
-    assert actual[0]["env_used"] == "LLM_API_KEY"
-    assert actual[-1]["env_used"] == "NVIDIA_API_KEY"
+    assert actual[0]["env_used"] == "NVIDIA_API_KEY"
+    assert actual[-1]["env_used"] == "LLM_API_KEY"
 
 
 def test_groq_default_uses_a_current_model(monkeypatch):
@@ -57,7 +57,7 @@ def test_nvidia_default_endpoint_and_model(monkeypatch):
                   if provider.name == "nvidia")
 
     assert nvidia.url == "https://integrate.api.nvidia.com/v1/chat/completions"
-    assert nvidia.model == "meta/llama-3.3-70b-instruct"
+    assert nvidia.model == "deepseek-ai/deepseek-v4.1-flash"  # "auto" default
 
 
 def test_deepseek_default_endpoint_and_model(monkeypatch):
@@ -68,7 +68,7 @@ def test_deepseek_default_endpoint_and_model(monkeypatch):
                     if provider.name == "deepseek")
 
     assert deepseek.url == "https://api.deepseek.com/v1/chat/completions"
-    assert deepseek.model == "deepseek-chat"
+    assert deepseek.model == "deepseek-flash"  # "auto" default
 
 
 def test_ollama_configured_endpoint_and_model(monkeypatch):
@@ -80,7 +80,7 @@ def test_ollama_configured_endpoint_and_model(monkeypatch):
                   if provider.name == "ollama")
 
     assert ollama.url == "http://remote-ollama.internal:11434/v1/chat/completions"
-    assert ollama.model == "llama3.1:8b"
+    assert ollama.model == "gpt-oss:120b"  # "auto" default
 
 
 def test_openai_and_generic_openai_keys_both_join_fallback_registry(monkeypatch):
@@ -228,14 +228,14 @@ def test_legacy_nvidia_helper_uses_openai_compatible_transport(monkeypatch):
     def post(url, *, headers, json, timeout):
         assert url == "https://integrate.api.nvidia.com/v1/chat/completions"
         assert headers["Authorization"] == f"Bearer {secret}"
-        assert json["model"] == "meta/llama-3.3-70b-instruct"
+        assert json["model"] == "deepseek-ai/deepseek-v4.1-flash"
         assert json["messages"] == [{"role": "user", "content": "Say hello"}]
         assert timeout == 60
         return Response()
 
     monkeypatch.setattr(requests, "post", post)
     assert llm_helper.call_nvidia("Say hello") == (
-        "Hello", "nvidia/meta/llama-3.3-70b-instruct"
+        "Hello", "nvidia/deepseek-ai/deepseek-v4.1-flash"
     )
 
 
