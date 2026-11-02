@@ -1368,7 +1368,7 @@
     "checkpoint_run_id": "41281700782"
   },
   "daily_2026-11-02": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "daily_2026-11-02",
     "job_type": "daily",
     "job_date": "2026-11-02",
@@ -1378,7 +1378,34 @@
       "end": "2026-11-02T07:15:26.040951+05:30"
     },
     "github_run_id": "41374069184",
-    "status": "running",
-    "updated_at": "2026-11-02T01:45:26.041871+00:00"
+    "status": "failed",
+    "updated_at": "2026-11-02T02:05:31.136701+00:00",
+    "started_at": "2026-11-02T01:45:28.069109+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-02.json": {
+        "stage": "01_source_fetch",
+        "sha256": "c96b2a520484891a68c930e3a03ce6d3fc2aa6e2978eb5570e14cc2b4fd151bd"
+      },
+      "data/verified/daily_2026-11-02.json": {
+        "stage": "04_fact_verification",
+        "sha256": "e738a5a6d31afa5772e5dfc97f90a818769bc1412bf8d5e5c863a43fee751fd1"
+      },
+      "data/dedup/daily_2026-11-02.json": {
+        "stage": "05_deduplication",
+        "sha256": "a62eb8ae701c02bd32c746e90ee14e2a6dee1f2285473aca1a1d4dc457eeb9d8"
+      },
+      "data/scored/daily_2026-11-02.json": {
+        "stage": "06_news_importance",
+        "sha256": "61d53cffe83246d0c16d87483b189ba5bbc90ef685a34335081dec2971837ceb"
+      },
+      "data/selected/daily_2026-11-02.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "8fbe4105a11885fe1e0a729e48d947f28f259be1de7a77841f38ef5397990b07"
+      }
+    },
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): nyms: ['PC']\"]): Harmanpreet got a hat-trick, converting another PC in the 33rd and a p\n2026-11-02 02:05:26 | INFO     | pipeline.content | [Translation] prefilled 14/15 body lines in one AI request\n2026-11-02 02:05:26 | INFO     | pipeline.ai_translator | [Translator] trying provider gemini\n2026-11-02 02:05:27 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=261 fallback=0 untranslated=2 (AI success 99.2%)\n2026-11-02 02:05:27 | WARNING  | pipeline.content | [Content Builder] 2 translations need review (AI did not pass)\n2026-11-02 02:05:27 | INFO     | pipeline.content | [Content Builder] Completeness: 15/15 items complete (avg words EN: 368.7, HI: 415.5)\n2026-11-02 02:05:27 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
+    "failed_stage": "12_content_editor",
+    "checkpoint_run_id": "41374069184"
   }
 }
