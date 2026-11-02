@@ -42,6 +42,32 @@ logging.basicConfig(
 logger = logging.getLogger("agent.18_pdf_design")
 
 
+def attach_news_photos(content: Dict[str, Any], job_id: str, content_file: Path) -> int:
+    """Download + validate + compress photos for the most important stories
+    (data/images/<job_id>/), set item image_path, and persist the content.
+    Fail-soft: any problem leaves the edition without (some) photos, never fails it."""
+    try:
+        from pipeline.news_images import attach_images
+        items = content.get("items") or []
+        stats = attach_images(items, job_id, ROOT / "data" / "images")
+        for it in items:
+            p = it.get("image_path")
+            if p:
+                try:
+                    it["image_path"] = str(Path(p).resolve().relative_to(ROOT))
+                except ValueError:
+                    pass
+        content["image_stats"] = stats
+        tmp = content_file.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, content_file)  # atomic write
+        logger.info("News photos: %d attached (%s)", stats.get("attached", 0), stats)
+        return int(stats.get("attached", 0))
+    except Exception as exc:  # pragma: no cover - fail soft
+        logger.warning("News photos skipped: %s", exc)
+        return 0
+
+
 def run_stage(job_id: str, date_str: str) -> bool:
     """Execute PDF generation stage for job_id."""
     content_file = ROOT / "data" / "content" / f"{job_id}.json"
@@ -78,6 +104,8 @@ def run_stage(job_id: str, date_str: str) -> bool:
     output_dir = ROOT / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
     out_pdf = output_dir / f"{job_id}.pdf"
+
+    attach_news_photos(content, job_id, content_file)
 
     has_shaping, diag = get_shaping_diagnostics()
     logger.info("Devanagari shaping diagnostics: %s", diag)

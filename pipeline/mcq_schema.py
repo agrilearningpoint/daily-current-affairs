@@ -134,6 +134,10 @@ def normalize_item_mcq(data: Dict[str, Any], item: Dict[str, Any]) -> Optional[D
         if row["label_en"] and row["value_en"]:
             gk.append(row)
     gk = gk[:MAX_STATIC_GK]
+    if len(gk) < MIN_STATIC_GK:
+        # Too few LLM static-GK rows is not a reason to lose the whole question:
+        # the PDF then falls back to the story's own verified static GK pairs.
+        gk = []
 
     ol_en, ol_hi = _pair(data.get("one_liner"))
     theme = _ws(data.get("theme"))[:40]
@@ -217,9 +221,21 @@ def generate_llm_mcqs(
     content_items: List[Dict[str, Any]],
     source_text_fn: Callable[[Dict[str, Any]], str],
     route: Optional[Callable[..., Any]] = None,
-    attempts: int = 2,
+    attempts: Optional[int] = None,
+    extra_check: Optional[Callable[[Dict[str, Any], Dict[str, Any]], List[str]]] = None,
 ) -> Dict[str, Dict[str, Any]]:
-    """Return {event_id: validated MCQ}.  Items that fail are simply absent (caller falls back)."""
+    """Return {event_id: validated MCQ}.  Items that fail are simply absent (caller falls back).
+
+    Every attempt is checked with ``schema_errors`` and, when given, ``extra_check``
+    (stage 16 passes the generic fail-closed validator, so an MCQ accepted here is
+    never rejected later).  A rejected attempt is retried with the rejection
+    reasons appended to the prompt, which fixes most near-misses.
+    """
+    if attempts is None:
+        try:
+            attempts = max(1, int(os.getenv("ALP_MCQ_LLM_ATTEMPTS", "3")))
+        except ValueError:
+            attempts = 3
     if route is None:
         try:
             from pipeline.ai_router import is_configured, route as _route
@@ -234,20 +250,34 @@ def generate_llm_mcqs(
             continue
         src = source_text_fn(item)
         prompt = build_prompt(item, src)
+        feedback = ""
         for attempt in range(attempts):
+            ask = prompt
+            if attempt:
+                ask = prompt + "\nReturn valid JSON only."
+                if feedback:
+                    ask += ("\nYour previous answer was rejected because: " + feedback +
+                            ". Fix exactly these problems. Distractors must NOT appear anywhere in NEWS; "
+                            "the question must not contain the answer.")
             try:
-                raw = route(prompt if attempt == 0 else prompt + "\nReturn valid JSON only.",
-                            task="mcq", needs_hindi=False)
+                raw = route(ask, task="mcq", needs_hindi=False)
             except Exception as exc:  # provider errors -> deterministic fallback
                 logger.warning("[MCQ schema] %s: route failed: %s", item.get("event_id"), exc)
                 break
             m = normalize_item_mcq(parse_llm_json(raw) or {}, item)
             if not m:
+                feedback = "the reply was not the requested JSON object"
                 continue
             errs = schema_errors(m, src)
+            if not errs and extra_check is not None:
+                try:
+                    errs = list(extra_check(m, item) or [])
+                except Exception as exc:
+                    errs = [f"validator error: {exc}"]
             if not errs:
                 out[str(item.get("event_id", ""))] = m
                 break
+            feedback = "; ".join(errs[:4])
             logger.info("[MCQ schema] %s attempt %d rejected: %s", item.get("event_id"), attempt + 1, errs)
     logger.info("[MCQ schema] %d/%d items got a validated LLM MCQ", len(out), len(content_items or []))
     return out

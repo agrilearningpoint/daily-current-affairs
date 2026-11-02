@@ -302,8 +302,17 @@ def main() -> int:
     allow_fallback = os.getenv("ALP_ALLOW_FALLBACK_TRANSLATION", "0") == "1"
     os.environ["ALP_TRANSLATION_STRICT"] = "0" if (dry_run or allow_fallback) else "1"
 
+    reserves = []
+    try:
+        raw_sel = json.loads(Path(path).read_text(encoding="utf-8"))
+        if isinstance(raw_sel, dict) and isinstance(raw_sel.get("reserves"), list):
+            from pipeline.artifacts import news_items
+            reserves = news_items({"items": raw_sel["reserves"]})
+    except Exception as exc:
+        logger.warning("[Content Editor] reserves unavailable: %s", exc)
+
     content = build_content(items, job)
-    if not content["items"]:
+    if not content["items"] and not reserves:
         logger.error("Content builder produced no items")
         return 1
 
@@ -311,21 +320,63 @@ def main() -> int:
         for item in content["items"]:
             item["needs_review"] = False
 
-    # Production resilience: if an individual item has translation review flags,
-    # drop only that unreviewed item so the remaining 10+ clean verified items
-    # can publish smoothly without blocking the daily edition!
-    if not dry_run and not allow_fallback and any(item.get("needs_review") for item in content["items"]):
-        valid_items = [it for it in content["items"] if not it.get("needs_review")]
-        min_required = int(os.getenv("MIN_VERIFIED_COUNT", "5"))
-        if len(valid_items) >= min_required:
-            logger.warning("[Content Editor] Dropping %d unreviewed item(s); proceeding with %d verified clean items",
-                           len(content["items"]) - len(valid_items), len(valid_items))
-            content["items"] = valid_items
-        else:
-            logger.warning("[Content Editor] Too few items without review flag (%d < %d); stripping flag to prevent blocking daily release",
-                           len(valid_items), min_required)
-            for item in content["items"]:
+    target = len(items)
+    try:
+        spares = max(0, int(os.getenv("ALP_CONTENT_SPARES", "3")))
+    except ValueError:
+        spares = 3
+    strict = not dry_run and not allow_fallback
+
+    def _clean(entries):
+        return [it for it in entries if not (strict and it.get("needs_review"))]
+
+    # Backfill: stories dropped by the builder (junk/paywall evidence) or held back
+    # for unreviewed translation are replaced by the next reserve stories, and a few
+    # spare stories are prepared for stage 16 (stories that get no valid MCQ).
+    clean = _clean(content["items"])
+    flagged = [it for it in content["items"] if strict and it.get("needs_review")]
+    rounds = 0
+    while reserves and len(clean) < target + spares and rounds < 3:
+        need = target + spares - len(clean)
+        take = need + (2 if len(clean) < target else 0)  # small margin only when short of target
+        batch, reserves = reserves[:take], reserves[take:]
+        extra = build_content(batch, job)
+        if allow_fallback:
+            for item in extra["items"]:
                 item["needs_review"] = False
+        for k, v in (extra.get("translation_stats") or {}).items():
+            if isinstance(v, (int, float)):
+                content["translation_stats"][k] = content["translation_stats"].get(k, 0) + v
+        seen = {it.get("event_id") for it in clean}
+        clean += [it for it in _clean(extra["items"]) if it.get("event_id") not in seen]
+        flagged += [it for it in extra["items"] if strict and it.get("needs_review")]
+        rounds += 1
+    if rounds:
+        logger.info("[Content Editor] reserve backfill: %d round(s), %d clean stories available for target %d",
+                    rounds, len(clean), target)
+
+    # Production resilience: unreviewed translations are dropped as long as at least
+    # MIN_VERIFIED_COUNT clean verified items remain (reserves already backfilled).
+    min_required = int(os.getenv("MIN_VERIFIED_COUNT", "5"))
+    if flagged and len(clean) < min_required:
+        logger.warning("[Content Editor] Too few items without review flag (%d < %d); stripping flag to prevent blocking daily release",
+                       len(clean), min_required)
+        for item in flagged:
+            item["needs_review"] = False
+        clean = clean + flagged
+    elif flagged:
+        logger.warning("[Content Editor] Dropped %d unreviewed item(s); proceeding with %d verified clean items",
+                       len(flagged), len(clean))
+
+    if not clean:
+        logger.error("Content builder produced no items")
+        return 1
+    if len(clean) < target:
+        logger.warning("[Content Editor] only %d/%d stories after reserve backfill", len(clean), target)
+    content["items"] = clean[:target]
+    content["reserve_items"] = clean[target:target + spares]
+    from pipeline.content import refresh_content_summaries
+    refresh_content_summaries(content)
 
     write_json_atomic(ctx.output_path("content"), content)
     return 0

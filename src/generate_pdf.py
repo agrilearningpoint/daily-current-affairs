@@ -1150,6 +1150,177 @@ class RoundedBox(Flowable):
 
 
 
+# =========================================================================
+# NEWS PHOTOS ("News in Pictures | चित्रों में खबरें" + one photo per story unit)
+# =========================================================================
+PDF_INLINE_PHOTOS = os.getenv("ALP_PDF_INLINE_PHOTOS", "1") != "0"
+PDF_PHOTO_GALLERY = os.getenv("ALP_PDF_GALLERY", "1") != "0"
+PDF_GALLERY_MIN = int(os.getenv("ALP_PDF_GALLERY_MIN", "3"))
+PHOTO_RADIUS = 7 * pt
+PHOTO_BORDER = HexColor("#CBD5E1")
+
+
+def _photo_path(it: Dict[str, Any]) -> str:
+    """Local, readable photo for a story ('' when none). Never raises."""
+    p = str((it or {}).get("image_path") or "").strip()
+    if not p:
+        return ""
+    cand = p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
+    try:
+        if os.path.isfile(cand) and os.path.getsize(cand) > 0:
+            with PILImage.open(cand) as im:
+                im.verify()
+            return cand
+    except Exception:
+        return ""
+    return ""
+
+
+class NewsPhoto(Flowable):
+    """A news photo scaled to fit (width x max_h), clipped to a rounded frame with a hairline border."""
+
+    def __init__(self, path: str, width: float, max_h: float, align: str = "center", box_w: Optional[float] = None):
+        super().__init__()
+        self.path = path
+        with PILImage.open(path) as im:
+            iw, ih = im.size
+        scale = min(width / float(iw), max_h / float(ih))
+        self.img_w, self.img_h = iw * scale, ih * scale
+        self.box_w = box_w if box_w is not None else width
+        self.align = align
+
+    def wrap(self, availWidth, availHeight):
+        self.box_w = min(self.box_w, availWidth)
+        return self.box_w, self.img_h
+
+    def draw(self):
+        c = self.canv
+        x = {"left": 0, "right": self.box_w - self.img_w}.get(self.align, (self.box_w - self.img_w) / 2.0)
+        c.saveState()
+        path = c.beginPath()
+        path.roundRect(x, 0, self.img_w, self.img_h, PHOTO_RADIUS)
+        c.clipPath(path, stroke=0, fill=0)
+        c.drawImage(self.path, x, 0, width=self.img_w, height=self.img_h, preserveAspectRatio=False, mask=None)
+        c.restoreState()
+        c.saveState()
+        c.setStrokeColor(PHOTO_BORDER)
+        c.setLineWidth(0.8)
+        c.roundRect(x, 0, self.img_w, self.img_h, PHOTO_RADIUS, stroke=1, fill=0)
+        c.restoreState()
+
+
+def _photo_credit(it: Dict[str, Any]) -> str:
+    src = it.get("source") if isinstance(it.get("source"), dict) else {}
+    name = _clean_text_for_display(it.get("image_credit") or src.get("name") or it.get("source_name") or "")
+    name = re.sub(r"https?://\S+", "", name).strip(" -|")
+    return name
+
+
+def _caption_style(align=TA_RIGHT) -> ParagraphStyle:
+    return ParagraphStyle("PhotoCaption", parent=STYLES["bullet_en"], fontName=FONT_REGULAR,
+                          fontSize=7.5 * PDF_FONT_SCALE, leading=9.5 * PDF_FONT_SCALE,
+                          textColor=COLORS["muted_text"], alignment=align)
+
+
+def _unit_photo_block(it: Dict[str, Any]) -> List[Flowable]:
+    """Framed story photo + small 'Image: <source>' credit, or [] when the story has no photo."""
+    if not PDF_INLINE_PHOTOS:
+        return []
+    path = _photo_path(it)
+    if not path:
+        return []
+    try:
+        w = PRINT_W * 0.6
+        photo = NewsPhoto(path, w, 165 * pt, align="center", box_w=PRINT_W)
+        out: List[Flowable] = [photo]
+        credit = _photo_credit(it)
+        if credit:
+            pad = (PRINT_W - photo.img_w) / 2.0
+            cap = Paragraph(f"<i>Image: {_safe(credit)}</i>", _caption_style(TA_RIGHT))
+            cap_t = Table([[cap]], colWidths=[PRINT_W])
+            cap_t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), pad), ("RIGHTPADDING", (0, 0), (-1, -1), pad),
+                                       ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+            out.append(cap_t)
+        out.append(Spacer(PRINT_W, 6 * pt))
+        return out
+    except Exception:
+        return []  # a bad photo must never break the edition
+
+
+def _news_in_pictures_story(units) -> List[Flowable]:
+    """'News in Pictures | चित्रों में खबरें': three-column photo cards, each linked to its story unit."""
+    if not PDF_PHOTO_GALLERY:
+        return []
+    cards_src = [(i, it) for i, (it, _ms) in enumerate(units, 1) if _photo_path(it)]
+    if len(cards_src) < PDF_GALLERY_MIN:
+        return []
+    ncol = 3
+    gap = 8 * pt
+    col_w = (PRINT_W - gap * (ncol - 1)) / float(ncol)
+    inner = col_w - 10 * pt
+    head_st = ParagraphStyle("GalleryHead", parent=STYLES["bullet_en"], fontName=FONT_SEMI,
+                             textColor=COLORS["primary"], fontSize=STYLES["bullet_en"].fontSize * 0.74,
+                             leading=STYLES["bullet_en"].leading * 0.72)
+    hi_st = ParagraphStyle("GalleryHI", parent=STYLES["hi_body"], fontSize=STYLES["hi_body"].fontSize * 0.68,
+                           leading=STYLES["hi_body"].leading * 0.68)
+    tag_st = ParagraphStyle("GalleryTag", parent=STYLES["section_tag"], fontSize=STYLES["section_tag"].fontSize * 0.78,
+                            leading=STYLES["section_tag"].leading * 0.8)
+    cap_st = _caption_style(TA_LEFT)
+
+    def _short(t: str, n: int) -> str:
+        return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + "…"
+
+    cards = []
+    for n, it in cards_src:
+        try:
+            en = _short(_clean_text_for_display(it.get("headline_en", "")), 88)
+            hi = _short(_hi_or_blank(it.get("headline_hi", "")), 80)
+            cell: List[Flowable] = [NewsPhoto(_photo_path(it), inner, 92 * pt, align="center", box_w=inner),
+                                    Spacer(inner, 3 * pt),
+                                    Paragraph(f"{_safe(str(it.get('category', 'National')).upper())}  •  Story {n}", tag_st),
+                                    LinkTo(Paragraph(_safe(en), head_st), f"u{n}")]
+            if hi:
+                cell.append(LinkTo(text_flowable(hi, hi_st, width=inner), f"u{n}"))
+            credit = _photo_credit(it)
+            if credit:
+                cell.append(Paragraph(f"<i>Image: {_safe(credit)}</i>", cap_st))
+            cards.append(cell)
+        except Exception:
+            continue
+    if len(cards) < PDF_GALLERY_MIN:
+        return []
+    real = len(cards)
+    while len(cards) % ncol:
+        cards.append([Spacer(inner, 1)])
+    rows = []
+    for i in range(0, len(cards), ncol):
+        row: List[Any] = []
+        for j in range(ncol):
+            row.append(cards[i + j])
+            if j < ncol - 1:
+                row.append("")
+        rows.append(row)
+    widths: List[float] = []
+    for j in range(ncol):
+        widths.append(col_w)
+        if j < ncol - 1:
+            widths.append(gap)
+    grid = Table(rows, colWidths=widths)
+    styles_ = [("VALIGN", (0, 0), (-1, -1), "TOP"),
+               ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+               ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+               ("LEFTPADDING", (1, 0), (1, -1), 0), ("RIGHTPADDING", (1, 0), (1, -1), 0),
+               ("LEFTPADDING", (3, 0), (3, -1), 0), ("RIGHTPADDING", (3, 0), (3, -1), 0)]
+    for k in range(real):
+        r, c = divmod(k, ncol)
+        styles_.append(("BOX", (c * 2, r), (c * 2, r), 0.6, COLORS["card_border"]))
+    grid.setStyle(TableStyle(styles_))
+    return [Anchor("pics", "News in Pictures | चित्रों में खबरें", 0),
+            Paragraph("<b>NEWS IN PICTURES</b>", STYLES["oneliner_title"]),
+            text_flowable("चित्रों में खबरें  •  पूरी खबर के लिए शीर्षक पर टैप करें", STYLES["cover_super"]),
+            Spacer(PRINT_W, 8 * pt), grid, PageBreak()]
+
+
 def _join_us_box() -> Flowable:
     """Clickable YouTube / Telegram links that close the edition."""
     st = ParagraphStyle("JoinLink", parent=STYLES["box_text"], fontName=FONT_SEMI,
@@ -1251,6 +1422,8 @@ def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowab
     out.append(Spacer(PRINT_W, 10 * pt))
     # Section chips
     chips: List[Tuple[str, str, str]] = []
+    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _photo_path(it)) >= PDF_GALLERY_MIN:
+        chips.append(("News in Pictures", "चित्रों में खबरें", "pics"))
     if (content.get("agri_corner") or {}).get("items"):
         chips.append(("Agriculture Corner", "कृषि कॉर्नर", "agri"))
     cats = _quick_bite_categories(content)
@@ -1553,6 +1726,8 @@ def compact_pdf_images(path: str, colors: int = 16):
                 continue  # keep alpha images (logos) untouched
             if doc.xref_get_key(xref, "ColorSpace")[1] != "/DeviceRGB":
                 continue
+            if "DCTDecode" in doc.xref_get_key(xref, "Filter")[1]:
+                continue  # JPEG news photos: already compressed, must keep full colour
             pix = fitz.Pixmap(doc, xref)
             if pix.n != 3 or pix.width < 50:
                 continue
@@ -1580,8 +1755,55 @@ def compact_pdf_images(path: str, colors: int = 16):
     return before, os.path.getsize(path)
 
 
+def _pdf_page_count(path: str) -> int:
+    try:
+        import fitz  # PyMuPDF
+        with fitz.open(path) as d:
+            return d.page_count
+    except Exception:
+        try:
+            from pypdf import PdfReader
+            return len(PdfReader(path).pages)
+        except Exception:
+            return 0
+
+
 # --- MAIN PDF GENERATION ENGINE ---
 def generate_pdf(
+    content: Dict[str, Any],
+    mcqs: List[Dict[str, Any]],
+    output_path: Optional[str] = None,
+    date_str: Optional[str] = None,
+    **kwargs: Any,
+) -> str:
+    """Generate the PDF; photos never push it past the QA page ceiling.
+
+    When the edition with photos exceeds PDF_QA_MAX_PAGES, it is rebuilt with the
+    gallery only, then without photos (the text content is never cut)."""
+    global PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY
+    path = _generate_pdf_once(content, mcqs, output_path, date_str, **kwargs)
+    has_photos = any(_photo_path(it) for it in (content.get("items") or []) if isinstance(it, dict))
+    try:
+        max_pages = int(os.getenv("PDF_QA_MAX_PAGES", "45"))
+    except ValueError:
+        max_pages = 45
+    if not has_photos or _pdf_page_count(path) <= max_pages:
+        return path
+    saved = (PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY)
+    try:
+        for inline, gallery in ((False, saved[1]), (False, False)):
+            if (inline, gallery) == saved:
+                continue
+            PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY = inline, gallery
+            path = _generate_pdf_once(content, mcqs, output_path, date_str, **kwargs)
+            if _pdf_page_count(path) <= max_pages:
+                break
+    finally:
+        PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY = saved
+    return path
+
+
+def _generate_pdf_once(
     content: Dict[str, Any],
     mcqs: List[Dict[str, Any]],
     output_path: Optional[str] = None,
@@ -1727,6 +1949,10 @@ def generate_pdf(
     if PDF_SHOW_TOC:
         story.extend(_toc_story(units, content, date_display))
         story.append(Anchor("mcq", "MCQ Topics | MCQ विषय", 0))
+    try:
+        story.extend(_news_in_pictures_story(units))
+    except Exception:
+        pass  # photos are optional; never fail the edition on them
 
     # =========================================================================
     # MCQ UNITS: Ques / प्रश्न, 5 bilingual options, answer, explanation, Static GK
@@ -1766,6 +1992,7 @@ def generate_pdf(
                 block.append(Spacer(PRINT_W, 8 * pt))
             if first_in_unit:
                 block += [pill, Spacer(PRINT_W, 6 * pt)]
+                block += _unit_photo_block(it)
             block.append(text_flowable(f"Q{q_idx}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{q_idx}.</b> {_safe(q_en)}"))
             q_hi = _hi_or_blank(m.get("question_hi", ""))
             if q_hi:

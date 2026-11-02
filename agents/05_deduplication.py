@@ -192,8 +192,11 @@ def dedup_similarity(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 continue
             if similarity(title, c.get("title", "")) > SIMILARITY_THRESHOLD:
                 # Same event — keep higher confidence
+                image = c.get("image_url") or a.get("image_url") or ""
                 if a.get("confidence_score", 0) > c.get("confidence_score", 0):
                     c.update(a)
+                if image and not c.get("image_url"):
+                    c["image_url"] = image  # keep a photo from either duplicate
                 # merge sources
                 c.setdefault("_sources", set()).add(a.get("source_feed", ""))
                 merged = True

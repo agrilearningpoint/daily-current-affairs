@@ -22,10 +22,17 @@ STAGE_FILES = {
 }
 
 
+CONTENT_REWRITERS = {"16_mcq_generator", "17_mcq_validator", "18_pdf_design"}
+
+
 def stage_outputs(stage: str, job_id: str):
     templates = [STAGE_FILES[stage]] if stage in STAGE_FILES else []
     if stage in {"20_weekly_editor", "21_monthly_editor"}:
         templates.append("data/scored/{job}.json")
+    if stage in CONTENT_REWRITERS:
+        # These stages reconcile the content artifact (MCQ-driven reserve
+        # backfill, photo paths), so its checkpoint hash is refreshed after them.
+        templates.append("data/content/{job}.json")
     return [template.format(job=job_id) for template in templates]
 
 

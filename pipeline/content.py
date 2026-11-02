@@ -309,6 +309,18 @@ def _own_text(ci):
     return _norm_ws(_plain_headline(ci.get("headline_en")) + " | " + " | ".join(ci.get("key_points_en") or []))
 
 
+def _evidence_text(ci):
+    """Story evidence an MCQ answer may come from: headline, key points and the
+    detailed explanation (which is itself built only from the source's raw facts).
+    Used by the validator and the LLM prompt; distractors must be absent from it."""
+    parts = [_own_text(ci)]
+    for key in ("summary_en", "detailed_explanation_en", "exam_fact_en"):
+        val = _norm_ws(ci.get(key) or "")
+        if val and val not in parts[0]:
+            parts.append(val)
+    return " | ".join(parts)
+
+
 # --------------------------------------------------------------------------- #
 # Entities (organisations / names) - deterministic, substring-safe
 # --------------------------------------------------------------------------- #
@@ -843,6 +855,7 @@ def _build_entry(it, stats):
                    "tier": it.get("source_tier", ""), "date": it.get("pub_time_ist")},
         "importance_score": it.get("importance_score", 0),
         "image_path": it.get("image_path", ""),
+        "image_url": it.get("image_url", ""),
         "needs_review": bool(flags) or not (it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live"),
         "verification_passed": it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live",
     }
@@ -892,6 +905,19 @@ def build_content(items, job_meta):
         logger.info("[Content Builder] Completeness: %d/%d items complete (avg words EN: %.1f, HI: %.1f)",
                     comp_report.complete_items, comp_report.total_items,
                     comp_report.average_words_en, comp_report.average_words_hi)
+    except Exception as exc:
+        logger.warning("[Content Builder] Completeness check skipped: %s", exc)
+    return content
+
+
+def refresh_content_summaries(content):
+    """Recompute one-liners and the completeness report after the item list changed
+    (reserve backfill in stage 12, MCQ-driven backfill in stage 16)."""
+    items = content.get("items") or []
+    content["one_liners"] = _build_category_one_liners(items)
+    try:
+        from pipeline.completeness import validate_content_completeness
+        content["completeness_report"] = validate_content_completeness(content).to_dict()
     except Exception as exc:
         logger.warning("[Content Builder] Completeness check skipped: %s", exc)
     return content
@@ -1313,7 +1339,7 @@ def renumber_mcqs(mcqs):
 def validate_mcqs(mcqs, content_items):
     src_by_event = {}
     for c in content_items or []:
-        src_by_event[c.get("event_id")] = _own_text(c)
+        src_by_event[c.get("event_id")] = _evidence_text(c)
     valid, rejected, seen_q = [], [], set()
     stats = {"total": len(mcqs or []), "passed": 0, "failed": 0}
 
