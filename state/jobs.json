@@ -1368,44 +1368,56 @@
     "checkpoint_run_id": "41281700782"
   },
   "daily_2026-11-02": {
+    "started_at": "2026-11-02T08:42:43.089727+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-02.json": {
+        "stage": "01_source_fetch",
+        "sha256": "511bb770d95ec748a9d7b0b324457d83c01dae694885a811c807a63c25286109"
+      },
+      "data/verified/daily_2026-11-02.json": {
+        "stage": "04_fact_verification",
+        "sha256": "50a441220bfcb6c7b5d06d75b923e6fc5a3e28b14458f812e729052d0748fe8c"
+      },
+      "data/dedup/daily_2026-11-02.json": {
+        "stage": "05_deduplication",
+        "sha256": "5b7c4c44e8e4a581bb14e9b982a98ded6496b58be7a7c97cce9dd0c624d39e29"
+      },
+      "data/scored/daily_2026-11-02.json": {
+        "stage": "06_news_importance",
+        "sha256": "7f06c55836e287dae0e5ad6a032c5c0e5a63bc9202b2eeb485b27933b33667ab"
+      },
+      "data/selected/daily_2026-11-02.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "8b88ef7a222c205d0723a7fae044331cf3a5ed29a9407ee75ffcadea650ae7b6"
+      },
+      "data/content/daily_2026-11-02.json": {
+        "stage": "12_content_editor",
+        "sha256": "d9216b481943fb6e1faf07be17e29d1c38fe837b731f09190deeff2e812a051e"
+      },
+      "data/mcq/daily_2026-11-02.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "eabb5875ed99a72b434e1acaf402a45db39a4de36e65590a9076aa47546e62ee"
+      },
+      "output/daily_2026-11-02.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "f487b76b6b72eb785fcb2d193d08bb7dde25d14803118209b5ccca32ad426341"
+      }
+    },
     "run_attempts": 1,
     "job_id": "daily_2026-11-02",
     "job_type": "daily",
     "job_date": "2026-11-02",
     "dry_run": false,
     "window": {
-      "start": "2026-11-01T07:15:26.040951+05:30",
-      "end": "2026-11-02T07:15:26.040951+05:30"
+      "start": "2026-11-01T14:12:43.088618+05:30",
+      "end": "2026-11-02T14:12:43.088618+05:30"
     },
     "github_run_id": "41414993959",
-    "status": "running",
-    "updated_at": "2026-11-02T08:42:41.108074+00:00",
-    "started_at": "2026-11-02T01:45:28.069109+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-11-02.json": {
-        "stage": "01_source_fetch",
-        "sha256": "c96b2a520484891a68c930e3a03ce6d3fc2aa6e2978eb5570e14cc2b4fd151bd"
-      },
-      "data/verified/daily_2026-11-02.json": {
-        "stage": "04_fact_verification",
-        "sha256": "e738a5a6d31afa5772e5dfc97f90a818769bc1412bf8d5e5c863a43fee751fd1"
-      },
-      "data/dedup/daily_2026-11-02.json": {
-        "stage": "05_deduplication",
-        "sha256": "a62eb8ae701c02bd32c746e90ee14e2a6dee1f2285473aca1a1d4dc457eeb9d8"
-      },
-      "data/scored/daily_2026-11-02.json": {
-        "stage": "06_news_importance",
-        "sha256": "61d53cffe83246d0c16d87483b189ba5bbc90ef685a34335081dec2971837ceb"
-      },
-      "data/selected/daily_2026-11-02.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "8fbe4105a11885fe1e0a729e48d947f28f259be1de7a77841f38ef5397990b07"
-      }
-    },
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): nyms: ['PC']\"]): Harmanpreet got a hat-trick, converting another PC in the 33rd and a p\n2026-11-02 02:05:26 | INFO     | pipeline.content | [Translation] prefilled 14/15 body lines in one AI request\n2026-11-02 02:05:26 | INFO     | pipeline.ai_translator | [Translator] trying provider gemini\n2026-11-02 02:05:27 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=261 fallback=0 untranslated=2 (AI success 99.2%)\n2026-11-02 02:05:27 | WARNING  | pipeline.content | [Content Builder] 2 translations need review (AI did not pass)\n2026-11-02 02:05:27 | INFO     | pipeline.content | [Content Builder] Completeness: 15/15 items complete (avg words EN: 368.7, HI: 415.5)\n2026-11-02 02:05:27 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content",
-    "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "41374069184"
+    "status": "failed",
+    "updated_at": "2026-11-02T08:55:43.430423+00:00",
+    "last_success_stage": "18_pdf_design",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): s 654)\nNear-empty pgs:  none\nStories missing: 7 (e.g. 'Bid opening meeting link for Procurement of IARI- Laboratory Equipment for PUSA ')\n\n--- Issues ---\n  [ERROR] [too_few_pages] PDF has only 12 pages (min 15)\n  [ERROR] [insufficient_mcqs] Only 8 MCQs found (min 10)\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [text_overflow] Text may overflow page bounds on pages: [9]\n  [ERROR] [stories_missing_from_pdf] 7/15 selected stories not found in the PDF — content lost in layout\n  [WARN] [below_page_target] 12 substantive page(s) is below the 15-page daily target (verified news volume may be low)\n========================================================================\n\n2026-11-02 08:55:39 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "failed_stage": "19_pdf_qa",
+    "checkpoint_run_id": "41414993959"
   }
 }
