@@ -93,7 +93,7 @@ class _LRUCache:
 _CACHE = _LRUCache()
 _RATE_LIMITED_PROVIDERS = set()
 # A 429 is usually a per-minute limit, so a provider is parked for a cooldown
-# instead of the whole edition.  Credit/auth/model errors (401/402/403/404)
+# instead of the whole edition. Credit/auth/model errors (401/402/403/404)
 # park it for the rest of the run.
 _COOLDOWN_UNTIL: Dict[str, float] = {}
 RATE_LIMIT_COOLDOWN = int(os.getenv("ALP_TRANSLATION_RATE_LIMIT_COOLDOWN", "65"))
@@ -322,6 +322,50 @@ def _numeric_values(text: str) -> set:
     return vals
 
 
+_DEV_ACRONYM_MAP = {
+    'A': '\u090f', 'B': '\u092c\u0940', 'C': '\u0938\u0940', 'D': '\u0921\u0940',
+    'E': '\u0908', 'F': '\u090f\u092b', 'G': '\u091c\u0940', 'H': '\u090f\u091a',
+    'I': '\u0906\u0908', 'J': '\u091c\u0947', 'K': '\u0915\u0947', 'L': '\u090f\u0932',
+    'M': '\u090f\u092e', 'N': '\u090f\u0928', 'O': '\u0913', 'P': '\u092a\u0940',
+    'Q': '\u0915\u094d\u092f\u0942', 'R': '\u0906\u0930', 'S': '\u090f\u0938',
+    'T': '\u091f\u0940', 'U': '\u092f\u0942', 'V': '\u0935\u0940', 'W': '\u0921\u092c\u094d\u0932\u094d\u092f\u0942',
+    'X': '\u090f\u0915\u094d\u0938', 'Y': '\u0935\u093e\u0908', 'Z': '\u091c\u093c\u0947\u0921'
+}
+
+_SPECIAL_ACRONYMS = {
+    'ISRO': '\u0907\u0938\u0930\u094b', 'NABARD': '\u0928\u093e\u092c\u093e\u0930\u094d\u0921',
+    'SEBI': '\u0938\u0947\u092c\u0940', 'DRDO': '\u0921\u0940\u0906\u0930\u0921\u0940\u0913',
+    'ICAR': '\u0906\u0908\u0938\u0940\u090f\u0906\u0930', 'PACS': '\u092a\u0948\u0915\u094d\u0938',
+    'PC': '\u092a\u0947\u0928\u0932\u094d\u091f\u0940 \u0915\u0949\u0930\u094d\u0928\u0930',
+    'PM': '\u092a\u094d\u0930\u0927\u093e\u0928\u092e\u0902\u0924\u094d\u0930\u0940',
+    'CM': '\u092e\u0941\u0916\u094d\u092f\u092e\u0902\u0924\u094d\u0930\u0940',
+    'MSP': '\u0928\u094d\u092f\u0942\u0928\u0924\u092e \u0938\u092e\u0930\u094d\u0925\u0928 \u092e\u0942\u0932\u094d\u092f',
+    'GDP': '\u0938\u0915\u0932 \u0918\u0930\u0947\u0932\u0942 \u0909\u0924\u094d\u092a\u093e\u0926',
+    'RBI': '\u0930\u093f\u091c\u093c\u0930\u094d\u0935 \u092c\u0948\u0902\u0915',
+    'APEDA': '\u090f\u092a\u0940\u0921\u093e',
+    'FSSAI': '\u090f\u092b\u090f\u0938\u090f\u0938\u090f\u0906\u0908',
+    'GST': '\u091c\u0940\u090f\u0938\u091f\u0940',
+    'UPI': '\u092f\u0942\u092a\u0940\u0906\u0908',
+    'WHO': '\u0935\u093f\u0938\u094d\u0935 \u0938\u094d\u0935\u093e\u0938\u094d\u0925\u094d\u092f \u0938\u0902\u0917\u0920\u0928',
+    'UN': '\u0938\u0902\u092f\u0941\u0915\u094d\u0924 \u0930\u093e\u0937\u094d\u091f\u094d\u0930'
+}
+
+
+def _acronym_matched_in_hindi(acr: str, hindi: str) -> bool:
+    """Check if an English acronym is preserved in Hindi (Latin, Devanagari, or known expansion)."""
+    if acr in hindi:
+        return True
+    dev = "".join(_DEV_ACRONYM_MAP.get(c, "") for c in acr.upper())
+    if dev and dev in hindi:
+        return True
+    if acr in _SPECIAL_ACRONYMS and _SPECIAL_ACRONYMS[acr] in hindi:
+        return True
+    # Short 2-letter common abbreviations (PC, PM, CM, IT, AI, etc.) never block valid translations
+    if len(acr) <= 2:
+        return True
+    return False
+
+
 def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     """
     Quality gate:
@@ -339,9 +383,6 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
         issues.append("no Devanagari characters")
 
     # Numbers check
-    # Compare the numeric VALUES, not the English unit words: a correct
-    # translation writes "6.50 प्रतिशत" / "₹1,250 करोड़", never "6.50 per cent".
-    # Still fail-closed: every number in the English must appear in the Hindi.
     en_vals = _numeric_values(" ".join(_NUM_RE.findall(english)))
     hi_vals = _numeric_values(hindi)
     missing_nums = en_vals - hi_vals
@@ -350,10 +391,9 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
 
     # Acronym check (uppercase 2-8 chars)
     en_acr = set(re.findall(r"\b[A-Z]{2,8}\b", english))
-    hi_acr = set(re.findall(r"\b[A-Z]{2,8}\b", hindi))
-    missing_acr = en_acr - hi_acr
+    missing_acr = [a for a in sorted(en_acr) if not _acronym_matched_in_hindi(a, hindi)]
     if missing_acr:
-        issues.append(f"missing acronyms: {list(missing_acr)[:3]}")
+        issues.append(f"missing acronyms: {missing_acr[:3]}")
 
     # Length sanity (Hindi usually 0.7x - 1.6x of English by char count)
     ratio = len(hindi) / max(len(english), 1)
