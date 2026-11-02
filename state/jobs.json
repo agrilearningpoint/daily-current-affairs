@@ -1403,7 +1403,7 @@
         "sha256": "f487b76b6b72eb785fcb2d193d08bb7dde25d14803118209b5ccca32ad426341"
       }
     },
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-11-02",
     "job_type": "daily",
     "job_date": "2026-11-02",
@@ -1413,11 +1413,11 @@
       "end": "2026-11-02T14:12:43.088618+05:30"
     },
     "github_run_id": "41422766085",
-    "status": "running",
-    "updated_at": "2026-11-02T09:42:31.678343+00:00",
+    "status": "failed",
+    "updated_at": "2026-11-02T09:42:53.294245+00:00",
     "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): s 654)\nNear-empty pgs:  none\nStories missing: 7 (e.g. 'Bid opening meeting link for Procurement of IARI- Laboratory Equipment for PUSA ')\n\n--- Issues ---\n  [ERROR] [too_few_pages] PDF has only 12 pages (min 15)\n  [ERROR] [insufficient_mcqs] Only 8 MCQs found (min 10)\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [text_overflow] Text may overflow page bounds on pages: [9]\n  [ERROR] [stories_missing_from_pdf] 7/15 selected stories not found in the PDF — content lost in layout\n  [WARN] [below_page_target] 12 substantive page(s) is below the 15-page daily target (verified news volume may be low)\n========================================================================\n\n2026-11-02 08:55:39 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): s 654)\nNear-empty pgs:  none\nStories missing: 7 (e.g. 'Bid opening meeting link for Procurement of IARI- Laboratory Equipment for PUSA ')\n\n--- Issues ---\n  [ERROR] [too_few_pages] PDF has only 12 pages (min 15)\n  [ERROR] [insufficient_mcqs] Only 8 MCQs found (min 10)\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [text_overflow] Text may overflow page bounds on pages: [9]\n  [ERROR] [stories_missing_from_pdf] 7/15 selected stories not found in the PDF — content lost in layout\n  [WARN] [below_page_target] 12 substantive page(s) is below the 15-page daily target (verified news volume may be low)\n========================================================================\n\n2026-11-02 09:42:49 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "41414993959"
+    "checkpoint_run_id": "41422766085"
   }
 }
