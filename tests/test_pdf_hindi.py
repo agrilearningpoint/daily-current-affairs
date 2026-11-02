@@ -30,9 +30,8 @@ def test_mixed_para_hindi_shaping():
         sys.path.insert(0, str(repo_root))
     import src.generate_pdf as gp
     from src.generate_pdf import generate_pdf
-    # Index and answer key are optional (the reference PDF has neither); turn
+    # The answer key is optional (the reference PDF has neither); turn
     # them on here so their Hindi headings are covered by this regression test.
-    gp.PDF_SHOW_INDEX = True
     gp.PDF_SHOW_ANSWER_KEY = True
     content = {
         "job": {"id":"test_hindi_regression","type":"daily","date":"2026-10-06","date_display":"06 October 2026"},
@@ -54,7 +53,6 @@ def test_mixed_para_hindi_shaping():
         try:
             pdf = generate_pdf(content, mcqs, output_path=out)
         finally:
-            gp.PDF_SHOW_INDEX = False
             gp.PDF_SHOW_ANSWER_KEY = False
         full = ""
         try:
