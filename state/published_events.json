@@ -305,6 +305,14 @@
       "file": "daily_2026-11-02.pdf",
       "published_at": "2026-11-02T14:45:30.880049+00:00",
       "status": "success"
+    },
+    "8f98de80fa19733a26ddb52c": {
+      "job_id": "daily_2026-11-01",
+      "chat_id": "-1004485392227",
+      "file_hash": "d31c5901aa3bbdd5",
+      "file_sha256": "d31c5901aa3bbdd555a2d978232320299f16dcdd134b17cb00e084f7d301fde6",
+      "status": "blocked_revision",
+      "published_at": "2026-11-02T20:15:54.524498+00:00"
     }
   }
 }

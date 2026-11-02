@@ -1262,9 +1262,25 @@
       "data/selected/daily_2026-11-01.json": {
         "stage": "10_final_news_selection",
         "sha256": "b20ee791a1bd5d094f5d6c0c767352cb223aac6f220021d0ab1773ec3f5b2ad6"
+      },
+      "data/content/daily_2026-11-01.json": {
+        "stage": "12_content_editor",
+        "sha256": "db4b316ec61b1646b6ddc5b327633436606bccb110c46b3262ec8b99297a9039"
+      },
+      "data/mcq/daily_2026-11-01.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "8d5a79ad3f1384e200671095fa26374d58e8cda614fbd9d1b5b6b3dd00cb2af3"
+      },
+      "output/daily_2026-11-01.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "d31c5901aa3bbdd555a2d978232320299f16dcdd134b17cb00e084f7d301fde6"
+      },
+      "logs/qa/daily_2026-11-01_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "09e63aefbc5a138087f3ea1834f3e610218de126d257c4d7330bdc2fcd9e8849"
       }
     },
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-11-01",
     "job_type": "daily",
     "job_date": "2026-11-01",
@@ -1274,10 +1290,12 @@
       "end": "2026-11-01T14:38:26.386603+05:30"
     },
     "github_run_id": "41513421804",
-    "status": "running",
-    "updated_at": "2026-11-02T19:49:38.034176+00:00",
-    "last_success_stage": "11_importance_memory",
-    "checkpoint_run_id": "41291748235"
+    "status": "failed",
+    "updated_at": "2026-11-02T20:16:15.898708+00:00",
+    "last_success_stage": "19_pdf_qa",
+    "checkpoint_run_id": "41513421804",
+    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-11-02 20:16:09 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-11-02 20:16:09 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-11-01.pdf\n2026-11-02 20:16:09 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-11-01; manual reconciliation required, refusing resend\n2026-11-02 20:16:09 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
+    "failed_stage": "22_telegram_publisher"
   },
   "monthly_2026-11-01": {
     "run_attempts": 6,
