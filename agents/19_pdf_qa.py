@@ -398,6 +398,23 @@ def check_story_coverage(report: QAReport, text: str,
                    missing=missing[:5], total=total)
 
 
+def check_story_count(report: QAReport, edition_count: int, selected_count: int) -> None:
+    """Error when the edition lost more than 20% of the selected stories (after
+    reserve backfill), mirroring the story-coverage tolerance."""
+    if selected_count <= 0:
+        return
+    floor = selected_count - max(2, -(-selected_count // 5)) + 1
+    if edition_count < floor:
+        report.add("error", "edition_story_shortfall",
+                   f"Edition has {edition_count} stories for {selected_count} selected "
+                   f"(floor {floor}) — reserves could not replace dropped stories",
+                   edition=edition_count, selected=selected_count, floor=floor)
+    elif edition_count < selected_count:
+        report.add("warning", "edition_story_shortfall",
+                   f"Edition has {edition_count}/{selected_count} selected-story slots filled",
+                   edition=edition_count, selected=selected_count)
+
+
 def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
     """
     Returns (mcq_count, answer_count, duplicate_count).
@@ -696,10 +713,16 @@ def check_html_leakage(report: QAReport, text: str) -> None:
                    samples=leaks[:5])
 
 
+# The public PDF deliberately prints no source URLs (evidence stays in the
+# pipeline data; photos carry an "Image: <source>" credit).  Opt back in to the
+# attribution-URL warning with PDF_QA_EXPECT_SOURCE_URLS=1.
+EXPECT_SOURCE_URLS = os.getenv("PDF_QA_EXPECT_SOURCE_URLS", "0") == "1"
+
+
 def check_urls(report: QAReport, text: str) -> None:
     urls = URL_RE.findall(text)
     report.urls_found = len(urls)
-    if len(urls) < 3:
+    if EXPECT_SOURCE_URLS and len(urls) < 3:
         report.add("warning", "few_source_urls",
                    f"Only {len(urls)} source URLs found — attribution may be missing",
                    count=len(urls))
@@ -851,11 +874,27 @@ def main() -> int:
         logger.error("Cannot determine selected-news count for %s: %s", ctx.job_id, exc)
         return 2
 
-    min_mcq_count = minimum_mcq_count(len(selected_items))
+    # The edition's final story list is the content artifact (stage 12 backfills
+    # from reserves, stage 16 swaps in reserves for stories without a valid MCQ).
+    # Coverage is checked against that list; a content shortfall versus the
+    # selection (more than 20% fewer stories) is still a content-loss error.
+    edition_items = selected_items
+    content_path = ctx.find_input("content")
+    if content_path is not None:
+        try:
+            content = json.loads(content_path.read_text(encoding="utf-8"))
+            c_items = content.get("items") if isinstance(content, dict) else None
+            if isinstance(c_items, list) and c_items:
+                edition_items = c_items
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Content artifact unreadable, checking coverage against selection: %s", exc)
+
+    min_mcq_count = minimum_mcq_count(len(edition_items))
     logger.info("QA requires at least %d MCQs for %d selected stories",
                 min_mcq_count, len(selected_items))
     report = run_qa(pdf, min_mcq_count=min_mcq_count,
-                    item_count=len(selected_items), selected_items=selected_items)
+                    item_count=len(edition_items), selected_items=edition_items)
+    check_story_count(report, len(edition_items), len(selected_items))
 
     # Save report
     report_file = ctx.qa_report_path()

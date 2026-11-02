@@ -11,6 +11,19 @@ RAW_FILE_RE = re.compile(
 )
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
 
+# Feed entries that are not exam news: tenders/bid notices, recruitment-rule PDFs,
+# opinion/editorial/review pieces, videos/quizzes/live blogs.  Run 41425513692
+# printed "Bid opening meeting link for Procurement of ..." and a film review.
+NON_NEWS_RE = re.compile(
+    r"\b(?:bid\s+opening|tender|corrigendum|e-?procurement|procurement\s+of|expression\s+of\s+interest|"
+    r"request\s+for\s+proposal|\bRFP\b|walk[-\s]?in|recruitment\s+rules|vacancy\s+circular|"
+    r"admit\s+card|answer\s+key|movie\s+review|film\s+review|book\s+review|"
+    r"editorial|op-ed|podcast|live\s+updates?|crossword|horoscope|quiz)\b"
+    r"|^\s*(?:watch|video|photos?|in\s+pictures|explained|letters?|opinion)\s*[:|]"
+    r"|\|\s*the\s+hindu\s+editorial",
+    re.IGNORECASE,
+)
+
 
 class Agent:
     def __init__(self, job_id, job_type, context):
@@ -45,12 +58,25 @@ class Agent:
                 return False
             if re.match(r"^Sports Authority of India$", h, re.I):
                 return False
+            if os.getenv("ALP_FILTER_NON_NEWS", "1") != "0" and NON_NEWS_RE.search(h):
+                return False
             return True
 
         scored = [x for x in scored if _is_valid_candidate(x)]
         scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
+        n_before = len(scored)
         selected = self._diverse_selection(scored, target)
-        logging.info(f"[{self.name}] selected {len(selected)} items (target={target})")
+        # Reserves: the next-best candidates, used by stage 12 (stories dropped for
+        # unreviewed translation) and stage 16 (stories without a valid MCQ) to
+        # backfill so the edition still reaches its target count.
+        try:
+            n_res = int(os.getenv("ALP_SELECTION_RESERVES", str(max(8, target // 2))))
+        except ValueError:
+            n_res = max(8, target // 2)
+        chosen = {id(x) for x in selected}
+        reserves = [x for x in scored if id(x) not in chosen][:max(0, n_res)]
+        logging.info(f"[{self.name}] selected {len(selected)} items (target={target}), "
+                     f"{len(reserves)} reserve(s); {n_before} valid candidates")
         cats = {}
         for item in selected:
             cat = item.get("category", "Other")
@@ -76,11 +102,36 @@ class Agent:
                 f"only {len(selected)} selected (min {min_items} for {self.job_type})"
             )
             raise RuntimeError(self.context["stage_failed"])
-        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": selected})
+        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": selected, "reserves": reserves})
         self.context["selected_count"] = len(selected)
+        self.context["reserve_count"] = len(reserves)
         return self.context
 
     def _diverse_selection(self, scored, target):
+        """Category round-robin with a per-publisher cap (ALP_MAX_PER_SOURCE_PCT,
+        default 40% of the target) so one feed cannot fill the edition; the cap is
+        relaxed only when the other sources cannot reach the target."""
+        try:
+            pct = float(os.getenv("ALP_MAX_PER_SOURCE_PCT", "0.4"))
+        except ValueError:
+            pct = 0.4
+        cap = max(3, -(-int(target * pct * 100) // 100)) if 0 < pct < 1 else target
+        def _src(x):
+            return str(x.get("source_name") or x.get("source_id") or "")
+        counts = {}
+        capped = []
+        for x in scored:
+            k = _src(x)
+            if counts.get(k, 0) < cap:
+                counts[k] = counts.get(k, 0) + 1
+                capped.append(x)
+        picked = self._round_robin(capped, target)
+        if len(picked) < target:
+            seen = {id(x) for x in picked}
+            picked += [x for x in scored if id(x) not in seen][:target - len(picked)]
+        return picked
+
+    def _round_robin(self, scored, target):
         selected = []
         by_category = {}
         for item in scored:

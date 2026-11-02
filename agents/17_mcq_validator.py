@@ -82,6 +82,19 @@ class Agent:
         
         # Save ONLY validated MCQs
         write_json_atomic(data_path(MCQ_DIR, self.job_id), validated_mcqs)
+
+        # Keep content and MCQs consistent: a story whose MCQ was rejected here
+        # would be skipped by the PDF renderer, so remove it from the edition
+        # (stage 16 already backfilled from reserves; this is a safety net).
+        with_mcq = {str(m.get("event_id")) for m in validated_mcqs if m.get("event_id")}
+        if with_mcq:
+            kept = [i for i in items if str(i.get("event_id")) in with_mcq]
+            if len(kept) < len(items):
+                from pipeline.content import refresh_content_summaries
+                logging.warning(f"[{self.name}] removing {len(items) - len(kept)} stor(y/ies) left without a valid MCQ")
+                content["items"] = kept
+                refresh_content_summaries(content)
+                write_json_atomic(data_path(CONTENT_DIR, self.job_id), content)
         
         logging.info(f"[{self.name}] ✓ Final: {len(validated_mcqs)} VALIDATED MCQs using {validation_method}")
         self.context["mcqs_validated"] = len(validated_mcqs)

@@ -290,16 +290,27 @@ def clean_and_validate_headline(raw_title: str, source_name: str = "") -> Tuple[
 
 def extract_article_text(url: str, timeout: int = 5) -> str:
     """Safely extract plain article text from webpage URL without hanging."""
+    return extract_article_page(url, timeout)[0]
+
+
+def extract_article_page(url: str, timeout: int = 5) -> Tuple[str, str]:
+    """(plain article text, og:image url) for an article page; ("", "") on any failure."""
     if not url or not url.startswith(("http://", "https://")):
-        return ""
+        return "", ""
     if os.getenv("ALP_DISABLE_NETWORK", "0") == "1" or os.getenv("DRY_RUN", "0") == "1":
-        return ""
+        return "", ""
+    image = ""
     try:
         from bs4 import BeautifulSoup
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
         if resp.status_code != 200 or not resp.text:
-            return ""
+            return "", ""
+        try:
+            from pipeline.news_images import extract_og_image
+            image = extract_og_image(resp.text[:300_000], resp.url or url)
+        except Exception:
+            image = ""
         soup = BeautifulSoup(resp.content[:300_000], "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "aside"]):
             tag.decompose()
@@ -311,14 +322,77 @@ def extract_article_text(url: str, timeout: int = 5) -> str:
                     and not any(w in p.lower() for w in ("copyright", "all rights reserved", "terms of use"))):
                 meaningful.append(p)
         text = " ".join(meaningful)
-        return " ".join(text.split())[:3000]
+        return " ".join(text.split())[:3000], image
     except Exception:
+        return "", image
+
+
+_IMG_SRC_RE = re.compile(r"<img[^>]+src=[\"']([^\"']+)[\"']", re.I)
+
+
+def extract_entry_image(entry: Any) -> str:
+    """Photo URL carried by the feed entry itself (media:thumbnail/content, enclosure, <img> in HTML)."""
+    try:
+        from pipeline.news_images import plausible_image_url
+    except Exception:  # pragma: no cover
         return ""
+    get = entry.get if hasattr(entry, "get") else (lambda k, d=None: getattr(entry, k, d))
+    best, best_w = "", -1
+    for key in ("media_content", "media_thumbnail"):
+        for value in get(key) or []:
+            if not isinstance(value, dict):
+                continue
+            url = str(value.get("url") or "").strip()
+            medium = str(value.get("medium") or value.get("type") or "image").lower()
+            if not plausible_image_url(url) or not ("image" in medium or medium == ""):
+                continue
+            try:
+                w = int(value.get("width") or 0)
+            except (TypeError, ValueError):
+                w = 0
+            if w > best_w:
+                best, best_w = url, w
+    if best:
+        return best
+    for enc in get("enclosures") or []:
+        url = str((enc or {}).get("href") or (enc or {}).get("url") or "").strip()
+        mime = str((enc or {}).get("type") or "").lower()
+        if plausible_image_url(url) and (mime.startswith("image/") or not mime):
+            return url
+    for link in get("links") or []:
+        if str((link or {}).get("rel")) == "enclosure" and str((link or {}).get("type", "")).startswith("image/"):
+            url = str(link.get("href") or "")
+            if plausible_image_url(url):
+                return url
+    html_blobs = [str(get("summary") or "")]
+    for c in get("content") or []:
+        html_blobs.append(str((c or {}).get("value") or ""))
+    for blob in html_blobs:
+        for m in _IMG_SRC_RE.finditer(blob):
+            url = html.unescape(m.group(1)).strip()
+            if url.startswith("//"):
+                url = "https:" + url
+            if plausible_image_url(url):
+                return url
+    return ""
+
+
+def _feed_level_time(parsed: Any) -> datetime | None:
+    """Channel-level publication time (lastBuildDate / pubDate / updated) of a feed."""
+    feed = getattr(parsed, "feed", None)
+    if feed is None:
+        return None
+    return _parse_entry_time(feed)
 
 
 # --------------------------------------------------------------------------
 # Fetch + normalize
 # --------------------------------------------------------------------------
+
+# Per-source breakdown of skipped entries from the latest fetch_spec() call
+# (bad_title / bad_link / no_date) plus feed_dated acceptances, for the log.
+SKIP_REASONS: Dict[str, Dict[str, int]] = {}
+
 
 def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
                seen_hashes: set | None = None) -> Tuple[List[Dict[str, Any]], int, int, str | None]:
@@ -349,17 +423,34 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         return [], 0, 0, f"feed parse error ({err})"
 
     entries = list(getattr(parsed, "entries", []) or [])
+    reasons = {"bad_title": 0, "bad_link": 0, "no_date": 0, "feed_dated": 0}
+    # Official feeds (e.g. PIB RssMain.aspx) often omit per-item <pubDate>.  Such
+    # items are accepted ONLY for official sources and ONLY when the channel's
+    # own lastBuildDate/pubDate falls inside the job window; they are stamped
+    # date_source="feed" so later stages can tell.  Disable with
+    # ALP_ACCEPT_FEED_DATED_OFFICIAL=0 (strict per-item dates only).
+    feed_time = None
+    if spec.official and os.getenv("ALP_ACCEPT_FEED_DATED_OFFICIAL", "1") != "0":
+        feed_time = _feed_level_time(parsed)
+        if feed_time is not None and not (window_start <= feed_time <= window_end):
+            feed_time = None
     for entry in entries:
         raw_title = getattr(entry, "title", "") or ""
         title, is_valid = clean_and_validate_headline(raw_title, spec.name)
         link = clean_url((getattr(entry, "link", "") or "").strip())
         if not is_valid or not link.lower().startswith(("http://", "https://")):
             malformed += 1
+            reasons["bad_title" if not is_valid else "bad_link"] += 1
             continue  # validated at collection boundary; logged via counter
         published = _parse_entry_time(entry)
+        date_source = "entry"
+        if published is None and feed_time is not None:
+            published, date_source = feed_time, "feed"
+            reasons["feed_dated"] += 1
         if published is None:
             # Missing timestamps are NOT treated as current news.
             malformed += 1
+            reasons["no_date"] += 1
             continue
         if not (window_start <= published <= window_end):
             continue  # outside the requested job window
@@ -371,10 +462,12 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
         if not is_usable_article_text(summary):
             summary = ""
         # If summary is thin or identical to title, attempt substantive paragraph extraction
+        image_url = extract_entry_image(entry)
         if len(summary) < 120 or summary.lower() == title.lower():
-            body_txt = extract_article_text(link, timeout=4)
+            body_txt, page_img = extract_article_page(link, timeout=4)
             if len(body_txt) > len(summary):
                 summary = body_txt
+            image_url = image_url or page_img
         if not is_usable_article_text(summary):
             # A valid headline alone may be retained for scoring, but it must
             # not be dressed up as an article summary later in the pipeline.
@@ -396,7 +489,10 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             "language": spec.language,
             "collected_at": datetime.now(timezone.utc).isoformat(),
             "content_hash": h,
+            "image_url": image_url,
+            **({"date_source": date_source} if date_source != "entry" else {}),
         })
+    SKIP_REASONS[spec.source_id] = reasons
     return collected, len(entries), malformed, None
 
 
@@ -470,8 +566,12 @@ def main() -> int:
                     if h not in seen_hashes:
                         seen_hashes.add(h)
                         all_articles.append(art)
+                why = SKIP_REASONS.get(spec.source_id) or {}
+                detail = ", ".join(f"{k}={v}" for k, v in why.items() if v)
+                n_img = sum(1 for a in arts if a.get("image_url"))
                 print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
-                      f"(of {total} entries, {malformed} malformed skipped)")
+                      f"(of {total} entries, {malformed} malformed skipped"
+                      f"{'; ' + detail if detail else ''}; {n_img} with image)")
         if b_id < len(batches):
             time.sleep(1.0)
 
@@ -489,6 +589,7 @@ def main() -> int:
         "sources_failed": len(feed_failures),
         "feed_failures": feed_failures,
         "article_count": len(all_articles),
+        "articles_with_image": sum(1 for a in all_articles if a.get("image_url")),
         "articles": all_articles,
     }
 
