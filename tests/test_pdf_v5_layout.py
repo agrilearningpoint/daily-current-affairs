@@ -221,7 +221,6 @@ def test_quick_bites_and_agri_corner_render(v5):
 
 
 @needs_shaping
-@pytest.mark.timeout(600)
 def test_page_cap_trims_quick_bites_before_photos(tmp_path, monkeypatch):
     from src.generate_pdf import generate_pdf, _pdf_page_count
     from tests.fixtures.bilingual_sample import build_sample_content, build_sample_mcqs
