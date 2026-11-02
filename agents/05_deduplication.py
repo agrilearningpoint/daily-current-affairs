@@ -117,8 +117,35 @@ def extract_numbers(text: str) -> set[float]:
     return {float(v) for v in re.findall(r"\b\d+(?:\.\d+)?\b", text or "")}
 
 
+# Title-case words that do not identify a different event (headline boilerplate).
+GENERIC_TITLE_WORDS = {
+    "the", "official", "visit", "update", "updates", "report", "reports", "says", "said", "new",
+    "today", "live", "breaking", "latest", "news", "govt", "government", "centre", "union",
+    "minister", "ministry", "national", "first", "after", "over", "amid", "with",
+    "from", "how", "why", "what", "who", "when", "will", "check", "details", "here", "this", "that",
+    "photo", "photos", "video", "watch", "explained", "key", "top", "big", "major", "highlights",
+}
+_PROPER_RE = re.compile(r"\b[A-Z][a-z][A-Za-z'’]+\b")
+CONTRASTIVE_PAIRS = [("hikes", "cuts"), ("increases", "decreases"), ("wins", "loses"), ("rises", "falls"),
+                     ("approves", "rejects"), ("launches", "withdraws"), ("appointed", "resigns"),
+                     ("arrives", "departs"), ("signs", "cancels"), ("lifts", "imposes"),
+                     ("beat", "lost to"), ("up", "down")]
+
+
+def _proper_nouns(title: str) -> set[str]:
+    words = {re.sub(r"['’]s$", "", w).strip("'’").lower() for w in _PROPER_RE.findall(title or "")}
+    return {w for w in words if w not in GENERIC_TITLE_WORDS}
+
+
 def distinct_event_check(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
-    """Return True if a and b definitely refer to different events and should NOT be merged."""
+    """Return True if a and b definitely refer to different events and should NOT be merged.
+
+    Highly similar headlines are still different events when they differ in their
+    figures (Rs 5,000 crore vs Rs 10,000 crore), in an opposing verb (hikes/cuts),
+    or when EACH headline names a place/person/body the other does not
+    ("India factory growth slows" vs "China factory growth slows"; "Foreign Secretary
+    to Nepal" vs "... to UAE") - run 41437192142 merged those pairs.
+    """
     t1 = a.get("title", "")
     t2 = b.get("title", "")
     # Check distinct numbers (e.g. Rs 5,000 crore vs Rs 10,000 crore, or 24th vs 25th)
@@ -127,12 +154,34 @@ def distinct_event_check(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
     if n1 and n2 and len(n1 & n2) == 0:
         return True
     # Check contrastive verbs
-    l1 = t1.lower()
-    l2 = t2.lower()
-    for w1, w2 in [("hikes", "cuts"), ("increases", "decreases"), ("wins", "loses"), ("rises", "falls")]:
+    l1 = f" {t1.lower()} "
+    l2 = f" {t2.lower()} "
+    for w1, w2 in CONTRASTIVE_PAIRS:
+        w1, w2 = f" {w1} ", f" {w2} "
         if (w1 in l1 and w2 in l2) or (w2 in l1 and w1 in l2):
             return True
+    # Different named entities on both sides => different events with shared wording.
+    w1 = {re.sub(r"['’]s$", "", w) for w in re.findall(r"[a-z0-9'’]+", l1)}
+    w2 = {re.sub(r"['’]s$", "", w) for w in re.findall(r"[a-z0-9'’]+", l2)}
+    caps1 = {w.lower() for w in re.findall(r"\b[A-Z]{2,}\b", t1)}
+    caps2 = {w.lower() for w in re.findall(r"\b[A-Z]{2,}\b", t2)}
+    only1 = {w for w in _proper_nouns(t1) if w not in w2}
+    only2 = {w for w in _proper_nouns(t2) if w not in w1}
+    # Ignore spelling variants of the same word ("India's" vs "Indian").
+    only1 = {w for w in only1 if not any(w.startswith(o[:5]) or o.startswith(w[:5]) for o in (w2 - w1))}
+    only2 = {w for w in only2 if not any(w.startswith(o[:5]) or o.startswith(w[:5]) for o in (w1 - w2))}
+    acr1, acr2 = caps1 - caps2 - w2, caps2 - caps1 - w1
+    # A title-case name on one side against any name/acronym on the other.
+    if (only1 and (only2 or acr2)) or (only2 and (only1 or acr1)):
+        return True
     return False
+
+
+def _rank(a: Dict[str, Any]) -> tuple:
+    """Representative preference: official/primary source first, then confidence."""
+    level = a.get("source_level")
+    level = level if isinstance(level, int) else 5
+    return (bool(a.get("official") or a.get("official_domain")), -level, a.get("confidence_score", 0))
 
 
 # --------------------------------------------------------------------------- #
@@ -175,8 +224,12 @@ def dedup_fingerprint(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for a in articles:
         title = a.get("title", "")
         fp = fingerprint(title)
+        # Generic titles ("Press Release", "Photo Gallery", "Cabinet decisions") are
+        # shared by different releases: only merge them when the bodies match too.
+        if len(get_keywords(title)) < 4:
+            fp += ":" + fingerprint((a.get("summary") or a.get("link") or "")[:300])
         cur = seen.get(fp)
-        if cur is None or a.get("confidence_score", 0) > cur.get("confidence_score", 0):
+        if cur is None or _rank(a) > _rank(cur):
             seen[fp] = a
     return list(seen.values())
 
@@ -193,8 +246,10 @@ def dedup_similarity(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if similarity(title, c.get("title", "")) > SIMILARITY_THRESHOLD:
                 # Same event — keep higher confidence
                 image = c.get("image_url") or a.get("image_url") or ""
-                if a.get("confidence_score", 0) > c.get("confidence_score", 0):
+                if _rank(a) > _rank(c):
+                    srcs = c.get("_sources", set())
                     c.update(a)
+                    c["_sources"] = srcs
                 if image and not c.get("image_url"):
                     c["image_url"] = image  # keep a photo from either duplicate
                 # merge sources

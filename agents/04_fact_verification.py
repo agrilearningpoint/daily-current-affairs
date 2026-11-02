@@ -344,6 +344,51 @@ def llm_score(article: Dict[str, Any]) -> Tuple[float, List[str]]:
         return 0.0, ["llm_parse_error"]
 
 
+def recover_origin(article: Dict[str, Any]) -> Dict[str, Any]:
+    """Re-attribute Google News items to their real publisher (see pipeline.official_sources).
+
+    ``site:pib.gov.in`` results arrive as the generic aggregator source (level 5); they
+    are official PIB releases and are verified/scored as such.  Top-story items whose
+    " - Publisher" suffix names a national newsroom are treated as that newsroom.
+    """
+    try:
+        from pipeline.official_sources import (MUST_INCLUDE_DOMAINS, OFFICIAL_DOMAINS, official_origin,
+                                               strip_publisher_suffix, trusted_publisher)
+    except Exception:  # pragma: no cover - helper missing
+        return article
+    dom = official_origin(article)
+    pub = None if dom else trusted_publisher(article)
+    if not dom and not pub:
+        return article
+    a = dict(article)
+    a["title"] = strip_publisher_suffix(str(a.get("title") or ""))
+    if a.get("headline_en"):
+        a["headline_en"] = strip_publisher_suffix(str(a["headline_en"]))
+    if str(a.get("category") or "").lower() in ("", "aggregator", "discovery", "fallback"):
+        try:
+            from pipeline.collector import infer_category
+            a["category"] = infer_category(f"{a['title']} {a.get('summary') or ''}")
+        except Exception:
+            pass
+    level = a.get("source_level")
+    aggregator = not isinstance(level, int) or level >= 4 or str(a.get("category")) == "aggregator"
+    if dom:
+        a["official_domain"] = dom
+        a["official"] = True
+        if aggregator:
+            a["source_name"] = OFFICIAL_DOMAINS.get(dom, dom)
+            a["source_level"] = 0 if dom in MUST_INCLUDE_DOMAINS else 1
+            a["source_tier"] = 1
+            a["publisher_url"] = f"https://{dom}"
+            a["recovered_from"] = "google_news"
+    elif pub and aggregator:
+        a["source_name"] = pub
+        a["source_level"] = 4
+        a["source_tier"] = 2
+        a["recovered_from"] = "google_news"
+    return a
+
+
 # --------------------------------------------------------------------------- #
 # Combined Verification
 # --------------------------------------------------------------------------- #
@@ -353,6 +398,7 @@ def verify_article(
     feature_cache: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Run all strategies + weighted combine. Never raises."""
+    article = recover_origin(article)
     cross_s, corroborating = cross_source_score(article, all_articles, feature_cache=feature_cache)
     heur_s, heur_flags = heuristic_score(article)
 
@@ -364,11 +410,12 @@ def verify_article(
         _llm_record(llm_flags)
 
     # Weighted combination
+    base = 0.7 * cross_s + 0.3 * heur_s
     if llm_s > 0:
         final = 0.5 * cross_s + 0.2 * heur_s + 0.3 * llm_s
         method = "combined"
     else:
-        final = 0.7 * cross_s + 0.3 * heur_s
+        final = base
         method = "heuristic+cross_source"
 
     all_flags = heur_flags + llm_flags
@@ -388,13 +435,21 @@ def verify_article(
     primary = (
         (article.get("official") is True and bool(publisher) and (host == publisher or host.endswith("." + publisher)))
         or (is_official_tier and (is_official_domain or bool(publisher)))
+        or bool(article.get("official_domain"))
     )
 
     # Curated national broadsheets (Level 4, Tier 2) with clean heuristics
+    # (source_tier arrives as "tier2" from legacy feeds and as the int 2 from the registry).
     is_curated_editorial = (
-        (article.get("source_level") == 4 or article.get("source_tier") in ("tier1", "tier2"))
+        (article.get("source_level") == 4 or article.get("source_tier") in ("tier1", "tier2", 1, 2))
         and heur_s >= 0.80
     )
+    # LLM plausibility is advisory for official and curated sources: models with an
+    # older knowledge cutoff rate genuine new events (new Acts, 2026 figures) as
+    # implausible, which dropped real news such as "Govt notifies grievance rules
+    # under VB-G RAM G Act" on 2026-11-02.  It may raise, never sink, those items.
+    if llm_s > 0 and (primary or is_curated_editorial):
+        final = max(final, base)
 
     provenance = (
         primary

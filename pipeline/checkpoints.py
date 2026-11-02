@@ -22,7 +22,7 @@ STAGE_FILES = {
 }
 
 
-CONTENT_REWRITERS = {"16_mcq_generator", "17_mcq_validator", "18_pdf_design"}
+CONTENT_REWRITERS = {"16_mcq_generator", "17_mcq_validator", "17b_auto_sections", "18_pdf_design"}
 
 
 def stage_outputs(stage: str, job_id: str):

@@ -124,6 +124,7 @@ STAGE_TO_STATE: Dict[str, str] = {
     "12_content_editor":     "CONTENT_READY",
     "16_mcq_generator":      "MCQ_READY",
     "17_mcq_validator":      "MCQ_VALIDATED",
+    "17b_auto_sections":     "MCQ_VALIDATED",
     "18_pdf_design":         "PDF_GENERATED",
     "19_pdf_qa":             "QA_APPROVED",
     "20_weekly_editor":      "SELECTED",
