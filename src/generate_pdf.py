@@ -29,6 +29,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from reportlab import rl_config
+rl_config.useA85 = 0  # raw binary streams: ASCII85 inflated the PDF by ~25%
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm, inch
 pt = 1
@@ -231,6 +233,51 @@ def _clean_text_for_display(t: Any) -> str:
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 
 
+# --- KEY-FACT HIGHLIGHTING (numbers, amounts, dates) for quick mobile revision ---
+PDF_HIGHLIGHT = os.getenv("ALP_PDF_HIGHLIGHT", "1") != "0"
+HIGHLIGHT_HEX = os.getenv("ALP_PDF_HIGHLIGHT_COLOR", "#B42318")
+_MONTHS_EN = "January|February|March|April|May|June|July|August|September|October|November|December"
+_MONTHS_HI = "जनवरी|फरवरी|मार्च|अप्रैल|मई|जून|जुलाई|अगस्त|सितंबर|अक्टूबर|नवंबर|दिसंबर"
+_UNITS = (r"st|nd|rd|th|%|per cent|lakh crore|crore|lakh tonnes|lakh metric tonnes|lakh|million tonnes|million|billion|trillion|"
+          r"LMT|tonnes|km|kg|MW|GW|"
+          r"लाख करोड़|लाख मीट्रिक टन|लाख टन|करोड़|लाख|प्रतिशत|मिलियन टन|मिलियन|अरब|टन|किलो")
+KEYFACT_RE = re.compile(
+    r"(?<![A-Za-z0-9\-/\u0900-\u097F])(?:₹\s?|\$\s?|Rs\.?\s?)?\d[\d,]*(?:\.\d+)?"
+    r"(?:\s?(?:" + _UNITS + r")(?![A-Za-z\u0900-\u097F]))?"
+    r"(?:\s(?:" + _MONTHS_EN + "|" + _MONTHS_HI + r")(?![A-Za-z\u0900-\u097F])(?:,?\s\d{4})?)?"
+    r"(?![A-Za-z0-9\-])"
+)
+
+
+def highlight_segments(text: str) -> List[Tuple[str, bool]]:
+    """Split text into (chunk, is_key_fact) runs."""
+    out: List[Tuple[str, bool]] = []
+    pos = 0
+    for m in KEYFACT_RE.finditer(text):
+        if m.start() == 0 and text[m.end():m.end() + 1] == ".":
+            continue  # list numbering such as "12." is not a key fact
+        if m.start() > pos:
+            out.append((text[pos:m.start()], False))
+        out.append((m.group(0), True))
+        pos = m.end()
+    if pos < len(text):
+        out.append((text[pos:], False))
+    return out or [(text, False)]
+
+
+def highlight_markup(text: str) -> str:
+    """ReportLab markup for Latin text with key facts bold + accent colour (input is plain text)."""
+    if not PDF_HIGHLIGHT:
+        return _safe(text)
+    parts = []
+    for chunk, hl in highlight_segments(text):
+        if hl:
+            parts.append(f'<font name="{FONT_BOLD}" color="{HIGHLIGHT_HEX}">{_safe(chunk)}</font>')
+        else:
+            parts.append(_safe(chunk))
+    return "".join(parts)
+
+
 # --- SHAPED HINDI FLOWABLE WITH DUAL VECTOR-TEXT LAYER ---
 class _HindiTextFlowable(Flowable):
     """Renders pixel-perfect HarfBuzz-shaped Devanagari while preserving vector text."""
@@ -265,11 +312,38 @@ class _HindiTextFlowable(Flowable):
             else:
                 tx = x + L["left_pad_mm"] * mm + 2
             ty = y + h_pt - (i + 1) * slot + slot * 0.16
-            canvas_obj.drawString(tx, ty, clean_l, mode=3)  # Invisible vector text for QA & search
+            # Invisible vector text for QA & search; squeeze it to the image width
+            # (unshaped Devanagari measures wider than the shaped line).
+            avail = w_pt - (tx - x) - 2
+            t = canvas_obj.beginText(tx, ty)
+            t.setTextRenderMode(3)
+            t.setFont(L["font_name"], size)
+            if lw > avail > 0:
+                t.setHorizScale(100.0 * avail / lw)
+            t.textOut(clean_l)
+            canvas_obj.drawText(t)
         canvas_obj.restoreState()
 
     def draw(self):
         self.drawOn(self.canv, 0, 0)
+
+
+HINDI_DPI = int(os.getenv("ALP_PDF_HINDI_DPI", "200"))
+HINDI_OPAQUE = os.getenv("ALP_PDF_HINDI_OPAQUE", "1") != "0"
+_HB_CACHE: Dict[Tuple[str, float, int], Tuple[Any, Any]] = {}
+
+
+def _hb_font_pair(font_path: str, font_size_pt: float, dpi: int) -> Tuple[Any, Any]:
+    key = (font_path, round(font_size_pt, 3), dpi)
+    if key not in _HB_CACHE:
+        face = freetype.Face(font_path)
+        face.set_char_size(int(font_size_pt * 64), 0, dpi, dpi)
+        with open(font_path, "rb") as f:
+            font_data = f.read()
+        hb_font = hb.Font(hb.Face(hb.Blob(font_data)))
+        hb_font.scale = (face.size.x_ppem * 64, face.size.y_ppem * 64)
+        _HB_CACHE[key] = (face, hb_font)
+    return _HB_CACHE[key]
 
 
 def _render_hindi_hb_ft(
@@ -284,17 +358,14 @@ def _render_hindi_hb_ft(
     line_spacing: float,
     align: str,
     dpi: int,
+    highlight_rgb: Optional[Tuple[int, int, int]] = None,
+    highlight_font_path: Optional[str] = None,
 ) -> Tuple[PILImage.Image, List[str], int, int]:
-    face = freetype.Face(font_path)
-    face.set_char_size(int(font_size_pt * 64), 0, dpi, dpi)
+    base = _hb_font_pair(font_path, font_size_pt, dpi)
+    hl_font = _hb_font_pair(highlight_font_path or font_path, font_size_pt, dpi) if highlight_rgb else base
 
-    with open(font_path, "rb") as f:
-        font_data = f.read()
-    hb_face = hb.Face(hb.Blob(font_data))
-    hb_font = hb.Font(hb_face)
-    hb_font.scale = (face.size.x_ppem * 64, face.size.y_ppem * 64)
-
-    def shape_runs(txt: str) -> Tuple[List[Any], List[Any]]:
+    def shape_runs(txt: str, pair) -> Tuple[List[Any], List[Any]]:
+        _face, hb_font = pair
         all_infos = []
         all_pos = []
         tokens = re.split(r'([ऀ-ॿ‌‍]+)', txt)
@@ -316,9 +387,15 @@ def _render_hindi_hb_ft(
             all_pos.extend(buf.glyph_positions)
         return all_infos, all_pos
 
+    def segments(txt: str) -> List[Tuple[str, bool]]:
+        return highlight_segments(txt) if highlight_rgb else [(txt, False)]
+
     def measure_text(txt: str) -> int:
-        _, positions = shape_runs(txt)
-        return sum(pos.x_advance for pos in positions) // 64
+        w = 0
+        for chunk, hl in segments(txt):
+            _, positions = shape_runs(chunk, hl_font if hl else base)
+            w += sum(pos.x_advance for pos in positions) // 64
+        return w
 
     words = text.split()
     lines = []
@@ -348,11 +425,9 @@ def _render_hindi_hb_ft(
     total_h = line_h * (len(lines) - 1) + ascender + int(round(em_px * 0.45)) + int(2 * dpi / 72)
 
     img = PILImage.new("RGBA", (width_px, max(total_h, 1)), (bg_rgb[0], bg_rgb[1], bg_rgb[2], 0 if bg_rgb == (255, 255, 255) else 255))
-    draw = ImageDraw.Draw(img)
 
     for i, line in enumerate(lines):
-        infos, positions = shape_runs(line)
-        line_w = sum(pos.x_advance for pos in positions) // 64
+        line_w = measure_text(line)
         if align == "center":
             pen_x = (width_px - line_w) // 2
         elif align == "right":
@@ -361,19 +436,23 @@ def _render_hindi_hb_ft(
             pen_x = int(left_padding_mm * dpi / 25.4)
         base_y = i * line_h + ascender
 
-        for info, pos in zip(infos, positions):
-            gid = info.codepoint
-            face.load_glyph(gid, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_NORMAL)
-            bm = face.glyph.bitmap
-            if bm.width > 0 and bm.rows > 0:
-                buf = bytes(bm.buffer)
-                gm = PILImage.frombytes("L", (bm.width, bm.rows), buf)
-                tint = PILImage.new("RGBA", (bm.width, bm.rows), (*color_rgb, 255))
-                tint.putalpha(gm)
-                gx = pen_x + pos.x_offset // 64 + face.glyph.bitmap_left
-                gy = base_y - (pos.y_offset // 64 + face.glyph.bitmap_top)
-                img.alpha_composite(tint, (gx, gy))
-            pen_x += pos.x_advance // 64
+        for chunk, hl in segments(line):
+            pair = hl_font if hl else base
+            face = pair[0]
+            rgb = highlight_rgb if hl else color_rgb
+            infos, positions = shape_runs(chunk, pair)
+            for info, pos in zip(infos, positions):
+                gid = info.codepoint
+                face.load_glyph(gid, freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_NORMAL)
+                bm = face.glyph.bitmap
+                if bm.width > 0 and bm.rows > 0:
+                    gm = PILImage.frombytes("L", (bm.width, bm.rows), bytes(bm.buffer))
+                    tint = PILImage.new("RGBA", (bm.width, bm.rows), (*rgb, 255))
+                    tint.putalpha(gm)
+                    gx = pen_x + pos.x_offset // 64 + face.glyph.bitmap_left
+                    gy = base_y - (pos.y_offset // 64 + face.glyph.bitmap_top)
+                    img.alpha_composite(tint, (gx, gy))
+                pen_x += pos.x_advance // 64
 
     return img, lines, width_px, total_h
 
@@ -387,6 +466,7 @@ def render_hindi_flowable(
     bg_rgb: Tuple[int, int, int] = (255, 255, 255),
     align: str = "left",
     left_padding_mm: float = 0.0,
+    highlight: bool = False,
 ) -> Flowable:
     """Return a Flowable containing shaped Hindi with underlying selectable text."""
     clean = _strip_html(text)
@@ -395,7 +475,7 @@ def render_hindi_flowable(
 
     fname = "Mukta-Bold.ttf" if is_bold else "Mukta-Regular.ttf"
     fpath = os.path.join(FONTS_DIR, fname)
-    dpi = 220
+    dpi = HINDI_DPI
     scale = dpi / 72.0
     w_px = int(width_pt * scale)
     pad_px = int(left_padding_mm * mm * scale)
@@ -403,11 +483,20 @@ def render_hindi_flowable(
 
     img, lines, iw, ih = _render_hindi_hb_ft(
         clean, fpath, font_size_pt, w_px, avail_w,
-        left_padding_mm, color_rgb, bg_rgb, 1.35, align, dpi
+        left_padding_mm, color_rgb, bg_rgb, 1.35, align, dpi,
+        highlight_rgb=_rgb(HexColor(HIGHLIGHT_HEX)) if (highlight and PDF_HIGHLIGHT) else None,
+        highlight_font_path=os.path.join(FONTS_DIR, "Mukta-Bold.ttf"),
     )
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    if HINDI_OPAQUE:
+        # Flatten onto the known background: no alpha SMask in the PDF, which
+        # roughly halves file size (faster Telegram downloads on mobile).
+        flat = PILImage.new("RGB", img.size, bg_rgb)
+        flat.paste(img, mask=img.split()[3])
+        flat.save(buf, format="PNG", optimize=True)
+    else:
+        img.save(buf, format="PNG")
     buf.seek(0)
 
     draw_w = width_pt
@@ -571,12 +660,15 @@ def get_important_days_for_date(date_str: str) -> List[str]:
 # --- TWO-PASS CANVAS FOR HEADERS, FOOTERS & RUNNING METADATA ---
 class ExamGeniusCanvas(canvas.Canvas):
     """Draws running header, divider, and footer across all pages except the cover."""
+    _footer_link_seq = 0
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states: List[Dict[str, Any]] = []
+        self._page_marks: List[Tuple[str, str, int, float]] = []
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
+        self._page_marks = []
         self._startPage()
 
     def save(self):
@@ -587,6 +679,11 @@ class ExamGeniusCanvas(canvas.Canvas):
                 self.draw_cover_decorations()
             else:
                 self.draw_page_decorations(num_pages)
+            # Destinations/outline must be registered on the real page (two-pass canvas).
+            for key, title, level, y in state.get("_page_marks") or []:
+                self.bookmarkHorizontal(key, 0, y + 14)
+                if title:
+                    self.addOutlineEntry(title, key, level=level, closed=level == 0 and False)
             canvas.Canvas.showPage(self)
         canvas.Canvas.save(self)
 
@@ -632,6 +729,20 @@ class ExamGeniusCanvas(canvas.Canvas):
             self.roundRect(x, 135, 102, 26, 13, stroke=1, fill=0)
             self.setFillColor(HexColor("#103F7B")); self.setFont(FONT_SEMI, 7.6)
             self.drawCentredString(x + 51, 145, label); x += 108
+        # Clickable channel pills on the cover.
+        pills = (("YouTube: Agri Learning Point", LINK_YOUTUBE), ("Telegram: @agrilearningpoint", LINK_TELEGRAM),
+                 ("Daily Quiz: @agriquizworld", LINK_TELEGRAM_QUIZ))
+        self.setFont(FONT_BOLD, 10.5)
+        widths = [self.stringWidth(l, FONT_BOLD, 10.5) + 24 for l, _ in pills]
+        gap = 10
+        x = (w - (sum(widths) + gap * (len(widths) - 1))) / 2
+        for (label, url), pw in zip(pills, widths):
+            self.setFillColor(COLORS["white"]); self.roundRect(x, 80, pw, 26, 13, stroke=0, fill=1)
+            self.setFillColor(HexColor("#0B57D0")); self.drawCentredString(x + pw / 2, 89, label)
+            ExamGeniusCanvas._footer_link_seq += 1
+            self._annotationCount = 100000 + ExamGeniusCanvas._footer_link_seq
+            self.linkURL(url, (x, 80, x + pw, 106), relative=0)
+            x += pw + gap
         self.setFillColor(HexColor("#1262B9")); self.rect(0, 0, w, 30, stroke=0, fill=1)
         self.setFillColor(COLORS["white"]); self.setFont(FONT_SEMI, 9)
         self.drawCentredString(w / 2, 11, "Achieve Success with Agri Learning Point - Your Ultimate Guide to Agriculture & Govt. Exams")
@@ -651,13 +762,29 @@ class ExamGeniusCanvas(canvas.Canvas):
         self.setLineWidth(1.25)
         self.line(0, h - 43 * pt, w, h - 43 * pt)
         header_y = h - 28 * pt
-        self.setFont(FONT_SEMI, 8)
+        self.setFont(FONT_BOLD, 10)
         self.setFillColor(HexColor("#103F7B"))
-        self.drawString(left_m, header_y, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS (BILINGUAL)")
+        self.drawString(left_m, header_y, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS")
 
-        self.setFont(FONT_REGULAR, 7.5)
+        self.setFont(FONT_SEMI, 9)
         self.setFillColor(HexColor("#103F7B"))
-        self.drawRightString(right_m, header_y, "UPSSSC AGTA • IBPS AFO • ICAR • NABARD • STATE PCS")
+        if PDF_SHOW_TOC and getattr(self, "_has_contents", False):
+            pill_txt = "INDEX"
+            pw = self.stringWidth(pill_txt, FONT_BOLD, 8.5) + 14
+            px, py = right_m - pw, header_y - 4
+            self.setFillColor(HexColor("#103F7B"))
+            self.roundRect(px, py, pw, 15, 7, stroke=0, fill=1)
+            self.setFillColor(COLORS["white"])
+            self.setFont(FONT_BOLD, 8.5)
+            self.drawCentredString(px + pw / 2, py + 4.2, pill_txt)
+            ExamGeniusCanvas._footer_link_seq += 1
+            self._annotationCount = 100000 + ExamGeniusCanvas._footer_link_seq
+            self.linkRect("", "contents", (px, py, px + pw, py + 15), relative=0, thickness=0)
+            self.setFont(FONT_SEMI, 9)
+            self.setFillColor(HexColor("#103F7B"))
+            self.drawRightString(px - 8, header_y, "AGTA • IBPS AFO • ICAR • NABARD")
+        else:
+            self.drawRightString(right_m, header_y, "AGTA • IBPS AFO • ICAR • NABARD • PCS")
 
         # Top hairline divider.
         self.setStrokeColor(HexColor("#B6DDF7"))
@@ -675,20 +802,35 @@ class ExamGeniusCanvas(canvas.Canvas):
             except Exception:
                 pass
 
-        footer_y = 12 * pt
+        footer_h = 34 * pt
+        footer_y = 13 * pt
         self.setFillColor(HexColor("#111111"))
-        self.rect(0, 0, w, 31 * pt, stroke=0, fill=1)
+        self.rect(0, 0, w, footer_h, stroke=0, fill=1)
 
-        self.setFont(FONT_SEMI, 7.5)
-        self.setFillColor(COLORS["white"])
-        self.drawString(left_m, footer_y, "YouTube: @agrilearningpoint")
-
-        self.setFont(FONT_REGULAR, 7.5)
-        self.setFillColor(COLORS["white"])
-        self.drawCentredString(w / 2.0, footer_y, "Telegram: @agrilearningpoint")
+        fs = 9.5
+        link_col = HexColor("#7CC4FF")
+        items = [("YouTube", LINK_YOUTUBE), ("@agrilearningpoint", LINK_TELEGRAM), ("@agriquizworld", LINK_TELEGRAM_QUIZ)]
+        x = left_m
+        self.setFont(FONT_SEMI, fs)
+        for i, (label, url) in enumerate(items):
+            prefix = "▶ " if i == 0 else ("Telegram: " if i == 1 else "  |  ")
+            self.setFillColor(COLORS["white"])
+            self.drawString(x, footer_y, prefix)
+            x += self.stringWidth(prefix, FONT_SEMI, fs)
+            self.setFillColor(link_col)
+            self.drawString(x, footer_y, label)
+            lw = self.stringWidth(label, FONT_SEMI, fs)
+            self.setStrokeColor(link_col); self.setLineWidth(0.5)
+            self.line(x, footer_y - 1.5, x + lw, footer_y - 1.5)
+            # Page states are replayed in save(), which rewinds reportlab's
+            # annotation counter; use a private, monotonic range for footer links.
+            ExamGeniusCanvas._footer_link_seq += 1
+            self._annotationCount = 100000 + ExamGeniusCanvas._footer_link_seq
+            self.linkURL(url, (x - 2, footer_y - 5, x + lw + 2, footer_y + fs + 2), relative=0)
+            x += lw + (14 if i == 0 else 0)
 
         page_str = f"Page {self._pageNumber} of {total_pages}"
-        self.setFont(FONT_SEMI, 7.5)
+        self.setFont(FONT_SEMI, fs)
         self.setFillColor(COLORS["white"])
         self.drawRightString(right_m, footer_y, page_str)
 
@@ -706,7 +848,7 @@ def get_pdf_styles() -> Dict[str, ParagraphStyle]:
         "cover_badge": ParagraphStyle("CoverBadge", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=9, leading=12, textColor=COLORS["primary"], alignment=TA_CENTER),
         "cover_bullet": ParagraphStyle("CoverBullet", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=14, textColor=COLORS["dark_text"], alignment=TA_LEFT),
 
-        "section_tag": ParagraphStyle("SectionTag", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8, leading=10, textColor=COLORS["badge_text"], alignment=TA_LEFT),
+        "section_tag": ParagraphStyle("SectionTag", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9, leading=11.5, textColor=COLORS["badge_text"], alignment=TA_LEFT),
         "topic_headline": ParagraphStyle("TopicHeadline", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15, textColor=COLORS["primary"], alignment=TA_LEFT),
 
         "ques_en": ParagraphStyle("QuesEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12, leading=16.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
@@ -733,7 +875,30 @@ def get_pdf_styles() -> Dict[str, ParagraphStyle]:
     }
 
 
-STYLES = get_pdf_styles()
+# Mobile-first reading: PDFs are mostly read fit-to-width on phones, so body,
+# question and heading text is scaled up (cover styles keep their design size).
+PDF_FONT_SCALE = float(os.getenv("ALP_PDF_FONT_SCALE", "1.28"))
+_UNSCALED_STYLES = {"cover_super", "cover_title", "cover_sub", "cover_date", "cover_badge", "cover_bullet",
+                    "index_col_head", "index_cell", "index_cell_c", "key_cell", "key_cell_bold"}
+
+
+def _scale_styles(styles: Dict[str, ParagraphStyle], scale: float) -> Dict[str, ParagraphStyle]:
+    if abs(scale - 1.0) < 1e-6:
+        return styles
+    for name, st in styles.items():
+        if name in _UNSCALED_STYLES:
+            continue
+        st.fontSize = round(st.fontSize * scale, 2)
+        st.leading = round(st.leading * scale, 2)
+    return styles
+
+
+STYLES = _scale_styles(get_pdf_styles(), PDF_FONT_SCALE)
+
+# Clickable channel links (footer on every page, cover, closing page).
+LINK_YOUTUBE = os.getenv("ALP_LINK_YOUTUBE", "https://www.youtube.com/@agrilearningpoint")
+LINK_TELEGRAM = os.getenv("ALP_LINK_TELEGRAM", "https://t.me/agrilearningpoint")
+LINK_TELEGRAM_QUIZ = os.getenv("ALP_LINK_TELEGRAM_QUIZ", "https://t.me/agriquizworld")
 
 
 # --- STORY HELPER FUNCTIONS ---
@@ -878,7 +1043,6 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
 # ReportLab's Paragraph cannot shape Devanagari (the ि matra lands after the
 # consonant: विषय -> वषिय).  Every string containing Devanagari therefore goes
 # through render_hindi_flowable (HarfBuzz) via text_flowable()/bi_line().
-PDF_SHOW_INDEX = os.getenv("ALP_PDF_INDEX", "0").strip().lower() in ("1", "true", "yes", "on")
 PDF_SHOW_ANSWER_KEY = os.getenv("ALP_PDF_ANSWER_KEY", "0").strip().lower() in ("1", "true", "yes", "on")
 PDF_STATIC_HEADLINE_BOXES = os.getenv("ALP_PDF_STATIC_HEADLINE_BOXES", "0").strip().lower() in ("1", "true", "yes", "on")
 
@@ -896,7 +1060,7 @@ def _rgb(color: Color) -> Tuple[int, int, int]:
 
 def text_flowable(text: str, style: ParagraphStyle, width: float = PRINT_W,
                   bg: Color = COLORS["white"], left_pad_mm: float = 0.0,
-                  markup: Optional[str] = None) -> Flowable:
+                  markup: Optional[str] = None, highlight: bool = False) -> Flowable:
     """Paragraph for Latin-only text, HarfBuzz-shaped image+text layer for anything with Devanagari.
 
     ``markup`` is optional ReportLab markup used only on the Latin path (e.g. <b>).
@@ -910,23 +1074,26 @@ def text_flowable(text: str, style: ParagraphStyle, width: float = PRINT_W,
             clean, font_size_pt=round(style.fontSize * HINDI_SIZE_SCALE, 2), width_pt=width,
             is_bold=style.fontName == FONT_BOLD or (markup or "").startswith("<b>"),
             color_rgb=_rgb(style.textColor), bg_rgb=_rgb(bg), align=align,
-            left_padding_mm=left_pad_mm,
+            left_padding_mm=left_pad_mm, highlight=highlight,
         )
-    return Paragraph(markup if markup is not None else _safe(clean), style)
+    if markup is None:
+        markup = highlight_markup(clean) if highlight else _safe(clean)
+    return Paragraph(markup, style)
 
 
 def bi_line(en: str, hi: str, style_en: ParagraphStyle, style_hi: Optional[ParagraphStyle] = None,
             width: float = PRINT_W, bg: Color = COLORS["white"], bullet: str = "• ",
-            hi_pad_mm: float = 2.5) -> List[Flowable]:
+            hi_pad_mm: float = 2.5, highlight: bool = False) -> List[Flowable]:
     """One bilingual fact: the English line, then its Hindi line underneath."""
     out: List[Flowable] = []
     en_c = _clean_text_for_display(en)
     if en_c:
         out.append(text_flowable(bullet + en_c, style_en, width=width, bg=bg,
-                                 markup=f"{_safe(bullet)}{_safe(en_c)}"))
+                                 markup=f"{_safe(bullet)}{highlight_markup(en_c) if highlight else _safe(en_c)}"))
     hi_c = _hi_or_blank(hi)
     if hi_c:
-        out.append(text_flowable(hi_c, style_hi or style_en, width=width, bg=bg, left_pad_mm=hi_pad_mm))
+        out.append(text_flowable(hi_c, style_hi or style_en, width=width, bg=bg, left_pad_mm=hi_pad_mm,
+                                 highlight=highlight))
     return out
 
 
@@ -980,6 +1147,236 @@ class RoundedBox(Flowable):
             y -= ch
             child.drawOn(c, self.pad, y)
             y -= self.gap
+
+
+
+def _join_us_box() -> Flowable:
+    """Clickable YouTube / Telegram links that close the edition."""
+    st = ParagraphStyle("JoinLink", parent=STYLES["box_text"], fontName=FONT_SEMI,
+                        fontSize=STYLES["box_text"].fontSize * 1.05, leading=STYLES["box_text"].leading * 1.25)
+    rows = [
+        ("YouTube:", LINK_YOUTUBE, "Agri Learning Point"),
+        ("Telegram:", LINK_TELEGRAM, "@agrilearningpoint"),
+        ("Daily Quiz:", LINK_TELEGRAM_QUIZ, "@agriquizworld"),
+    ]
+    kids: List[Flowable] = [Paragraph("<b>Join Us for Daily Current Affairs &amp; Quizzes</b>", STYLES["box_title"])]
+    for lbl, url, txt in rows:
+        kids.append(Paragraph(f'<b>{_safe(lbl)}</b> <a href="{url}" color="#0B57D0"><u>{_safe(txt)}</u></a>', st))
+    return RoundedBox(kids)
+
+
+QUICK_BITE_BAND = HexColor("#0B3D7A")
+
+PDF_SHOW_TOC = os.getenv("ALP_PDF_TOC", "1") != "0"
+AGRI_GREEN = HexColor("#1B5E20")
+AGRI_BG = HexColor("#EAF6EA")
+AGRI_BORDER = HexColor("#8BC58F")
+
+
+class Anchor(Flowable):
+    """Zero-size flowable: a named destination (and optional outline entry) at this spot."""
+
+    def __init__(self, key: str, title: str = "", level: int = 0):
+        super().__init__()
+        self.key, self.title, self.level = key, title, level
+        self.width = self.height = 0
+
+    def wrap(self, availWidth, availHeight):
+        return 0, 0
+
+    def draw(self):
+        _x, y = self.canv.absolutePosition(0, 0)
+        marks = getattr(self.canv, "_page_marks", None)
+        if marks is not None:
+            marks.append((self.key, self.title, self.level, y))
+        else:  # plain canvas
+            self.canv.bookmarkHorizontal(self.key, 0, y + 14)
+            if self.title:
+                self.canv.addOutlineEntry(self.title, self.key, level=self.level)
+        if self.key == "contents":
+            self.canv._has_contents = True
+
+
+class LinkTo(Flowable):
+    """Makes any flowable (incl. shaped-Hindi images) a tap target that jumps to a destination."""
+
+    def __init__(self, child: Flowable, key: str):
+        super().__init__()
+        self.child, self.key = child, key
+
+    def wrap(self, availWidth, availHeight):
+        self.width, self.height = self.child.wrap(availWidth, availHeight)
+        return self.width, self.height
+
+    def draw(self):
+        self.child.drawOn(self.canv, 0, 0)
+        self.canv.linkRect("", self.key, (0, 0, self.width, self.height), relative=1, thickness=0)
+
+
+TOC_LINK_KEYS: set = set()
+
+
+def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowable]:
+    """Clickable contents page: every MCQ topic (EN + HI) and every section."""
+    TOC_LINK_KEYS.clear()
+    out: List[Flowable] = [Anchor("contents", "Contents | विषय-सूची", 0)]
+    out.append(Paragraph("<b>TODAY'S CONTENTS</b>", STYLES["oneliner_title"]))
+    out.append(text_flowable("आज की विषय-सूची  •  किसी भी विषय पर टैप करें", STYLES["cover_super"]))
+    out.append(Spacer(PRINT_W, 8 * pt))
+    num_w = 40 * pt
+    txt_w = PRINT_W - num_w - 16 * pt
+    rows = []
+    st_en = ParagraphStyle("TocEN", parent=STYLES["bullet_en"], fontName=FONT_SEMI, textColor=COLORS["primary"],
+                           fontSize=STYLES["bullet_en"].fontSize * 0.86, leading=STYLES["bullet_en"].leading * 0.84)
+    st_hi = ParagraphStyle("TocHI", parent=STYLES["hi_body"], fontSize=STYLES["hi_body"].fontSize * 0.8)
+    st_num = ParagraphStyle("TocNum", parent=STYLES["bullet_en"], fontName=FONT_BOLD, textColor=COLORS["white"],
+                            fontSize=STYLES["bullet_en"].fontSize * 0.9, alignment=TA_CENTER)
+    for i, (it, _ms) in enumerate(units, 1):
+        en = _clean_text_for_display(it.get("headline_en", ""))
+        hi = _hi_or_blank(it.get("headline_hi", ""))
+        key = f"u{i}"
+        cell = [LinkTo(Paragraph(_safe(en), st_en), key)]
+        if hi:
+            cell.append(LinkTo(text_flowable(hi, st_hi, width=txt_w), key))
+        rows.append([LinkTo(Paragraph(f"Q{i}", st_num), key), cell])
+    t = Table(rows, colWidths=[num_w, PRINT_W - num_w])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), COLORS["primary"]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+        ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING", (0, 0), (0, -1), 2), ("LEFTPADDING", (1, 0), (1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    out.append(t)
+    out.append(Spacer(PRINT_W, 10 * pt))
+    # Section chips
+    chips: List[Tuple[str, str, str]] = []
+    if (content.get("agri_corner") or {}).get("items"):
+        chips.append(("Agriculture Corner", "कृषि कॉर्नर", "agri"))
+    cats = _quick_bite_categories(content)
+    for j, (cen, chi) in enumerate(cats):
+        chips.append((f"Quick Bites: {cen}", f"क्विक बाइट्स: {chi}" if chi else "", f"qb{j}"))
+    chips.append(("One-Liners (English)", "वन-लाइनर (अंग्रेज़ी)", "ol_en"))
+    chips.append(("One-Liners (Hindi)", "वन-लाइनर (हिन्दी)", "ol_hi"))
+    chip_st = ParagraphStyle("TocChip", parent=STYLES["bullet_en"], fontName=FONT_SEMI, textColor=HexColor("#0B57D0"),
+                             fontSize=STYLES["bullet_en"].fontSize * 0.92, leading=STYLES["bullet_en"].leading * 0.92)
+    col_w = PRINT_W / 2
+    cells = [LinkTo(Paragraph(f"<u>{_safe(e)}</u>", chip_st), k) for e, _h, k in chips]
+    TOC_LINK_KEYS.update(k for _e, _h, k in chips)
+    TOC_LINK_KEYS.update(f"u{i}" for i in range(1, len(units) + 1))
+    if len(cells) % 2:
+        cells.append(Spacer(1, 1))
+    grid = Table([cells[i:i + 2] for i in range(0, len(cells), 2)], colWidths=[col_w, col_w])
+    grid.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), HexColor("#EEF5FF")),
+        ("BOX", (0, 0), (-1, -1), 0.6, HEADLINE_BOX_BORDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, HEADLINE_BOX_BORDER),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    out.append(text_flowable("More Sections | अन्य खंड", STYLES["block_head"]))
+    out.append(Spacer(PRINT_W, 4 * pt))
+    out.append(grid)
+    out.append(PageBreak())
+    return out
+
+
+def _quick_bite_categories(content: Dict[str, Any]) -> List[Tuple[str, str]]:
+    seen: List[Tuple[str, str]] = []
+    for b in content.get("quick_bites") or []:
+        if not isinstance(b, dict) or not _clean_text_for_display(b.get("en")):
+            continue
+        k = str(b.get("category_en") or "General")
+        if k not in [x[0] for x in seen]:
+            seen.append((k, _hi_or_blank(b.get("category_hi"))))
+    return seen
+
+
+def _agri_corner_story(content: Dict[str, Any]) -> List[Flowable]:
+    """'Agriculture Corner': farm-sector news for AGTA / IBPS AFO / ICAR / NABARD aspirants."""
+    ac = content.get("agri_corner") or {}
+    items = [x for x in (ac.get("items") or []) if isinstance(x, dict) and _clean_text_for_display(x.get("en"))]
+    if not items:
+        return []
+    inner = PRINT_W - 24 * pt
+    head_st = ParagraphStyle("AgriHead", parent=STYLES["oneliner_title"], textColor=COLORS["white"])
+    band = Table([[Paragraph("<b>AGRICULTURE CORNER</b>", head_st)],
+                  [text_flowable("कृषि कॉर्नर  •  AGTA | IBPS AFO | ICAR | NABARD", ParagraphStyle(
+                      "AgriSub", parent=STYLES["cover_super"], textColor=COLORS["white"]), width=PRINT_W - 12, bg=AGRI_GREEN)]],
+                 colWidths=[PRINT_W])
+    band.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), AGRI_GREEN),
+        ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    out: List[Flowable] = [PageBreak(), Anchor("agri", "Agriculture Corner | कृषि कॉर्नर", 0), band,
+                           Spacer(PRINT_W, 8 * pt)]
+    num_st = ParagraphStyle("AgriEN", parent=STYLES["bullet_en"])
+    for n, x in enumerate(items, 1):
+        en = _clean_text_for_display(x.get("en"))
+        kids: List[Flowable] = [Paragraph(f'<font name="{FONT_BOLD}" color="#1B5E20">{n}.</font> {highlight_markup(en)}', num_st)]
+        hi = _hi_or_blank(x.get("hi"))
+        if hi:
+            kids.append(text_flowable(hi, STYLES["hi_body"], width=inner, bg=AGRI_BG, left_pad_mm=2.5, highlight=True))
+        out.append(RoundedBox(kids, bg=AGRI_BG, border=AGRI_BORDER, radius=10 * pt, pad=10 * pt, gap=2 * pt))
+        out.append(Spacer(PRINT_W, 6 * pt))
+    gk = [g for g in (ac.get("static_gk") or []) if isinstance(g, dict) and _clean_text_for_display(g.get("en"))]
+    if gk:
+        kids = [text_flowable("Agri Static GK | कृषि स्थैतिक सामान्य ज्ञान", STYLES["box_title"], width=inner, bg=HexColor("#FFF7E0"))]
+        for g in gk:
+            kids.extend(bi_line(g.get("en"), g.get("hi"), STYLES["static_fact_en"], STYLES["hi_body"],
+                                width=inner, bg=HexColor("#FFF7E0")))
+        out.append(Spacer(PRINT_W, 4 * pt))
+        out.append(KeepTogether([RoundedBox(kids, bg=HexColor("#FFF7E0"), border=COLORS["gold_accent"], radius=10 * pt)]))
+    return out
+
+
+
+def _quick_bites_story(content: Dict[str, Any]) -> List[Flowable]:
+    """'Quick Bites' section: short bilingual news grouped by category (content['quick_bites'])."""
+    bites = [b for b in (content.get("quick_bites") or []) if isinstance(b, dict) and _clean_text_for_display(b.get("en"))]
+    if not bites:
+        return []
+    out: List[Flowable] = [PageBreak(), Anchor("qb", "Quick Bites | क्विक बाइट्स", 0),
+                           Paragraph("<b>QUICK BITES: Other Important News</b>", STYLES["oneliner_title"]),
+                           text_flowable("क्विक बाइट्स: अन्य महत्वपूर्ण समाचार", STYLES["oneliner_title"]),
+                           Spacer(PRINT_W, 8 * pt)]
+    head_en = ParagraphStyle("QBHeadEN", parent=STYLES["block_head"], textColor=COLORS["white"])
+    num = 0
+    order: List[str] = []
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for b in bites:
+        k = str(b.get("category_en") or "General")
+        if k not in groups:
+            order.append(k)
+        groups.setdefault(k, []).append(b)
+    inner = PRINT_W - 16 * pt
+    for ci, k in enumerate(order):
+        rows = groups[k]
+        cat_hi = _hi_or_blank(rows[0].get("category_hi"))
+        band_txt = f"{k}  |  {cat_hi}" if cat_hi else k
+        band = Table([[text_flowable(band_txt, head_en, width=inner, bg=QUICK_BITE_BAND, markup=f"<b>{_safe(k)}</b>")]],
+                     colWidths=[PRINT_W])
+        band.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), QUICK_BITE_BAND),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        first = True
+        for b in rows:
+            num += 1
+            en = _clean_text_for_display(b.get("en"))
+            fl: List[Flowable] = [Paragraph(f"<b>{num}.</b> {highlight_markup(en)}", STYLES["bullet_en"])]
+            hi = _hi_or_blank(b.get("hi"))
+            if hi:
+                fl.append(text_flowable(hi, STYLES["hi_body"], left_pad_mm=2.5, highlight=True))
+            fl.append(Spacer(PRINT_W, 6 * pt))
+            if first:
+                out.append(Spacer(PRINT_W, 6 * pt))
+                out.append(KeepTogether([Anchor(f"qb{ci}", k, 1), band, Spacer(PRINT_W, 5 * pt)] + fl))
+                first = False
+            else:
+                out.append(KeepTogether(fl))
+    return out
 
 
 def _headline_box(title: str, rows: List[Tuple[str, str]]) -> Optional[RoundedBox]:
@@ -1113,6 +1510,76 @@ def _format_display_date(date_str: str | None) -> str:
     return clean
 
 
+
+def _png_indexed_parts(img, colors: int):
+    """Quantize to a small palette and return (PLTE rgb bytes, IDAT zlib stream, bit depth)."""
+    import struct
+    q = img.convert("RGB").quantize(colors=colors, method=PILImage.Quantize.MEDIANCUT, dither=PILImage.Dither.NONE)
+    bits = 4 if colors <= 16 else 8
+    b = io.BytesIO()
+    q.save(b, format="PNG", optimize=True, bits=bits)
+    data = b.getvalue()
+    pos, plte, idat, depth = 8, b"", b"", 8
+    while pos < len(data):
+        ln = struct.unpack(">I", data[pos:pos + 4])[0]
+        typ = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + ln]
+        if typ == b"IHDR":
+            depth = body[8]
+        elif typ == b"PLTE":
+            plte = body
+        elif typ == b"IDAT":
+            idat += body
+        pos += 12 + ln
+    if not plte or not idat:
+        return None
+    return plte, idat, depth
+
+
+def compact_pdf_images(path: str, colors: int = 16):
+    """Re-encode the shaped-Hindi raster images as small indexed-colour PNG streams.
+
+    Text images hold 1-2 ink colours on one background, so a 16-colour palette is
+    visually lossless while cutting the file size several-fold (mobile/Telegram).
+    """
+    import fitz  # PyMuPDF
+    before = os.path.getsize(path)
+    doc = fitz.open(path)
+    for xref in range(1, doc.xref_length()):
+        try:
+            if doc.xref_get_key(xref, "Subtype")[1] != "/Image":
+                continue
+            if doc.xref_get_key(xref, "SMask")[0] != "null":
+                continue  # keep alpha images (logos) untouched
+            if doc.xref_get_key(xref, "ColorSpace")[1] != "/DeviceRGB":
+                continue
+            pix = fitz.Pixmap(doc, xref)
+            if pix.n != 3 or pix.width < 50:
+                continue
+            img = PILImage.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            parts = _png_indexed_parts(img, colors)
+            if not parts:
+                continue
+            plte, idat, depth = parts
+            if len(idat) >= len(doc.xref_stream_raw(xref) or b""):
+                continue
+            ncol = len(plte) // 3
+            doc.update_stream(xref, idat, compress=False)
+            doc.xref_set_key(xref, "Filter", "/FlateDecode")
+            doc.xref_set_key(xref, "BitsPerComponent", str(depth))
+            doc.xref_set_key(xref, "ColorSpace", f"[/Indexed /DeviceRGB {ncol - 1} <{plte.hex()}>]")
+            doc.xref_set_key(xref, "DecodeParms",
+                             f"<</Predictor 15 /Colors 1 /BitsPerComponent {depth} /Columns {pix.width}>>")
+        except Exception as exc:  # pragma: no cover - optimisation only
+            print("compact skip", xref, exc)
+            continue
+    tmp = path + ".tmp"
+    doc.save(tmp, garbage=3, deflate=True)
+    doc.close()
+    os.replace(tmp, path)
+    return before, os.path.getsize(path)
+
+
 # --- MAIN PDF GENERATION ENGINE ---
 def generate_pdf(
     content: Dict[str, Any],
@@ -1145,7 +1612,7 @@ def generate_pdf(
         leftMargin=30 * pt,
         rightMargin=30 * pt,
         topMargin=62 * pt,     # clears the 50pt running-header band (index title was clipped)
-        bottomMargin=42 * pt,  # clears the 31pt footer band
+        bottomMargin=44 * pt,  # clears the 34pt footer band
     )
 
     story: List[Flowable] = []
@@ -1238,7 +1705,9 @@ def generate_pdf(
     story.append(Spacer(PRINT_W, 18 * pt))
 
     # Social Channels Bar
-    social_text = "<b>YouTube:</b> Agri Learning Point   |   <b>Telegram:</b> @agrilearningpoint   |   <b>Daily Quiz:</b> @agriquizworld"
+    social_text = (f'<b>YouTube:</b> <a href="{LINK_YOUTUBE}" color="#0B57D0"><u>Agri Learning Point</u></a>   |   '
+                   f'<b>Telegram:</b> <a href="{LINK_TELEGRAM}" color="#0B57D0"><u>@agrilearningpoint</u></a>   |   '
+                   f'<b>Daily Quiz:</b> <a href="{LINK_TELEGRAM_QUIZ}" color="#0B57D0"><u>@agriquizworld</u></a>')
     social_data = [[Paragraph(social_text, STYLES["cover_badge"])]]
     social_table = Table(social_data, colWidths=[PRINT_W])
     social_table.setStyle(TableStyle([
@@ -1252,40 +1721,12 @@ def generate_pdf(
     story.append(PageBreak())
 
     # =========================================================================
-    # OPTIONAL INDEX (reference PDF has none; enable with ALP_PDF_INDEX=1)
+    # CLICKABLE CONTENTS (replaces the old static index table; ALP_PDF_TOC=0 disables)
     # =========================================================================
     units = _pair_units(items, mcqs)
-    if PDF_SHOW_INDEX:
-        story.append(text_flowable("INDEX & TODAY'S EXAM HEADLINES • विषय-सूची", STYLES["index_title"]))
-        story.append(text_flowable(f"दैनिक समसामयिकी विषय-सूची • महत्वपूर्ण दिवस एवं परीक्षा तथ्य • {date_display}", STYLES["cover_super"]))
-        story.append(Spacer(PRINT_W, 10 * pt))
-        index_rows = [[
-            Paragraph("Q#", STYLES["index_col_head"]),
-            Paragraph("EXAM TOPIC / HEADLINE", STYLES["index_col_head"]),
-            Paragraph("CATEGORY", STYLES["index_col_head"]),
-        ]]
-        for idx, (it, _m) in enumerate(units, 1):
-            hl = _clean_text_for_display(it.get("headline_en", ""))
-            if not hl:
-                continue
-            index_rows.append([
-                Paragraph(f"Q{idx}", STYLES["index_cell_c"]),
-                Paragraph(_safe(hl), STYLES["index_cell"]),
-                Paragraph(_safe(str(it.get("category", "General")).upper()), STYLES["index_cell_c"]),
-            ])
-        index_table = Table(index_rows, colWidths=[36 * pt, 375 * pt, 112 * pt], repeatRows=1)
-        index_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), COLORS["primary"]),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("GRID", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [COLORS["white"], COLORS["card_bg"]]),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        story.append(index_table)
-        story.append(PageBreak())
+    if PDF_SHOW_TOC:
+        story.extend(_toc_story(units, content, date_display))
+        story.append(Anchor("mcq", "MCQ Topics | MCQ विषय", 0))
 
     # =========================================================================
     # MCQ UNITS: Ques / प्रश्न, 5 bilingual options, answer, explanation, Static GK
@@ -1311,6 +1752,7 @@ def generate_pdf(
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
         first_in_unit = True
+        story.append(Anchor(f"u{u_idx + 1}", f"Q{u_idx + 1}. {headline_en[:70]}", 1 if PDF_SHOW_TOC else 0))
 
         for m in unit_mcqs:
             q_en = _clean_text_for_display(m.get("question_en", ""))
@@ -1359,11 +1801,11 @@ def generate_pdf(
                 expl = [(e, h) for e, h in [(_clean_text_for_display(m.get("explanation_en")), m.get("explanation_hi", ""))] if e]
             if expl:
                 head = text_flowable("Explanation | व्याख्या:", STYLES["block_head"])
-                first_pair = bi_line(*expl[0], STYLES["bullet_en"], STYLES["hi_body"])
+                first_pair = bi_line(*expl[0], STYLES["bullet_en"], STYLES["hi_body"], highlight=True)
                 story.append(KeepTogether([head, Spacer(PRINT_W, 3 * pt)] + first_pair))
                 story.append(Spacer(PRINT_W, 2.5 * pt))
                 for ep_en, ep_hi in expl[1:]:
-                    story.extend(bi_line(ep_en, ep_hi, STYLES["bullet_en"], STYLES["hi_body"]))
+                    story.extend(bi_line(ep_en, ep_hi, STYLES["bullet_en"], STYLES["hi_body"], highlight=True))
                     story.append(Spacer(PRINT_W, 2.5 * pt))
             first_in_unit = False
 
@@ -1383,7 +1825,7 @@ def generate_pdf(
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ]))
             story.append(Spacer(PRINT_W, 3 * pt))
-            story.append(sgk_table)
+            story.append(KeepTogether([sgk_table]))
 
         # Evidence remains in pipeline data; public PDFs intentionally have no source URLs.
         story.append(Spacer(PRINT_W, 8 * pt))
@@ -1393,26 +1835,41 @@ def generate_pdf(
         story.append(HRFlowable(width="100%", thickness=0.5, color=COLORS["border_light"]))
         story.append(Spacer(PRINT_W, 10 * pt))
 
+    story.extend(_agri_corner_story(content))
+    qb_story = _quick_bites_story(content)
+    story.extend(qb_story)
+    if qb_story:
+        story.append(Spacer(PRINT_W, 10 * pt))
+        story.append(_join_us_box())
+
     # =========================================================================
     # IMPORTANT ONE-LINER PAGES (English, then Hindi) — as in the reference
     # =========================================================================
     one_liners = [_one_liner_for(it, ms[0], content) for it, ms in units]
     one_liners = [(e, h) for e, h in one_liners if e]
     if one_liners:
-        story.append(PageBreak())
+        # Start on the same page when at least ~45% of it is free (avoids a near-empty page).
+        from reportlab.platypus import CondPageBreak
+        story.append(CondPageBreak(PAGE_H * 0.45))
+        story.append(Spacer(PRINT_W, 6 * pt))
+        story.append(Anchor("ol_en", "One-Liners (English)", 0))
         story.append(Paragraph("<b>IMPORTANT ONE - LINER Current Affairs</b>", STYLES["oneliner_title"]))
         story.append(Spacer(PRINT_W, 10 * pt))
         for n, (en, _hi) in enumerate(one_liners, 1):
-            story.append(text_flowable(f"{n}. {en}", STYLES["oneliner"], markup=f"<b>{n}.</b> {_safe(en)}"))
-            story.append(Spacer(PRINT_W, 6 * pt))
+            story.append(text_flowable(f"{n}. {en}", STYLES["oneliner"], markup=f"<b>{n}.</b> {highlight_markup(en)}"))
+            story.append(Spacer(PRINT_W, 4 * pt))
         if any(h for _e, h in one_liners):
-            story.append(PageBreak())
+            story.append(CondPageBreak(PAGE_H * 0.45))
+            story.append(Spacer(PRINT_W, 10 * pt))
+            story.append(Anchor("ol_hi", "One-Liners (Hindi) | वन-लाइनर", 0))
             story.append(text_flowable("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", STYLES["oneliner_title"]))
             story.append(Spacer(PRINT_W, 10 * pt))
+            ol_hi = ParagraphStyle("OneLinerHI", parent=STYLES["oneliner"],
+                                   fontSize=round(STYLES["oneliner"].fontSize * 0.93, 2))
             for n, (_en, hi) in enumerate(one_liners, 1):
                 if hi:
-                    story.append(text_flowable(f"{n}. {hi}", STYLES["oneliner"]))
-                    story.append(Spacer(PRINT_W, 6 * pt))
+                    story.append(text_flowable(f"{n}. {hi}", ol_hi, highlight=True))
+                    story.append(Spacer(PRINT_W, 3 * pt))
 
     # =========================================================================
     # OPTIONAL ANSWER KEY (enable with ALP_PDF_ANSWER_KEY=1)
@@ -1471,10 +1928,28 @@ def generate_pdf(
         ]))
         story.append(guide_table)
 
+    # Closing call-to-action with clickable channel links (placed after Quick Bites when present).
+    if not qb_story:
+        story.append(Spacer(PRINT_W, 14 * pt))
+        story.append(_join_us_box())
+
     # Build PDF with Two-Pass ExamGeniusCanvas
     global CURRENT_COVER_DATE
     CURRENT_COVER_DATE = date_display.upper()
+    # Every contents link must resolve: add a fallback destination for any section
+    # that ended up empty (e.g. no Hindi one-liners), so reportlab never fails the build.
+    defined = {f.key for f in story if isinstance(f, Anchor)}
+    for kt in story:
+        if isinstance(kt, KeepTogether):
+            defined |= {f.key for f in kt._content if isinstance(f, Anchor)}
+    for key in TOC_LINK_KEYS - defined:
+        story.append(Anchor(key))
     doc.build(story, canvasmaker=ExamGeniusCanvas)
+    if os.getenv("ALP_PDF_COMPACT", "1") != "0":
+        try:
+            compact_pdf_images(output_path, int(os.getenv("ALP_PDF_COMPACT_COLORS", "16")))
+        except Exception:
+            pass  # compaction is an optimisation only; never fail the edition on it
     return output_path
 
 
