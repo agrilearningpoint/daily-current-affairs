@@ -74,6 +74,8 @@ DAILY_STAGES: list[tuple[str, str, bool]] = [
     ("12_content_editor",             "agents/12_content_editor.py",              True),
     ("16_mcq_generator",              "agents/16_mcq_generator.py",               True),
     ("17_mcq_validator",              "agents/17_mcq_validator.py",               True),
+    # Quick Bites + Agriculture Corner: optional, fail-soft, daily-only (non-critical).
+    ("17b_auto_sections",             "agents/17b_auto_sections.py",              False),
     ("18_pdf_design",                 "agents/18_pdf_design.py",                  True),
     ("19_pdf_qa",                     "agents/19_pdf_qa.py",                      True),
     ("22_telegram_publisher",         "agents/22_telegram_publisher.py",          True),

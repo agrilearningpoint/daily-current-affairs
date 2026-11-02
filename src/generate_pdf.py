@@ -676,12 +676,13 @@ class ExamGeniusCanvas(canvas.Canvas):
         for state in self._saved_page_states:
             self.__dict__.update(state)
             if self._pageNumber == 1:
-                self.draw_cover_decorations()
+                if not state.get("_magazine_cover"):
+                    self.draw_cover_decorations()  # classic cover (fallback)
             else:
                 self.draw_page_decorations(num_pages)
             # Destinations/outline must be registered on the real page (two-pass canvas).
             for key, title, level, y in state.get("_page_marks") or []:
-                self.bookmarkHorizontal(key, 0, y + 14)
+                _register_destination(self, key, y)
                 if title:
                     self.addOutlineEntry(title, key, level=level, closed=level == 0 and False)
             canvas.Canvas.showPage(self)
@@ -762,27 +763,26 @@ class ExamGeniusCanvas(canvas.Canvas):
         self.setLineWidth(1.25)
         self.line(0, h - 43 * pt, w, h - 43 * pt)
         header_y = h - 28 * pt
-        self.setFont(FONT_BOLD, 10)
+        self.setFont(FONT_BOLD, FS_TABLE)
         self.setFillColor(HexColor("#103F7B"))
         self.drawString(left_m, header_y, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS")
 
-        self.setFont(FONT_SEMI, 9)
+        self.setFont(FONT_SEMI, FS_FOOTER)
         self.setFillColor(HexColor("#103F7B"))
         if PDF_SHOW_TOC and getattr(self, "_has_contents", False):
             pill_txt = "INDEX"
-            pw = self.stringWidth(pill_txt, FONT_BOLD, 8.5) + 14
-            px, py = right_m - pw, header_y - 4
+            pw = self.stringWidth(pill_txt, FONT_BOLD, FS_FOOTER) + 18
+            px, py = right_m - pw, header_y - 6
             self.setFillColor(HexColor("#103F7B"))
-            self.roundRect(px, py, pw, 15, 7, stroke=0, fill=1)
+            self.roundRect(px, py, pw, 19, 9.5, stroke=0, fill=1)
             self.setFillColor(COLORS["white"])
-            self.setFont(FONT_BOLD, 8.5)
-            self.drawCentredString(px + pw / 2, py + 4.2, pill_txt)
-            ExamGeniusCanvas._footer_link_seq += 1
-            self._annotationCount = 100000 + ExamGeniusCanvas._footer_link_seq
-            self.linkRect("", "contents", (px, py, px + pw, py + 15), relative=0, thickness=0)
-            self.setFont(FONT_SEMI, 9)
+            self.setFont(FONT_BOLD, FS_FOOTER)
+            self.drawCentredString(px + pw / 2, py + 6, pill_txt)
+            # Whole top-right header corner is the tap target (>= MIN_TAP_PT tall).
+            goto_link(self, "contents", px - 10, h - 50 * pt + 4, right_m + 8, h - 4)
+            self.setFont(FONT_SEMI, FS_FOOTER)
             self.setFillColor(HexColor("#103F7B"))
-            self.drawRightString(px - 8, header_y, "AGTA • IBPS AFO • ICAR • NABARD")
+            self.drawRightString(px - 14, header_y, "AGTA • IBPS AFO • ICAR • NABARD")
         else:
             self.drawRightString(right_m, header_y, "AGTA • IBPS AFO • ICAR • NABARD • PCS")
 
@@ -807,7 +807,7 @@ class ExamGeniusCanvas(canvas.Canvas):
         self.setFillColor(HexColor("#111111"))
         self.rect(0, 0, w, footer_h, stroke=0, fill=1)
 
-        fs = 9.5
+        fs = FS_FOOTER
         link_col = HexColor("#7CC4FF")
         items = [("YouTube", LINK_YOUTUBE), ("@agrilearningpoint", LINK_TELEGRAM), ("@agriquizworld", LINK_TELEGRAM_QUIZ)]
         x = left_m
@@ -838,48 +838,100 @@ class ExamGeniusCanvas(canvas.Canvas):
 
 
 # --- STYLESHEET SETUP ---
+# Final rendered type sizes (pt).  Ranges agreed for the mobile-first edition:
+#   main title 24-28 | module heading 17-19 | chapter heading 14-15 | body 11-11.5
+#   table text 9.5-10.5 | footer 8-9.
+# tests/test_pdf_v5_layout.py asserts every style lands in its range.
+FS_MAIN_TITLE = 27.0   # cover masthead "CURRENT AFFAIRS"
+FS_MODULE = 18.0       # section titles: MCQ topics, Agriculture Corner, Quick Bites, News in Pictures, One-liners
+FS_CHAPTER = 14.5      # each story / question headline
+FS_QUESTION = 14.0     # question stem (chapter range)
+FS_BODY = 11.25        # explanations, options, one-liners, boxes
+FS_TABLE = 10.0        # Static GK tables, contents rows, gallery cards, labels
+FS_QUICK_BITE = 10.5   # quick-bite table rows
+FS_FOOTER = 8.5        # running footer, captions
+TYPE_RANGES = {        # role -> (min, max) final size
+    "main_title": (24.0, 28.0), "module": (17.0, 19.0), "chapter": (14.0, 15.0),
+    "body": (11.0, 11.5), "table": (9.5, 10.5), "footer": (8.0, 9.0),
+}
+# Mukta's x-height is ~12% smaller than Poppins', so a Devanagari line may be
+# set up to this much larger than its English partner to look the same size.
+HINDI_VISUAL_ALLOWANCE_PT = 1.0
+
+
+def _lead(size: float, k: float = 1.38) -> float:
+    return round(size * k, 2)
+
+
 def get_pdf_styles() -> Dict[str, ParagraphStyle]:
     styles = getSampleStyleSheet()
+    N = styles["Normal"]
+
+    def ps(name, font, size, color, align=TA_LEFT, k=1.38, **kw):
+        return ParagraphStyle(name, parent=N, fontName=font, fontSize=size, leading=_lead(size, k),
+                              textColor=color, alignment=align, **kw)
+
     return {
-        "cover_super": ParagraphStyle("CoverSuper", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=11, leading=15, textColor=COLORS["secondary"], alignment=TA_CENTER),
-        "cover_title": ParagraphStyle("CoverTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=26, leading=30, textColor=COLORS["primary"], alignment=TA_CENTER),
-        "cover_sub": ParagraphStyle("CoverSub", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=14, leading=18, textColor=COLORS["accent_green"], alignment=TA_CENTER),
-        "cover_date": ParagraphStyle("CoverDate", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=13, leading=16, textColor=COLORS["white"], alignment=TA_CENTER),
-        "cover_badge": ParagraphStyle("CoverBadge", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=9, leading=12, textColor=COLORS["primary"], alignment=TA_CENTER),
-        "cover_bullet": ParagraphStyle("CoverBullet", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=9.5, leading=14, textColor=COLORS["dark_text"], alignment=TA_LEFT),
+        "cover_super": ps("CoverSuper", FONT_SEMI, FS_BODY, COLORS["secondary"], TA_CENTER),
+        "cover_title": ps("CoverTitle", FONT_BOLD, FS_MAIN_TITLE, COLORS["primary"], TA_CENTER, 1.15),
+        "cover_sub": ps("CoverSub", FONT_SEMI, FS_MODULE, COLORS["accent_green"], TA_CENTER, 1.25),
+        "cover_date": ps("CoverDate", FONT_BOLD, FS_CHAPTER, COLORS["white"], TA_CENTER, 1.25),
+        "cover_badge": ps("CoverBadge", FONT_SEMI, FS_TABLE, COLORS["primary"], TA_CENTER),
+        "cover_bullet": ps("CoverBullet", FONT_REGULAR, FS_TABLE, COLORS["dark_text"]),
 
-        "section_tag": ParagraphStyle("SectionTag", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=9, leading=11.5, textColor=COLORS["badge_text"], alignment=TA_LEFT),
-        "topic_headline": ParagraphStyle("TopicHeadline", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15, textColor=COLORS["primary"], alignment=TA_LEFT),
+        "section_tag": ps("SectionTag", FONT_BOLD, FS_TABLE, COLORS["badge_text"], k=1.3),
+        "topic_headline": ps("TopicHeadline", FONT_BOLD, FS_CHAPTER, COLORS["secondary"], k=1.32),
 
-        "ques_en": ParagraphStyle("QuesEN", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12, leading=16.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
-        "option_text": ParagraphStyle("OptionText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "answer_text": ParagraphStyle("AnswerText", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11, leading=14, textColor=HexColor("#065F46"), alignment=TA_LEFT),
+        "ques_en": ps("QuesEN", FONT_BOLD, FS_QUESTION, COLORS["dark_text"], k=1.36),
+        "option_text": ps("OptionText", FONT_REGULAR, FS_BODY, COLORS["body_text"]),
+        "answer_text": ps("AnswerText", FONT_BOLD, FS_BODY, HexColor("#065F46"), k=1.3),
 
-        "block_head": ParagraphStyle("BlockHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11, leading=15, textColor=COLORS["primary"], alignment=TA_LEFT),
-        "bullet_en": ParagraphStyle("BulletEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "static_fact_en": ParagraphStyle("StaticFactEN", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14, textColor=COLORS["body_text"], alignment=TA_LEFT, leftIndent=6),
+        "block_head": ps("BlockHead", FONT_BOLD, FS_BODY, COLORS["primary"]),
+        "bullet_en": ps("BulletEN", FONT_REGULAR, FS_BODY, COLORS["body_text"], k=1.42),
+        "static_fact_en": ps("StaticFactEN", FONT_REGULAR, FS_TABLE, COLORS["body_text"], leftIndent=6, k=1.4),
 
-        "index_title": ParagraphStyle("IndexTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=14, leading=18, textColor=COLORS["primary"], alignment=TA_CENTER),
-        "index_col_head": ParagraphStyle("IndexColHead", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["white"], alignment=TA_CENTER),
-        "index_cell": ParagraphStyle("IndexCell", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=8, leading=10.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "index_cell_c": ParagraphStyle("IndexCellC", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8, leading=10.5, textColor=COLORS["primary"], alignment=TA_CENTER),
+        "index_title": ps("IndexTitle", FONT_BOLD, FS_MODULE, COLORS["primary"], TA_CENTER, 1.25),
+        "index_col_head": ps("IndexColHead", FONT_BOLD, FS_TABLE, COLORS["white"], TA_CENTER, 1.3),
+        "index_cell": ps("IndexCell", FONT_REGULAR, FS_TABLE, COLORS["body_text"], k=1.3),
+        "index_cell_c": ps("IndexCellC", FONT_SEMI, FS_TABLE, COLORS["primary"], TA_CENTER, 1.3),
 
-        "box_title": ParagraphStyle("BoxTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=11.5, leading=15.5, textColor=HexColor("#0B3D7A"), alignment=TA_LEFT),
-        "box_text": ParagraphStyle("BoxText", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10, leading=14, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "ques_hi": ParagraphStyle("QuesHI", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=12, leading=16.5, textColor=COLORS["dark_text"], alignment=TA_LEFT),
-        "hi_body": ParagraphStyle("HiBody", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=10.5, leading=15, textColor=COLORS["body_hindi"], alignment=TA_LEFT),
-        "oneliner_title": ParagraphStyle("OneLinerTitle", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=15, leading=20, textColor=HexColor("#0B3D7A"), alignment=TA_CENTER),
-        "oneliner": ParagraphStyle("OneLiner", parent=styles["Normal"], fontName=FONT_REGULAR, fontSize=11, leading=15.5, textColor=COLORS["body_text"], alignment=TA_LEFT),
-        "key_cell": ParagraphStyle("KeyCell", parent=styles["Normal"], fontName=FONT_SEMI, fontSize=8.5, leading=11, textColor=COLORS["body_text"], alignment=TA_CENTER),
-        "key_cell_bold": ParagraphStyle("KeyCellBold", parent=styles["Normal"], fontName=FONT_BOLD, fontSize=8.5, leading=11, textColor=COLORS["accent_green"], alignment=TA_CENTER),
+        "box_title": ps("BoxTitle", FONT_BOLD, FS_BODY, HexColor("#0B3D7A")),
+        "box_text": ps("BoxText", FONT_REGULAR, FS_BODY, COLORS["body_text"]),
+        "ques_hi": ps("QuesHI", FONT_BOLD, FS_QUESTION, COLORS["dark_text"], k=1.36),
+        "hi_body": ps("HiBody", FONT_REGULAR, FS_BODY, COLORS["body_hindi"], k=1.42),
+        "oneliner_title": ps("OneLinerTitle", FONT_BOLD, FS_MODULE, HexColor("#0B3D7A"), TA_CENTER, 1.3),
+        "oneliner": ps("OneLiner", FONT_REGULAR, FS_BODY, COLORS["body_text"], k=1.42),
+        "key_cell": ps("KeyCell", FONT_SEMI, FS_TABLE, COLORS["body_text"], TA_CENTER, 1.3),
+        "key_cell_bold": ps("KeyCellBold", FONT_BOLD, FS_TABLE, COLORS["accent_green"], TA_CENTER, 1.3),
+        # v5 additions
+        "toc_en": ps("TocEN", FONT_SEMI, FS_TABLE, COLORS["primary"], k=1.32),
+        "toc_hi": ps("TocHI", FONT_REGULAR, FS_TABLE, COLORS["body_hindi"], k=1.32),
+        "toc_num": ps("TocNum", FONT_BOLD, FS_TABLE, COLORS["white"], TA_CENTER, 1.3),
+        "qb_text": ps("QBText", FONT_REGULAR, FS_QUICK_BITE, COLORS["body_text"], k=1.4),
+        "qb_band": ps("QBBand", FONT_BOLD, FS_QUICK_BITE, COLORS["white"], k=1.3),
+        "caption": ps("Caption", FONT_REGULAR, FS_FOOTER, COLORS["muted_text"], TA_RIGHT, 1.25),
+        "gallery_head": ps("GalleryHead", FONT_SEMI, FS_TABLE, COLORS["primary"], k=1.3),
+        "gallery_tag": ps("GalleryTag", FONT_BOLD, FS_TABLE, COLORS["badge_text"], k=1.2),
     }
 
 
-# Mobile-first reading: PDFs are mostly read fit-to-width on phones, so body,
-# question and heading text is scaled up (cover styles keep their design size).
-PDF_FONT_SCALE = float(os.getenv("ALP_PDF_FONT_SCALE", "1.28"))
-_UNSCALED_STYLES = {"cover_super", "cover_title", "cover_sub", "cover_date", "cover_badge", "cover_bullet",
-                    "index_col_head", "index_cell", "index_cell_c", "key_cell", "key_cell_bold"}
+# Style name -> type role (for the size contract and its test).
+STYLE_ROLES = {
+    "cover_title": "main_title", "cover_sub": "module", "index_title": "module", "oneliner_title": "module",
+    "topic_headline": "chapter", "ques_en": "chapter", "ques_hi": "chapter", "cover_date": "chapter",
+    "option_text": "body", "answer_text": "body", "block_head": "body", "bullet_en": "body",
+    "box_title": "body", "box_text": "body", "hi_body": "body", "oneliner": "body", "cover_super": "body",
+    "static_fact_en": "table", "index_col_head": "table", "index_cell": "table", "index_cell_c": "table",
+    "key_cell": "table", "key_cell_bold": "table", "section_tag": "table", "cover_badge": "table",
+    "cover_bullet": "table", "toc_en": "table", "toc_hi": "table", "toc_num": "table", "qb_text": "table",
+    "qb_band": "table", "gallery_head": "table", "gallery_tag": "table", "caption": "footer",
+}
+
+
+# The sizes above are final.  ALP_PDF_FONT_SCALE (default 1.0) remains an
+# emergency override for all non-cover text; leave it unset to stay in range.
+PDF_FONT_SCALE = float(os.getenv("ALP_PDF_FONT_SCALE", "1.0"))
+_UNSCALED_STYLES = {"cover_super", "cover_title", "cover_sub", "cover_date", "cover_badge", "cover_bullet"}
 
 
 def _scale_styles(styles: Dict[str, ParagraphStyle], scale: float) -> Dict[str, ParagraphStyle]:
@@ -891,6 +943,16 @@ def _scale_styles(styles: Dict[str, ParagraphStyle], scale: float) -> Dict[str, 
         st.fontSize = round(st.fontSize * scale, 2)
         st.leading = round(st.leading * scale, 2)
     return styles
+
+
+def hindi_font_size(en_size: float) -> float:
+    """Final Devanagari size for a line set in *en_size*: visually matched, never past
+    the role's maximum by more than HINDI_VISUAL_ALLOWANCE_PT."""
+    target = en_size * HINDI_SIZE_SCALE
+    for lo, hi in TYPE_RANGES.values():
+        if lo - 1e-6 <= en_size <= hi + 1e-6:
+            return round(min(target, hi + HINDI_VISUAL_ALLOWANCE_PT), 2)
+    return round(target, 2)
 
 
 STYLES = _scale_styles(get_pdf_styles(), PDF_FONT_SCALE)
@@ -1071,7 +1133,7 @@ def text_flowable(text: str, style: ParagraphStyle, width: float = PRINT_W,
         # Mukta's x-height is ~12% smaller than Poppins', so scale Hindi up to
         # look the same size as its English partner line (as in the reference).
         return render_hindi_flowable(
-            clean, font_size_pt=round(style.fontSize * HINDI_SIZE_SCALE, 2), width_pt=width,
+            clean, font_size_pt=hindi_font_size(style.fontSize), width_pt=width,
             is_bold=style.fontName == FONT_BOLD or (markup or "").startswith("<b>"),
             color_rgb=_rgb(style.textColor), bg_rgb=_rgb(bg), align=align,
             left_padding_mm=left_pad_mm, highlight=highlight,
@@ -1217,9 +1279,7 @@ def _photo_credit(it: Dict[str, Any]) -> str:
 
 
 def _caption_style(align=TA_RIGHT) -> ParagraphStyle:
-    return ParagraphStyle("PhotoCaption", parent=STYLES["bullet_en"], fontName=FONT_REGULAR,
-                          fontSize=7.5 * PDF_FONT_SCALE, leading=9.5 * PDF_FONT_SCALE,
-                          textColor=COLORS["muted_text"], alignment=align)
+    return ParagraphStyle("PhotoCaption", parent=STYLES["caption"], alignment=align)
 
 
 def _unit_photo_block(it: Dict[str, Any]) -> List[Flowable]:
@@ -1258,13 +1318,9 @@ def _news_in_pictures_story(units) -> List[Flowable]:
     gap = 8 * pt
     col_w = (PRINT_W - gap * (ncol - 1)) / float(ncol)
     inner = col_w - 10 * pt
-    head_st = ParagraphStyle("GalleryHead", parent=STYLES["bullet_en"], fontName=FONT_SEMI,
-                             textColor=COLORS["primary"], fontSize=STYLES["bullet_en"].fontSize * 0.74,
-                             leading=STYLES["bullet_en"].leading * 0.72)
-    hi_st = ParagraphStyle("GalleryHI", parent=STYLES["hi_body"], fontSize=STYLES["hi_body"].fontSize * 0.68,
-                           leading=STYLES["hi_body"].leading * 0.68)
-    tag_st = ParagraphStyle("GalleryTag", parent=STYLES["section_tag"], fontSize=STYLES["section_tag"].fontSize * 0.78,
-                            leading=STYLES["section_tag"].leading * 0.8)
+    head_st = STYLES["gallery_head"]
+    hi_st = STYLES["toc_hi"]
+    tag_st = STYLES["gallery_tag"]
     cap_st = _caption_style(TA_LEFT)
 
     def _short(t: str, n: int) -> str:
@@ -1275,16 +1331,17 @@ def _news_in_pictures_story(units) -> List[Flowable]:
         try:
             en = _short(_clean_text_for_display(it.get("headline_en", "")), 88)
             hi = _short(_hi_or_blank(it.get("headline_hi", "")), 80)
-            cell: List[Flowable] = [NewsPhoto(_photo_path(it), inner, 92 * pt, align="center", box_w=inner),
+            kids: List[Flowable] = [NewsPhoto(_photo_path(it), inner, 92 * pt, align="center", box_w=inner),
                                     Spacer(inner, 3 * pt),
-                                    Paragraph(f"{_safe(str(it.get('category', 'National')).upper())}  •  Story {n}", tag_st),
-                                    LinkTo(Paragraph(_safe(en), head_st), f"u{n}")]
+                                    Paragraph(f"{_safe(str(it.get('category', 'National')).upper())}  •  Q{n}  ›", tag_st),
+                                    Paragraph(_safe(en), head_st)]
             if hi:
-                cell.append(LinkTo(text_flowable(hi, hi_st, width=inner), f"u{n}"))
+                kids.append(text_flowable(hi, hi_st, width=inner))
             credit = _photo_credit(it)
             if credit:
-                cell.append(Paragraph(f"<i>Image: {_safe(credit)}</i>", cap_st))
-            cards.append(cell)
+                kids.append(Paragraph(f"<i>Image: {_safe(credit)}</i>", cap_st))
+            # The WHOLE card (photo + headlines) is one tap target -> story unit n.
+            cards.append([LinkTo(Stack(kids, gap=1.5 * pt), f"u{n}", full_width=True)])
         except Exception:
             continue
     if len(cards) < PDF_GALLERY_MIN:
@@ -1317,14 +1374,14 @@ def _news_in_pictures_story(units) -> List[Flowable]:
     grid.setStyle(TableStyle(styles_))
     return [Anchor("pics", "News in Pictures | चित्रों में खबरें", 0),
             Paragraph("<b>NEWS IN PICTURES</b>", STYLES["oneliner_title"]),
-            text_flowable("चित्रों में खबरें  •  पूरी खबर के लिए शीर्षक पर टैप करें", STYLES["cover_super"]),
+            text_flowable("चित्रों में खबरें  •  पूरी खबर के लिए फोटो या शीर्षक पर टैप करें", STYLES["cover_super"]),
             Spacer(PRINT_W, 8 * pt), grid, PageBreak()]
 
 
 def _join_us_box() -> Flowable:
     """Clickable YouTube / Telegram links that close the edition."""
     st = ParagraphStyle("JoinLink", parent=STYLES["box_text"], fontName=FONT_SEMI,
-                        fontSize=STYLES["box_text"].fontSize * 1.05, leading=STYLES["box_text"].leading * 1.25)
+                        fontSize=STYLES["box_text"].fontSize, leading=STYLES["box_text"].leading * 1.2)
     rows = [
         ("YouTube:", LINK_YOUTUBE, "Agri Learning Point"),
         ("Telegram:", LINK_TELEGRAM, "@agrilearningpoint"),
@@ -1344,8 +1401,56 @@ AGRI_BG = HexColor("#EAF6EA")
 AGRI_BORDER = HexColor("#8BC58F")
 
 
+# =========================================================================
+# INTERNAL LINKS (mobile-safe)
+# -------------------------------------------------------------------------
+# Every internal link is a Link annotation with an explicit GoTo *action*
+# (/A << /S /GoTo /D [<page ref> /XYZ 0 top 0] >>) - not a named destination -
+# because several phone viewers (Telegram's in-app viewer, Android PDF apps)
+# ignore /Dest names.  Targets are registered on the real page by the two-pass
+# canvas; each annotation gets a unique name, so replaying page states in
+# save() can never overwrite or duplicate another page's links; tap areas are
+# whole rows / cards and at least MIN_TAP_PT tall.
+# =========================================================================
+from reportlab.pdfbase import pdfdoc as _pdfdoc  # noqa: E402
+
+MIN_TAP_PT = 30.0
+_LINK_SEQ = [0]
+
+
+class _GoToLinkAnnotation(_pdfdoc.LinkAnnotation):
+    """Link annotation whose target is a GoTo action with an explicit page destination."""
+
+    def Dict(self):
+        d = dict(self.otherkw)
+        d["Border"] = self.Border
+        d["Rect"] = self.Rect
+        d["Contents"] = self.Contents
+        d["Subtype"] = "/Link"
+        d["A"] = _pdfdoc.PDFDictionary({"S": _pdfdoc.PDFName("GoTo"), "D": self.Destination})
+        return self.AnnotationDict(**d)
+
+
+def _register_destination(canv, key: str, y: float) -> None:
+    """Bind *key* to the current page: [page /XYZ 0 top 0] - keep the reader's zoom, anchor at top.
+    (/XYZ is resolved by every viewer incl. MuPDF/PDFium/PDFKit as a plain page jump.)"""
+    canv.bookmarkHorizontal(key, 0, min(PAGE_H, y + 14))
+
+
+def goto_link(canv, key: str, x1: float, y1: float, x2: float, y2: float) -> None:
+    """Add a GoTo link over the rectangle (x1, y1)-(x2, y2) given in the CURRENT user space."""
+    rect = tuple(round(v, 2) for v in canv._absRect((x1, y1, x2, y2), relative=1))
+    dest = canv._bookmarkReference(key)  # bound to its page when the anchor is registered
+    ann = _GoToLinkAnnotation(Rect=rect, Contents="", Destination=dest,
+                              Border=_pdfdoc.PDFArray([0, 0, 0]))
+    _LINK_SEQ[0] += 1
+    name = f"ALPGOTO{_LINK_SEQ[0]}"
+    canv._doc.addAnnotation(name, ann)
+    canv._annotatePage(name)
+
+
 class Anchor(Flowable):
-    """Zero-size flowable: a named destination (and optional outline entry) at this spot."""
+    """Zero-size flowable: a destination (and optional outline entry) at this spot."""
 
     def __init__(self, key: str, title: str = "", level: int = 0):
         super().__init__()
@@ -1361,64 +1466,121 @@ class Anchor(Flowable):
         if marks is not None:
             marks.append((self.key, self.title, self.level, y))
         else:  # plain canvas
-            self.canv.bookmarkHorizontal(self.key, 0, y + 14)
+            _register_destination(self.canv, self.key, y)
             if self.title:
                 self.canv.addOutlineEntry(self.title, self.key, level=self.level)
         if self.key == "contents":
             self.canv._has_contents = True
 
 
-class LinkTo(Flowable):
-    """Makes any flowable (incl. shaped-Hindi images) a tap target that jumps to a destination."""
+class MinHeight(Flowable):
+    """Pads a flowable to at least *min_h* points (vertically centred) - a full-size tap target."""
 
-    def __init__(self, child: Flowable, key: str):
+    def __init__(self, child: Flowable, min_h: float = MIN_TAP_PT):
         super().__init__()
-        self.child, self.key = child, key
+        self.child, self.min_h = child, min_h
+        self._ch = 0.0
 
     def wrap(self, availWidth, availHeight):
-        self.width, self.height = self.child.wrap(availWidth, availHeight)
+        w, h = self.child.wrap(availWidth, availHeight)
+        self._ch = h
+        self.width, self.height = w, max(h, self.min_h)
         return self.width, self.height
 
     def draw(self):
+        self.child.drawOn(self.canv, 0, (self.height - self._ch) / 2.0)
+
+
+class Stack(Flowable):
+    """Vertical stack of flowables drawn as one block (used for one-link photo cards)."""
+
+    def __init__(self, children: List[Flowable], gap: float = 0.0):
+        super().__init__()
+        self.children, self.gap = [c for c in children if c is not None], gap
+        self._sizes: List[Tuple[float, float]] = []
+
+    def wrap(self, availWidth, availHeight):
+        self._sizes = [c.wrap(availWidth, availHeight) for c in self.children]
+        self.width = max([w for w, _h in self._sizes] + [0])
+        self.height = sum(h for _w, h in self._sizes) + self.gap * max(0, len(self.children) - 1)
+        return self.width, self.height
+
+    def draw(self):
+        y = self.height
+        for c, (_w, h) in zip(self.children, self._sizes):
+            y -= h
+            c.drawOn(self.canv, 0, y)
+            y -= self.gap
+
+
+class LinkTo(Flowable):
+    """Makes any flowable (incl. shaped-Hindi images, whole table rows, photo cards) one tap
+    target that jumps to an internal destination; the tap area is at least MIN_TAP_PT tall."""
+
+    def __init__(self, child: Flowable, key: str, min_h: float = 0.0, full_width: bool = False):
+        super().__init__()
+        self.child = MinHeight(child, min_h) if min_h else child
+        self.key, self.full_width = key, full_width
+        self._avail_w = 0.0
+
+    def wrap(self, availWidth, availHeight):
+        self._avail_w = availWidth
+        self.width, self.height = self.child.wrap(availWidth, availHeight)
+        if self.full_width:
+            self.width = max(self.width, availWidth)
+        return self.width, self.height
+
+    def split(self, availWidth, availHeight):
+        return []
+
+    def draw(self):
         self.child.drawOn(self.canv, 0, 0)
-        self.canv.linkRect("", self.key, (0, 0, self.width, self.height), relative=1, thickness=0)
+        goto_link(self.canv, self.key, 0, 0, self.width, self.height)
 
 
 TOC_LINK_KEYS: set = set()
+COVER_LINK_KEYS: set = set()
+
+
+def _row_table(cells: List[Any], widths: List[float], style_cmds: List[Tuple], min_h: float = MIN_TAP_PT + 2) -> Table:
+    """One-row table whose height is at least *min_h* (a whole-row tap target)."""
+    t = Table([cells], colWidths=widths)
+    t.setStyle(TableStyle(style_cmds))
+    _w, h = t.wrap(sum(widths), PAGE_H)
+    if h < min_h:
+        t = Table([cells], colWidths=widths, rowHeights=[min_h])
+        t.setStyle(TableStyle(style_cmds))
+    return t
 
 
 def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowable]:
-    """Clickable contents page: every MCQ topic (EN + HI) and every section."""
+    """Clickable contents page: every MCQ topic (EN + HI) and every section.
+
+    Each topic is ONE link covering its whole row (number + English + Hindi), at
+    least MIN_TAP_PT tall, so a thumb tap anywhere on the row works on phones."""
     TOC_LINK_KEYS.clear()
     out: List[Flowable] = [Anchor("contents", "Contents | विषय-सूची", 0)]
     out.append(Paragraph("<b>TODAY'S CONTENTS</b>", STYLES["oneliner_title"]))
     out.append(text_flowable("आज की विषय-सूची  •  किसी भी विषय पर टैप करें", STYLES["cover_super"]))
     out.append(Spacer(PRINT_W, 8 * pt))
     num_w = 40 * pt
-    txt_w = PRINT_W - num_w - 16 * pt
-    rows = []
-    st_en = ParagraphStyle("TocEN", parent=STYLES["bullet_en"], fontName=FONT_SEMI, textColor=COLORS["primary"],
-                           fontSize=STYLES["bullet_en"].fontSize * 0.86, leading=STYLES["bullet_en"].leading * 0.84)
-    st_hi = ParagraphStyle("TocHI", parent=STYLES["hi_body"], fontSize=STYLES["hi_body"].fontSize * 0.8)
-    st_num = ParagraphStyle("TocNum", parent=STYLES["bullet_en"], fontName=FONT_BOLD, textColor=COLORS["white"],
-                            fontSize=STYLES["bullet_en"].fontSize * 0.9, alignment=TA_CENTER)
+    txt_w = PRINT_W - num_w - 14 * pt
+    st_en, st_hi, st_num = STYLES["toc_en"], STYLES["toc_hi"], STYLES["toc_num"]
     for i, (it, _ms) in enumerate(units, 1):
         en = _clean_text_for_display(it.get("headline_en", ""))
         hi = _hi_or_blank(it.get("headline_hi", ""))
-        key = f"u{i}"
-        cell = [LinkTo(Paragraph(_safe(en), st_en), key)]
+        cell: List[Flowable] = [Paragraph(_safe(en), st_en)]
         if hi:
-            cell.append(LinkTo(text_flowable(hi, st_hi, width=txt_w), key))
-        rows.append([LinkTo(Paragraph(f"Q{i}", st_num), key), cell])
-    t = Table(rows, colWidths=[num_w, PRINT_W - num_w])
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), COLORS["primary"]),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LINEBELOW", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-        ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ("LEFTPADDING", (0, 0), (0, -1), 2), ("LEFTPADDING", (1, 0), (1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-    ]))
-    out.append(t)
+            cell.append(text_flowable(hi, st_hi, width=txt_w, bg=COLORS["white"] if i % 2 else HexColor("#F3F7FC")))
+        row = _row_table([Paragraph(f"Q{i}", st_num), cell], [num_w, PRINT_W - num_w], [
+            ("BACKGROUND", (0, 0), (0, 0), COLORS["primary"]),
+            ("BACKGROUND", (1, 0), (1, 0), COLORS["white"] if i % 2 else HexColor("#F3F7FC")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
+            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (0, 0), 2), ("LEFTPADDING", (1, 0), (1, 0), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ], min_h=MIN_TAP_PT)
+        out.append(LinkTo(row, f"u{i}", full_width=True))
     out.append(Spacer(PRINT_W, 10 * pt))
     # Section chips
     chips: List[Tuple[str, str, str]] = []
@@ -1426,29 +1588,32 @@ def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowab
         chips.append(("News in Pictures", "चित्रों में खबरें", "pics"))
     if (content.get("agri_corner") or {}).get("items"):
         chips.append(("Agriculture Corner", "कृषि कॉर्नर", "agri"))
-    cats = _quick_bite_categories(content)
-    for j, (cen, chi) in enumerate(cats):
-        chips.append((f"Quick Bites: {cen}", f"क्विक बाइट्स: {chi}" if chi else "", f"qb{j}"))
+    if _quick_bite_categories(content):
+        chips.append(("Quick Bites", "क्विक बाइट्स", "qb"))
     chips.append(("One-Liners (English)", "वन-लाइनर (अंग्रेज़ी)", "ol_en"))
     chips.append(("One-Liners (Hindi)", "वन-लाइनर (हिन्दी)", "ol_hi"))
-    chip_st = ParagraphStyle("TocChip", parent=STYLES["bullet_en"], fontName=FONT_SEMI, textColor=HexColor("#0B57D0"),
-                             fontSize=STYLES["bullet_en"].fontSize * 0.92, leading=STYLES["bullet_en"].leading * 0.92)
-    col_w = PRINT_W / 2
-    cells = [LinkTo(Paragraph(f"<u>{_safe(e)}</u>", chip_st), k) for e, _h, k in chips]
+    chip_st = ParagraphStyle("TocChip", parent=STYLES["toc_en"], textColor=HexColor("#0B57D0"))
+    ncol = 3
+    col_w = (PRINT_W - 3 * (ncol - 1) * pt) / ncol
     TOC_LINK_KEYS.update(k for _e, _h, k in chips)
     TOC_LINK_KEYS.update(f"u{i}" for i in range(1, len(units) + 1))
-    if len(cells) % 2:
-        cells.append(Spacer(1, 1))
-    grid = Table([cells[i:i + 2] for i in range(0, len(cells), 2)], colWidths=[col_w, col_w])
-    grid.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), HexColor("#EEF5FF")),
-        ("BOX", (0, 0), (-1, -1), 0.6, HEADLINE_BOX_BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, HEADLINE_BOX_BORDER),
-        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]))
     out.append(text_flowable("More Sections | अन्य खंड", STYLES["block_head"]))
     out.append(Spacer(PRINT_W, 4 * pt))
+    chip_cells = []
+    for e, _h, k in chips:
+        chip = _row_table([Paragraph(f"<u>{_safe(e)}</u>", chip_st)], [col_w], [
+            ("BACKGROUND", (0, 0), (-1, -1), HexColor("#EEF5FF")),
+            ("BOX", (0, 0), (-1, -1), 0.6, HEADLINE_BOX_BORDER),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ])
+        chip_cells.append(LinkTo(chip, k))
+    while len(chip_cells) % ncol:
+        chip_cells.append(Spacer(1, 1))
+    grid = Table([chip_cells[i:i + ncol] for i in range(0, len(chip_cells), ncol)],
+                 colWidths=[col_w + 3] * (ncol - 1) + [col_w])
+    grid.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                              ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
     out.append(grid)
     out.append(PageBreak())
     return out
@@ -1505,7 +1670,8 @@ def _agri_corner_story(content: Dict[str, Any]) -> List[Flowable]:
 
 
 def _quick_bites_story(content: Dict[str, Any]) -> List[Flowable]:
-    """'Quick Bites' section: short bilingual news grouped by category (content['quick_bites'])."""
+    """'Quick Bites' section: short bilingual news grouped by exam category (content['quick_bites']),
+    set as compact numbered table rows (EN line + Hindi line)."""
     bites = [b for b in (content.get("quick_bites") or []) if isinstance(b, dict) and _clean_text_for_display(b.get("en"))]
     if not bites:
         return []
@@ -1513,7 +1679,9 @@ def _quick_bites_story(content: Dict[str, Any]) -> List[Flowable]:
                            Paragraph("<b>QUICK BITES: Other Important News</b>", STYLES["oneliner_title"]),
                            text_flowable("क्विक बाइट्स: अन्य महत्वपूर्ण समाचार", STYLES["oneliner_title"]),
                            Spacer(PRINT_W, 8 * pt)]
-    head_en = ParagraphStyle("QBHeadEN", parent=STYLES["block_head"], textColor=COLORS["white"])
+    band_st = STYLES["qb_band"]
+    txt_st = STYLES["qb_text"]
+    num_st = ParagraphStyle("QBNum", parent=txt_st, fontName=FONT_BOLD, textColor=QUICK_BITE_BAND, alignment=TA_CENTER)
     num = 0
     order: List[str] = []
     groups: Dict[str, List[Dict[str, Any]]] = {}
@@ -1522,13 +1690,15 @@ def _quick_bites_story(content: Dict[str, Any]) -> List[Flowable]:
         if k not in groups:
             order.append(k)
         groups.setdefault(k, []).append(b)
-    inner = PRINT_W - 16 * pt
+    num_w = 30 * pt
+    txt_w = PRINT_W - num_w - 14 * pt
+    zebra = (COLORS["white"], HexColor("#F3F7FC"))
     for ci, k in enumerate(order):
         rows = groups[k]
         cat_hi = _hi_or_blank(rows[0].get("category_hi"))
         band_txt = f"{k}  |  {cat_hi}" if cat_hi else k
-        band = Table([[text_flowable(band_txt, head_en, width=inner, bg=QUICK_BITE_BAND, markup=f"<b>{_safe(k)}</b>")]],
-                     colWidths=[PRINT_W])
+        band = Table([[text_flowable(band_txt, band_st, width=PRINT_W - 16 * pt, bg=QUICK_BITE_BAND,
+                                     markup=f"<b>{_safe(k)}</b>")]], colWidths=[PRINT_W])
         band.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), QUICK_BITE_BAND),
             ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
@@ -1537,18 +1707,25 @@ def _quick_bites_story(content: Dict[str, Any]) -> List[Flowable]:
         first = True
         for b in rows:
             num += 1
+            bg = zebra[num % 2]
             en = _clean_text_for_display(b.get("en"))
-            fl: List[Flowable] = [Paragraph(f"<b>{num}.</b> {highlight_markup(en)}", STYLES["bullet_en"])]
+            cell: List[Flowable] = [Paragraph(highlight_markup(en), txt_st)]
             hi = _hi_or_blank(b.get("hi"))
             if hi:
-                fl.append(text_flowable(hi, STYLES["hi_body"], left_pad_mm=2.5, highlight=True))
-            fl.append(Spacer(PRINT_W, 6 * pt))
+                cell.append(text_flowable(hi, txt_st, width=txt_w, bg=bg, highlight=True))
+            row = Table([[Paragraph(str(num), num_st), cell]], colWidths=[num_w, PRINT_W - num_w])
+            row.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), bg), ("BACKGROUND", (0, 0), (0, 0), HexColor("#E3EDFA")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LINEBELOW", (0, 0), (-1, -1), 0.4, COLORS["border_light"]),
+                ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (0, 0), 2), ("LEFTPADDING", (1, 0), (1, 0), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
             if first:
                 out.append(Spacer(PRINT_W, 6 * pt))
-                out.append(KeepTogether([Anchor(f"qb{ci}", k, 1), band, Spacer(PRINT_W, 5 * pt)] + fl))
+                out.append(KeepTogether([Anchor(f"qb{ci}", k, 1), band, row]))
                 first = False
             else:
-                out.append(KeepTogether(fl))
+                out.append(row)
     return out
 
 
@@ -1768,6 +1945,266 @@ def _pdf_page_count(path: str) -> int:
             return 0
 
 
+# =========================================================================
+# MAGAZINE COVER (v5)
+# -------------------------------------------------------------------------
+# Masthead + date/edition line, the top story's photo as hero (typographic
+# hero when no photo), 3-5 bilingual cover lines linked to their stories, an
+# "Inside" strip linked to the sections, and the channel handles.  Drawn in
+# absolute page coordinates by one flowable that fills page 1; if anything
+# fails the canvas falls back to the classic branded cover.
+# =========================================================================
+COVER_NAVY = HexColor("#0A2540")
+COVER_RED = HexColor("#C8102E")
+COVER_INK = HexColor("#0F172A")
+COVER_MUTED = HexColor("#475569")
+COVER_MARGIN = 28 * pt
+
+
+def _cover_photo_reader(path: str, box_w: float, box_h: float):
+    """Centre-crop the photo to the hero box aspect ratio; returns an ImageReader (or None)."""
+    try:
+        from reportlab.lib.utils import ImageReader
+        with PILImage.open(path) as im:
+            im = im.convert("RGB")
+            iw, ih = im.size
+            target = box_w / float(box_h)
+            if iw / float(ih) > target:      # too wide -> crop sides
+                nw = int(ih * target)
+                x0 = (iw - nw) // 2
+                im = im.crop((x0, 0, x0 + nw, ih))
+            else:                            # too tall -> crop top/bottom (keep upper part: faces)
+                nh = int(iw / target)
+                y0 = max(0, (ih - nh) // 3)
+                im = im.crop((0, y0, iw, y0 + nh))
+            max_w = 1400
+            if im.size[0] > max_w:
+                im = im.resize((max_w, int(max_w / target)), PILImage.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=82, optimize=True)
+            buf.seek(0)
+            return ImageReader(buf)
+    except Exception:
+        return None
+
+
+def _short_text(t: str, n: int) -> str:
+    t = _clean_text_for_display(t)
+    return t if len(t) <= n else t[:n].rsplit(" ", 1)[0].rstrip(",;:-") + "…"
+
+
+class MagazineCover(Flowable):
+    """Full-page magazine cover drawn on page 1 (see module comment above)."""
+
+    def __init__(self, units, content: Dict[str, Any], date_display: str, sections: List[Tuple[str, str]]):
+        super().__init__()
+        self.units, self.content, self.date_display, self.sections = units, content, date_display, sections
+
+    def wrap(self, availWidth, availHeight):
+        self.width, self.height = availWidth, availHeight
+        return availWidth, availHeight
+
+    # -- helpers ----------------------------------------------------------
+    def _para(self, text, style, x, y_top, w, link=None, max_h=None):
+        """Draw a paragraph/Hindi block with its TOP at y_top; returns its height."""
+        f = text if isinstance(text, Flowable) else Paragraph(text, style)
+        _w, h = f.wrapOn(self.canv, w, max_h or PAGE_H)
+        f.drawOn(self.canv, x, y_top - h)
+        if link:
+            goto_link(self.canv, link, x, y_top - h, x + w, y_top)
+        return h
+
+    def draw(self):
+        c = self.canv
+        x0, y0 = c.absolutePosition(0, 0)
+        c.saveState()
+        c.translate(-x0, -y0)  # draw in page coordinates
+        try:
+            self._draw_cover(c)
+            c._magazine_cover = True
+        except Exception as exc:  # fail-soft: the classic cover is painted over it in save()
+            sys.stderr.write(f"[generate_pdf] magazine cover failed, using classic cover: {exc}\n")
+        finally:
+            c.restoreState()
+
+    def _draw_cover(self, c):
+        W, H, M = PAGE_W, PAGE_H, COVER_MARGIN
+        inner_w = W - 2 * M
+        units = self.units
+        # Background + top rule
+        c.setFillColor(COLORS["white"]); c.rect(0, 0, W, H, stroke=0, fill=1)
+        c.setFillColor(COVER_RED); c.rect(0, H - 7, W, 7, stroke=0, fill=1)
+
+        # ---- Masthead ----------------------------------------------------
+        c.setFillColor(COVER_RED); c.setFont(FONT_BOLD, FS_TABLE)
+        c.drawString(M, H - 30, "AGRI LEARNING POINT")
+        c.setFillColor(COVER_MUTED); c.setFont(FONT_SEMI, FS_FOOTER)
+        c.drawRightString(W - M, H - 30, "DAILY EDITION  •  BILINGUAL (HINDI + ENGLISH)")
+        c.setFillColor(COVER_NAVY); c.setFont(FONT_BOLD, FS_MAIN_TITLE)
+        c.drawString(M - 1, H - 64, "CURRENT AFFAIRS")
+        # date block (right)
+        try:
+            dt = datetime.strptime(self.date_display, "%d %B %Y")
+            weekday = dt.strftime("%A").upper()
+        except Exception:
+            weekday = "DAILY"
+        c.setFillColor(COVER_RED); c.setFont(FONT_BOLD, FS_FOOTER)
+        c.drawRightString(W - M, H - 48, weekday)
+        c.setFillColor(COVER_NAVY); c.setFont(FONT_BOLD, FS_CHAPTER)
+        c.drawRightString(W - M, H - 66, self.date_display.strip())
+        c.setStrokeColor(COVER_NAVY); c.setLineWidth(2.2); c.line(M, H - 78, W - M, H - 78)
+        c.setStrokeColor(COVER_RED); c.setLineWidth(0.8); c.line(M, H - 82, W - M, H - 82)
+        c.setFillColor(COVER_MUTED); c.setFont(FONT_SEMI, FS_FOOTER)
+        c.drawString(M, H - 96, "For UPSSSC AGTA  •  IBPS AFO  •  NABARD  •  ICAR  •  FCI  •  UPSC & State PCS")
+        n_q = sum(len(ms) for _it, ms in units)
+        c.drawRightString(W - M, H - 96, f"{len(units)} stories  •  {n_q} MCQs")
+
+        # ---- Hero (top story) -----------------------------------------------
+        hero_idx = 0
+        for i, (it, _ms) in enumerate(units[:4]):
+            if _photo_path(it):
+                hero_idx = i
+                break
+        hero_it = units[hero_idx][0] if units else {}
+        # The photo-less page-cap fallback (no inline photos, no gallery) drops the cover photo too.
+        photo = _photo_path(hero_it) if units and (PDF_INLINE_PHOTOS or PDF_PHOTO_GALLERY) else ""
+        top = H - 106
+        hero_key = f"u{hero_idx + 1}" if units else "contents"
+        if photo:
+            ph_h = 200 * pt
+            reader = _cover_photo_reader(photo, inner_w, ph_h)
+        else:
+            reader, ph_h = None, 0
+        if reader is not None:
+            c.saveState()
+            path = c.beginPath(); path.roundRect(M, top - ph_h, inner_w, ph_h, 10)
+            c.clipPath(path, stroke=0, fill=0)
+            c.drawImage(reader, M, top - ph_h, inner_w, ph_h)
+            c.restoreState()
+            credit = _photo_credit(hero_it)
+            if credit:
+                c.setFont(FONT_REGULAR, FS_FOOTER); c.setFillColor(COLORS["white"])
+                cw = c.stringWidth(f"Image: {credit}", FONT_REGULAR, FS_FOOTER) + 10
+                c.setFillAlpha(0.55); c.setFillColor(HexColor("#000000"))
+                c.roundRect(W - M - cw - 6, top - ph_h + 6, cw, 14, 4, stroke=0, fill=1)
+                c.setFillAlpha(1); c.setFillColor(COLORS["white"])
+                c.drawRightString(W - M - 11, top - ph_h + 10, f"Image: {_short_text(credit, 40)}")
+            band_top = top - ph_h + 10   # navy band overlaps the photo's rounded bottom
+        else:
+            band_top = top
+        # TOP STORY band
+        en = _short_text(hero_it.get("headline_en", "") if units else "Today's exam-focused current affairs", 130)
+        hi = _short_text(_hi_or_blank(hero_it.get("headline_hi", "")) if units else "", 120)
+        head_st = ParagraphStyle("CoverHero", parent=STYLES["oneliner_title"], textColor=COLORS["white"],
+                                 alignment=TA_LEFT, fontSize=FS_MODULE, leading=_lead(FS_MODULE, 1.25))
+        hi_st = ParagraphStyle("CoverHeroHI", parent=STYLES["hi_body"], textColor=HexColor("#DBEAFE"),
+                               fontSize=FS_CHAPTER, fontName=FONT_SEMI)
+        pad = 14
+        tw = inner_w - 2 * pad
+        p_en = Paragraph(f"<b>{_safe(en)}</b>", head_st)
+        _w, h_en = p_en.wrapOn(c, tw, 200)
+        f_hi = text_flowable(hi, hi_st, width=tw, bg=COVER_NAVY) if hi else None
+        h_hi = f_hi.wrapOn(c, tw, 200)[1] if f_hi else 0
+        kicker_h = 20
+        band_h = pad + kicker_h + h_en + (6 + h_hi if f_hi else 0) + pad
+        if reader is None:
+            band_h = max(band_h, 150)
+        c.setFillColor(COVER_NAVY)
+        c.roundRect(M, band_top - band_h, inner_w, band_h, 10, stroke=0, fill=1)
+        if reader is not None:  # square off the join with the photo
+            c.rect(M, band_top - 12, inner_w, 12, stroke=0, fill=1)
+        y = band_top - pad
+        c.setFillColor(COVER_RED); c.roundRect(M + pad, y - 15, 74, 15, 3, stroke=0, fill=1)
+        c.setFillColor(COLORS["white"]); c.setFont(FONT_BOLD, FS_FOOTER)
+        c.drawCentredString(M + pad + 37, y - 11, "TOP STORY")
+        cat = _clean_text_for_display(str(hero_it.get("category") or "")).upper() if units else ""
+        if cat:
+            c.setFillColor(HexColor("#93C5FD")); c.drawString(M + pad + 84, y - 11, cat)
+        y -= kicker_h
+        p_en.drawOn(c, M + pad, y - h_en)
+        y -= h_en
+        if f_hi:
+            y -= 6
+            f_hi.drawOn(c, M + pad, y - h_hi)
+            y -= h_hi
+        hero_bottom = band_top - band_h
+        goto_link(c, hero_key, M, hero_bottom, W - M, top)
+
+        # ---- Cover lines (teasers) ----------------------------------------------
+        y = hero_bottom - 14
+        c.setFillColor(COVER_RED); c.setFont(FONT_BOLD, FS_TABLE)
+        c.drawString(M, y - 10, "ALSO IN THIS EDITION")
+        lab_w = c.stringWidth("ALSO IN THIS EDITION", FONT_BOLD, FS_TABLE)
+        c.setStrokeColor(HexColor("#E2E8F0")); c.setLineWidth(0.8)
+        c.line(M + lab_w + 10, y - 7, W - M, y - 7)
+        y -= 20
+        floor_y = 158 if self.sections else 120
+        max_lines = 5 if reader is None else 4
+        tease_en = ParagraphStyle("CoverTeaseEN", parent=STYLES["topic_headline"], textColor=COVER_INK,
+                                  fontName=FONT_SEMI, fontSize=FS_CHAPTER, leading=_lead(FS_CHAPTER, 1.25))
+        tease_hi = ParagraphStyle("CoverTeaseHI", parent=STYLES["hi_body"], textColor=COVER_MUTED)
+        shown = 0
+        for i, (it, _ms) in enumerate(units):
+            if i == hero_idx or shown >= max_lines:
+                continue
+            en_t = _short_text(it.get("headline_en", ""), 92)
+            hi_t = _short_text(_hi_or_blank(it.get("headline_hi", "")), 88)
+            num_x = M + 13
+            tw2 = inner_w - 36
+            p = Paragraph(_safe(en_t), tease_en)
+            _w, h1 = p.wrapOn(c, tw2, 100)
+            fh = text_flowable(hi_t, tease_hi, width=tw2) if hi_t else None
+            h2 = fh.wrapOn(c, tw2, 100)[1] if fh else 0
+            block = max(h1 + h2 + 4, MIN_TAP_PT)
+            if y - block < floor_y:
+                break
+            c.setFillColor(COVER_NAVY); c.circle(num_x, y - 10, 10, stroke=0, fill=1)
+            c.setFillColor(COLORS["white"]); c.setFont(FONT_BOLD, FS_TABLE)
+            c.drawCentredString(num_x, y - 13.5, str(i + 1))
+            p.drawOn(c, M + 34, y - h1)
+            if fh:
+                fh.drawOn(c, M + 34, y - h1 - 2 - h2)
+            goto_link(c, f"u{i + 1}", M, y - block, W - M, y + 2)
+            y -= block + 9
+            shown += 1
+
+        # ---- Inside strip --------------------------------------------------------
+        if self.sections:
+            sy = 112
+            c.setFillColor(HexColor("#F1F5F9")); c.roundRect(M, sy, inner_w, 38, 8, stroke=0, fill=1)
+            c.setFillColor(COVER_RED); c.setFont(FONT_BOLD, FS_TABLE)
+            c.drawString(M + 10, sy + 15, "INSIDE")
+            x = M + 10 + c.stringWidth("INSIDE", FONT_BOLD, FS_TABLE) + 10
+            c.setFont(FONT_SEMI, FS_TABLE)
+            for label, key in self.sections:
+                pw = c.stringWidth(label, FONT_SEMI, FS_TABLE) + 16
+                if x + pw > W - M - 6:
+                    break
+                c.setFillColor(COVER_NAVY); c.roundRect(x, sy + 7, pw, 24, 12, stroke=0, fill=1)
+                c.setFillColor(COLORS["white"]); c.drawCentredString(x + pw / 2, sy + 15.5, label)
+                goto_link(c, key, x - 2, sy + 2, x + pw + 2, sy + 36)
+                x += pw + 6
+
+        # ---- Channels + footer band ---------------------------------------------
+        pills = (("YouTube: Agri Learning Point", LINK_YOUTUBE), ("Telegram: @agrilearningpoint", LINK_TELEGRAM),
+                 ("Daily Quiz: @agriquizworld", LINK_TELEGRAM_QUIZ))
+        c.setFont(FONT_BOLD, FS_TABLE)
+        widths = [c.stringWidth(l, FONT_BOLD, FS_TABLE) + 22 for l, _u in pills]
+        gap = 8
+        x = (W - (sum(widths) + gap * (len(widths) - 1))) / 2
+        for (label, url), pw in zip(pills, widths):
+            c.setFillColor(HexColor("#E0ECFF")); c.roundRect(x, 64, pw, 32, 16, stroke=0, fill=1)
+            c.setFillColor(HexColor("#0B57D0")); c.drawCentredString(x + pw / 2, 76.5, label)
+            c.linkURL(url, (x, 64, x + pw, 96), relative=1)
+            x += pw + gap
+        c.setFillColor(COVER_NAVY); c.rect(0, 0, W, 40, stroke=0, fill=1)
+        c.setFillColor(COLORS["white"]); c.setFont(FONT_SEMI, FS_FOOTER)
+        c.drawCentredString(W / 2, 22, "Verified from PIB, ministries, RBI, ISRO, IMD & national dailies  •  "
+                                        "Every story has a 5-option MCQ, explanation & Static GK")
+        c.setFillColor(HexColor("#93C5FD"))
+        c.drawCentredString(W / 2, 9, "Tap any headline to jump to the story  •  INDEX button on every page")
+
+
 # --- MAIN PDF GENERATION ENGINE ---
 def generate_pdf(
     content: Dict[str, Any],
@@ -1776,18 +2213,42 @@ def generate_pdf(
     date_str: Optional[str] = None,
     **kwargs: Any,
 ) -> str:
-    """Generate the PDF; photos never push it past the QA page ceiling.
+    """Generate the PDF; optional sections never push it past the QA page ceiling.
 
-    When the edition with photos exceeds PDF_QA_MAX_PAGES, it is rebuilt with the
-    gallery only, then without photos (the text content is never cut)."""
+    When the edition exceeds PDF_QA_MAX_PAGES it is rebuilt with fewer Quick Bites
+    (round-robin per category, down to none), then with the gallery only, then
+    without photos.  The MCQ units themselves are never cut."""
     global PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY
     path = _generate_pdf_once(content, mcqs, output_path, date_str, **kwargs)
-    has_photos = any(_photo_path(it) for it in (content.get("items") or []) if isinstance(it, dict))
     try:
         max_pages = int(os.getenv("PDF_QA_MAX_PAGES", "45"))
     except ValueError:
         max_pages = 45
-    if not has_photos or _pdf_page_count(path) <= max_pages:
+    if _pdf_page_count(path) <= max_pages:
+        return path
+    # 1) Over the cap: trim Quick Bites first (best items per category are kept) ...
+    bites = [b for b in (content.get("quick_bites") or []) if isinstance(b, dict)]
+    work = content
+    first = True
+    while bites and _pdf_page_count(path) > max_pages:
+        if first:
+            # Jump straight to an estimate (~8 bites a page) to save rebuilds.
+            over = _pdf_page_count(path) - max_pages
+            keep = max(0, len(bites) - (over + 1) * 8)
+            first = False
+        else:
+            keep = int(len(bites) * 0.7) if len(bites) > 12 else 0
+        trimmed = _trim_bites(bites, min(keep, len(bites) - 1))
+        if len(trimmed) >= len(bites):  # never loop without progress
+            trimmed = []
+        bites = trimmed
+        work = dict(content, quick_bites=bites)
+        path = _generate_pdf_once(work, mcqs, output_path, date_str, **kwargs)
+    if _pdf_page_count(path) <= max_pages:
+        return path
+    # 2) ... then photos: gallery only, then none (the MCQ text content is never cut).
+    has_photos = any(_photo_path(it) for it in (content.get("items") or []) if isinstance(it, dict))
+    if not has_photos:
         return path
     saved = (PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY)
     try:
@@ -1795,12 +2256,29 @@ def generate_pdf(
             if (inline, gallery) == saved:
                 continue
             PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY = inline, gallery
-            path = _generate_pdf_once(content, mcqs, output_path, date_str, **kwargs)
+            path = _generate_pdf_once(work, mcqs, output_path, date_str, **kwargs)
             if _pdf_page_count(path) <= max_pages:
                 break
     finally:
         PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY = saved
     return path
+
+
+def _trim_bites(bites: List[Dict[str, Any]], keep: int) -> List[Dict[str, Any]]:
+    """Keep *keep* bites, taking round-robin from each category (earliest = best first)."""
+    if keep <= 0:
+        return []
+    by_cat: Dict[str, List[int]] = {}
+    for i, b in enumerate(bites):
+        by_cat.setdefault(str(b.get("category_en")), []).append(i)
+    kept: List[int] = []
+    queues = {k: list(v) for k, v in by_cat.items()}
+    while len(kept) < keep and any(queues.values()):
+        for k in list(queues):
+            if queues[k] and len(kept) < keep:
+                kept.append(queues[k].pop(0))
+    keep_idx = set(kept)
+    return [b for i, b in enumerate(bites) if i in keep_idx]
 
 
 def _generate_pdf_once(
@@ -1842,110 +2320,25 @@ def _generate_pdf_once(
     # =========================================================================
     # PAGE 1: EXAM GENIUS STYLE COVER PAGE
     # =========================================================================
-    story.append(Spacer(PRINT_W, 10 * pt))
-    story.append(Paragraph("AGRI LEARNING POINT — YOUR ULTIMATE GUIDE TO AGRICULTURE & ALL COMPETITIVE EXAMS", STYLES["cover_super"]))
-    story.append(Spacer(PRINT_W, 12 * pt))
-
-    story.append(Paragraph("AGRI LEARNING POINT", STYLES["cover_title"]))
-    story.append(Spacer(PRINT_W, 4 * pt))
-    story.append(Paragraph("Presents", STYLES["cover_super"]))
-    story.append(Spacer(PRINT_W, 4 * pt))
-    story.append(Paragraph("GENIUS CURRENT AFFAIRS", STYLES["cover_sub"]))
-    story.append(Spacer(PRINT_W, 4 * pt))
-    story.append(text_flowable("IN BILINGUAL (हिन्दी + ENGLISH)", STYLES["cover_super"]))
-    story.append(Spacer(PRINT_W, 12 * pt))
-
-    # Date Banner
-    date_banner_data = [[Paragraph(f"EDITION DATE: {date_display.upper()}", STYLES["cover_date"])]]
-    date_banner = Table(date_banner_data, colWidths=[PRINT_W])
-    date_banner.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["primary"]),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    story.append(date_banner)
-    story.append(Spacer(PRINT_W, 14 * pt))
-
-    # Target Exams Bar
-    exam_badges = [
-        "UPSSSC AGTA", "IBPS AFO", "ICAR JRF/SRF", "NABARD GRADE-A",
-        "FCI MANAGER", "STATE AGRICULTURE SUPERVISOR", "UPSC & STATE PCS"
-    ]
-    badge_data = [[Paragraph(f"<b>TARGET EXAMS:</b> {' • '.join(exam_badges)}", STYLES["cover_badge"])]]
-    badge_table = Table(badge_data, colWidths=[PRINT_W])
-    badge_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
-        ("BOX", (0, 0), (-1, -1), 1, COLORS["badge_text"]),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(badge_table)
-    story.append(Spacer(PRINT_W, 16 * pt))
-
-    # Features Box
-    features = [
-        ("• Genuine Rolling 24-Hour Coverage", "Strictly verified news from PIB, ICAR, MEA, MoAFW, RBI & National Dailies."),
-        ("• Mobile-First Educational Structure", "Every question is paired with its verified answer, bilingual explanation & static GK."),
-        ("• Standard 5-Option Practice MCQs", "Designed for negative-marking competitive exams with high-probability distractors."),
-        ("• Deep Institutional Static GK", "Headquarters, establishment years, nodal ministries, and relevant agricultural acts."),
-    ]
-    feat_rows = []
-    for f_title, f_desc in features:
-        p = Paragraph(f"<b>{_safe(f_title)}:</b> {_safe(f_desc)}", STYLES["cover_bullet"])
-        feat_rows.append([p])
-    feat_table = Table(feat_rows, colWidths=[PRINT_W])
-    feat_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["card_bg"]),
-        ("BOX", (0, 0), (-1, -1), 1, COLORS["border_light"]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(feat_table)
-    story.append(Spacer(PRINT_W, 18 * pt))
-
-    # Important Days of the Month Quick Callout
-    sample_days = get_important_days_for_date(date_display)
-    day_rows = [[Paragraph(f"<b>IMPORTANT EXAM DAYS & OBSERVANCES ({date_display}):</b>", STYLES["section_tag"])]]
-    for d in sample_days[:4]:
-        day_rows.append([Paragraph(f"• {_safe(d)}", STYLES["cover_bullet"])])
-    day_table = Table(day_rows, colWidths=[PRINT_W])
-    day_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), HexColor("#FEF3C7")),
-        ("BOX", (0, 0), (-1, -1), 1, COLORS["gold_accent"]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
-    story.append(day_table)
-    story.append(Spacer(PRINT_W, 18 * pt))
-
-    # Social Channels Bar
-    social_text = (f'<b>YouTube:</b> <a href="{LINK_YOUTUBE}" color="#0B57D0"><u>Agri Learning Point</u></a>   |   '
-                   f'<b>Telegram:</b> <a href="{LINK_TELEGRAM}" color="#0B57D0"><u>@agrilearningpoint</u></a>   |   '
-                   f'<b>Daily Quiz:</b> <a href="{LINK_TELEGRAM_QUIZ}" color="#0B57D0"><u>@agriquizworld</u></a>')
-    social_data = [[Paragraph(social_text, STYLES["cover_badge"])]]
-    social_table = Table(social_data, colWidths=[PRINT_W])
-    social_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(social_table)
-
+    units = _pair_units(items, mcqs)
+    sections: List[Tuple[str, str]] = [(f"MCQs ({sum(len(ms) for _i, ms in units)})", "mcq" if PDF_SHOW_TOC else "u1")]
+    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _photo_path(it)) >= PDF_GALLERY_MIN:
+        sections.append(("News in Pictures", "pics"))
+    if (content.get("agri_corner") or {}).get("items"):
+        sections.append(("Agriculture Corner", "agri"))
+    n_qb = len([b for b in (content.get("quick_bites") or []) if isinstance(b, dict) and b.get("en")])
+    if n_qb:
+        sections.append((f"Quick Bites ({n_qb})", "qb"))
+    sections.append(("One-Liners", "ol_en"))
+    COVER_LINK_KEYS.clear()
+    COVER_LINK_KEYS.update(k for _l, k in sections)
+    COVER_LINK_KEYS.update(f"u{i}" for i in range(1, len(units) + 1))
+    story.append(MagazineCover(units, content, date_display, sections))
     story.append(PageBreak())
 
     # =========================================================================
     # CLICKABLE CONTENTS (replaces the old static index table; ALP_PDF_TOC=0 disables)
     # =========================================================================
-    units = _pair_units(items, mcqs)
     if PDF_SHOW_TOC:
         story.extend(_toc_story(units, content, date_display))
         story.append(Anchor("mcq", "MCQ Topics | MCQ विषय", 0))
@@ -1967,18 +2360,22 @@ def _generate_pdf_once(
         headline_en = _clean_text_for_display(it.get("headline_en", ""))
         static_pairs = _extract_static_gk_pairs(it, unit_mcqs[0])
 
-        pill = Table([[Paragraph(f"<b>[ {_safe(cat)} ]</b>   •   <b>Topic:</b> {_safe(headline_en)}", STYLES["section_tag"])]],
+        # Unit header: small category tag, then the story headline at chapter size.
+        pill = Table([[Paragraph(f"<b>{_safe(cat)}</b>   •   STORY {u_idx + 1} OF {len(units)}", STYLES["section_tag"])],
+                      [Paragraph(f"<b>{_safe(headline_en)}</b>", STYLES["topic_headline"])]],
                      colWidths=[PRINT_W])
         pill.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), COLORS["badge_bg"]),
-            ("BOX", (0, 0), (-1, -1), 0.5, COLORS["badge_text"]),
+            ("LINEBEFORE", (0, 0), (0, -1), 3, COLORS["badge_text"]),
             ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
         first_in_unit = True
-        story.append(Anchor(f"u{u_idx + 1}", f"Q{u_idx + 1}. {headline_en[:70]}", 1 if PDF_SHOW_TOC else 0))
+        # The anchor travels inside the unit's first KeepTogether block, so a link
+        # never lands on the previous page when the block is pushed to a new page.
+        unit_anchor = Anchor(f"u{u_idx + 1}", f"Q{u_idx + 1}. {headline_en[:70]}", 1 if PDF_SHOW_TOC else 0)
 
         for m in unit_mcqs:
             q_en = _clean_text_for_display(m.get("question_en", ""))
@@ -1991,7 +2388,7 @@ def _generate_pdf_once(
             if not first_in_unit:
                 block.append(Spacer(PRINT_W, 8 * pt))
             if first_in_unit:
-                block += [pill, Spacer(PRINT_W, 6 * pt)]
+                block += [unit_anchor, pill, Spacer(PRINT_W, 6 * pt)]
                 block += _unit_photo_block(it)
             block.append(text_flowable(f"Q{q_idx}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{q_idx}.</b> {_safe(q_en)}"))
             q_hi = _hi_or_blank(m.get("question_hi", ""))
@@ -2092,7 +2489,7 @@ def _generate_pdf_once(
             story.append(text_flowable("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", STYLES["oneliner_title"]))
             story.append(Spacer(PRINT_W, 10 * pt))
             ol_hi = ParagraphStyle("OneLinerHI", parent=STYLES["oneliner"],
-                                   fontSize=round(STYLES["oneliner"].fontSize * 0.93, 2))
+                                   fontSize=STYLES["oneliner"].fontSize)
             for n, (_en, hi) in enumerate(one_liners, 1):
                 if hi:
                     story.append(text_flowable(f"{n}. {hi}", ol_hi, highlight=True))
@@ -2169,7 +2566,7 @@ def _generate_pdf_once(
     for kt in story:
         if isinstance(kt, KeepTogether):
             defined |= {f.key for f in kt._content if isinstance(f, Anchor)}
-    for key in TOC_LINK_KEYS - defined:
+    for key in (TOC_LINK_KEYS | COVER_LINK_KEYS | {"contents"}) - defined:
         story.append(Anchor(key))
     doc.build(story, canvasmaker=ExamGeniusCanvas)
     if os.getenv("ALP_PDF_COMPACT", "1") != "0":

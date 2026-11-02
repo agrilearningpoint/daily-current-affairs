@@ -11,18 +11,14 @@ RAW_FILE_RE = re.compile(
 )
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
 
-# Feed entries that are not exam news: tenders/bid notices, recruitment-rule PDFs,
-# opinion/editorial/review pieces, videos/quizzes/live blogs.  Run 41425513692
-# printed "Bid opening meeting link for Procurement of ..." and a film review.
-NON_NEWS_RE = re.compile(
-    r"\b(?:bid\s+opening|tender|corrigendum|e-?procurement|procurement\s+of|expression\s+of\s+interest|"
-    r"request\s+for\s+proposal|\bRFP\b|walk[-\s]?in|recruitment\s+rules|vacancy\s+circular|"
-    r"admit\s+card|answer\s+key|movie\s+review|film\s+review|book\s+review|"
-    r"editorial|op-ed|podcast|live\s+updates?|crossword|horoscope|quiz)\b"
-    r"|^\s*(?:watch|video|photos?|in\s+pictures|explained|letters?|opinion)\s*[:|]"
-    r"|\|\s*the\s+hindu\s+editorial",
-    re.IGNORECASE,
-)
+# NON_NEWS_RE / topic_key live in pipeline.news_filters (shared with the Quick Bites
+# and Agriculture Corner builder); re-exported here for backward compatibility.
+import sys as _sys  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+if str(_Path(__file__).resolve().parent.parent) not in _sys.path:
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+from pipeline.news_filters import NON_NEWS_RE, topic_key as _topic_key  # noqa: E402
 
 
 class Agent:
@@ -46,8 +42,10 @@ class Agent:
             h = (x.get("headline_en") or x.get("title") or "").strip()
             if not h:
                 return True
-            if len(h) < 15 or len(h.split()) < 3:
+            if len(h) < 15 or len(h.split()) < 2:
                 return False
+            if len(h.split()) < 3 and not (x.get("must_include") and re.search(r"[A-Z]{2,}|\d", h)):
+                return False  # two-word titles only for official releases like "GSLV-F18/NVS-03 Mission"
             if RAW_FILE_RE.search(h):
                 return False
             if re.search(r"\buntitled\b", h, re.I):
@@ -66,6 +64,7 @@ class Agent:
         scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
         n_before = len(scored)
         selected = self._diverse_selection(scored, target)
+        selected = self._ensure_official(selected, scored, target)
         # Reserves: the next-best candidates, used by stage 12 (stories dropped for
         # unreviewed translation) and stage 16 (stories without a valid MCQ) to
         # backfill so the edition still reaches its target count.
@@ -118,18 +117,55 @@ class Agent:
         cap = max(3, -(-int(target * pct * 100) // 100)) if 0 < pct < 1 else target
         def _src(x):
             return str(x.get("source_name") or x.get("source_id") or "")
+        from pipeline.official_sources import is_must_include
+        official_cap = max(cap, -(-target * 6 // 10))
         counts = {}
         capped = []
+        topic_counts = {}
+        try:
+            topic_cap = max(1, int(os.getenv("ALP_MAX_PER_TOPIC", "2")))
+        except ValueError:
+            topic_cap = 2
         for x in scored:
             k = _src(x)
-            if counts.get(k, 0) < cap:
+            topic = _topic_key(x)
+            if topic and topic_counts.get(topic, 0) >= topic_cap:
+                continue  # e.g. ten "Cyclone Murasu: ..." updates -> keep the best two
+            # Official wires (PIB alone carries every ministry's releases) get a higher cap.
+            if counts.get(k, 0) < (official_cap if is_must_include(x) else cap):
                 counts[k] = counts.get(k, 0) + 1
+                if topic:
+                    topic_counts[topic] = topic_counts.get(topic, 0) + 1
                 capped.append(x)
         picked = self._round_robin(capped, target)
         if len(picked) < target:
             seen = {id(x) for x in picked}
             picked += [x for x in scored if id(x) not in seen][:target - len(picked)]
         return picked
+
+    def _ensure_official(self, selected, scored, target):
+        """Official PIB/PMO/MEA/RBI/ISRO/IMD/SEBI releases are must-include: guarantee
+        at least ALP_MIN_OFFICIAL_STORIES (default 5, capped at a third of the target)
+        of the best of them, replacing the weakest non-official picks."""
+        from pipeline.official_sources import is_must_include
+        try:
+            want = int(os.getenv("ALP_MIN_OFFICIAL_STORIES", "5"))
+        except ValueError:
+            want = 5
+        want = max(0, min(want, max(1, target // 3)))
+        rel = lambda x: x.get("student_relevance", x.get("importance_score", 0))
+        have = [x for x in selected if is_must_include(x)]
+        if len(have) >= want:
+            return selected
+        chosen = {id(x) for x in selected}
+        pool = [x for x in scored if id(x) not in chosen and is_must_include(x) and rel(x) >= 20]
+        out = list(selected)
+        for cand in pool[: want - len(have)]:
+            weak = [x for x in out if not is_must_include(x) and not x.get("agri_focus") and not x.get("banking_focus")]
+            if len(out) >= target and weak:
+                out.remove(min(weak, key=rel))
+            out.append(cand)
+        return out[:target] if len(out) > target else out
 
     def _round_robin(self, scored, target):
         selected = []
@@ -143,6 +179,17 @@ class Agent:
             "Sports", "Awards & Honours", "Appointments", "Defence", "Education"
         ]
         cat_idx = {cat: 0 for cat in priority_cats}
+        # Category diversity must not promote weak stories over clearly stronger ones:
+        # the round-robin only takes items within reach of the day's best story; the
+        # rest of the edition is filled strictly by relevance.
+        rel = lambda x: x.get("student_relevance", x.get("importance_score", 0)) or 0
+        try:
+            floor_pct = float(os.getenv("ALP_ROUND_ROBIN_FLOOR", "0.6"))
+        except ValueError:
+            floor_pct = 0.6
+        floor = floor_pct * max((rel(x) for x in scored), default=0)
+        for cat in list(by_category):
+            by_category[cat] = [x for x in by_category[cat] if rel(x) >= floor]
         while len(selected) < target:
             added = False
             for cat in priority_cats:

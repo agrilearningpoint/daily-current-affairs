@@ -361,7 +361,8 @@ def test_pdf_renders_news_photos_and_gallery(tmp_path, monkeypatch):
         for img in page.get_images(full=True):
             if img[8] == "DCTDecode" if len(img) > 8 else False:
                 jpeg_xrefs.add(img[0])
-    assert len(jpeg_xrefs) == 5          # each photo embedded once (gallery + unit share the XObject)
+    # each story photo embedded once (gallery + unit share the XObject) + the cropped cover hero
+    assert len(jpeg_xrefs) == 6
     assert out.stat().st_size < 4_000_000
 
 
