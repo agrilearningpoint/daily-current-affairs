@@ -229,11 +229,21 @@ def decode_many(pairs, workers=10, deadline_s=60):
 def resolve_official(title, source_site, timeout=8):
     """Given an item title + official domain (e.g. pib.gov.in), find the matching
     official-page URL by searching the site's own listing pages (never invents URLs).
+    Upgrade 2026-11: Serper site-search tried FIRST when SERPER_API_KEY is set
+    (more reliable than homepage scraping); scraping remains the offline fallback.
     Currently supports pib.gov.in (home page Press Note links) — returns URL or None."""
     host = re.sub(r"^https?://(www\.)?", "", source_site).split("/")[0]
     norm = re.sub(r"[^a-z0-9 ]", "", title.lower())[:60]
     if not norm:
         return None
+    # --- Serper first (env-gated; graceful no-op without key) ---
+    try:
+        from pipeline.discovery_api import find_official_mirror
+        found = find_official_mirror(title, extra_hosts=(host,))
+        if found:
+            return found
+    except Exception:
+        pass
     try:
         if host == "pib.gov.in":
             r = requests.get("https://www.pib.gov.in/", headers=UA, timeout=timeout)
