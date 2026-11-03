@@ -30,6 +30,7 @@ Env:
 """
 from __future__ import annotations
 
+from pipeline.ai_usage import record_ai_usage
 import hashlib
 import json
 import logging
@@ -614,8 +615,9 @@ def route(
         if content is not None:
             provider.consecutive_transient = 0
             _CACHE.put(ck, content)
-            logger.info("[Router] ✔ %s responded (task=%s, %d chars)",
-                        provider.name, task, len(content))
+            logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
+                        provider.name, task, provider.model, len(content))
+            record_ai_usage(provider.name, provider.model, task, True)
             return content
 
         # A 404/410 can mean only the selected model was retired. Refresh the
@@ -629,12 +631,14 @@ def route(
             )
             if content is not None:
                 _CACHE.put(ck, content)
-                logger.info("[Router] %s responded after model refresh (task=%s)",
-                            provider.name, task)
+                logger.info("[Router] %s responded after model refresh (task=%s, model=%s)",
+                            provider.name, task, provider.model)
+                record_ai_usage(provider.name, provider.model, task, True, "after model refresh")
                 return content
 
         # Failure handling
         last_error = f"{provider.name}: {failure}"
+        record_ai_usage(provider.name, provider.model, task, False, str(failure))
         if failure == FailureType.AUTH_ERROR:
             provider.mark_disabled("auth/credit error", 86400)
         elif failure == FailureType.MODEL_ERROR:

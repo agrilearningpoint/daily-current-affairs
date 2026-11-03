@@ -25,7 +25,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -152,6 +152,8 @@ RUNNING_STUCK_HOURS = _float_env("ALP_RUNNING_STUCK_HOURS", "WATCHDOG_STUCK_HOUR
 FAILED_LOOKBACK_HOURS = _float_env("ALP_FAILED_LOOKBACK_HOURS", "FAILED_LOOKBACK_HOURS", 72)
 
 _PUBLISH_STAGES = {"22_telegram_publisher", "23_telegram_pin_verifier"}
+# The publish gate (ALP_PUBLISH_NOT_BEFORE) stops the run before this stage.
+_PUBLISH_GATED_STAGES = {"22_telegram_publisher"}
 
 
 def validate_settings(job_type: str) -> None:
@@ -202,6 +204,47 @@ def log_err(msg: str) -> None:
 # Canonical job context (Task 01 §6 — date/backfill correctness)
 # ---------------------------------------------------------------------------
 
+def _previous_daily_window_end(date_str: str) -> datetime | None:
+    """Recorded window end of the previous day's daily edition, if it published.
+
+    Used so consecutive daily windows are contiguous (no overlap, no gap) even
+    when yesterday's run was late, early or reset. Unreadable state -> None,
+    which falls back to the fixed 06:00 IST edition window.
+    """
+    try:
+        prev_id = f"daily_{(date.fromisoformat(date_str) - timedelta(days=1)).isoformat()}"
+        entry = load_jobs_state().get(prev_id) or {}
+        if entry.get("status") != "success":
+            return None
+        end = (entry.get("window") or {}).get("end")
+        return datetime.fromisoformat(str(end)) if end else None
+    except (ValueError, TypeError, OSError, AttributeError):
+        return None
+
+
+def publish_not_before(job_type: str, date_str: str) -> datetime | None:
+    """Earliest moment the Telegram publish stage may send this edition.
+
+    ALP_PUBLISH_NOT_BEFORE="HH:MM" (IST wall clock on the edition date) gates
+    daily editions only; unset/empty disables the gate. Generation can finish
+    hours earlier (02:00-04:00 IST crons) and the job then parks in
+    "awaiting_publish" until a publish-window cron resumes it. After the gate
+    opens there is no upper bound: a late edition still goes out immediately.
+    """
+    raw = (os.getenv("ALP_PUBLISH_NOT_BEFORE") or "").strip()
+    if job_type != "daily" or not raw or os.getenv("DRY_RUN", "0") == "1":
+        return None
+    from datetime import time as dt_time
+    from zoneinfo import ZoneInfo
+    try:
+        hh, mm = raw.split(":", 1)
+        gate = dt_time(int(hh), int(mm))
+        return datetime.combine(date.fromisoformat(date_str), gate, tzinfo=ZoneInfo("Asia/Kolkata"))
+    except (ValueError, TypeError):
+        log_err(f"ignoring invalid ALP_PUBLISH_NOT_BEFORE={raw!r}; expected HH:MM")
+        return None
+
+
 def job_context_env(job_type: str, date_str: str | None) -> dict[str, str]:
     """Return the canonical ALP_JOB_* environment block for one run.
 
@@ -213,7 +256,10 @@ def job_context_env(job_type: str, date_str: str | None) -> dict[str, str]:
     """
     date_str = (date_str or os.environ.get("ALP_JOB_DATE") or "").strip()
     if not date_str:
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # Editions are dated in IST: a 02:00 IST run belongs to today's IST
+        # edition even though it is still the previous day in UTC.
+        from zoneinfo import ZoneInfo
+        date_str = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d")
     try:
         date.fromisoformat(date_str)
     except ValueError:
@@ -222,7 +268,8 @@ def job_context_env(job_type: str, date_str: str | None) -> dict[str, str]:
             f"(e.g. --date 2026-10-14)"
         )
     from pipeline.windows import collect_window
-    window_start, window_end = collect_window(job_type, date_str)
+    previous_end = _previous_daily_window_end(date_str) if job_type == "daily" else None
+    window_start, window_end = collect_window(job_type, date_str, previous_end=previous_end)
     return {
         "ALP_OUTPUT_PREFIX": f"{job_type}_{date_str}",
         "ALP_WINDOW_START": window_start.isoformat(),
@@ -400,7 +447,7 @@ def resolve_resume_stage(job_id: str, stages: list[tuple[str, str, bool]]) -> st
     Actions runner has no restored outputs, rewind rather than skipping stages.
     """
     entry = load_jobs_state().get(job_id, {})
-    if entry.get("status") not in {"running", "failed", "success"}:
+    if entry.get("status") not in {"running", "failed", "success", "awaiting_publish"}:
         return None
     if entry.get("dry_run") != (os.getenv("DRY_RUN", "0") == "1"):
         return None
@@ -480,6 +527,18 @@ def execute_job(job_type: str, date_str: str | None) -> int:
             log(f"stage {name}: already completed earlier, skipping")
             continue
 
+        if name in _PUBLISH_GATED_STAGES:
+            gate = publish_not_before(job_type, ctx["ALP_JOB_DATE"])
+            if gate is not None and datetime.now(timezone.utc) < gate:
+                update_job(job_id, status="awaiting_publish")
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state[job_id]["publish_not_before"] = gate.isoformat()
+                    save_jobs_state(state)
+                log(f"job '{job_id}' READY — awaiting publish window (not before "
+                    f"{gate.isoformat()}); checkpoints kept, a later run will publish")
+                return 0
+
         ok, msg = run_stage(name, script, critical, extra_env=ctx)
         if ok:
             try:
@@ -543,6 +602,18 @@ def watchdog(stuck_hours: float | None = None) -> int:
             age_h = float("inf")
         if status == "running" and age_h > (RUNNING_STUCK_HOURS if stuck_hours is None else stuck_hours):
             stuck.append(jid)
+        elif status == "awaiting_publish":
+            # Parked by the publish gate; flag it only if no publish-window run
+            # picked it up within 90 minutes of the gate opening.
+            try:
+                gate = datetime.fromisoformat(str(entry.get("publish_not_before", "")))
+                if gate.tzinfo is None:
+                    gate = gate.replace(tzinfo=timezone.utc)
+                if now > gate + timedelta(minutes=90):
+                    stuck.append(jid)
+            except (ValueError, TypeError):
+                if age_h > (RUNNING_STUCK_HOURS if stuck_hours is None else stuck_hours):
+                    stuck.append(jid)
         elif status == "failed" and age_h <= FAILED_LOOKBACK_HOURS:
             failed.append(jid)
 

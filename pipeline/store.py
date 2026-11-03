@@ -215,18 +215,56 @@ def _merge_dicts(local: Dict[str, Any], remote: Dict[str, Any]) -> Dict[str, Any
     return merged
 
 
-def record_scores(items, job_id):
-    """Persist all scored events for later edition selection without git side effects."""
+def record_scores(items, job_id, selected_ids=None, selected_items=None):
+    """Persist all scored events for later edition selection without git side effects.
+
+    Events chosen for the edition are additionally tagged ``selected_in`` (job
+    ids), which daily selection uses to avoid repeating a story that an
+    earlier edition already carried (see ``recently_selected``).
+    """
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
+    chosen = {str(e) for e in (selected_ids or [])}
     with _file_lock(_memory_path()):
         memory = load_memory()
-        for item in items:
+        for item in list(items) + [i for i in (selected_items or []) if i.get("event_id") not in
+                                   {x.get("event_id") for x in items}]:
+            previous = memory.get(item["event_id"]) if isinstance(memory.get(item["event_id"]), dict) else {}
             event = dict(item, last_seen=now, last_job_id=job_id)
+            tags = [j for j in (previous.get("selected_in") or []) if isinstance(j, str)]
+            if str(item["event_id"]) in chosen and job_id not in tags:
+                tags.append(job_id)
+            if tags:
+                event["selected_in"] = tags[-10:]
             memory[item["event_id"]] = event
         newest = sorted(memory.items(), key=lambda kv: kv[1].get("last_seen", "")
                         if isinstance(kv[1], dict) else "", reverse=True)
         _atomic_write_json(_memory_path(), dict(newest[:MAX_MEMORY_ENTRIES]))
+
+
+def recently_selected(job_id: str, lookback_days: int = 3) -> Dict[str, set]:
+    """Event ids, links and story keys of stories that EARLIER daily editions
+    (the ``lookback_days`` before ``job_id``'s date) selected. The current
+    edition itself is never included, so a retry/--reset keeps its stories."""
+    from datetime import date, timedelta
+    from pipeline.news_filters import story_key
+    out: Dict[str, set] = {"ids": set(), "links": set(), "keys": set()}
+    try:
+        kind, day = job_id.rsplit("_", 1)
+        today = date.fromisoformat(day)
+    except ValueError:
+        return out
+    earlier = {f"{kind}_{(today - timedelta(days=n)).isoformat()}" for n in range(1, lookback_days + 1)}
+    for event_id, event in load_memory().items():
+        if not isinstance(event, dict) or not earlier.intersection(event.get("selected_in") or []):
+            continue
+        out["ids"].add(str(event_id))
+        if event.get("link"):
+            out["links"].add(str(event["link"]))
+        key = story_key(event.get("headline_en") or event.get("title") or event.get("headline") or "")
+        if key:
+            out["keys"].add(key)
+    return out
 
 
 def upsert_memory(event_id: str, event_data: Dict[str, Any]) -> None:

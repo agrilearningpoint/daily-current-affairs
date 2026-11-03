@@ -61,6 +61,7 @@ class Agent:
             return True
 
         scored = [x for x in scored if _is_valid_candidate(x)]
+        scored = self._drop_previous_edition_repeats(scored)
         scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
         n_before = len(scored)
         selected = self._diverse_selection(scored, target)
@@ -105,6 +106,35 @@ class Agent:
         self.context["selected_count"] = len(selected)
         self.context["reserve_count"] = len(reserves)
         return self.context
+
+    def _drop_previous_edition_repeats(self, scored):
+        """Daily only: never re-print a story an earlier daily edition (last
+        ALP_REPEAT_LOOKBACK_DAYS, default 3) already carried. Overlapping
+        windows (late cron / reset) made 5 of 15 stories of daily_2026-11-03
+        repeats of daily_2026-11-02. ALP_ALLOW_REPEATS=1 disables it."""
+        if self.job_type != "daily" or os.getenv("ALP_ALLOW_REPEATS", "0") == "1":
+            return scored
+        try:
+            from pipeline import store
+            from pipeline.news_filters import story_key
+            days = int(os.getenv("ALP_REPEAT_LOOKBACK_DAYS", "3"))
+            seen = store.recently_selected(self.job_id, days)
+        except Exception as exc:  # memory unreadable -> do not block the edition
+            logging.warning(f"[{self.name}] repeat filter skipped: {exc}")
+            return scored
+        if not any(seen.values()):
+            return scored
+        kept = []
+        for x in scored:
+            key = story_key(x.get("headline_en") or x.get("title") or "")
+            if (str(x.get("event_id")) in seen["ids"] or (x.get("link") and x["link"] in seen["links"])
+                    or (key and key in seen["keys"])):
+                continue
+            kept.append(x)
+        logging.info(f"[{self.name}] dropped {len(scored) - len(kept)} candidate(s) already "
+                     f"published in the previous {days} daily edition(s)")
+        self.context["repeat_dropped"] = len(scored) - len(kept)
+        return kept
 
     def _diverse_selection(self, scored, target):
         """Category round-robin with a per-publisher cap (ALP_MAX_PER_SOURCE_PCT,

@@ -31,7 +31,8 @@ class Agent:
         from pipeline.state import SELECTED_DIR, SCORED_DIR, MEMORY_DIR, data_path, read_json, write_json_atomic
         from pipeline import store
         mem = read_json(data_path(MEMORY_DIR, "importance_memory"), {}) or {}
-        sel = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []})["items"]
+        selected_doc = read_json(data_path(SELECTED_DIR, self.job_id), {"items": []})
+        sel = selected_doc["items"]
         # FIX (audit 2026-10): memory must record ALL SCORED events, not just selected —
         # previously `scored` was accidentally re-read from SELECTED_DIR.
         scored = read_json(data_path(SCORED_DIR, self.job_id), {"items": []}).get("items", [])
@@ -45,10 +46,15 @@ class Agent:
             it["trend"] = e["trend"]
             it["previously_published"] = self.job_id in e["published_jobs"]
         write_json_atomic(data_path(MEMORY_DIR, "importance_memory"), mem)
-        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {"items": sel})
+        # Keep every other key of the stage-10 document (notably "reserves"):
+        # rewriting it as {"items": sel} silently discarded the reserve stories,
+        # so stage 12/16 could never backfill dropped stories (11-02 edition
+        # shipped 13 of 15 with promoted_reserves=0).
+        write_json_atomic(data_path(SELECTED_DIR, self.job_id), {**selected_doc, "items": sel})
+        selected_ids = [it["event_id"] for it in sel if it.get("event_id")]
         # PERSISTENT cross-run memory (Git-backed event DB) — the real "same database"
         try:
-            store.record_scores(scored, self.job_id)
+            store.record_scores(scored, self.job_id, selected_ids=selected_ids, selected_items=sel)
         except Exception as ex:
             logging.error(f"[{self.name}] persistent store merge failed: {ex}")
             self.context["stage_failed"] = True

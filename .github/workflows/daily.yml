@@ -2,8 +2,21 @@ name: Daily News Pipeline
 
 on:
   schedule:
-    # 22:35 UTC = 04:05 IST daily (aims for 06:00 IST Telegram delivery; offset avoids top-of-hour congestion)
-    - cron: "35 22 * * *"
+    # GitHub cron is best-effort (2026-11-03: the 04:05 IST cron fired at 09:09 IST),
+    # so several idempotent triggers are used. Every run resolves the same IST
+    # edition date, resumes from checkpoints, and a completed edition is a no-op.
+    # Generation (02:00-04:00 IST). Stage 22 is gated by ALP_PUBLISH_NOT_BEFORE,
+    # so an early finish parks the job as "awaiting_publish" (green run).
+    - cron: "30 20 * * *"   # 02:00 IST
+    - cron: "0 21 * * *"    # 02:30 IST
+    - cron: "30 21 * * *"   # 03:00 IST
+    - cron: "30 22 * * *"   # 04:00 IST
+    # Publish window (06:00-06:40 IST): resumes the parked edition and sends it;
+    # also generates from scratch if every earlier trigger was dropped.
+    - cron: "30 0 * * *"    # 06:00 IST
+    - cron: "50 0 * * *"    # 06:20 IST
+    - cron: "10 1 * * *"    # 06:40 IST
+    # Optional exact-time trigger: docs/scheduling.md (cron-job.org -> workflow_dispatch).
   workflow_dispatch:
     inputs:
       date:
@@ -62,6 +75,14 @@ env:
   ALP_DISABLE_POLISH: "1"
   PDF_QA_SUBSTANTIVE_CHARS: "600"
   PDF_QA_NEAR_EMPTY_CHARS: "260"
+  # --- Schedule policy (docs/scheduling.md) -------------------------------------
+  # Telegram publish (stage 22) never sends before this IST time on the edition
+  # date. Earlier finishes end green as "awaiting_publish"; later = send ASAP.
+  ALP_PUBLISH_NOT_BEFORE: "06:00"
+  # Daily news window is fixed to the edition date: previous day 06:00 IST ->
+  # edition day 06:00 IST (clipped to run time when generating earlier, and
+  # starting at the previous edition's recorded end so editions never overlap).
+  ALP_DAILY_CUTOFF: "06:00"
 
 jobs:
   run-daily:
@@ -75,6 +96,14 @@ jobs:
         with:
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refresh committed state to latest main
+        # A trigger that waited in the concurrency queue checks out the commit it
+        # was created at; pull the newest state/ so it sees the earlier run's
+        # checkpoint reference / awaiting_publish status instead of stale state.
+        run: |
+          git fetch --depth=1 origin "${{ github.ref_name }}"
+          git checkout FETCH_HEAD -- state/ || echo "state refresh skipped"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -101,6 +130,8 @@ jobs:
         id: edition
         env:
           REQUESTED_DATE: ${{ github.event.inputs.date }}
+          RESET_REQUEST: ${{ github.event.inputs.reset }}
+          REVISION_REQUEST: ${{ github.event.inputs.allow_revision }}
         run: |
           python - <<'PY'
           import json, os
@@ -115,12 +146,24 @@ jobs:
           run_id = str(job.get("checkpoint_run_id") or job.get("github_run_id", ""))
           with open(os.environ["GITHUB_ENV"], "a") as handle:
               handle.write(f"EDITION_DATE={value}\n")
+          # Backup crons: once today's edition is published, later triggers are
+          # no-ops (no artifact restore, no pipeline run, nothing to break).
+          ledger = json.loads(Path("state/published_events.json").read_text()) if Path("state/published_events.json").exists() else {}
+          records = ledger.get("records", {}) if isinstance(ledger, dict) else {}
+          published = job.get("status") == "success" and any(
+              isinstance(r, dict) and r.get("job_id") == job_id and r.get("status") == "success"
+              for r in (records.values() if isinstance(records, dict) else records))
+          explicit = os.environ.get("RESET_REQUEST") == "true" or os.environ.get("REVISION_REQUEST") == "true"
+          skip = published and not explicit
+          if skip:
+              print(f"{job_id} is already published to Telegram; nothing to do for this trigger.")
           with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
               handle.write(f"previous_run={run_id if run_id.isdigit() else ''}\n")
+              handle.write(f"skip={'true' if skip else 'false'}\n")
           PY
 
       - name: Restore prior edition checkpoints
-        if: steps.edition.outputs.previous_run != ''
+        if: steps.edition.outputs.skip != 'true' && steps.edition.outputs.previous_run != ''
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -130,6 +173,7 @@ jobs:
           path: .
 
       - name: Persist start marker for hard-interruption recovery
+        if: steps.edition.outputs.skip != 'true'
         env:
           STATE_BRANCH: ${{ github.ref_name }}
         run: |
@@ -152,6 +196,7 @@ jobs:
 
       - name: Run daily pipeline
         id: pipeline
+        if: steps.edition.outputs.skip != 'true'
         env:
           LLM_API_URL: ${{ secrets.LLM_API_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -185,16 +230,21 @@ jobs:
           ALP_MODEL_AUTO_DISCOVERY: "1"
           ALP_TRANSLATION_WAIT_BUDGET: "300"
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
-          ALP_ALLOW_FALLBACK_TRANSLATION: ${{ github.event.inputs.allow_fallback == 'false' && '0' || '1' }}
+          # Scheduled runs have no inputs -> '0' (strict). Only an explicit dispatch opts in.
+          ALP_ALLOW_FALLBACK_TRANSLATION: ${{ github.event.inputs.allow_fallback == 'true' && '1' || '0' }}
           PDF_QA_MIN_HINDI_PCT: "3.0"
         run: |
           ARGS=(--job-type daily --date "$EDITION_DATE")
           if [ "$RESET_REQUEST" = "true" ]; then ARGS+=(--reset); fi
           python main.py "${ARGS[@]}"
 
+      - name: Run summary (counts + AI providers)
+        if: always() && steps.edition.outputs.skip != 'true'
+        run: python scripts/run_summary.py --job-id "daily_${EDITION_DATE}"
+
       - name: Save edition checkpoints (always)
         id: checkpoint_upload
-        if: always()
+        if: always() && steps.edition.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-checkpoints
@@ -202,6 +252,8 @@ jobs:
             data/
             output/
             logs/qa/
+            logs/ai_usage.jsonl
+            logs/stages/
           retention-days: 30
           overwrite: true
           if-no-files-found: warn
@@ -251,7 +303,7 @@ jobs:
           PY
 
       - name: Commit state changes
-        if: always()
+        if: always() && steps.edition.outputs.skip != 'true'
         env:
           STATE_BRANCH: ${{ github.ref_name }}
         run: |
