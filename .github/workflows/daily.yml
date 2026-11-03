@@ -245,7 +245,7 @@ jobs:
       - name: Save edition checkpoints (always)
         id: checkpoint_upload
         if: always() && steps.edition.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pipeline-checkpoints
           path: |
@@ -260,7 +260,7 @@ jobs:
 
       - name: Upload logs (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: daily-logs-${{ github.run_id }}
           path: |
@@ -271,7 +271,7 @@ jobs:
 
       - name: Upload artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: daily-state-${{ github.run_id }}
           path: |
