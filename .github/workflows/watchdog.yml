@@ -38,6 +38,9 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          # Comma-separated job ids an operator has handled by hand (repo variable);
+          # they stay in the plan but stop failing every 5-minute run.
+          ALP_WATCHDOG_ACK: ${{ vars.WATCHDOG_ACK_JOBS }}
           TZ: Asia/Kolkata
         run: |
           git config user.name "AgriLearningPointBot"
@@ -65,5 +68,5 @@ jobs:
       - name: Report state errors or exhausted recovery budget
         if: steps.wd.outputs.rc == '2'
         run: |
-          echo "::error::State unreadable or recovery budget exhausted; manual attention required"
+          echo "::error::State unreadable, or a job needs manual attention (see recovery_plan.json manual_attention; after handling it add the job id to the WATCHDOG_ACK_JOBS repo variable)"
           exit 1

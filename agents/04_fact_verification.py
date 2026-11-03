@@ -71,6 +71,9 @@ OUTPUT_DIR = REPO_ROOT / "data" / "verified"
 MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.3"))
 MIN_VERIFIED_COUNT = int(os.getenv("MIN_VERIFIED_COUNT", "1"))
 DISABLE_LLM = os.getenv("ALP_DISABLE_LLM_VERIFY", "0") == "1"
+# Serper (google.serper.dev) corroboration for items without provenance; budget
+# per run via ALP_SERPER_MAX_CALLS (default 25). Needs SERPER_API_KEY.
+SERPER_CORROBORATE = os.getenv("ALP_SERPER_CORROBORATE", "1") == "1"
 # LLM verification is optional scoring. Cap its wall-clock share of the stage so
 # slow or rate-limited providers can never push the stage past ALP_STAGE_TIMEOUT.
 LLM_BUDGET_SECONDS = float(os.getenv("ALP_FACT_LLM_BUDGET", "300"))
@@ -457,6 +460,24 @@ def verify_article(
         or (len(corroborating) >= 1 and is_curated_editorial)
         or (is_curated_editorial and final >= 0.45)
     )
+    # Optional web corroboration (SERPER_API_KEY): only for an item that would
+    # pass on confidence but lacks provenance, within a small per-run budget.
+    # OFF without the key; any failure only logs.
+    if not provenance and not dry_run and final >= MIN_CONFIDENCE_THRESHOLD and SERPER_CORROBORATE:
+        try:
+            from pipeline import discovery_api
+            if discovery_api.SERPER.enabled():
+                found = discovery_api.corroborate(article.get("title", ""), article.get("link", ""))
+                if found["sources"]:
+                    corroborating = list(corroborating) + [
+                        f"serper:{src['host']}" for src in found["sources"][:5]]
+                    all_flags.append("serper_corroborated")
+                if found["official"] or len(found["sources"]) >= 2 or (
+                        found["sources"] and is_curated_editorial):
+                    provenance = True
+        except Exception as exc:  # pragma: no cover - optional helper
+            logger.info("serper corroboration skipped: %s", type(exc).__name__)
+
     is_verified = final >= MIN_CONFIDENCE_THRESHOLD and (dry_run or provenance)
     if not provenance:
         all_flags.append("independent_source_verification_missing")
@@ -567,6 +588,15 @@ def main() -> int:
         method_counts = Counter(v["verification_method"] for v in verified)
         logger.info("Avg confidence: %.3f", avg_conf)
         logger.info("Methods: %s", dict(method_counts))
+
+    try:
+        from pipeline import discovery_api
+        serper = discovery_api.SERPER.status()
+        if serper["configured"]:
+            logger.info("Serper corroboration: %d call(s) of %d%s", serper["calls"], serper["budget"],
+                        f" — off: {serper['off_reason']}" if serper["off_reason"] else "")
+    except Exception:  # pragma: no cover
+        pass
 
     # Gate check
     if len(passed) < MIN_VERIFIED_COUNT:

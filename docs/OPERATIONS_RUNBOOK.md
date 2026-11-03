@@ -50,15 +50,40 @@ Required secrets:
 | `TELEGRAM_CHAT_ID` | publishing target |
 | `ADMIN_ID` | watchdog + failed-run alert recipient (Telegram DM) |
 
-Optional: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`,
-`OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `JINA_API_KEY`,
-`NEWSDATA_API_KEY`, `OLLAMA_API_KEY`, `SAMBANOVA_API_KEY`,
+Optional: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_API_KEY`,
+`OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `COHERE_API_KEY`,
+`LL7_API_KEY`, `HUGGINGFACE_API_KEY`, `CEREBRAS_API_KEY`, `OPENAI_API_KEY`
+(real `sk-` keys only; an OpenRouter `sk-or-` key there is skipped),
+`NEWSDATA_API_KEY`, `GNEWS_API_KEY`, `SERPER_API_KEY`, `JINA_API_KEY`, `SAMBANOVA_API_KEY`,
 `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (or the older `CLOUDFLARE_TOKEN`;
 Workers AI stays off until **both** the account id and a token exist),
 `DEEPSEEK_API_KEY` (paid only: also set the variable `ALP_ENABLE_DEEPSEEK=1`).
 With none set the pipeline runs heuristic-only; production translation is
 fail-closed, so a run with no reachable provider fails and alerts `ADMIN_ID`
 instead of publishing untranslated Hindi.
+
+Provider order (pipeline/ai_router.py): Groq → Gemini → Ollama → Cloudflare →
+SambaNova → Mistral → OpenRouter → NVIDIA → Cohere (≤30 calls/run) → LLM7 (≤60)
+→ HuggingFace (≤15) → Cerebras → OpenAI; DeepSeek only with `ALP_ENABLE_DEEPSEEK=1`.
+A 404/410 retires that model for the run (discovery never picks a known EOL
+model) and rotates to the next; Gemini calls time out after 25 s and a hung
+Gemini model is parked so the next call uses the next model.
+
+News/search helpers: stage 01 adds GNews (`GNEWS_API_KEY`, 4 requests/run) and
+NewsData (`NEWSDATA_API_KEY`, 3 credits/run) India items inside the same edition
+window, de-duplicated against RSS; stage 04 asks Serper (`SERPER_API_KEY`,
+≤25 calls/run) for independent reports of items that lack provenance; Jina
+Reader (`JINA_API_KEY`) reads pages the direct fetch could not. Each is off
+without its key, and 401/402/403/429 turns it off for the rest of the run.
+
+Check every secret: **Actions → Verify API keys → Run workflow** (manual only;
+prints NAME | OK/WARN/FAIL/MISSING | HTTP | reason, never the values).
+
+Watchdog: a job that needs a human (publication uncertain, recovery budget
+exhausted) fails the 5-minute watchdog run until it leaves the 72 h lookback.
+After handling it, add its job id to the repo variable `WATCHDOG_ACK_JOBS`
+(comma separated). An edition that was already published and only had a later
+revision refused is not flagged.
 
 AI routing (pipeline/ai_router.py): free providers first; a 429 rotates to the
 provider's next model where free limits are per model (Gemini, Groq, SambaNova)

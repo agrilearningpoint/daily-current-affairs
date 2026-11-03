@@ -29,10 +29,10 @@ def test_setup_and_translation_use_the_same_provider_registry(monkeypatch):
     expected = ai_router._build_default_providers()
     actual = orchestrator().load_keys()
     assert [item["name"] for item in actual] == [item.name for item in expected] == [
-        "nvidia", "openrouter", "generic-openai"  # free tiers first
+        "openrouter", "nvidia", "generic-openai"  # free tiers first
     ]
     assert [item["model"] for item in actual] == [item.model for item in expected]
-    assert actual[0]["env_used"] == "NVIDIA_API_KEY"
+    assert actual[1]["env_used"] == "NVIDIA_API_KEY"
     assert actual[-1]["env_used"] == "LLM_API_KEY"
 
 
@@ -92,7 +92,7 @@ def test_openai_and_generic_openai_keys_both_join_fallback_registry(monkeypatch)
 
     providers = ai_router._build_default_providers()
 
-    assert [provider.name for provider in providers] == ["openai", "generic-openai"]
+    assert [provider.name for provider in providers] == ["generic-openai", "openai"]  # OpenAI is last-resort
 
 
 def test_router_falls_back_to_nvidia_and_preserves_json_mode(monkeypatch):

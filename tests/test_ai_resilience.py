@@ -24,6 +24,8 @@ _ALL_PROVIDER_ENV = (
     "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "NVIDIA_API_KEY",
     "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL", "SAMBANOVA_API_KEY",
     "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_TOKEN", "ALP_ENABLE_DEEPSEEK",
+    "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY", "HUGGINGFACE_API_KEY", "HF_TOKEN",
+    "CEREBRAS_API_KEY", "OPENAI_BASE_URL",
 )
 
 
@@ -230,8 +232,8 @@ def test_sambanova_and_cloudflare_are_low_in_the_order(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
     monkeypatch.setenv("ALP_ENABLE_DEEPSEEK", "1")
     providers = ai_router._build_default_providers()
-    assert [p.name for p in providers] == ["groq", "sambanova", "cloudflare", "deepseek"]
-    samba, cf = providers[1], providers[2]
+    assert [p.name for p in providers] == ["groq", "cloudflare", "sambanova", "deepseek"]
+    cf, samba = providers[1], providers[2]
     assert samba.url == "https://api.sambanova.ai/v1/chat/completions"
     assert samba.per_model_quota and (samba.rpm_limit, samba.rpd_limit) == (20, 20)
     assert samba.models == ["gpt-oss-120b", "Meta-Llama-3.3-70B-Instruct", "DeepSeek-V3.1"]

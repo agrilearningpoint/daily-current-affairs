@@ -593,7 +593,17 @@ def watchdog(stuck_hours: float | None = None) -> int:
         {"generated_at", "stuck_running": [job_id...],
          "recent_failed_final": [job_id...], "actions": [{"job_id","action"}]}
 
-    Exit codes: 0 = healthy, 1 = recovery actions exist, 2 = state unreadable.
+    Exit codes: 0 = healthy, 1 = recovery actions exist, 2 = state unreadable
+    or a job needs manual attention.
+
+    Not counted as needing attention (listed in the plan for visibility):
+      - "already_published": the edition reached the channel (a success record
+        in the publication ledger) and only a later revision was refused
+        (blocked_revision). Retrying would be refused again, so there is
+        nothing to recover and nothing for an operator to do.
+      - "acknowledged": job ids an operator listed in ALP_WATCHDOG_ACK
+        (repo variable WATCHDOG_ACK_JOBS, comma separated) or marked
+        "manual_ack": true in state/jobs.json after handling them by hand.
     """
     try:
         state = load_jobs_state(strict=True)
@@ -638,13 +648,27 @@ def watchdog(stuck_hours: float | None = None) -> int:
     try:
         from pipeline.publication import records_at
         published = records_at(ROOT / "state" / "published_events.json")
-        uncertain = {record.get("job_id") for record in published.values()
-                     if record.get("status") in {"sending", "uncertain", "blocked_revision"}}
+        by_job: dict[str, set] = {}
+        for record in published.values():
+            by_job.setdefault(record.get("job_id"), set()).add(record.get("status"))
+        # Edition delivered; only a later revision was refused → nothing to do.
+        already_published = {job for job, statuses in by_job.items()
+                             if "success" in statuses and statuses <= {"success", "blocked_revision"}}
+        uncertain = {job for job, statuses in by_job.items()
+                     if statuses & {"sending", "uncertain", "blocked_revision"} and job not in already_published}
+        acked = {j.strip() for j in os.getenv("ALP_WATCHDOG_ACK", "").split(",") if j.strip()}
         max_recovery = int(os.getenv("ALP_RECOVERY_MAX_ATTEMPTS", "6"))
         if max_recovery < 1:
             raise ValueError("recovery budget must be positive")
         actions = []
+        resolved = []
         for job in candidates:
+            if job in already_published and state[job].get("failed_stage", "22_telegram_publisher") == "22_telegram_publisher":
+                resolved.append({"job_id": job, "reason": "already_published (later revision refused)"})
+                continue
+            if job in acked or state[job].get("manual_ack") is True:
+                resolved.append({"job_id": job, "reason": "acknowledged by operator"})
+                continue
             attempts = int(state[job].get("run_attempts", 0))
             if job in uncertain or attempts >= max_recovery or state[job].get("recovery_blocked"):
                 manual.append({"job_id": job, "reason": state[job].get("recovery_blocked") or ("publication outcome uncertain" if job in uncertain else "recovery budget exhausted")})
@@ -661,6 +685,7 @@ def watchdog(stuck_hours: float | None = None) -> int:
         "recent_failed_final": failed,
         "actions": actions,
         "manual_attention": manual,
+        "resolved": resolved,
     }
 
     out = ROOT / "recovery_plan.json"
@@ -670,9 +695,13 @@ def watchdog(stuck_hours: float | None = None) -> int:
     if actions:
         log(f"watchdog: {len(actions)} job(s) need recovery")
         return 1
-    if stuck or failed:
-        log_err("watchdog: recovery budget exhausted; manual attention required")
+    if manual:
+        log_err("watchdog: recovery budget exhausted or publication uncertain; manual attention required: "
+                + ", ".join(m["job_id"] for m in manual))
         return 2
+    if resolved:
+        log("watchdog: all clear (" + ", ".join(f"{r['job_id']}: {r['reason']}" for r in resolved) + ")")
+        return 0
     log("watchdog: all clear")
     return 0
 

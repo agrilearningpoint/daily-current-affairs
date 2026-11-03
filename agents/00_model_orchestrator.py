@@ -48,6 +48,7 @@ STATE_DIR = REPO_ROOT / "state"
 STATE_DIR.mkdir(exist_ok=True)
 STATUS_FILE = STATE_DIR / "model_status.json"
 SKIP_HEALTHCHECK = os.getenv("ORCHESTRATOR_SKIP_HEALTHCHECK", "0") == "1"
+HEALTH_TIMEOUT = int(os.getenv("ORCHESTRATOR_HEALTH_TIMEOUT", "15"))
 
 
 # --------------------------------------------------------------------------- #
@@ -78,10 +79,42 @@ def load_keys() -> List[Dict[str, Any]]:
         "ollama": "OLLAMA_API_KEY" if os.getenv("OLLAMA_API_KEY") else "OLLAMA_BASE_URL",
         "sambanova": "SAMBANOVA_API_KEY",
         "cloudflare": "CLOUDFLARE_ACCOUNT_ID+" + ("CLOUDFLARE_API_TOKEN" if os.getenv("CLOUDFLARE_API_TOKEN") else "CLOUDFLARE_TOKEN"),
+        "cohere": "COHERE_API_KEY",
+        "llm7": "LL7_API_KEY" if os.getenv("LL7_API_KEY") else "LLM7_API_KEY",
+        "huggingface": "HUGGINGFACE_API_KEY" if os.getenv("HUGGINGFACE_API_KEY") else "HF_TOKEN",
+        "cerebras": "CEREBRAS_API_KEY",
     }
     return [{"name": provider.name, "url": provider.url, "key": provider.key,
              "model": provider.model, "priority": provider.priority,
+             "models": list(provider.models or [provider.model]),
              "env_used": env_names.get(provider.name, "API_KEY")} for provider in _build_default_providers()]
+
+
+# Statuses where another model of the same provider may still work: a retired
+# model (404/410 — NVIDIA llama-3.1-8b EOL, Gemini 2.5-flash-lite for new keys)
+# or one that hangs (Gemini 3.5-flash-lite timed out at 40s on 2026-11-03).
+_TRY_NEXT_MODEL = {"model_error", "timeout"}
+MAX_HEALTH_MODELS = int(os.getenv("ORCHESTRATOR_MAX_HEALTH_MODELS", "3"))
+
+
+def health_check_models(provider: Dict[str, Any]) -> Dict[str, Any]:
+    """Health-check a provider, moving to its next model on 404/410/timeout.
+
+    Returns the health of the first model that answered (or the last failure)
+    plus `failed_models` = [(model, status)] for models to retire for the run."""
+    models = [m for m in (provider.get("models") or [provider["model"]]) if m][:max(1, MAX_HEALTH_MODELS)]
+    failed: List[tuple] = []
+    result: Dict[str, Any] = {"status": "error", "detail": "no model"}
+    for model in models:
+        result = health_check(dict(provider, model=model))
+        if result["status"] not in _TRY_NEXT_MODEL or len(models) == 1:
+            result["model"] = model
+            break
+        failed.append((model, result["status"]))
+        result["model"] = model
+    if failed:
+        result["failed_models"] = failed
+    return result
 
 
 def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
@@ -103,7 +136,7 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
                                             "Content-Type": "application/json"}, json={
                 "contents": [{"parts": [{"text": "Say OK"}]}],
                 "generationConfig": {"maxOutputTokens": 5},
-            }, timeout=15)
+            }, timeout=HEALTH_TIMEOUT)
         else:
             r = requests.post(
                 provider["url"],
@@ -114,7 +147,7 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
                     "messages": [{"role": "user", "content": "Say OK"}],
                     "max_tokens": 5,
                 },
-                timeout=15,
+                timeout=HEALTH_TIMEOUT,
             )
 
         if r.status_code == 200:
@@ -133,13 +166,13 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
             return {"status": "auth_error", "detail": f"HTTP {r.status_code} (invalid key / forbidden)"}
         if r.status_code == 402:
             return {"status": "credit_error", "detail": "HTTP 402 (no balance / paid model)"}
-        if r.status_code == 404:
-            return {"status": "model_error", "detail": "model not found"}
+        if r.status_code in (404, 410):
+            return {"status": "model_error", "detail": f"HTTP {r.status_code} (model retired / not found)"}
         if r.status_code == 429:
             return {"status": "rate_limit", "detail": "quota exceeded"}
         return {"status": "http_error", "detail": f"HTTP {r.status_code}"}
     except requests.Timeout:
-        return {"status": "timeout", "detail": "15s timeout"}
+        return {"status": "timeout", "detail": f"{HEALTH_TIMEOUT}s timeout"}
     except requests.RequestException as exc:
         return {"status": "network_error", "detail": type(exc).__name__}
     except Exception as exc:
@@ -175,6 +208,11 @@ def seed_router_health(results: List[Dict[str, Any]]) -> List[str]:
     from pipeline import ai_router
     seeded = []
     for res in results:
+        # Retired / hung models are blocked model-by-model so later stages
+        # rotate past them instead of losing the whole provider.
+        for model, model_status in res["health"].get("failed_models") or []:
+            seconds = ai_router.AUTH_COOLDOWN if model_status == "model_error" else ai_router.TIMEOUT_COOLDOWN
+            ai_router.block(f"{res['name']}::{model}", seconds, f"health check: {model_status}")
         status = res["health"]["status"]
         if status in _SEED_COOLDOWNS:
             attr, reason = _SEED_COOLDOWNS[status]
@@ -190,6 +228,14 @@ def main() -> int:
     for note in notes:
         logger.warning("Provider not enabled — %s", note)
     configured = load_keys()
+    # News / search helpers (no live call here: their free quotas are small).
+    try:
+        from pipeline import discovery_api
+        aux = {name: ("configured" if st["configured"] else "missing — OFF")
+               for name, st in discovery_api.services_status().items()}
+        logger.info("News/search keys: %s", aux)
+    except Exception:  # pragma: no cover
+        aux = {}
 
     if not configured:
         logger.warning("No AI providers configured (no API keys found)")
@@ -198,6 +244,7 @@ def main() -> int:
             "providers": [],
             "status": "no_providers",
             "notes": notes,
+            "aux_services": aux,
             "note": "Pipeline will run in heuristic-only mode",
         }
         atomic_write(STATUS_FILE, report)
@@ -206,10 +253,10 @@ def main() -> int:
     results = []
     for p in sorted(configured, key=lambda x: x["priority"]):
         logger.info("Checking %s (model=%s)", p["name"], p["model"])
-        hc = health_check(p)
+        hc = health_check_models(p)
         results.append({
             "name": p["name"],
-            "model": p["model"],
+            "model": hc.get("model", p["model"]),
             "priority": p["priority"],
             "env_used": p["env_used"],
             "health": hc,
@@ -230,6 +277,7 @@ def main() -> int:
         "total_count": len(results),
         "marked_down": seeded,
         "notes": notes,
+        "aux_services": aux,
     }
     atomic_write(STATUS_FILE, report)
 

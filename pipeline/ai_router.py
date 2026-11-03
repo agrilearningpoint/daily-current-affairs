@@ -2,9 +2,13 @@
 """
 AI Router — Multi-Provider with Fallback
 =========================================
-Routes AI tasks across multiple providers (Gemini → Groq → NVIDIA → Mistral →
-OpenRouter → Ollama → OpenAI → generic → SambaNova → Cloudflare → DeepSeek)
+Routes AI tasks across multiple providers, cheapest and most reliable free
+tiers first:
+  Groq → Gemini → Ollama Cloud → Cloudflare → SambaNova → Mistral → OpenRouter →
+  NVIDIA → (generic) → Cohere → LLM7 → HuggingFace → Cerebras → OpenAI → DeepSeek
 with automatic fallback, rate-limit tracking, and failure classification.
+Every provider is OFF when its secret is missing; the low-priority ones carry
+small daily caps (Cohere trial ≈ 30/day, HuggingFace free credit ≈ 15/day).
 
 Features:
 - Multi-provider fallback chain (configurable priority)
@@ -18,7 +22,8 @@ Features:
     * TIMEOUT         — next provider; repeated timeouts cool it down for long
     * RATE_LIMIT      — 429: honour Retry-After, escalate repeated 429s
     * AUTH_ERROR      — 401/402/403: provider out for the run
-    * MODEL_ERROR     — 404/410: refresh model once, else provider out
+    * MODEL_ERROR     — 404/410: that model is retired for the run (never picked
+                        again by discovery); rotate to the next model, else out
     * BAD_REQUEST     — 400: next provider
     * MALFORMED       — bad JSON / empty reply: next provider
 - Shared provider health: cooldowns are written to a per-job health file so the
@@ -34,7 +39,11 @@ Env:
   GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY,
   OPENROUTER_API_KEY, NVIDIA_API_KEY, OLLAMA_API_KEY/OLLAMA_BASE_URL,
   SAMBANOVA_API_KEY, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN (or CLOUDFLARE_TOKEN),
+  COHERE_API_KEY, LL7_API_KEY (or LLM7_API_KEY), HUGGINGFACE_API_KEY (or HF_TOKEN),
+  CEREBRAS_API_KEY, OPENAI_API_KEY (real sk- keys only; an OpenRouter sk-or- key is skipped),
   DEEPSEEK_API_KEY (+ ALP_ENABLE_DEEPSEEK=1: paid only, opt-in)
+  AI_ROUTER_RPD_<NAME> / AI_ROUTER_RPM_<NAME> override any provider's caps
+  AI_ROUTER_TIMEOUT_GEMINI (default 25s per Gemini call)
   AI_ROUTER_MAX_CALLS_PER_HOUR (default 500)
   AI_ROUTER_TIMEOUT (default 60)
   AI_ROUTER_CACHE_SIZE (default 1000)
@@ -73,6 +82,19 @@ TIMEOUT = int(os.getenv("AI_ROUTER_TIMEOUT", "60"))
 _TASK_TIMEOUTS = {
     "fact_verification": int(os.getenv("AI_ROUTER_TIMEOUT_FACT", "20")),
 }
+# Per-provider ceilings. Gemini 3.x flash-lite was seen hanging for 40s+ on
+# 2026-11-03; a hung model is rotated instead of costing a full minute.
+_PROVIDER_TIMEOUTS = {
+    "gemini": int(os.getenv("AI_ROUTER_TIMEOUT_GEMINI", "25")),
+}
+
+
+def request_timeout(provider_name: str, task: str = "general") -> float:
+    """Per-call timeout: task ceiling, then provider ceiling, then the stage budget."""
+    value = float(_TASK_TIMEOUTS.get(task, TIMEOUT))
+    if provider_name in _PROVIDER_TIMEOUTS:
+        value = min(value, float(_PROVIDER_TIMEOUTS[provider_name]))
+    return clip_timeout(value)
 # A provider that 5xx's / times out this many times in a row is cooled down so
 # every later call in the run does not wait on it again.
 TRANSIENT_STRIKES = int(os.getenv("AI_ROUTER_TRANSIENT_STRIKES", "2"))
@@ -344,7 +366,9 @@ class Provider:
         return f"{self.name}::{model or self.model}" if self.per_model_quota else self.name
 
     def _model_usable(self, model: str) -> bool:
-        if self.per_model_quota and is_blocked(f"{self.name}::{model}"):
+        # name::model is blocked for per-model 429s and, for every provider, when
+        # the model was retired (404/410) or hung (timeout) earlier in the run.
+        if is_blocked(f"{self.name}::{model}"):
             return False
         now = time.time()
         recent = self.model_calls.get(self.quota_key(model), deque())
@@ -361,23 +385,26 @@ class Provider:
             return False
         if self._model_usable(self.model):
             return True
-        if self.per_model_quota:
-            for candidate in self.models:
-                if candidate != self.model and self._model_usable(candidate):
-                    logger.info("[Router] %s rotated model %s -> %s (quota)", self.name, self.model, candidate)
-                    self.model = candidate
-                    return True
+        # Rotation covers per-model quotas and models retired / hung this run.
+        for candidate in self.models:
+            if candidate != self.model and self._model_usable(candidate):
+                logger.info("[Router] %s rotated model %s -> %s (unavailable)", self.name, self.model, candidate)
+                self.model = candidate
+                return True
         return False
 
-    def rotate_model(self) -> bool:
-        """Switch to the next model in rotation that still has quota."""
-        if not self.per_model_quota:
+    def rotate_model(self, force: bool = False) -> bool:
+        """Switch to the next model in rotation that is still usable.
+
+        Quota rotation (429) only applies to per-model-quota providers; `force`
+        rotates any provider (the current model was retired or hung)."""
+        if not self.per_model_quota and not force:
             return False
         order = self.models
         start = order.index(self.model) + 1 if self.model in order else 0
         for candidate in order[start:] + order[:start]:
             if candidate != self.model and self._model_usable(candidate):
-                logger.info("[Router] %s rotated model %s -> %s after 429", self.name, self.model, candidate)
+                logger.info("[Router] %s rotated model %s -> %s", self.name, self.model, candidate)
                 self.model = candidate
                 return True
         return False
@@ -449,12 +476,32 @@ _PREFERRED_MODELS = {
     # developers.cloudflare.com/workers-ai/models: Cloudflare-hosted models on the
     # free 10k-neurons/day allowance via /ai/v1/chat/completions.
     "cloudflare": ("@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/openai/gpt-oss-120b"),
+    # docs.cohere.com/docs/compatibility-api (OpenAI-compatible); command-r7b
+    # live-verified on the trial key 2026-11-03 (trial: 20 RPM, 1,000 calls/month).
+    "cohere": ("command-r7b-12-2024", "command-a-03-2025"),
+    # docs.llm7.io/guides/models: selectors "default"/"fast" route to the free
+    # "turbo" models (free token: 1 RPS, 60 RPM, 250/hour, 100k tokens/day).
+    "llm7": ("default", "fast"),
+    # router.huggingface.co/v1/models (inference providers; tiny free credit).
+    "huggingface": ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "meta-llama/Llama-3.3-70B-Instruct"),
+    # api.cerebras.ai/public/v1/models
+    "cerebras": ("gpt-oss-120b",),
 }
+# Models a provider still lists but no longer serves (end of life → HTTP 410).
+# Discovery never picks these; a fresh 410 adds the model to the run's health file.
+_RETIRED_MODELS = {
+    "nvidia": ("meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct", "meta/llama3-8b-instruct",
+               "meta/llama3-70b-instruct", "mistralai/mistral-7b-instruct-v0.2"),
+    "gemini": ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"),
+}
+# Providers whose catalogue lists many paid / retired models: pick only from the
+# reviewed preference list, never the alphabetical "any text model" fallback.
+_PREFERRED_ONLY = {"nvidia", "huggingface", "llm7", "cohere", "cerebras"}
 # Free-only providers: never select a model that bills per token.
 _FREE_ONLY = {"openrouter"}
 # Providers whose /models listing is not usable for discovery (non-OpenAI shape,
 # or paid prices listed for free-tier models): keep the preference list.
-_NO_DISCOVERY = {"cloudflare", "sambanova"}
+_NO_DISCOVERY = {"cloudflare", "sambanova", "llm7", "cohere"}
 _NON_TEXT_MODEL = re.compile(
     r"(?:embed|rerank|guard|safety|moderation|vision|-vl|audio|image|tts|transcribe|"
     r"whisper|live|lyria|veo|robotics|omni|parse|reward|ocr|clip|orpheus|detector)",
@@ -525,9 +572,13 @@ def _live_model_ids(provider: Provider) -> List[str]:
         return []
 
 
+def _is_retired(provider_name: str, model: str) -> bool:
+    return model in _RETIRED_MODELS.get(provider_name, ()) or is_blocked(f"{provider_name}::{model}")
+
+
 def _choose_live_model(provider: Provider, available: List[str], exclude: set[str] | None = None) -> str | None:
     exclude = exclude or set()
-    candidates = [m for m in available if m and m not in exclude]
+    candidates = [m for m in available if m and m not in exclude and not _is_retired(provider.name, m)]
     if not candidates:
         return None
     # A configured model wins only when the provider still advertises it.
@@ -536,6 +587,8 @@ def _choose_live_model(provider: Provider, available: List[str], exclude: set[st
     for preferred in _PREFERRED_MODELS.get(provider.name, ()):
         if preferred in candidates:
             return preferred
+    if provider.name in _PREFERRED_ONLY:
+        return None
     text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini|gemma|nemotron|flash)", m, re.I)
                    and not _NON_TEXT_MODEL.search(m)]
     return sorted(text_models or candidates)[0]
@@ -545,7 +598,7 @@ def _rotation_order(provider: Provider, live: List[str]) -> List[str]:
     """Current model first, then the remaining preferred models still advertised."""
     order = [provider.model]
     for model in _PREFERRED_MODELS.get(provider.name, ()):
-        if model not in order and (not live or model in live):
+        if model not in order and (not live or model in live) and not _is_retired(provider.name, model):
             order.append(model)
     return order
 
@@ -580,6 +633,30 @@ def cloudflare_config() -> Tuple[str, str]:
     return account, token
 
 
+def openai_key_problem(key: Optional[str] = None) -> Optional[str]:
+    """Why OPENAI_API_KEY cannot be used against OpenAI (None when it looks usable).
+
+    The secret was seen holding an OpenRouter key (sk-or-...), which OpenAI answers
+    with 401 on every call; such a key is skipped instead of failing per call."""
+    key = (os.getenv("OPENAI_API_KEY") if key is None else key) or ""
+    key = key.strip()
+    if not key:
+        return None
+    base = os.getenv("OPENAI_BASE_URL", "")
+    if key.startswith("sk-or-") and "openrouter.ai" not in base:
+        return ("openai: OPENAI_API_KEY holds an OpenRouter key (sk-or-...), not an OpenAI key — "
+                "provider OFF; put it in OPENROUTER_API_KEY or replace it with a real sk- key")
+    return None
+
+
+def llm7_key() -> str:
+    return (os.getenv("LL7_API_KEY") or os.getenv("LLM7_API_KEY") or "").strip()
+
+
+def huggingface_key() -> str:
+    return (os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_TOKEN") or "").strip()
+
+
 def deepseek_enabled() -> bool:
     """DeepSeek has no free tier (HTTP 402 without balance): opt-in only."""
     return bool(os.getenv("DEEPSEEK_API_KEY")) and os.getenv("ALP_ENABLE_DEEPSEEK", "0") == "1"
@@ -594,6 +671,9 @@ def unconfigured_notes() -> List[str]:
                      "add the CLOUDFLARE_ACCOUNT_ID secret to enable Workers AI")
     elif account and not token:
         notes.append("cloudflare: CLOUDFLARE_API_TOKEN / CLOUDFLARE_TOKEN is missing — provider OFF")
+    problem = openai_key_problem()
+    if problem:
+        notes.append(problem)
     if os.getenv("DEEPSEEK_API_KEY") and not deepseek_enabled():
         notes.append("deepseek: DEEPSEEK_API_KEY present but provider OFF (paid only; set ALP_ENABLE_DEEPSEEK=1 to opt in)")
     return notes
@@ -605,7 +685,9 @@ def unconfigured_notes() -> List[str]:
 def _build_default_providers() -> List[Provider]:
     """Build provider list from env vars, in priority order.
 
-    Free-tier providers come first; DeepSeek (paid only, opt-in) is the last resort.
+    Free-tier providers come first (Groq, Gemini, Ollama, Cloudflare, SambaNova,
+    Mistral, OpenRouter, NVIDIA), then capped trial/credit providers (Cohere,
+    LLM7, HuggingFace, Cerebras), then OpenAI; DeepSeek (paid only, opt-in) last.
     """
     providers: List[Provider] = []
 
@@ -615,41 +697,26 @@ def _build_default_providers() -> List[Provider]:
         provider.rpd_limit = _env_int(f"AI_ROUTER_RPD_{name}", provider.rpd_limit)
         live = _live_model_ids(provider)
         _refresh_provider_model(provider, live=live)
-        provider.models = _rotation_order(provider, live) if provider.per_model_quota else [provider.model]
+        # Every provider keeps a rotation list: per-model quotas rotate on 429,
+        # and any provider rotates past a model retired (404/410) or hung this run.
+        provider.models = _rotation_order(provider, live)
         providers.append(provider)
 
-    gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if gem_key:
-        add(Provider(name="gemini", url="https://generativelanguage.googleapis.com/v1beta/models",
-                     key=gem_key, model=_env_model("GEMINI_MODEL", "gemini"),
-                     priority=10, rpm_limit=60, rpd_limit=1500, per_model_quota=True))
-
+    # Priorities: lower runs first. Free and reliable first, trial / tiny-credit
+    # / paid-ish last. Caps are per job run (shared health file), overridable
+    # with AI_ROUTER_RPD_<NAME> / AI_ROUTER_RPM_<NAME>.
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
         # Free plan, per model: 30 RPM, 1,000 RPD, 200k tokens/day.
         add(Provider(name="groq", url="https://api.groq.com/openai/v1/chat/completions",
                      key=groq_key, model=_env_model("GROQ_MODEL", "groq"),
-                     priority=20, rpm_limit=30, rpd_limit=1000, per_model_quota=True))
+                     priority=10, rpm_limit=30, rpd_limit=1000, per_model_quota=True))
 
-    nvidia_key = os.getenv("NVIDIA_API_KEY")
-    if nvidia_key:
-        add(Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
-                     key=nvidia_key, model=_env_model("NVIDIA_MODEL", "nvidia"),
-                     priority=25, rpm_limit=30, rpd_limit=5000))
-
-    mistral_key = os.getenv("MISTRAL_API_KEY")
-    if mistral_key:
-        # Free Experiment plan ≈ 1 request/second.
-        add(Provider(name="mistral", url="https://api.mistral.ai/v1/chat/completions",
-                     key=mistral_key, model=_env_model("MISTRAL_MODEL", "mistral"),
-                     priority=30, rpm_limit=60, rpd_limit=5000, min_interval=1.1))
-
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        # Free tier: 20 RPM, 50 requests/day (account-wide).
-        add(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
-                     key=openrouter_key, model=_env_model("OPENROUTER_MODEL", "openrouter"),
-                     priority=35, rpm_limit=20, rpd_limit=50, min_interval=3.0))
+    gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if gem_key:
+        add(Provider(name="gemini", url="https://generativelanguage.googleapis.com/v1beta/models",
+                     key=gem_key, model=_env_model("GEMINI_MODEL", "gemini"),
+                     priority=15, rpm_limit=60, rpd_limit=1500, per_model_quota=True))
 
     # Ollama: OLLAMA_API_KEY alone means Ollama Cloud (https://ollama.com).
     ollama_key = os.getenv("OLLAMA_API_KEY")
@@ -661,14 +728,43 @@ def _build_default_providers() -> List[Provider]:
             endpoint = f"{endpoint}/v1/chat/completions" if not endpoint.endswith("/v1") else f"{endpoint}/chat/completions"
         add(Provider(name="ollama", url=endpoint, key=ollama_key or "ollama",
                      model=_env_model("OLLAMA_MODEL", "ollama"),
-                     priority=40, rpm_limit=30, rpd_limit=5000))
+                     priority=20, rpm_limit=30, rpd_limit=5000))
 
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key:
-        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        add(Provider(name="openai", url=f"{base}/chat/completions", key=openai_key,
-                     model=_env_model("ALP_LLM", "openai"),
-                     priority=50, rpm_limit=500, rpd_limit=10000))
+    cf_account, cf_token = cloudflare_config()
+    if cf_account and cf_token:
+        # Free allowance: 10k neurons/day (account-wide).
+        add(Provider(name="cloudflare",
+                     url=f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1/chat/completions",
+                     key=cf_token, model=_env_model("CLOUDFLARE_MODEL", "cloudflare"),
+                     priority=30, rpm_limit=30, rpd_limit=1000))
+
+    sambanova_key = os.getenv("SAMBANOVA_API_KEY")
+    if sambanova_key:
+        # Free tier, per model: 20 RPM, 20 RPD, 200k tokens/day.
+        base = os.getenv("SAMBANOVA_BASE_URL", "https://api.sambanova.ai/v1").rstrip("/")
+        add(Provider(name="sambanova", url=f"{base}/chat/completions", key=sambanova_key,
+                     model=_env_model("SAMBANOVA_MODEL", "sambanova"),
+                     priority=35, rpm_limit=20, rpd_limit=20, per_model_quota=True))
+
+    mistral_key = os.getenv("MISTRAL_API_KEY")
+    if mistral_key:
+        # Free Experiment plan ≈ 1 request/second.
+        add(Provider(name="mistral", url="https://api.mistral.ai/v1/chat/completions",
+                     key=mistral_key, model=_env_model("MISTRAL_MODEL", "mistral"),
+                     priority=40, rpm_limit=60, rpd_limit=5000, min_interval=1.1))
+
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        # Free tier: 20 RPM, 50 requests/day (account-wide).
+        add(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
+                     key=openrouter_key, model=_env_model("OPENROUTER_MODEL", "openrouter"),
+                     priority=45, rpm_limit=20, rpd_limit=50, min_interval=3.0))
+
+    nvidia_key = os.getenv("NVIDIA_API_KEY")
+    if nvidia_key:
+        add(Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
+                     key=nvidia_key, model=_env_model("NVIDIA_MODEL", "nvidia"),
+                     priority=50, rpm_limit=30, rpd_limit=5000))
 
     generic_url = os.getenv("LLM_API_URL")
     generic_key = os.getenv("LLM_API_KEY")
@@ -677,21 +773,42 @@ def _build_default_providers() -> List[Provider]:
                      model=_env_model("LLM_MODEL", "generic-openai"),
                      priority=55, rpm_limit=60, rpd_limit=5000))
 
-    sambanova_key = os.getenv("SAMBANOVA_API_KEY")
-    if sambanova_key:
-        # Free tier, per model: 20 RPM, 20 RPD, 200k tokens/day.
-        base = os.getenv("SAMBANOVA_BASE_URL", "https://api.sambanova.ai/v1").rstrip("/")
-        add(Provider(name="sambanova", url=f"{base}/chat/completions", key=sambanova_key,
-                     model=_env_model("SAMBANOVA_MODEL", "sambanova"),
-                     priority=60, rpm_limit=20, rpd_limit=20, per_model_quota=True))
+    cohere_key = os.getenv("COHERE_API_KEY", "").strip()
+    if cohere_key:
+        # Trial key: 20 RPM, 1,000 calls/month → last-resort, ~30 calls/day.
+        base = os.getenv("COHERE_BASE_URL", "https://api.cohere.ai/compatibility/v1").rstrip("/")
+        add(Provider(name="cohere", url=f"{base}/chat/completions", key=cohere_key,
+                     model=_env_model("COHERE_MODEL", "cohere"),
+                     priority=60, rpm_limit=10, rpd_limit=30, min_interval=3.0))
 
-    cf_account, cf_token = cloudflare_config()
-    if cf_account and cf_token:
-        # Free allowance: 10k neurons/day (account-wide).
-        add(Provider(name="cloudflare",
-                     url=f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1/chat/completions",
-                     key=cf_token, model=_env_model("CLOUDFLARE_MODEL", "cloudflare"),
-                     priority=65, rpm_limit=30, rpd_limit=1000))
+    l7_key = llm7_key()
+    if l7_key:
+        # Free token: 1 RPS, 60 RPM, 250/hour, 100k tokens per 24h.
+        base = os.getenv("LLM7_BASE_URL", "https://api.llm7.io/v1").rstrip("/")
+        add(Provider(name="llm7", url=f"{base}/chat/completions", key=l7_key,
+                     model=_env_model("LLM7_MODEL", "llm7"),
+                     priority=65, rpm_limit=30, rpd_limit=60, min_interval=1.1))
+
+    hf_key = huggingface_key()
+    if hf_key:
+        # Inference Providers free credit is tiny (cents/month): keep it rare.
+        add(Provider(name="huggingface", url="https://router.huggingface.co/v1/chat/completions",
+                     key=hf_key, model=_env_model("HUGGINGFACE_MODEL", "huggingface"),
+                     priority=70, rpm_limit=10, rpd_limit=15))
+
+    cerebras_key = os.getenv("CEREBRAS_API_KEY", "").strip()
+    if cerebras_key:
+        # 402 payment_required = no access on this account → out for the run.
+        add(Provider(name="cerebras", url="https://api.cerebras.ai/v1/chat/completions",
+                     key=cerebras_key, model=_env_model("CEREBRAS_MODEL", "cerebras"),
+                     priority=75, rpm_limit=30, rpd_limit=500))
+
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if openai_key and not openai_key_problem(openai_key):
+        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        add(Provider(name="openai", url=f"{base}/chat/completions", key=openai_key,
+                     model=_env_model("ALP_LLM", "openai"),
+                     priority=80, rpm_limit=500, rpd_limit=10000))
 
     if deepseek_enabled():
         base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
@@ -804,11 +921,33 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
             block(name, cooldown, "rate limited")
         return False
     if failure == FailureType.AUTH_ERROR:
+        # 401/403 bad key, 402 no balance / payment required: out for the run.
         if provider is not None:
             provider.mark_disabled("auth/credit error", AUTH_COOLDOWN)
         else:
             block(name, AUTH_COOLDOWN, "auth/credit error")
         return False
+    if failure == FailureType.MODEL_ERROR:
+        # 404/410: this model is retired (e.g. NVIDIA meta/llama-3.1-8b-instruct
+        # EOL, Gemini 2.5-flash-lite for new keys). Retire it for the run and
+        # rotate; only when no model is left is the provider out.
+        if provider is None:
+            block(name, AUTH_COOLDOWN, "model not found")
+            return False
+        block(f"{name}::{provider.model}", AUTH_COOLDOWN, "model retired / not found (404/410)")
+        if provider.rotate_model(force=True):
+            return True
+        if _refresh_provider_model(provider, exclude={provider.model}):
+            return True
+        provider.mark_disabled("model not found", AUTH_COOLDOWN)
+        return False
+    if failure == FailureType.TIMEOUT and provider is not None and len(provider.models) > 1 \
+            and name in _PROVIDER_TIMEOUTS:
+        # A hung model (Gemini 3.5-flash-lite, 40s+) is parked; the next call
+        # uses the next model instead of waiting on the same one again.
+        block(f"{name}::{provider.model}", TIMEOUT_COOLDOWN, "model timed out")
+        if provider.rotate_model(force=True):
+            return False  # next provider for this call; later calls use the new model
     if failure == FailureType.TIMEOUT:
         if _strike(f"{name}:timeout") >= TRANSIENT_STRIKES:
             _strike(f"{name}:timeout", reset=True)
@@ -973,7 +1112,7 @@ def _call_provider(
 
     try:
         r = requests.post(url, headers=headers, json=payload,
-                          timeout=clip_timeout(_TASK_TIMEOUTS.get(task, TIMEOUT)))
+                          timeout=request_timeout(provider.name, task))
     except requests.Timeout:
         return None, FailureType.TIMEOUT
     except requests.RequestException as exc:
@@ -1095,32 +1234,13 @@ def route(
                 record_ai_usage(provider.name, provider.model, task, True)
                 return content
 
-            # A 404/410 can mean only the selected model was retired. Refresh the
-            # provider catalogue once before taking the provider out of service.
-            if failure == FailureType.MODEL_ERROR and _refresh_provider_model(
-                provider, exclude={provider.model}
-            ):
-                provider.record_call()
-                content, failure = _call_provider(
-                    provider, prompt, task, needs_hindi, response_format, system_prompt
-                )
-                if content is not None:
-                    _CACHE.put(ck, content)
-                    logger.info("[Router] %s responded after model refresh (task=%s, model=%s)",
-                                provider.name, task, provider.model)
-                    record_ai_usage(provider.name, provider.model, task, True, "after model refresh")
-                    return content
-
             # Failure handling
             last_error = f"{provider.name}: {failure}"
             record_ai_usage(provider.name, provider.model, task, False, str(failure))
-            if failure == FailureType.MODEL_ERROR:
-                provider.mark_disabled("model not found", AUTH_COOLDOWN)
-                break
             retry_after = getattr(_LAST, "retry_after", None)
             if report_failure(provider.name, failure, retry_after, provider) and rotations < len(provider.models):
                 rotations += 1
-                continue  # same provider, next model (per-model free quota)
+                continue  # same provider, next model (per-model quota / retired model)
             break
         # TIMEOUT / TRANSIENT / MALFORMED / BAD_REQUEST → next provider
 

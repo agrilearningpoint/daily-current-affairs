@@ -286,7 +286,7 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
         router = _router()
-        timeout = router.clip_timeout(TIMEOUT) if router else TIMEOUT
+        timeout = min(TIMEOUT, router.request_timeout(provider["name"])) if router else TIMEOUT
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
     except requests.Timeout as exc:
         logger.warning("[Translator] %s request timed out", provider["name"])
@@ -531,6 +531,13 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
                 if exc.retryable and attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
+                if str(exc) in ("HTTP 404", "HTTP 410") and router is not None:
+                    # Retired model: the router retires it for the run and
+                    # rotates; retry once more on the provider's next model.
+                    if router.report_failure(name, "model_error") and attempt < MAX_RETRIES:
+                        continue
+                    provider_issues.append(f"{name}: {exc}")
+                    break
                 if any(str(exc) == f"HTTP {code}" for code in _HARD_FAIL_STATUSES):
                     _park_provider(name, None)
                     if router is not None and str(exc) in ("HTTP 401", "HTTP 402", "HTTP 403"):
