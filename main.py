@@ -397,10 +397,15 @@ def run_stage(name: str, script_rel: str, critical: bool,
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT), env.get("PYTHONPATH", "")]))
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
+    # The AI router derives its per-stage AI deadline from these, so AI calls stop
+    # (and callers take their fallback) well before the hard stage timeout.
+    env["ALP_STAGE_TIMEOUT"] = str(STAGE_TIMEOUT_SECONDS)
+    stage_log = ROOT / "logs" / "stages" / extra_env.get("ALP_JOB_ID", "unknown_job") / f"{name}.log"
 
     attempts = MAX_RETRIES + 1
     last_err = ""
     for attempt in range(1, attempts + 1):
+        env["ALP_STAGE_STARTED_AT"] = f"{time.time():.3f}"
         try:
             result = subprocess.run(
                 [sys.executable, str(script_path)],
@@ -413,7 +418,6 @@ def run_stage(name: str, script_rel: str, critical: bool,
                 timeout=STAGE_TIMEOUT_SECONDS,
             )
             output = redact((result.stdout or "") + "\n" + (result.stderr or ""), env)
-            stage_log = ROOT / "logs" / "stages" / extra_env["ALP_JOB_ID"] / f"{name}.log"
             stage_log.parent.mkdir(parents=True, exist_ok=True)
             with stage_log.open("a", encoding="utf-8") as handle:
                 handle.write(f"\n--- attempt {attempt}; exit {result.returncode} ---\n{output}\n")
@@ -421,8 +425,20 @@ def run_stage(name: str, script_rel: str, critical: bool,
                 return True, f"ok (attempt {attempt})"
             last_err = _truncate(output) or \
                        f"exit code {result.returncode}"
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             last_err = f"timeout after {STAGE_TIMEOUT_SECONDS}s"
+            # Keep what the killed attempt printed: without it a stage timeout
+            # leaves no trace of where the time went (run 41513421804, stage 12).
+            try:
+                partial = "\n".join(
+                    (part.decode("utf-8", "replace") if isinstance(part, bytes) else (part or ""))
+                    for part in (exc.stdout, exc.stderr))
+                stage_log.parent.mkdir(parents=True, exist_ok=True)
+                with stage_log.open("a", encoding="utf-8") as handle:
+                    handle.write(f"\n--- attempt {attempt}; TIMEOUT after {STAGE_TIMEOUT_SECONDS}s ---\n"
+                                 f"{redact(partial, env)}\n")
+            except OSError:
+                pass
         except OSError as exc:
             last_err = f"launch failed: {exc}"
             break  # cannot even start the interpreter; retrying is pointless
@@ -577,7 +593,17 @@ def watchdog(stuck_hours: float | None = None) -> int:
         {"generated_at", "stuck_running": [job_id...],
          "recent_failed_final": [job_id...], "actions": [{"job_id","action"}]}
 
-    Exit codes: 0 = healthy, 1 = recovery actions exist, 2 = state unreadable.
+    Exit codes: 0 = healthy, 1 = recovery actions exist, 2 = state unreadable
+    or a job needs manual attention.
+
+    Not counted as needing attention (listed in the plan for visibility):
+      - "already_published": the edition reached the channel (a success record
+        in the publication ledger) and only a later revision was refused
+        (blocked_revision). Retrying would be refused again, so there is
+        nothing to recover and nothing for an operator to do.
+      - "acknowledged": job ids an operator listed in ALP_WATCHDOG_ACK
+        (repo variable WATCHDOG_ACK_JOBS, comma separated) or marked
+        "manual_ack": true in state/jobs.json after handling them by hand.
     """
     try:
         state = load_jobs_state(strict=True)
@@ -622,13 +648,27 @@ def watchdog(stuck_hours: float | None = None) -> int:
     try:
         from pipeline.publication import records_at
         published = records_at(ROOT / "state" / "published_events.json")
-        uncertain = {record.get("job_id") for record in published.values()
-                     if record.get("status") in {"sending", "uncertain", "blocked_revision"}}
+        by_job: dict[str, set] = {}
+        for record in published.values():
+            by_job.setdefault(record.get("job_id"), set()).add(record.get("status"))
+        # Edition delivered; only a later revision was refused → nothing to do.
+        already_published = {job for job, statuses in by_job.items()
+                             if "success" in statuses and statuses <= {"success", "blocked_revision"}}
+        uncertain = {job for job, statuses in by_job.items()
+                     if statuses & {"sending", "uncertain", "blocked_revision"} and job not in already_published}
+        acked = {j.strip() for j in os.getenv("ALP_WATCHDOG_ACK", "").split(",") if j.strip()}
         max_recovery = int(os.getenv("ALP_RECOVERY_MAX_ATTEMPTS", "6"))
         if max_recovery < 1:
             raise ValueError("recovery budget must be positive")
         actions = []
+        resolved = []
         for job in candidates:
+            if job in already_published and state[job].get("failed_stage", "22_telegram_publisher") == "22_telegram_publisher":
+                resolved.append({"job_id": job, "reason": "already_published (later revision refused)"})
+                continue
+            if job in acked or state[job].get("manual_ack") is True:
+                resolved.append({"job_id": job, "reason": "acknowledged by operator"})
+                continue
             attempts = int(state[job].get("run_attempts", 0))
             if job in uncertain or attempts >= max_recovery or state[job].get("recovery_blocked"):
                 manual.append({"job_id": job, "reason": state[job].get("recovery_blocked") or ("publication outcome uncertain" if job in uncertain else "recovery budget exhausted")})
@@ -645,6 +685,7 @@ def watchdog(stuck_hours: float | None = None) -> int:
         "recent_failed_final": failed,
         "actions": actions,
         "manual_attention": manual,
+        "resolved": resolved,
     }
 
     out = ROOT / "recovery_plan.json"
@@ -654,9 +695,13 @@ def watchdog(stuck_hours: float | None = None) -> int:
     if actions:
         log(f"watchdog: {len(actions)} job(s) need recovery")
         return 1
-    if stuck or failed:
-        log_err("watchdog: recovery budget exhausted; manual attention required")
+    if manual:
+        log_err("watchdog: recovery budget exhausted or publication uncertain; manual attention required: "
+                + ", ".join(m["job_id"] for m in manual))
         return 2
+    if resolved:
+        log("watchdog: all clear (" + ", ".join(f"{r['job_id']}: {r['reason']}" for r in resolved) + ")")
+        return 0
     log("watchdog: all clear")
     return 0
 

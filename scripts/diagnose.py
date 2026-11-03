@@ -202,6 +202,8 @@ def check_workflow_env(r: Report):
         return
     bad_found = 0
     for wf in wf_dir.glob("*.yml"):
+        if wf.name == "verify-keys.yml":
+            continue  # only checks the secret exists; the pipeline never reads it
         text = wf.read_text(encoding="utf-8")
         if "TELEGRAM_CHANNEL_ID" in text:
             r.err(f"{wf.name} uses TELEGRAM_CHANNEL_ID (should be TELEGRAM_CHAT_ID)")

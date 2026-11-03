@@ -468,6 +468,20 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             if len(body_txt) > len(summary):
                 summary = body_txt
             image_url = image_url or page_img
+            if len(summary) < 120 or not image_url:
+                # Jina Reader (JINA_API_KEY) for pages the direct fetch could not
+                # read; OFF without the key, and a 402 (no balance) turns it off
+                # for the run. Small per-run budget (ALP_JINA_MAX_CALLS).
+                try:
+                    from pipeline import discovery_api
+                    if discovery_api.JINA.enabled() and os.getenv("DRY_RUN", "0") != "1":
+                        raw_txt, jina_img = discovery_api.jina_read(link, timeout=15)
+                        jina_txt = strip_publisher_ui(discovery_api.jina_article_text(raw_txt))[:3000]
+                        if len(jina_txt) > len(summary) and is_usable_article_text(jina_txt):
+                            summary = jina_txt
+                        image_url = image_url or jina_img
+                except Exception:
+                    pass
         if not is_usable_article_text(summary):
             # A valid headline alone may be retained for scoring, but it must
             # not be dressed up as an article summary later in the pipeline.
@@ -575,6 +589,28 @@ def main() -> int:
         if b_id < len(batches):
             time.sleep(1.0)
 
+    # Keyed news APIs (GNews v4, NewsData.io): extra India sources, OFF without
+    # their secrets, same edition window, de-duplicated against the RSS items.
+    api_report: Dict[str, Any] = {"enabled": False}
+    try:
+        from pipeline import news_api_sources
+        seen_titles = {news_api_sources.title_key(a.get("title", "")) for a in all_articles}
+        extra = news_api_sources.collect(
+            window_start, window_end, seen_hashes=seen_hashes, seen_titles=seen_titles,
+            validate_title=clean_and_validate_headline, clean_url=clean_url,
+            content_hash=content_hash,
+            clean_summary=lambda text: (lambda t: t if is_usable_article_text(t) else "")(
+                strip_publisher_ui(sanitize_feed_text(text))),
+        )
+        all_articles.extend(extra["articles"])
+        api_report = extra["report"]
+        if api_report.get("fetched") or api_report.get("kept"):
+            print(f"[01_source_fetch] news APIs: {api_report.get('kept', 0)} new in-window "
+                  f"(of {api_report.get('fetched', 0)} fetched; {api_report.get('duplicates', 0)} duplicates, "
+                  f"{api_report.get('out_of_window', 0)} out of window)")
+    except Exception as exc:  # an extra source must never break collection
+        print(f"[01_source_fetch] WARN news APIs skipped: {type(exc).__name__}", file=sys.stderr)
+
     edition = {
         "schema_version": "1.0",
         "job_id": job_id,
@@ -588,6 +624,7 @@ def main() -> int:
         "sources_fetched_ok": ok_feeds,
         "sources_failed": len(feed_failures),
         "feed_failures": feed_failures,
+        "news_apis": api_report,
         "article_count": len(all_articles),
         "articles_with_image": sum(1 for a in all_articles if a.get("image_url")),
         "articles": all_articles,

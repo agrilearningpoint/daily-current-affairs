@@ -48,11 +48,51 @@ Required secrets:
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | publishing |
 | `TELEGRAM_CHAT_ID` | publishing target |
-| `ADMIN_ID` | watchdog alert recipient |
+| `ADMIN_ID` | watchdog + failed-run alert recipient (Telegram DM) |
 
-Optional: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`,
-`OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `JINA_API_KEY`,
-`NEWSDATA_API_KEY`. With none set the pipeline runs heuristic-only.
+Optional: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_API_KEY`,
+`OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `COHERE_API_KEY`,
+`LL7_API_KEY`, `HUGGINGFACE_API_KEY`, `OPENAI_API_KEY`
+(real `sk-` keys only; an OpenRouter `sk-or-` key there is skipped),
+`NEWSDATA_API_KEY`, `GNEWS_API_KEY`, `SERPER_API_KEY`, `JINA_API_KEY`.
+With none set the pipeline runs heuristic-only; production translation is
+fail-closed, so a run with no reachable provider fails and alerts `ADMIN_ID`
+instead of publishing untranslated Hindi.
+
+Provider order (pipeline/ai_router.py), first model with `*_MODEL=auto`:
+Groq (`openai/gpt-oss-120b`) → Gemini (`gemini-3.5-flash-lite`) → Ollama
+(`gpt-oss:120b`) → LLM7 (`default`, ≤60 calls/run, 45 s timeout) → Mistral
+(`mistral-small-latest`) → OpenRouter (`:free` models only) → Cohere
+(`command-r7b-12-2024`, ≤30) → HuggingFace (≤15) → NVIDIA
+(`meta/llama-3.2-90b-vision-instruct` only, 40 s timeout) → OpenAI
+(`gpt-4o-mini`, ≤20).
+A 404/410 retires that model for the run (discovery never picks a known EOL
+model) and rotates to the next; Gemini calls time out after 25 s and a hung
+Gemini model is parked so the next call uses the next model.
+
+News/search helpers: stage 01 adds GNews (`GNEWS_API_KEY`, 4 requests/run) and
+NewsData (`NEWSDATA_API_KEY`, 3 credits/run) India items inside the same edition
+window, de-duplicated against RSS; stage 04 asks Serper (`SERPER_API_KEY`,
+≤25 calls/run) for independent reports of items that lack provenance; Jina
+Reader (`JINA_API_KEY`) reads pages the direct fetch could not. Each is off
+without its key, and 401/402/403/429 turns it off for the rest of the run.
+
+Check every secret: **Actions → Verify API keys → Run workflow** (manual only;
+prints NAME | OK/WARN/FAIL/MISSING | HTTP | reason, never the values).
+
+Watchdog: a job that needs a human (publication uncertain, recovery budget
+exhausted) fails the 5-minute watchdog run until it leaves the 72 h lookback.
+After handling it, add its job id to the repo variable `WATCHDOG_ACK_JOBS`
+(comma separated). An edition that was already published and only had a later
+revision refused is not flagged.
+
+AI routing (pipeline/ai_router.py): free providers first; a 429 rotates to the
+provider's next model where free limits are per model (Gemini, Groq)
+before cooling the provider down (Retry-After honoured, repeated 429s back off
+harder); 401/402/403 park a provider for the run; repeated timeouts park it for
+30 min. Cooldowns are shared across stages via `logs/ai_health/<job>.json`
+(stage 00 seeds them). Each stage stops calling AI after `ALP_AI_STAGE_BUDGET`
+seconds (default 70% of `ALP_STAGE_TIMEOUT`).
 
 Common tuning (Repository **Variables** or workflow `env`):
 

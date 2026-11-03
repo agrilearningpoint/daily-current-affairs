@@ -72,37 +72,25 @@ def call_nvidia(prompt, model=None):
     return r.json()["choices"][0]["message"]["content"].strip(), f"nvidia/{model}"
 
 def call_jina_reader(url):
-    """Fetch URL via Jina Reader API (correct endpoint: r.jina.ai, better JS handling)"""
-    key = _env("JINA_API_KEY")
-    headers = {"Accept": "text/plain", "User-Agent": "AgriLearningPoint/1.0"}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
-    for attempt in range(2):  # auth first, then no-auth fallback
-        try:
-            r = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=30)
-            if r.status_code == 200 and len(r.text) > 300:
-                return r.text
-            if r.status_code in (401, 403):
-                headers.pop("Authorization", None)
-                continue
-        except Exception as e:
-            logging.debug(f"jina fetch failed {url[:60]}: {e}")
-    return None
+    """Article text via Jina Reader (r.jina.ai). JINA_API_KEY is used while it has
+    balance; a 401/402/403 turns the key off for the run and the keyless reader is
+    used instead. Returns text or None; never raises."""
+    try:
+        from pipeline.discovery_api import jina_read
+        text, _image = jina_read(url)
+        return text or None
+    except Exception as e:  # pragma: no cover - optional helper
+        logging.debug(f"jina fetch failed {str(url)[:60]}: {type(e).__name__}")
+        return None
 
 def fetch_newsdata(query="agriculture india", language="en"):
-    """NewsData.io fetch for AGRI news"""
-    key = _env("NEWSDATA_API_KEY")
-    if not key:
-        return []
+    """NewsData.io latest India news (env-gated; [] without NEWSDATA_API_KEY)."""
     try:
-        r = requests.get("https://newsdata.io/api/1/news",
-            params={"apikey": key, "q": query, "language": language, "country":"in", "category":"business,politics"},
-            timeout=20)
-        if r.status_code == 200:
-            return r.json().get("results", [])[:10]
-    except Exception as e:
-        logging.debug(f"newsdata failed: {e}")
-    return []
+        from pipeline.discovery_api import newsdata_latest
+        return newsdata_latest(query=query, language=language)[:10]
+    except Exception as e:  # pragma: no cover - optional helper
+        logging.debug(f"newsdata failed: {type(e).__name__}")
+        return []
 
 def call_llm(prompt, prefer="gemini"):
     """Multi-provider LLM with fallback — tries all keys from env"""

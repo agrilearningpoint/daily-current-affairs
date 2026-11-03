@@ -123,6 +123,10 @@ def _wait_for_cooldown(providers: List[Dict[str, Any]]) -> bool:
     delay = max(0.0, min(pending) - time.time())
     if delay > _WAIT_BUDGET[0]:
         return False
+    router = _router()
+    left = router.ai_time_left() if router is not None else None
+    if left is not None and delay >= left:
+        return False  # waiting would run past the stage AI budget
     _WAIT_BUDGET[0] -= delay
     logger.info("[Translator] all providers cooling down; waiting %.0fs", delay)
     time.sleep(delay)
@@ -149,9 +153,24 @@ def _park_provider(name: str, seconds: float | None) -> None:
 
 
 class ProviderRequestFailed(Exception):
-    def __init__(self, reason: str, *, retryable: bool = False):
+    def __init__(self, reason: str, *, retryable: bool = False, timeout: bool = False):
         super().__init__(reason)
         self.retryable = retryable
+        self.timeout = timeout
+
+
+# A translation that fails validation on this many providers is content-specific
+# (e.g. an all-caps word read as an acronym), not a provider problem: stop instead
+# of walking every provider (run 41513421804 spent minutes per line doing that).
+MAX_VALIDATION_FAILS = int(os.getenv("ALP_TRANSLATION_MAX_VALIDATION_FAILS", "2"))
+
+
+def _router():
+    try:
+        from pipeline import ai_router
+        return ai_router
+    except Exception:  # pragma: no cover - router module missing
+        return None
 
 
 def _cache_key(text: str, task: str) -> str:
@@ -266,10 +285,12 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
         payload = {"model": provider["model"], "temperature": 0.1,
                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
-        r = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT)
+        router = _router()
+        timeout = min(TIMEOUT, router.request_timeout(provider["name"])) if router else TIMEOUT
+        r = requests.post(url, headers=headers, json=payload, timeout=timeout)
     except requests.Timeout as exc:
         logger.warning("[Translator] %s request timed out", provider["name"])
-        raise ProviderRequestFailed("request timed out", retryable=True) from exc
+        raise ProviderRequestFailed("request timed out", timeout=True) from exc
     except requests.RequestException as exc:
         from pipeline.persistence import redact
         safe_error = redact(str(exc), dict(os.environ))
@@ -279,10 +300,15 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
     if r.status_code == 429:
         logger.warning("[Translator] %s rate-limited (429)", provider["name"])
         retry_after = None
-        try:
-            retry_after = float((getattr(r, "headers", None) or {}).get("retry-after"))
-        except (TypeError, ValueError):
-            retry_after = None
+        router = _router()
+        if router is not None:
+            retry_after = router.parse_retry_after(getattr(r, "headers", None),
+                                                   str(getattr(r, "text", "") or "")[:4000])
+        else:
+            try:
+                retry_after = float((getattr(r, "headers", None) or {}).get("retry-after"))
+            except (TypeError, ValueError):
+                retry_after = None
         raise ProviderRateLimited(provider["name"], retry_after)
     try:
         r.raise_for_status()
@@ -461,48 +487,91 @@ def translate_content(text: str, task: str = "general") -> Dict[str, Any]:
 
 
 def _translate_with(providers, text, task, key, system, user, provider_issues):
+    router = _router()
+    validation_fails = 0
     for provider in providers:
-        if _provider_parked(provider["name"]):
-            logger.info("[Translator] skipping %s (parked after rate limit / credit error)", provider["name"])
+        name = provider["name"]
+        if _provider_parked(name):
+            logger.info("[Translator] skipping %s (parked after rate limit / credit error)", name)
             continue
-        logger.info("[Translator] trying provider %s", provider["name"])
+        if router is not None:
+            left = router.ai_time_left()
+            if left is not None and left <= 0:
+                provider_issues.append("stage AI time budget used")
+                return None
+            if not router.provider_ready(name):
+                # Shared health: cooled down by the router / an earlier stage.
+                logger.info("[Translator] skipping %s (cooled down in shared provider health)", name)
+                continue
+        logger.info("[Translator] trying provider %s", name)
         for attempt in range(1, MAX_RETRIES + 1):
+            live = dict(provider)
+            if router is not None:
+                live["model"] = router.current_model(name) or provider.get("model", "")
+                router.note_call(name)
             try:
-                hindi = _call_provider(provider, system, user)
+                hindi = _call_provider(live, system, user)
             except ProviderRateLimited as exc:
-                _park_provider(provider["name"], max(RATE_LIMIT_COOLDOWN, exc.retry_after or 0))
-                provider_issues.append(f"{provider['name']}: rate limited")
+                rotated = bool(router and router.report_failure(name, "rate_limit", exc.retry_after))
+                if rotated and attempt < MAX_RETRIES:
+                    logger.info("[Translator] %s 429 on one model; retrying with %s", name,
+                                router.current_model(name))
+                    continue
+                _park_provider(name, max(RATE_LIMIT_COOLDOWN, exc.retry_after or 0))
+                provider_issues.append(f"{name}: rate limited")
                 logger.info("[Translator] moving to the next configured provider")
                 break
             except ProviderRequestFailed as exc:
+                if exc.timeout:
+                    # A timeout costs the full timeout: never retry the same provider.
+                    if router is not None:
+                        router.report_failure(name, "timeout")
+                    provider_issues.append(f"{name}: {exc}")
+                    break
                 if exc.retryable and attempt < MAX_RETRIES:
                     time.sleep(2 ** attempt)
                     continue
+                if str(exc) in ("HTTP 404", "HTTP 410") and router is not None:
+                    # Retired model: the router retires it for the run and
+                    # rotates; retry once more on the provider's next model.
+                    if router.report_failure(name, "model_error") and attempt < MAX_RETRIES:
+                        continue
+                    provider_issues.append(f"{name}: {exc}")
+                    break
                 if any(str(exc) == f"HTTP {code}" for code in _HARD_FAIL_STATUSES):
-                    _park_provider(provider["name"], None)
-                provider_issues.append(f"{provider['name']}: {exc}")
+                    _park_provider(name, None)
+                    if router is not None and str(exc) in ("HTTP 401", "HTTP 402", "HTTP 403"):
+                        router.report_failure(name, "auth_error")
+                elif exc.retryable and router is not None:
+                    router.report_failure(name, "transient")
+                provider_issues.append(f"{name}: {exc}")
                 break
 
+            if router is not None:
+                router.report_success(name)
             passed, conf, issues = _validate(text, hindi)
-            record_ai_usage(provider["name"], provider.get("model", ""), f"translator:{task}", passed,
+            record_ai_usage(name, live.get("model", ""), f"translator:{task}", passed,
                             "" if passed else "validation rejected")
             if passed:
                 result = {
                     "translated_hi": hindi,
                     "passed": True,
                     "confidence": round(conf, 3),
-                    "provider": provider["name"],
+                    "provider": name,
                     "issues": [],
                 }
                 _CACHE.put(key, result)
                 logger.debug("[Translator] ✔ %s (conf=%.2f) for task=%s",
-                             provider["name"], conf, task)
+                             name, conf, task)
                 return result
-            else:
-                provider_issues.append(f"{provider['name']}: validation failed")
-                logger.warning("[Translator] %s validation failed: %s",
-                               provider["name"], issues)
-                break  # try next provider
+            provider_issues.append(f"{name}: validation failed")
+            logger.warning("[Translator] %s validation failed: %s", name, issues)
+            validation_fails += 1
+            if validation_fails >= MAX_VALIDATION_FAILS:
+                logger.warning("[Translator] %d providers rejected by validation; not trying more "
+                               "providers for this line", validation_fails)
+                return None
+            break  # try next provider
     return None
 
 

@@ -203,6 +203,7 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
           EDITION_DATE: ${{ env.EDITION_DATE }}
           RESET_REQUEST: ${{ github.event.inputs.reset }}
           MIN_CONFIDENCE_THRESHOLD: "0.3"
@@ -221,11 +222,10 @@ jobs:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          LL7_API_KEY: ${{ secrets.LL7_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'auto' }}
+          # Free-tier extras (each stays off unless its secret exists).
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL || vars.OLLAMA_BASE_URL || 'https://ollama.com' }}
           OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'auto' }}
@@ -318,6 +318,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: daily checkpoint"
+
+      - name: Alert admin on failure (Telegram DM)
+        if: failure()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: python scripts/alert_failure.py --job-id "daily_${EDITION_DATE}" --workflow "Daily"
 
       # --------------------------------------------------------------------- #
       # Notifications
