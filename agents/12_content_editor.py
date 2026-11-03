@@ -358,16 +358,28 @@ def main() -> int:
     # Production resilience: unreviewed translations are dropped as long as at least
     # MIN_VERIFIED_COUNT clean verified items remain (reserves already backfilled).
     min_required = int(os.getenv("MIN_VERIFIED_COUNT", "5"))
+    # Never un-flag a story whose Hindi was not produced by a validated AI
+    # translation: in strict mode its Hindi fields still hold English, and
+    # stripping the flag would publish that silently (all-providers-down case).
+    strippable = [it for it in flagged if not it.get("translation_incomplete")]
+    untranslated = [it for it in flagged if it.get("translation_incomplete")]
     if flagged and len(clean) < min_required:
-        logger.warning("[Content Editor] Too few items without review flag (%d < %d); stripping flag to prevent blocking daily release",
-                       len(clean), min_required)
-        for item in flagged:
+        logger.warning("[Content Editor] Too few items without review flag (%d < %d); stripping the "
+                       "provenance flag from %d item(s) with complete Hindi; %d item(s) with "
+                       "untranslated Hindi stay excluded", len(clean), min_required,
+                       len(strippable), len(untranslated))
+        for item in strippable:
             item["needs_review"] = False
-        clean = clean + flagged
+        clean = clean + strippable
     elif flagged:
         logger.warning("[Content Editor] Dropped %d unreviewed item(s); proceeding with %d verified clean items",
                        len(flagged), len(clean))
 
+    if not clean and untranslated:
+        logger.error("[Content Editor] AI translation unavailable: none of %d stories has validated "
+                     "Hindi (translation_stats=%s). Failing closed — no edition with English in the "
+                     "Hindi fields is produced.", len(untranslated), content.get("translation_stats"))
+        return 1
     if not clean:
         logger.error("Content builder produced no items")
         return 1

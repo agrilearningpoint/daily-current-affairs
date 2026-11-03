@@ -856,6 +856,8 @@ def _build_entry(it, stats):
         "importance_score": it.get("importance_score", 0),
         "image_path": it.get("image_path", ""),
         "image_url": it.get("image_url", ""),
+        # Hindi that is not AI-validated (strict: English left in place; dev: dictionary).
+        "translation_incomplete": any(f in ("untranslated", "deterministic_fallback") for f in flags),
         "needs_review": bool(flags) or not (it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live"),
         "verification_passed": it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live",
     }

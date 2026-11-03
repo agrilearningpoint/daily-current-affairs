@@ -2,35 +2,50 @@
 """
 AI Router — Multi-Provider with Fallback
 =========================================
-Routes AI tasks across multiple providers (Gemini → Groq → OpenAI → Mistral)
+Routes AI tasks across multiple providers (Gemini → Groq → NVIDIA → Mistral →
+OpenRouter → Ollama → OpenAI → generic → SambaNova → Cloudflare → DeepSeek)
 with automatic fallback, rate-limit tracking, and failure classification.
 
 Features:
 - Multi-provider fallback chain (configurable priority)
-- Per-provider rate-limit tracking (RPM / RPD)
+- Per-model quota rotation: on providers whose free limits are per model
+  (Gemini, Groq, SambaNova) a 429 rotates to the provider's next model before
+  the whole provider is cooled down
+- Client-side throttling: per-provider minimum spacing (Mistral ~1 RPS) and
+  per-model / per-provider RPM + RPD caps (OpenRouter free 20 RPM / 50 RPD)
 - Failure classification:
-    * TRANSIENT       — retry (network, 5xx)
-    * RATE_LIMIT      — wait & retry (429)
-    * AUTH_ERROR      — skip provider permanently (401/403)
-    * MODEL_ERROR     — skip provider permanently (404 model)
-    * BAD_REQUEST     — fail fast (400)
-    * MALFORMED       — retry or fallback (bad JSON)
-- Budget cap (max calls per hour/day)
-- Per-provider timeout
-- LRU response cache
-- Never raises to caller — always returns a string (or raises if all providers fail AND fail_on_all=True)
+    * TRANSIENT       — next provider; repeated 5xx cools the provider down
+    * TIMEOUT         — next provider; repeated timeouts cool it down for long
+    * RATE_LIMIT      — 429: honour Retry-After, escalate repeated 429s
+    * AUTH_ERROR      — 401/402/403: provider out for the run
+    * MODEL_ERROR     — 404/410: refresh model once, else provider out
+    * BAD_REQUEST     — 400: next provider
+    * MALFORMED       — bad JSON / empty reply: next provider
+- Shared provider health: cooldowns are written to a per-job health file so the
+  next stage subprocess (and the translator) skip a provider that is known to be
+  dead/limited instead of re-learning it (stage 00 seeds it too)
+- Stage AI deadline: every stage gets an AI time budget below ALP_STAGE_TIMEOUT;
+  after it, route() returns None immediately so callers use their fallback
+  instead of the stage being killed by the orchestrator
+- Global call budget, LRU response cache
+- Never raises to caller unless fail_on_all=True
 
 Env:
   GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY,
-  OPENROUTER_API_KEY, NVIDIA_API_KEY
+  OPENROUTER_API_KEY, NVIDIA_API_KEY, OLLAMA_API_KEY/OLLAMA_BASE_URL,
+  SAMBANOVA_API_KEY, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN (or CLOUDFLARE_TOKEN),
+  DEEPSEEK_API_KEY (+ ALP_ENABLE_DEEPSEEK=1: paid only, opt-in)
   AI_ROUTER_MAX_CALLS_PER_HOUR (default 500)
   AI_ROUTER_TIMEOUT (default 60)
   AI_ROUTER_CACHE_SIZE (default 1000)
   AI_ROUTER_DISABLED (1 = always return None; useful for tests)
+  ALP_AI_STAGE_BUDGET (seconds of AI time per stage; default 70% of ALP_STAGE_TIMEOUT)
+  ALP_AI_HEALTH_FILE (shared health file; default logs/ai_health/<ALP_JOB_ID>.json)
 """
 from __future__ import annotations
 
 from pipeline.ai_usage import record_ai_usage
+import email.utils
 import hashlib
 import json
 import logging
@@ -41,11 +56,14 @@ import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
 logger = logging.getLogger("pipeline.ai_router")
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -55,10 +73,16 @@ TIMEOUT = int(os.getenv("AI_ROUTER_TIMEOUT", "60"))
 _TASK_TIMEOUTS = {
     "fact_verification": int(os.getenv("AI_ROUTER_TIMEOUT_FACT", "20")),
 }
-# A provider that times out / 5xx's this many times in a row is cooled down so
-# every later call in the stage does not wait on it again.
+# A provider that 5xx's / times out this many times in a row is cooled down so
+# every later call in the run does not wait on it again.
 TRANSIENT_STRIKES = int(os.getenv("AI_ROUTER_TRANSIENT_STRIKES", "2"))
 TRANSIENT_COOLDOWN = int(os.getenv("AI_ROUTER_TRANSIENT_COOLDOWN", "600"))
+# Timeouts are far more expensive than 5xx (each costs the full timeout), so a
+# provider that keeps timing out is parked for longer (default 30 min ≈ the run).
+TIMEOUT_COOLDOWN = int(os.getenv("AI_ROUTER_TIMEOUT_COOLDOWN", "1800"))
+RATE_LIMIT_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_COOLDOWN", "120"))
+RATE_LIMIT_MAX_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_MAX_COOLDOWN", "1800"))
+AUTH_COOLDOWN = int(os.getenv("AI_ROUTER_AUTH_COOLDOWN", "86400"))
 MAX_CALLS_PER_HOUR = int(os.getenv("AI_ROUTER_MAX_CALLS_PER_HOUR", "500"))
 CACHE_SIZE = int(os.getenv("AI_ROUTER_CACHE_SIZE", "1000"))
 DISABLED = os.getenv("AI_ROUTER_DISABLED", "0") == "1"
@@ -68,13 +92,222 @@ DISABLED = os.getenv("AI_ROUTER_DISABLED", "0") == "1"
 # Failure classification
 # --------------------------------------------------------------------------- #
 class FailureType:
-    TRANSIENT = "transient"          # network, timeout, 5xx — retry
-    RATE_LIMIT = "rate_limit"        # 429 — wait & retry
-    AUTH_ERROR = "auth_error"        # 401/403 — skip provider
+    TRANSIENT = "transient"          # network, 5xx
+    TIMEOUT = "timeout"              # request timed out
+    RATE_LIMIT = "rate_limit"        # 429 — cooldown / rotate model
+    AUTH_ERROR = "auth_error"        # 401/402/403 — skip provider
     MODEL_ERROR = "model_error"      # 404 model not found — skip provider
     BAD_REQUEST = "bad_request"      # 400 — fail fast
     MALFORMED = "malformed"          # bad JSON in response — retry/fallback
     UNKNOWN = "unknown"
+
+
+# --------------------------------------------------------------------------- #
+# Stage AI deadline
+# --------------------------------------------------------------------------- #
+_IMPORTED_AT = time.time()
+_DEADLINE_LOGGED = [False]
+
+
+def _stage_deadline() -> Optional[float]:
+    """Epoch after which this stage must stop calling AI (None = no deadline)."""
+    budget_raw = os.getenv("ALP_AI_STAGE_BUDGET", "").strip()
+    try:
+        if budget_raw:
+            budget = float(budget_raw)
+        else:
+            stage_timeout = os.getenv("ALP_STAGE_TIMEOUT", "").strip()
+            if not stage_timeout:
+                return None
+            # Leave 30% of the stage for deterministic work + writing outputs.
+            budget = 0.7 * float(stage_timeout)
+    except ValueError:
+        return None
+    if budget <= 0:
+        return None
+    try:
+        started = float(os.getenv("ALP_STAGE_STARTED_AT", "") or _IMPORTED_AT)
+    except ValueError:
+        started = _IMPORTED_AT
+    return started + budget
+
+
+def ai_time_left() -> Optional[float]:
+    """Seconds of AI time left in this stage, or None when no deadline applies."""
+    deadline = _stage_deadline()
+    if deadline is None:
+        return None
+    return deadline - time.time()
+
+
+def _deadline_passed() -> bool:
+    left = ai_time_left()
+    if left is not None and left <= 0:
+        if not _DEADLINE_LOGGED[0]:
+            _DEADLINE_LOGGED[0] = True
+            logger.warning("[Router] stage AI time budget used; further AI calls return None "
+                           "(callers use their deterministic / fail-closed path)")
+        return True
+    return False
+
+
+def clip_timeout(timeout: float) -> float:
+    """Clip a request timeout to the time left in the stage AI budget."""
+    left = ai_time_left()
+    if left is None:
+        return timeout
+    return max(1.0, min(float(timeout), left))
+
+
+# --------------------------------------------------------------------------- #
+# Shared provider health (cross-stage, cross-module)
+# --------------------------------------------------------------------------- #
+_HEALTH_LOCK = threading.RLock()
+_HEALTH: Dict[str, Any] = {"blocks": {}, "calls": {}, "strikes": {}}
+_HEALTH_LOADED = [None]  # path the in-memory copy was loaded from
+
+
+def _health_path() -> Optional[Path]:
+    explicit = os.getenv("ALP_AI_HEALTH_FILE", "").strip()
+    if explicit:
+        return Path(explicit)
+    job = os.getenv("ALP_JOB_ID", "").strip()
+    if job and re.fullmatch(r"[A-Za-z0-9_.-]+", job):
+        return REPO_ROOT / "logs" / "ai_health" / f"{job}.json"
+    return None
+
+
+def _health_load() -> None:
+    path = _health_path()
+    key = str(path) if path else ""
+    if _HEALTH_LOADED[0] == key:
+        return
+    _HEALTH_LOADED[0] = key
+    _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"] = {}, {}, {}
+    if not path or not path.is_file():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        now = time.time()
+        _HEALTH["blocks"] = {k: v for k, v in (data.get("blocks") or {}).items()
+                             if isinstance(v, dict) and float(v.get("until", 0)) > now}
+        _HEALTH["calls"] = {k: int(v) for k, v in (data.get("calls") or {}).items()}
+        _HEALTH["strikes"] = {k: int(v) for k, v in (data.get("strikes") or {}).items()}
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.info("[Router] provider health file unreadable (%s); starting fresh", type(exc).__name__)
+
+
+def _health_save() -> None:
+    path = _health_path()
+    if not path:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(_HEALTH, sort_keys=True, indent=1), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as exc:
+        logger.info("[Router] provider health file not written: %s", type(exc).__name__)
+
+
+def _reset_health() -> None:
+    """Tests: forget every cooldown and counter held in memory."""
+    with _HEALTH_LOCK:
+        _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"] = {}, {}, {}
+        _HEALTH_LOADED[0] = None
+    _DEADLINE_LOGGED[0] = False
+
+
+def block(key: str, seconds: float, reason: str) -> float:
+    """Block a provider ("name") or one model ("name::model") for `seconds`."""
+    with _HEALTH_LOCK:
+        _health_load()
+        until = time.time() + max(1.0, float(seconds))
+        current = _HEALTH["blocks"].get(key) or {}
+        if float(current.get("until", 0)) >= until:
+            return float(current["until"])
+        _HEALTH["blocks"][key] = {"until": until, "reason": str(reason)[:200]}
+        _health_save()
+    logger.warning("[Router] %s cooled down for %ds: %s", key, int(seconds), reason)
+    return until
+
+
+def blocked_until(key: str) -> float:
+    with _HEALTH_LOCK:
+        _health_load()
+        entry = _HEALTH["blocks"].get(key)
+        if not entry:
+            return 0.0
+        until = float(entry.get("until", 0))
+        if until <= time.time():
+            _HEALTH["blocks"].pop(key, None)
+            return 0.0
+        return until
+
+
+def is_blocked(key: str) -> bool:
+    return blocked_until(key) > 0
+
+
+def _strike(key: str, reset: bool = False) -> int:
+    with _HEALTH_LOCK:
+        _health_load()
+        if reset:
+            if _HEALTH["strikes"].pop(key, None) is not None:
+                _health_save()
+            return 0
+        _HEALTH["strikes"][key] = int(_HEALTH["strikes"].get(key, 0)) + 1
+        _health_save()
+        return _HEALTH["strikes"][key]
+
+
+def _day() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _calls_today(key: str) -> int:
+    with _HEALTH_LOCK:
+        _health_load()
+        return int(_HEALTH["calls"].get(f"{key}@{_day()}", 0))
+
+
+def _count_call(key: str) -> None:
+    with _HEALTH_LOCK:
+        _health_load()
+        day = _day()
+        _HEALTH["calls"] = {k: v for k, v in _HEALTH["calls"].items() if k.endswith("@" + day)}
+        _HEALTH["calls"][f"{key}@{day}"] = int(_HEALTH["calls"].get(f"{key}@{day}", 0)) + 1
+        _health_save()
+
+
+def health_snapshot() -> Dict[str, Any]:
+    with _HEALTH_LOCK:
+        _health_load()
+        now = time.time()
+        return {k: {"for_s": int(float(v["until"]) - now), "reason": v.get("reason", "")}
+                for k, v in _HEALTH["blocks"].items() if float(v.get("until", 0)) > now}
+
+
+def parse_retry_after(headers: Any, body: str = "") -> Optional[float]:
+    """Seconds from a Retry-After header (seconds or HTTP date) or Gemini RetryInfo."""
+    value = None
+    try:
+        value = (headers or {}).get("retry-after") or (headers or {}).get("Retry-After")
+    except AttributeError:
+        value = None
+    if value:
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            try:
+                when = email.utils.parsedate_to_datetime(str(value))
+                return max(0.0, when.timestamp() - time.time())
+            except (TypeError, ValueError, IndexError):
+                pass
+    match = re.search(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"', body or "")
+    if match:
+        return float(match.group(1))
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -87,40 +320,90 @@ class Provider:
     key: str
     model: str
     priority: int = 100
-    rpm_limit: int = 60              # requests per minute
-    rpd_limit: int = 1000            # requests per day
+    rpm_limit: int = 60              # requests per minute (per model when per_model_quota)
+    rpd_limit: int = 1000            # requests per day (per model when per_model_quota)
+    models: List[str] = field(default_factory=list)   # rotation order; [model] when empty
+    per_model_quota: bool = False    # free limits apply per model (Gemini, Groq, SambaNova)
+    min_interval: float = 0.0        # client-side spacing between requests (seconds)
     last_error: Optional[str] = None
     disabled_until: float = 0.0
     consecutive_transient: int = 0
+    last_call: float = 0.0
     call_times: deque = field(default_factory=lambda: deque(maxlen=5000))
+    model_calls: Dict[str, deque] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def __post_init__(self) -> None:
+        if not self.models:
+            self.models = [self.model] if self.model else []
+        elif self.model and self.model not in self.models:
+            self.models.insert(0, self.model)
+
+    # -- quota keys ------------------------------------------------------- #
+    def quota_key(self, model: Optional[str] = None) -> str:
+        return f"{self.name}::{model or self.model}" if self.per_model_quota else self.name
+
+    def _model_usable(self, model: str) -> bool:
+        if self.per_model_quota and is_blocked(f"{self.name}::{model}"):
+            return False
+        now = time.time()
+        recent = self.model_calls.get(self.quota_key(model), deque())
+        if sum(1 for t in recent if now - t < 60) >= self.rpm_limit:
+            return False
+        if _calls_today(self.quota_key(model)) >= self.rpd_limit:
+            return False
+        return True
 
     def is_available(self) -> bool:
         if not self.key or not self.url or not self.model:
             return False
-        if time.time() < self.disabled_until:
+        if time.time() < self.disabled_until or is_blocked(self.name):
             return False
-        # RPM check
-        now = time.time()
-        recent = [t for t in self.call_times if now - t < 60]
-        if len(recent) >= self.rpm_limit:
+        if self._model_usable(self.model):
+            return True
+        if self.per_model_quota:
+            for candidate in self.models:
+                if candidate != self.model and self._model_usable(candidate):
+                    logger.info("[Router] %s rotated model %s -> %s (quota)", self.name, self.model, candidate)
+                    self.model = candidate
+                    return True
+        return False
+
+    def rotate_model(self) -> bool:
+        """Switch to the next model in rotation that still has quota."""
+        if not self.per_model_quota:
             return False
-        # RPD check
-        today = [t for t in self.call_times if now - t < 86400]
-        if len(today) >= self.rpd_limit:
-            return False
-        return True
+        order = self.models
+        start = order.index(self.model) + 1 if self.model in order else 0
+        for candidate in order[start:] + order[:start]:
+            if candidate != self.model and self._model_usable(candidate):
+                logger.info("[Router] %s rotated model %s -> %s after 429", self.name, self.model, candidate)
+                self.model = candidate
+                return True
+        return False
+
+    def throttle(self) -> None:
+        """Client-side spacing (e.g. Mistral free tier ≈ 1 request/second)."""
+        if self.min_interval <= 0:
+            return
+        with self._lock:
+            wait = self.last_call + self.min_interval - time.time()
+            if wait > 0:
+                time.sleep(min(wait, self.min_interval))
+            self.last_call = time.time()
 
     def record_call(self) -> None:
         with self._lock:
-            self.call_times.append(time.time())
+            now = time.time()
+            self.call_times.append(now)
+            self.model_calls.setdefault(self.quota_key(), deque(maxlen=5000)).append(now)
+        _count_call(self.quota_key())
 
     def mark_disabled(self, reason: str, seconds: int = 300) -> None:
         with self._lock:
             self.disabled_until = time.time() + seconds
             self.last_error = reason
-            logger.warning("[Router] Provider %s disabled for %ds: %s",
-                           self.name, seconds, reason)
+        block(self.name, seconds, reason)
 
 
 # Live model discovery is deliberately best-effort.  Provider catalogues change
@@ -132,16 +415,17 @@ class Provider:
 # live and picks the first entry of the free-first preference list below that
 # is still advertised.  An explicit model ID is kept only while the provider
 # still advertises it; when it is retired the same preference list is used.
+# The same list (filtered to live models) is the per-model 429 rotation order.
 # Preference lists were checked against each provider's official docs and
-# model catalogues on 2026-11-01.
+# model catalogues on 2026-11-01 (SambaNova / Cloudflare on 2026-11-03).
 _MODEL_DISCOVERY_TIMEOUT = 8
 AUTO_MODEL = "auto"
 _PREFERRED_MODELS = {
-    # ai.google.dev/gemini-api/docs/pricing: free tier text models.
+    # ai.google.dev/gemini-api/docs/pricing: free tier text models (limits per model).
     "gemini": ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash",
                "gemini-3.6-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash",
                "gemini-3-flash-preview"),
-    # console.groq.com/docs/models: production text models (free plan).
+    # console.groq.com/docs/models: production text models (free plan, limits per model).
     "groq": ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"),
     # api-docs.deepseek.com: paid only; deepseek-chat is no longer listed.
     "deepseek": ("deepseek-flash", "deepseek-v4-pro"),
@@ -159,9 +443,18 @@ _PREFERRED_MODELS = {
                "google/gemma-4-31b-it", "openai/gpt-oss-20b"),
     # ollama.com/api/tags (Ollama Cloud).
     "ollama": ("gpt-oss:120b", "gemma4:31b", "deepseek-v4.1-flash", "gpt-oss:20b"),
+    # docs.sambanova.ai/docs/en/models/sambacloud-models: production models
+    # (free tier limits per model).
+    "sambanova": ("gpt-oss-120b", "Meta-Llama-3.3-70B-Instruct", "DeepSeek-V3.1"),
+    # developers.cloudflare.com/workers-ai/models: Cloudflare-hosted models on the
+    # free 10k-neurons/day allowance via /ai/v1/chat/completions.
+    "cloudflare": ("@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/openai/gpt-oss-120b"),
 }
 # Free-only providers: never select a model that bills per token.
 _FREE_ONLY = {"openrouter"}
+# Providers whose /models listing is not usable for discovery (non-OpenAI shape,
+# or paid prices listed for free-tier models): keep the preference list.
+_NO_DISCOVERY = {"cloudflare", "sambanova"}
 _NON_TEXT_MODEL = re.compile(
     r"(?:embed|rerank|guard|safety|moderation|vision|-vl|audio|image|tts|transcribe|"
     r"whisper|live|lyria|veo|robotics|omni|parse|reward|ocr|clip|orpheus|detector)",
@@ -182,6 +475,8 @@ def _env_model(var: str, provider_name: str) -> str:
 
 
 def _catalog_url(provider: Provider) -> str:
+    if provider.name in _NO_DISCOVERY:
+        return ""
     if provider.name == "gemini":
         return provider.url
     marker = "/chat/completions"
@@ -246,14 +541,62 @@ def _choose_live_model(provider: Provider, available: List[str], exclude: set[st
     return sorted(text_models or candidates)[0]
 
 
-def _refresh_provider_model(provider: Provider, exclude: set[str] | None = None) -> bool:
-    chosen = _choose_live_model(provider, _live_model_ids(provider), exclude)
+def _rotation_order(provider: Provider, live: List[str]) -> List[str]:
+    """Current model first, then the remaining preferred models still advertised."""
+    order = [provider.model]
+    for model in _PREFERRED_MODELS.get(provider.name, ()):
+        if model not in order and (not live or model in live):
+            order.append(model)
+    return order
+
+
+def _refresh_provider_model(provider: Provider, exclude: set[str] | None = None,
+                            live: Optional[List[str]] = None) -> bool:
+    live = _live_model_ids(provider) if live is None else live
+    chosen = _choose_live_model(provider, live, exclude)
     if not chosen or chosen == provider.model:
         return False
     old = provider.model
     provider.model = chosen
+    if exclude:
+        provider.models = [m for m in provider.models if m not in exclude]
+    if chosen not in provider.models:
+        provider.models.insert(0, chosen)
     logger.info("[Router] %s automatically switched model %s -> %s", provider.name, old, chosen)
     return True
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+def cloudflare_config() -> Tuple[str, str]:
+    """(account_id, token). The token falls back to the CLOUDFLARE_TOKEN secret."""
+    token = (os.getenv("CLOUDFLARE_API_TOKEN") or os.getenv("CLOUDFLARE_TOKEN") or "").strip()
+    account = (os.getenv("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    return account, token
+
+
+def deepseek_enabled() -> bool:
+    """DeepSeek has no free tier (HTTP 402 without balance): opt-in only."""
+    return bool(os.getenv("DEEPSEEK_API_KEY")) and os.getenv("ALP_ENABLE_DEEPSEEK", "0") == "1"
+
+
+def unconfigured_notes() -> List[str]:
+    """Human-readable reasons a known provider is off although part of it is configured."""
+    notes = []
+    account, token = cloudflare_config()
+    if token and not account:
+        notes.append("cloudflare: CLOUDFLARE_ACCOUNT_ID is missing (token present) — provider OFF; "
+                     "add the CLOUDFLARE_ACCOUNT_ID secret to enable Workers AI")
+    elif account and not token:
+        notes.append("cloudflare: CLOUDFLARE_API_TOKEN / CLOUDFLARE_TOKEN is missing — provider OFF")
+    if os.getenv("DEEPSEEK_API_KEY") and not deepseek_enabled():
+        notes.append("deepseek: DEEPSEEK_API_KEY present but provider OFF (paid only; set ALP_ENABLE_DEEPSEEK=1 to opt in)")
+    return notes
 
 
 # --------------------------------------------------------------------------- #
@@ -262,25 +605,31 @@ def _refresh_provider_model(provider: Provider, exclude: set[str] | None = None)
 def _build_default_providers() -> List[Provider]:
     """Build provider list from env vars, in priority order.
 
-    Free-tier providers come first; DeepSeek (paid only) is the last resort.
+    Free-tier providers come first; DeepSeek (paid only, opt-in) is the last resort.
     """
     providers: List[Provider] = []
 
     def add(provider: Provider) -> None:
-        _refresh_provider_model(provider)
+        name = provider.name.upper().replace("-", "_")
+        provider.rpm_limit = _env_int(f"AI_ROUTER_RPM_{name}", provider.rpm_limit)
+        provider.rpd_limit = _env_int(f"AI_ROUTER_RPD_{name}", provider.rpd_limit)
+        live = _live_model_ids(provider)
+        _refresh_provider_model(provider, live=live)
+        provider.models = _rotation_order(provider, live) if provider.per_model_quota else [provider.model]
         providers.append(provider)
 
     gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if gem_key:
         add(Provider(name="gemini", url="https://generativelanguage.googleapis.com/v1beta/models",
                      key=gem_key, model=_env_model("GEMINI_MODEL", "gemini"),
-                     priority=10, rpm_limit=60, rpd_limit=1500))
+                     priority=10, rpm_limit=60, rpd_limit=1500, per_model_quota=True))
 
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
+        # Free plan, per model: 30 RPM, 1,000 RPD, 200k tokens/day.
         add(Provider(name="groq", url="https://api.groq.com/openai/v1/chat/completions",
                      key=groq_key, model=_env_model("GROQ_MODEL", "groq"),
-                     priority=20, rpm_limit=30, rpd_limit=14400))
+                     priority=20, rpm_limit=30, rpd_limit=1000, per_model_quota=True))
 
     nvidia_key = os.getenv("NVIDIA_API_KEY")
     if nvidia_key:
@@ -290,15 +639,17 @@ def _build_default_providers() -> List[Provider]:
 
     mistral_key = os.getenv("MISTRAL_API_KEY")
     if mistral_key:
+        # Free Experiment plan ≈ 1 request/second.
         add(Provider(name="mistral", url="https://api.mistral.ai/v1/chat/completions",
                      key=mistral_key, model=_env_model("MISTRAL_MODEL", "mistral"),
-                     priority=30, rpm_limit=60, rpd_limit=5000))
+                     priority=30, rpm_limit=60, rpd_limit=5000, min_interval=1.1))
 
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if openrouter_key:
+        # Free tier: 20 RPM, 50 requests/day (account-wide).
         add(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
                      key=openrouter_key, model=_env_model("OPENROUTER_MODEL", "openrouter"),
-                     priority=35, rpm_limit=60, rpd_limit=5000))
+                     priority=35, rpm_limit=20, rpd_limit=50, min_interval=3.0))
 
     # Ollama: OLLAMA_API_KEY alone means Ollama Cloud (https://ollama.com).
     ollama_key = os.getenv("OLLAMA_API_KEY")
@@ -326,13 +677,30 @@ def _build_default_providers() -> List[Provider]:
                      model=_env_model("LLM_MODEL", "generic-openai"),
                      priority=55, rpm_limit=60, rpd_limit=5000))
 
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
-    if deepseek_key:
+    sambanova_key = os.getenv("SAMBANOVA_API_KEY")
+    if sambanova_key:
+        # Free tier, per model: 20 RPM, 20 RPD, 200k tokens/day.
+        base = os.getenv("SAMBANOVA_BASE_URL", "https://api.sambanova.ai/v1").rstrip("/")
+        add(Provider(name="sambanova", url=f"{base}/chat/completions", key=sambanova_key,
+                     model=_env_model("SAMBANOVA_MODEL", "sambanova"),
+                     priority=60, rpm_limit=20, rpd_limit=20, per_model_quota=True))
+
+    cf_account, cf_token = cloudflare_config()
+    if cf_account and cf_token:
+        # Free allowance: 10k neurons/day (account-wide).
+        add(Provider(name="cloudflare",
+                     url=f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1/chat/completions",
+                     key=cf_token, model=_env_model("CLOUDFLARE_MODEL", "cloudflare"),
+                     priority=65, rpm_limit=30, rpd_limit=1000))
+
+    if deepseek_enabled():
         base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
-        add(Provider(name="deepseek", url=f"{base}/chat/completions", key=deepseek_key,
+        add(Provider(name="deepseek", url=f"{base}/chat/completions", key=os.environ["DEEPSEEK_API_KEY"],
                      model=_env_model("DEEPSEEK_MODEL", "deepseek"),
                      priority=90, rpm_limit=60, rpd_limit=10000))
 
+    for note in unconfigured_notes():
+        logger.info("[Router] %s", note)
     providers.sort(key=lambda p: p.priority)
     return providers
 
@@ -366,6 +734,95 @@ def _get_providers() -> List[Provider]:
                 logger.info("[Router] %d provider(s) configured: %s",
                             len(_PROVIDERS), [p.name for p in _PROVIDERS])
     return _PROVIDERS
+
+
+def find_provider(name: str) -> Optional[Provider]:
+    """The router's live Provider object (without building the registry)."""
+    for provider in _PROVIDERS or []:
+        if provider.name == name:
+            return provider
+    return None
+
+
+def provider_ready(name: str) -> bool:
+    """Shared health check used by the translator: not cooled down, has quota."""
+    provider = find_provider(name)
+    if provider is not None:
+        return provider.is_available()
+    return not is_blocked(name)
+
+
+def current_model(name: str) -> Optional[str]:
+    provider = find_provider(name)
+    return provider.model if provider is not None else None
+
+
+def note_call(name: str) -> None:
+    """Count a request made outside route() (translator) against quotas + spacing."""
+    provider = find_provider(name)
+    if provider is not None:
+        provider.throttle()
+        provider.record_call()
+
+
+def report_success(name: str, provider: Optional[Provider] = None) -> None:
+    provider = provider or find_provider(name)
+    if provider is not None:
+        provider.consecutive_transient = 0
+        _strike(f"{provider.quota_key()}:429", reset=True)
+    _strike(f"{name}:429", reset=True)
+    _strike(f"{name}:timeout", reset=True)
+
+
+def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
+                   provider: Optional[Provider] = None) -> bool:
+    """Apply the router's cooldown policy for a failure seen anywhere.
+
+    Returns True when the provider can be retried right away with another model
+    (per-model quota rotation after a 429), False when it should be skipped.
+    Repeated 429s on the same model/provider double the cooldown (no hammering);
+    a longer Retry-After / Gemini retryDelay always wins.
+    """
+    provider = provider or find_provider(name)
+    if failure == FailureType.RATE_LIMIT:
+        per_model = provider is not None and provider.per_model_quota and len(provider.models) > 1
+        key = f"{name}::{provider.model}" if per_model else name
+        strikes = _strike(f"{key}:429")
+        cooldown = min(RATE_LIMIT_MAX_COOLDOWN,
+                       max(float(retry_after or 0), RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6))))
+        if per_model:
+            block(key, cooldown, "rate limited (model quota)")
+            if provider.rotate_model():
+                return True
+            # Every model is out: the provider is unavailable until the first returns.
+            until = min(blocked_until(f"{name}::{m}") or (time.time() + 1) for m in provider.models)
+            block(name, max(1.0, until - time.time()), "rate limited (all models)")
+            return False
+        if provider is not None:
+            provider.mark_disabled("rate limited", int(cooldown))
+        else:
+            block(name, cooldown, "rate limited")
+        return False
+    if failure == FailureType.AUTH_ERROR:
+        if provider is not None:
+            provider.mark_disabled("auth/credit error", AUTH_COOLDOWN)
+        else:
+            block(name, AUTH_COOLDOWN, "auth/credit error")
+        return False
+    if failure == FailureType.TIMEOUT:
+        if _strike(f"{name}:timeout") >= TRANSIENT_STRIKES:
+            _strike(f"{name}:timeout", reset=True)
+            if provider is not None:
+                provider.mark_disabled("repeated timeouts", TIMEOUT_COOLDOWN)
+            else:
+                block(name, TIMEOUT_COOLDOWN, "repeated timeouts")
+        return False
+    if failure == FailureType.TRANSIENT and provider is not None:
+        provider.consecutive_transient += 1
+        if provider.consecutive_transient >= TRANSIENT_STRIKES:
+            provider.consecutive_transient = 0
+            provider.mark_disabled("repeated timeouts/5xx", TRANSIENT_COOLDOWN)
+    return False
 
 
 def reset_providers() -> None:
@@ -460,6 +917,9 @@ def _classify_error(status: int, body: str) -> str:
     return FailureType.UNKNOWN
 
 
+_LAST = threading.local()  # retry_after of the last 429 seen by this thread
+
+
 def _call_provider(
     provider: Provider,
     prompt: str,
@@ -473,6 +933,7 @@ def _call_provider(
     On success: (content, None)
     On failure: (None, failure_type)
     """
+    _LAST.retry_after = None
     system_msg = system_prompt or (
         "You are a helpful assistant for an Indian competitive-exam current-affairs bot. "
         "Respond with accurate, factual information. "
@@ -511,17 +972,21 @@ def _call_provider(
         }
 
     try:
-        r = requests.post(url, headers=headers, json=payload, timeout=_TASK_TIMEOUTS.get(task, TIMEOUT))
+        r = requests.post(url, headers=headers, json=payload,
+                          timeout=clip_timeout(_TASK_TIMEOUTS.get(task, TIMEOUT)))
     except requests.Timeout:
-        return None, FailureType.TRANSIENT
+        return None, FailureType.TIMEOUT
     except requests.RequestException as exc:
-        logger.debug("[Router] %s network error: %s", provider.name, exc)
+        logger.debug("[Router] %s network error: %s", provider.name, type(exc).__name__)
         return None, FailureType.TRANSIENT
 
     if r.status_code >= 400:
-        ft = _classify_error(r.status_code, r.text[:200])
-        logger.warning("[Router] %s HTTP %d (%s): %s",
-                       provider.name, r.status_code, ft, r.text[:200])
+        body = getattr(r, "text", "") or ""
+        ft = _classify_error(r.status_code, body[:200])
+        if ft == FailureType.RATE_LIMIT:
+            _LAST.retry_after = parse_retry_after(getattr(r, "headers", None), body[:4000])
+        logger.warning("[Router] %s HTTP %d (%s, model=%s): %s",
+                       provider.name, r.status_code, ft, provider.model, body[:200])
         return None, ft
 
     try:
@@ -584,6 +1049,11 @@ def route(
         logger.debug("[Router] Cache hit for task=%s", task)
         return cached
 
+    if _deadline_passed():
+        if fail_on_all:
+            raise RuntimeError("stage AI time budget used")
+        return None
+
     # Budget check
     if not _within_budget():
         logger.error("[Router] Hourly budget exceeded (%d calls)", MAX_CALLS_PER_HOUR)
@@ -601,56 +1071,58 @@ def route(
     last_error: Optional[str] = None
 
     for provider in providers:
-        if not provider.is_available():
-            logger.debug("[Router] %s skipped (unavailable)", provider.name)
-            continue
+        rotations = 0
+        while True:
+            if _deadline_passed():
+                break
+            if not provider.is_available():
+                logger.debug("[Router] %s skipped (unavailable)", provider.name)
+                break
 
-        logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
-        provider.record_call()
-
-        content, failure = _call_provider(
-            provider, prompt, task, needs_hindi, response_format, system_prompt
-        )
-
-        if content is not None:
-            provider.consecutive_transient = 0
-            _CACHE.put(ck, content)
-            logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
-                        provider.name, task, provider.model, len(content))
-            record_ai_usage(provider.name, provider.model, task, True)
-            return content
-
-        # A 404/410 can mean only the selected model was retired. Refresh the
-        # provider catalogue once before taking the provider out of service.
-        if failure == FailureType.MODEL_ERROR and _refresh_provider_model(
-            provider, exclude={provider.model}
-        ):
+            logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
+            provider.throttle()
             provider.record_call()
+
             content, failure = _call_provider(
                 provider, prompt, task, needs_hindi, response_format, system_prompt
             )
+
             if content is not None:
+                report_success(provider.name, provider)
                 _CACHE.put(ck, content)
-                logger.info("[Router] %s responded after model refresh (task=%s, model=%s)",
-                            provider.name, task, provider.model)
-                record_ai_usage(provider.name, provider.model, task, True, "after model refresh")
+                logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
+                            provider.name, task, provider.model, len(content))
+                record_ai_usage(provider.name, provider.model, task, True)
                 return content
 
-        # Failure handling
-        last_error = f"{provider.name}: {failure}"
-        record_ai_usage(provider.name, provider.model, task, False, str(failure))
-        if failure == FailureType.AUTH_ERROR:
-            provider.mark_disabled("auth/credit error", 86400)
-        elif failure == FailureType.MODEL_ERROR:
-            provider.mark_disabled("model not found", 86400)
-        elif failure == FailureType.RATE_LIMIT:
-            provider.mark_disabled("rate limited", 120)
-        elif failure == FailureType.TRANSIENT:
-            provider.consecutive_transient += 1
-            if provider.consecutive_transient >= TRANSIENT_STRIKES:
-                provider.consecutive_transient = 0
-                provider.mark_disabled("repeated timeouts/5xx", TRANSIENT_COOLDOWN)
-        # TRANSIENT / MALFORMED / BAD_REQUEST → just try next provider
+            # A 404/410 can mean only the selected model was retired. Refresh the
+            # provider catalogue once before taking the provider out of service.
+            if failure == FailureType.MODEL_ERROR and _refresh_provider_model(
+                provider, exclude={provider.model}
+            ):
+                provider.record_call()
+                content, failure = _call_provider(
+                    provider, prompt, task, needs_hindi, response_format, system_prompt
+                )
+                if content is not None:
+                    _CACHE.put(ck, content)
+                    logger.info("[Router] %s responded after model refresh (task=%s, model=%s)",
+                                provider.name, task, provider.model)
+                    record_ai_usage(provider.name, provider.model, task, True, "after model refresh")
+                    return content
+
+            # Failure handling
+            last_error = f"{provider.name}: {failure}"
+            record_ai_usage(provider.name, provider.model, task, False, str(failure))
+            if failure == FailureType.MODEL_ERROR:
+                provider.mark_disabled("model not found", AUTH_COOLDOWN)
+                break
+            retry_after = getattr(_LAST, "retry_after", None)
+            if report_failure(provider.name, failure, retry_after, provider) and rotations < len(provider.models):
+                rotations += 1
+                continue  # same provider, next model (per-model free quota)
+            break
+        # TIMEOUT / TRANSIENT / MALFORMED / BAD_REQUEST → next provider
 
     logger.error("[Router] All providers failed. Last error: %s", last_error)
     if fail_on_all:
@@ -670,14 +1142,17 @@ def stats() -> Dict[str, Any]:
             {
                 "name": p.name,
                 "model": p.model,
+                "models": list(p.models),
                 "available": p.is_available(),
-                "disabled_for": max(0, int(p.disabled_until - now)),
+                "disabled_for": max(0, int(max(p.disabled_until, blocked_until(p.name)) - now)),
                 "last_error": p.last_error,
                 "calls_last_hour": sum(1 for t in p.call_times if now - t < 3600),
                 "rpm_limit": p.rpm_limit,
+                "rpd_limit": p.rpd_limit,
             }
             for p in providers
         ],
+        "health": health_snapshot(),
         "cache_size": len(_CACHE),
         "cache_max": CACHE_SIZE,
         "calls_last_hour": sum(1 for t in _CALL_TIMES if now - t < 3600),
@@ -695,11 +1170,12 @@ def clear_cache() -> None:
 
 
 def reset() -> None:
-    """Full reset — clear cache, providers, call counts. For tests."""
+    """Full reset — clear cache, providers, call counts, health. For tests."""
     _CACHE.clear()
     with _CALL_LOCK:
         _CALL_TIMES.clear()
     reset_providers()
+    _reset_health()
 
 
 # --------------------------------------------------------------------------- #

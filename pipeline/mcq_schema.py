@@ -264,6 +264,11 @@ def generate_llm_mcqs(
             except Exception as exc:  # provider errors -> deterministic fallback
                 logger.warning("[MCQ schema] %s: route failed: %s", item.get("event_id"), exc)
                 break
+            if raw is None:
+                # Every provider failed / is cooling down / the stage AI budget is
+                # used: retrying the same item at once only hammers them.
+                logger.info("[MCQ schema] %s: no AI reply; using deterministic templates", item.get("event_id"))
+                break
             m = normalize_item_mcq(parse_llm_json(raw) or {}, item)
             if not m:
                 feedback = "the reply was not the requested JSON object"

@@ -48,11 +48,25 @@ Required secrets:
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | publishing |
 | `TELEGRAM_CHAT_ID` | publishing target |
-| `ADMIN_ID` | watchdog alert recipient |
+| `ADMIN_ID` | watchdog + failed-run alert recipient (Telegram DM) |
 
 Optional: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`,
 `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `JINA_API_KEY`,
-`NEWSDATA_API_KEY`. With none set the pipeline runs heuristic-only.
+`NEWSDATA_API_KEY`, `OLLAMA_API_KEY`, `SAMBANOVA_API_KEY`,
+`CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (or the older `CLOUDFLARE_TOKEN`;
+Workers AI stays off until **both** the account id and a token exist),
+`DEEPSEEK_API_KEY` (paid only: also set the variable `ALP_ENABLE_DEEPSEEK=1`).
+With none set the pipeline runs heuristic-only; production translation is
+fail-closed, so a run with no reachable provider fails and alerts `ADMIN_ID`
+instead of publishing untranslated Hindi.
+
+AI routing (pipeline/ai_router.py): free providers first; a 429 rotates to the
+provider's next model where free limits are per model (Gemini, Groq, SambaNova)
+before cooling the provider down (Retry-After honoured, repeated 429s back off
+harder); 401/402/403 park a provider for the run; repeated timeouts park it for
+30 min. Cooldowns are shared across stages via `logs/ai_health/<job>.json`
+(stage 00 seeds them). Each stage stops calling AI after `ALP_AI_STAGE_BUDGET`
+seconds (default 70% of `ALP_STAGE_TIMEOUT`).
 
 Common tuning (Repository **Variables** or workflow `env`):
 

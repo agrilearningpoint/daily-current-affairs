@@ -62,6 +62,8 @@ def test_nvidia_default_endpoint_and_model(monkeypatch):
 
 def test_deepseek_default_endpoint_and_model(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "diagnostic-deepseek-not-a-credential")
+    monkeypatch.setenv("ALP_ENABLE_DEEPSEEK", "1")  # paid only: opt-in
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
     monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
 
     deepseek = next(provider for provider in ai_router._build_default_providers()

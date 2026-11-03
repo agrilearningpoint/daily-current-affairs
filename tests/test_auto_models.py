@@ -15,6 +15,7 @@ def _clear_keys(monkeypatch):
 def test_auto_resolves_to_first_preference_without_discovery(monkeypatch):
     _clear_keys(monkeypatch)
     monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
+    monkeypatch.setenv("ALP_ENABLE_DEEPSEEK", "1")
     for name in ("GEMINI", "GROQ", "NVIDIA", "MISTRAL", "OPENROUTER", "OLLAMA", "DEEPSEEK"):
         monkeypatch.setenv(f"{name}_API_KEY", "k")
         monkeypatch.setenv(f"{name}_MODEL", "auto")
