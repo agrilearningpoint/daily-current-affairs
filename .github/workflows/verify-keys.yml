@@ -1,7 +1,7 @@
 name: Verify Keys
 on:
-  push:
-    branches: [verify-keys]
+  pull_request:
+    paths: ['scripts/verify_keys.py', '.github/workflows/verify-keys.yml']
 permissions:
   contents: read
 jobs:
