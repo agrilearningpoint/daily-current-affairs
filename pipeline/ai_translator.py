@@ -27,6 +27,7 @@ Env switches:
 """
 from __future__ import annotations
 
+from pipeline.ai_usage import record_ai_usage
 import hashlib
 import json
 import logging
@@ -483,6 +484,8 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
                 break
 
             passed, conf, issues = _validate(text, hindi)
+            record_ai_usage(provider["name"], provider.get("model", ""), f"translator:{task}", passed,
+                            "" if passed else "validation rejected")
             if passed:
                 result = {
                     "translated_hi": hindi,

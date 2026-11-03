@@ -17,7 +17,8 @@ NON_NEWS_RE = re.compile(
     r"admit\s+card|answer\s+key|movie\s+review|film\s+review|book\s+review|"
     r"editorial|op-ed|podcast|live\s+updates?|live\s+blog|crossword|horoscope|quiz\s+(?:of\s+the\s+day|time)|"
     r"wordle|spangram|hints?\s+and\s+answers|net\s+worth|stocks?\s+to\s+buy|share\s+price\s+today|"
-    r"national\s+portal\s+of\s+india|photo\s+gallery|press\s+note\s+details|candidate\s+affidavit|weekly\s+policy\s+watch|week\s+ahead)\b"
+    r"national\s+portal\s+of\s+india|photo\s+gallery|press\s+note\s+details|candidate\s+affidavit|weekly\s+policy\s+watch|week\s+ahead|"
+    r"(?:morning|evening|news|daily)\s+digest|news\s+wrap)\b"
     r"|^\s*(?:watch|video|photos?|in\s+pictures|letters?|opinion)\s*[:|]"
     r"|\|\s*the\s+hindu\s+editorial",
     re.IGNORECASE,
@@ -36,3 +37,11 @@ def topic_key(x: dict) -> str:
 
 def is_non_news(headline: str) -> bool:
     return bool(NON_NEWS_RE.search(headline or ""))
+
+
+def story_key(headline: str) -> str:
+    """Normalised headline used to recognise the same story across editions
+    (feeds re-stamp event ids, so ids alone miss repeats)."""
+    h = re.sub(r"^\W+", "", (headline or "").lower())
+    h = re.sub(r"\s+-\s+[^-]{2,60}$", "", h)          # " - PM India" publisher suffix
+    return re.sub(r"[^a-z0-9\u0900-\u097f]+", " ", h).strip()[:90]
