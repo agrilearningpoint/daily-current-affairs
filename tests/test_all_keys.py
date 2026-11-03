@@ -433,17 +433,18 @@ def test_verify_keys_masks_values_reports_missing_and_detects_sk_or(monkeypatch,
 
 
 def test_verify_keys_workflow_is_manual_read_only_and_explicit():
-    import yaml
-    wf = yaml.safe_load((ROOT / ".github/workflows/verify-keys.yml").read_text())
+    # Plain-text checks: CI has no PyYAML.
     text = (ROOT / ".github/workflows/verify-keys.yml").read_text()
-    assert set(wf[True]) == {"workflow_dispatch"}
-    assert wf["permissions"] == {"contents": "read"}
-    assert wf["concurrency"]["group"] != "current-affairs-pipeline"
+    on_block = text.split("\non:", 1)[1].split("\n\n", 1)[0]
+    assert "workflow_dispatch" in on_block
+    assert not re.search(r"^\s+(push|pull_request|schedule|workflow_run)\s*:", on_block, re.M)
+    assert re.search(r"^permissions:\n  contents: read\n", text, re.M)
+    group = re.search(r"^concurrency:\n  group: (\S+)", text, re.M).group(1)
+    assert group == "verify-keys" and group != "current-affairs-pipeline"
     assert "toJSON(secrets)" not in text
     vk = _load("scripts/verify_keys.py", "verify_keys_wf")
-    env = wf["jobs"]["verify"]["steps"][-1]["env"]
     for name in vk.SECRETS:
-        assert env.get(name) == "${{ secrets.%s }}" % name
+        assert "%s: ${{ secrets.%s }}" % (name, name) in text, name
 
 
 def test_pipeline_workflows_pass_every_key():
