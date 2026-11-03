@@ -4,16 +4,16 @@ AI Router — Multi-Provider with Fallback
 =========================================
 Routes AI tasks across multiple providers, cheapest and most reliable free
 tiers first:
-  Groq → Gemini → Ollama Cloud → Cloudflare → SambaNova → Mistral → OpenRouter →
-  NVIDIA → (generic) → Cohere → LLM7 → HuggingFace → Cerebras → OpenAI → DeepSeek
+  Groq → Gemini → Ollama Cloud → LLM7 → Mistral → OpenRouter → Cohere →
+  HuggingFace → NVIDIA → (generic) → OpenAI
 with automatic fallback, rate-limit tracking, and failure classification.
 Every provider is OFF when its secret is missing; the low-priority ones carry
-small daily caps (Cohere trial ≈ 30/day, HuggingFace free credit ≈ 15/day).
+small per-run caps (LLM7 ≈ 60, Cohere trial ≈ 30, HuggingFace ≈ 15, OpenAI ≈ 20).
 
 Features:
 - Multi-provider fallback chain (configurable priority)
 - Per-model quota rotation: on providers whose free limits are per model
-  (Gemini, Groq, SambaNova) a 429 rotates to the provider's next model before
+  (Gemini, Groq) a 429 rotates to the provider's next model before
   the whole provider is cooled down
 - Client-side throttling: per-provider minimum spacing (Mistral ~1 RPS) and
   per-model / per-provider RPM + RPD caps (OpenRouter free 20 RPM / 50 RPD)
@@ -38,12 +38,12 @@ Features:
 Env:
   GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY,
   OPENROUTER_API_KEY, NVIDIA_API_KEY, OLLAMA_API_KEY/OLLAMA_BASE_URL,
-  SAMBANOVA_API_KEY, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN (or CLOUDFLARE_TOKEN),
   COHERE_API_KEY, LL7_API_KEY (or LLM7_API_KEY), HUGGINGFACE_API_KEY (or HF_TOKEN),
-  CEREBRAS_API_KEY, OPENAI_API_KEY (real sk- keys only; an OpenRouter sk-or- key is skipped),
-  DEEPSEEK_API_KEY (+ ALP_ENABLE_DEEPSEEK=1: paid only, opt-in)
+  OPENAI_API_KEY (real sk- keys only; an OpenRouter sk-or- key is skipped)
   AI_ROUTER_RPD_<NAME> / AI_ROUTER_RPM_<NAME> override any provider's caps
   AI_ROUTER_TIMEOUT_GEMINI (default 25s per Gemini call)
+  AI_ROUTER_TIMEOUT_LLM7 (default 45s per LLM7 call)
+  AI_ROUTER_TIMEOUT_NVIDIA (default 40s per NVIDIA call)
   AI_ROUTER_MAX_CALLS_PER_HOUR (default 500)
   AI_ROUTER_TIMEOUT (default 60)
   AI_ROUTER_CACHE_SIZE (default 1000)
@@ -86,6 +86,9 @@ _TASK_TIMEOUTS = {
 # 2026-11-03; a hung model is rotated instead of costing a full minute.
 _PROVIDER_TIMEOUTS = {
     "gemini": int(os.getenv("AI_ROUTER_TIMEOUT_GEMINI", "25")),
+    # LLM7 "default" answers slowly under load; NVIDIA's vision model ~10s.
+    "llm7": int(os.getenv("AI_ROUTER_TIMEOUT_LLM7", "45")),
+    "nvidia": int(os.getenv("AI_ROUTER_TIMEOUT_NVIDIA", "40")),
 }
 
 
@@ -345,7 +348,7 @@ class Provider:
     rpm_limit: int = 60              # requests per minute (per model when per_model_quota)
     rpd_limit: int = 1000            # requests per day (per model when per_model_quota)
     models: List[str] = field(default_factory=list)   # rotation order; [model] when empty
-    per_model_quota: bool = False    # free limits apply per model (Gemini, Groq, SambaNova)
+    per_model_quota: bool = False    # free limits apply per model (Gemini, Groq)
     min_interval: float = 0.0        # client-side spacing between requests (seconds)
     last_error: Optional[str] = None
     disabled_until: float = 0.0
@@ -444,18 +447,19 @@ class Provider:
 # still advertises it; when it is retired the same preference list is used.
 # The same list (filtered to live models) is the per-model 429 rotation order.
 # Preference lists were checked against each provider's official docs and
-# model catalogues on 2026-11-01 (SambaNova / Cloudflare on 2026-11-03).
+# model catalogues on 2026-11-01; first entries live-verified (HTTP 200) on 2026-11-03.
 _MODEL_DISCOVERY_TIMEOUT = 8
 AUTO_MODEL = "auto"
 _PREFERRED_MODELS = {
     # ai.google.dev/gemini-api/docs/pricing: free tier text models (limits per model).
+    # gemini-3.5-flash-lite verified 200 on 2026-11-03; gemini-2.5-flash-lite
+    # answers 404 for new users and was dropped.
     "gemini": ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash",
-               "gemini-3.6-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash",
-               "gemini-3-flash-preview"),
+               "gemini-3.6-flash", "gemini-2.5-flash", "gemini-3-flash-preview"),
     # console.groq.com/docs/models: production text models (free plan, limits per model).
+    # openai/gpt-oss-120b verified 200 on 2026-11-03.
     "groq": ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"),
-    # api-docs.deepseek.com: paid only; deepseek-chat is no longer listed.
-    "deepseek": ("deepseek-flash", "deepseek-v4-pro"),
+    # Real OpenAI key (models list 200 on 2026-11-03): cheapest model, last resort.
     "openai": ("gpt-4o-mini",),
     "generic-openai": ("gpt-4o-mini",),
     # openrouter.ai/api/v1/models: zero-price ":free" variants only.
@@ -464,18 +468,12 @@ _PREFERRED_MODELS = {
                    "openrouter/free"),
     # docs.mistral.ai models overview (free Experiment plan).
     "mistral": ("mistral-small-latest", "ministral-8b-latest", "mistral-large-latest"),
-    # integrate.api.nvidia.com/v1/models (free build.nvidia.com endpoints).
-    "nvidia": ("deepseek-ai/deepseek-v4.1-flash", "moonshotai/kimi-k2.6",
-               "nvidia/nemotron-3-super-120b-a12b", "mistralai/mistral-large-4-1t-a52b",
-               "google/gemma-4-31b-it", "openai/gpt-oss-20b"),
-    # ollama.com/api/tags (Ollama Cloud).
-    "ollama": ("gpt-oss:120b", "gemma4:31b", "deepseek-v4.1-flash", "gpt-oss:20b"),
-    # docs.sambanova.ai/docs/en/models/sambacloud-models: production models
-    # (free tier limits per model).
-    "sambanova": ("gpt-oss-120b", "Meta-Llama-3.3-70B-Instruct", "DeepSeek-V3.1"),
-    # developers.cloudflare.com/workers-ai/models: Cloudflare-hosted models on the
-    # free 10k-neurons/day allowance via /ai/v1/chat/completions.
-    "cloudflare": ("@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/openai/gpt-oss-120b"),
+    # integrate.api.nvidia.com: the ONLY model verified working on this key
+    # (2026-11-03, ~10s). openai/gpt-oss-20b hangs, the others answer 404/410.
+    # NVIDIA is preferred-only, so discovery never picks anything else.
+    "nvidia": ("meta/llama-3.2-90b-vision-instruct",),
+    # ollama.com/api/tags (Ollama Cloud). gpt-oss:120b verified 200 on 2026-11-03.
+    "ollama": ("gpt-oss:120b", "gemma4:31b", "gpt-oss:20b"),
     # docs.cohere.com/docs/compatibility-api (OpenAI-compatible); command-r7b
     # live-verified on the trial key 2026-11-03 (trial: 20 RPM, 1,000 calls/month).
     "cohere": ("command-r7b-12-2024", "command-a-03-2025"),
@@ -484,24 +482,24 @@ _PREFERRED_MODELS = {
     "llm7": ("default", "fast"),
     # router.huggingface.co/v1/models (inference providers; tiny free credit).
     "huggingface": ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "meta-llama/Llama-3.3-70B-Instruct"),
-    # api.cerebras.ai/public/v1/models
-    "cerebras": ("gpt-oss-120b",),
 }
 # Models a provider still lists but no longer serves (end of life → HTTP 410).
 # Discovery never picks these; a fresh 410 adds the model to the run's health file.
 _RETIRED_MODELS = {
     "nvidia": ("meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct", "meta/llama3-8b-instruct",
-               "meta/llama3-70b-instruct", "mistralai/mistral-7b-instruct-v0.2"),
+               "meta/llama3-70b-instruct", "mistralai/mistral-7b-instruct-v0.2",
+               # hangs past every timeout on this key (2026-11-03)
+               "openai/gpt-oss-20b"),
     "gemini": ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"),
 }
 # Providers whose catalogue lists many paid / retired models: pick only from the
 # reviewed preference list, never the alphabetical "any text model" fallback.
-_PREFERRED_ONLY = {"nvidia", "huggingface", "llm7", "cohere", "cerebras"}
+_PREFERRED_ONLY = {"nvidia", "huggingface", "llm7", "cohere"}
 # Free-only providers: never select a model that bills per token.
 _FREE_ONLY = {"openrouter"}
 # Providers whose /models listing is not usable for discovery (non-OpenAI shape,
 # or paid prices listed for free-tier models): keep the preference list.
-_NO_DISCOVERY = {"cloudflare", "sambanova", "llm7", "cohere"}
+_NO_DISCOVERY = {"llm7", "cohere"}
 _NON_TEXT_MODEL = re.compile(
     r"(?:embed|rerank|guard|safety|moderation|vision|-vl|audio|image|tts|transcribe|"
     r"whisper|live|lyria|veo|robotics|omni|parse|reward|ocr|clip|orpheus|detector)",
@@ -589,7 +587,7 @@ def _choose_live_model(provider: Provider, available: List[str], exclude: set[st
             return preferred
     if provider.name in _PREFERRED_ONLY:
         return None
-    text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|deepseek|gemini|gemma|nemotron|flash)", m, re.I)
+    text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|gemini|gemma|nemotron|flash)", m, re.I)
                    and not _NON_TEXT_MODEL.search(m)]
     return sorted(text_models or candidates)[0]
 
@@ -626,13 +624,6 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-def cloudflare_config() -> Tuple[str, str]:
-    """(account_id, token). The token falls back to the CLOUDFLARE_TOKEN secret."""
-    token = (os.getenv("CLOUDFLARE_API_TOKEN") or os.getenv("CLOUDFLARE_TOKEN") or "").strip()
-    account = (os.getenv("CLOUDFLARE_ACCOUNT_ID") or "").strip()
-    return account, token
-
-
 def openai_key_problem(key: Optional[str] = None) -> Optional[str]:
     """Why OPENAI_API_KEY cannot be used against OpenAI (None when it looks usable).
 
@@ -657,25 +648,12 @@ def huggingface_key() -> str:
     return (os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_TOKEN") or "").strip()
 
 
-def deepseek_enabled() -> bool:
-    """DeepSeek has no free tier (HTTP 402 without balance): opt-in only."""
-    return bool(os.getenv("DEEPSEEK_API_KEY")) and os.getenv("ALP_ENABLE_DEEPSEEK", "0") == "1"
-
-
 def unconfigured_notes() -> List[str]:
     """Human-readable reasons a known provider is off although part of it is configured."""
     notes = []
-    account, token = cloudflare_config()
-    if token and not account:
-        notes.append("cloudflare: CLOUDFLARE_ACCOUNT_ID is missing (token present) — provider OFF; "
-                     "add the CLOUDFLARE_ACCOUNT_ID secret to enable Workers AI")
-    elif account and not token:
-        notes.append("cloudflare: CLOUDFLARE_API_TOKEN / CLOUDFLARE_TOKEN is missing — provider OFF")
     problem = openai_key_problem()
     if problem:
         notes.append(problem)
-    if os.getenv("DEEPSEEK_API_KEY") and not deepseek_enabled():
-        notes.append("deepseek: DEEPSEEK_API_KEY present but provider OFF (paid only; set ALP_ENABLE_DEEPSEEK=1 to opt in)")
     return notes
 
 
@@ -685,9 +663,9 @@ def unconfigured_notes() -> List[str]:
 def _build_default_providers() -> List[Provider]:
     """Build provider list from env vars, in priority order.
 
-    Free-tier providers come first (Groq, Gemini, Ollama, Cloudflare, SambaNova,
-    Mistral, OpenRouter, NVIDIA), then capped trial/credit providers (Cohere,
-    LLM7, HuggingFace, Cerebras), then OpenAI; DeepSeek (paid only, opt-in) last.
+    Groq → Gemini → Ollama → LLM7 → Mistral → OpenRouter → Cohere →
+    HuggingFace → NVIDIA → (generic) → OpenAI. Trial / tiny-credit / paid
+    providers carry low per-run caps.
     """
     providers: List[Provider] = []
 
@@ -730,21 +708,13 @@ def _build_default_providers() -> List[Provider]:
                      model=_env_model("OLLAMA_MODEL", "ollama"),
                      priority=20, rpm_limit=30, rpd_limit=5000))
 
-    cf_account, cf_token = cloudflare_config()
-    if cf_account and cf_token:
-        # Free allowance: 10k neurons/day (account-wide).
-        add(Provider(name="cloudflare",
-                     url=f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/v1/chat/completions",
-                     key=cf_token, model=_env_model("CLOUDFLARE_MODEL", "cloudflare"),
-                     priority=30, rpm_limit=30, rpd_limit=1000))
-
-    sambanova_key = os.getenv("SAMBANOVA_API_KEY")
-    if sambanova_key:
-        # Free tier, per model: 20 RPM, 20 RPD, 200k tokens/day.
-        base = os.getenv("SAMBANOVA_BASE_URL", "https://api.sambanova.ai/v1").rstrip("/")
-        add(Provider(name="sambanova", url=f"{base}/chat/completions", key=sambanova_key,
-                     model=_env_model("SAMBANOVA_MODEL", "sambanova"),
-                     priority=35, rpm_limit=20, rpd_limit=20, per_model_quota=True))
+    l7_key = llm7_key()
+    if l7_key:
+        # Free token: 1 RPS, 60 RPM, 250/hour, 100k tokens per 24h.
+        base = os.getenv("LLM7_BASE_URL", "https://api.llm7.io/v1").rstrip("/")
+        add(Provider(name="llm7", url=f"{base}/chat/completions", key=l7_key,
+                     model=_env_model("LLM7_MODEL", "llm7"),
+                     priority=25, rpm_limit=30, rpd_limit=60, min_interval=1.1))
 
     mistral_key = os.getenv("MISTRAL_API_KEY")
     if mistral_key:
@@ -760,61 +730,42 @@ def _build_default_providers() -> List[Provider]:
                      key=openrouter_key, model=_env_model("OPENROUTER_MODEL", "openrouter"),
                      priority=45, rpm_limit=20, rpd_limit=50, min_interval=3.0))
 
-    nvidia_key = os.getenv("NVIDIA_API_KEY")
-    if nvidia_key:
-        add(Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
-                     key=nvidia_key, model=_env_model("NVIDIA_MODEL", "nvidia"),
-                     priority=50, rpm_limit=30, rpd_limit=5000))
-
-    generic_url = os.getenv("LLM_API_URL")
-    generic_key = os.getenv("LLM_API_KEY")
-    if generic_url and generic_key:
-        add(Provider(name="generic-openai", url=generic_url, key=generic_key,
-                     model=_env_model("LLM_MODEL", "generic-openai"),
-                     priority=55, rpm_limit=60, rpd_limit=5000))
-
     cohere_key = os.getenv("COHERE_API_KEY", "").strip()
     if cohere_key:
         # Trial key: 20 RPM, 1,000 calls/month → last-resort, ~30 calls/day.
         base = os.getenv("COHERE_BASE_URL", "https://api.cohere.ai/compatibility/v1").rstrip("/")
         add(Provider(name="cohere", url=f"{base}/chat/completions", key=cohere_key,
                      model=_env_model("COHERE_MODEL", "cohere"),
-                     priority=60, rpm_limit=10, rpd_limit=30, min_interval=3.0))
-
-    l7_key = llm7_key()
-    if l7_key:
-        # Free token: 1 RPS, 60 RPM, 250/hour, 100k tokens per 24h.
-        base = os.getenv("LLM7_BASE_URL", "https://api.llm7.io/v1").rstrip("/")
-        add(Provider(name="llm7", url=f"{base}/chat/completions", key=l7_key,
-                     model=_env_model("LLM7_MODEL", "llm7"),
-                     priority=65, rpm_limit=30, rpd_limit=60, min_interval=1.1))
+                     priority=50, rpm_limit=10, rpd_limit=30, min_interval=3.0))
 
     hf_key = huggingface_key()
     if hf_key:
         # Inference Providers free credit is tiny (cents/month): keep it rare.
         add(Provider(name="huggingface", url="https://router.huggingface.co/v1/chat/completions",
                      key=hf_key, model=_env_model("HUGGINGFACE_MODEL", "huggingface"),
-                     priority=70, rpm_limit=10, rpd_limit=15))
+                     priority=60, rpm_limit=10, rpd_limit=15))
 
-    cerebras_key = os.getenv("CEREBRAS_API_KEY", "").strip()
-    if cerebras_key:
-        # 402 payment_required = no access on this account → out for the run.
-        add(Provider(name="cerebras", url="https://api.cerebras.ai/v1/chat/completions",
-                     key=cerebras_key, model=_env_model("CEREBRAS_MODEL", "cerebras"),
-                     priority=75, rpm_limit=30, rpd_limit=500))
+    nvidia_key = os.getenv("NVIDIA_API_KEY")
+    if nvidia_key:
+        # Only meta/llama-3.2-90b-vision-instruct works on this key (40s timeout).
+        add(Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
+                     key=nvidia_key, model=_env_model("NVIDIA_MODEL", "nvidia"),
+                     priority=70, rpm_limit=30, rpd_limit=500))
+
+    generic_url = os.getenv("LLM_API_URL")
+    generic_key = os.getenv("LLM_API_KEY")
+    if generic_url and generic_key:
+        add(Provider(name="generic-openai", url=generic_url, key=generic_key,
+                     model=_env_model("LLM_MODEL", "generic-openai"),
+                     priority=75, rpm_limit=60, rpd_limit=5000))
 
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    # Real OpenAI key (billed per token): last in the order, low per-run cap.
     if openai_key and not openai_key_problem(openai_key):
         base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
         add(Provider(name="openai", url=f"{base}/chat/completions", key=openai_key,
                      model=_env_model("ALP_LLM", "openai"),
-                     priority=80, rpm_limit=500, rpd_limit=10000))
-
-    if deepseek_enabled():
-        base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
-        add(Provider(name="deepseek", url=f"{base}/chat/completions", key=os.environ["DEEPSEEK_API_KEY"],
-                     model=_env_model("DEEPSEEK_MODEL", "deepseek"),
-                     priority=90, rpm_limit=60, rpd_limit=10000))
+                     priority=80, rpm_limit=10, rpd_limit=20))
 
     for note in unconfigured_notes():
         logger.info("[Router] %s", note)

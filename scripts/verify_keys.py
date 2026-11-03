@@ -38,14 +38,16 @@ if str(ROOT) not in sys.path:
 
 # Every secret the workflows pass, in report order.
 SECRETS = (
-    "GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "CLOUDFLARE_TOKEN", "CLOUDFLARE_ACCOUNT_ID",
-    "SAMBANOVA_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY",
-    "COHERE_API_KEY", "LL7_API_KEY", "HUGGINGFACE_API_KEY", "CEREBRAS_API_KEY",
-    "OPENAI_API_KEY", "DEEPSEEK_API_KEY",
+    "GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY",
+    "OPENROUTER_API_KEY", "COHERE_API_KEY", "HUGGINGFACE_API_KEY", "NVIDIA_API_KEY",
+    "OPENAI_API_KEY",
     "NEWSDATA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "JINA_API_KEY",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_CHANNEL_ID", "ADMIN_ID",
 )
 TIMEOUT = float(os.getenv("VERIFY_KEYS_TIMEOUT", "20"))
+# Same per-call ceilings as the router (pipeline/ai_router.py _PROVIDER_TIMEOUTS).
+LLM7_TIMEOUT = float(os.getenv("AI_ROUTER_TIMEOUT_LLM7", "45"))
+NVIDIA_TIMEOUT = float(os.getenv("AI_ROUTER_TIMEOUT_NVIDIA", "40"))
 PROMPT = "Reply with OK."
 
 Result = Tuple[str, Optional[int], str]  # status, http code, reason
@@ -58,7 +60,7 @@ def env(name: str) -> str:
 def mask(text: Any) -> str:
     """Remove every secret value (and long token-like strings) from text."""
     text = str(text or "")
-    for name in set(SECRETS) | {"CLOUDFLARE_API_TOKEN", "GOOGLE_API_KEY", "LLM7_API_KEY", "HF_TOKEN"}:
+    for name in set(SECRETS) | {"GOOGLE_API_KEY", "LLM7_API_KEY", "HF_TOKEN"}:
         value = env(name)
         if len(value) >= 4:
             text = text.replace(value, "***")
@@ -173,29 +175,6 @@ def check_ollama() -> Result:
     return chat(f"{base}/v1/chat/completions", env("OLLAMA_API_KEY"), preferred("ollama") or ("gpt-oss:20b",))
 
 
-def check_cloudflare_token() -> Result:
-    r = requests.get("https://api.cloudflare.com/client/v4/user/tokens/verify", timeout=TIMEOUT,
-                     headers={"Authorization": f"Bearer {env('CLOUDFLARE_TOKEN')}"})
-    status, code, reason = classify(r, "token active")
-    if status == "OK" and not env("CLOUDFLARE_ACCOUNT_ID"):
-        return "WARN", code, "token active, but CLOUDFLARE_ACCOUNT_ID is missing → Workers AI OFF"
-    return status, code, reason
-
-
-def check_cloudflare_account() -> Result:
-    token = env("CLOUDFLARE_API_TOKEN") or env("CLOUDFLARE_TOKEN")
-    if not token:
-        return "FAIL", None, "account id set but no CLOUDFLARE_TOKEN"
-    account = env("CLOUDFLARE_ACCOUNT_ID")
-    return chat(f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions",
-                token, preferred("cloudflare") or ("@cf/meta/llama-3.3-70b-instruct-fp8-fast",))
-
-
-def check_sambanova() -> Result:
-    return chat("https://api.sambanova.ai/v1/chat/completions", env("SAMBANOVA_API_KEY"),
-                preferred("sambanova") or ("gpt-oss-120b",))
-
-
 def check_mistral() -> Result:
     return chat("https://api.mistral.ai/v1/chat/completions", env("MISTRAL_API_KEY"),
                 preferred("mistral") or ("mistral-small-latest",))
@@ -214,7 +193,7 @@ def check_openrouter() -> Result:
 
 def check_nvidia() -> Result:
     return chat("https://integrate.api.nvidia.com/v1/chat/completions", env("NVIDIA_API_KEY"),
-                preferred("nvidia") or ("openai/gpt-oss-20b",))
+                preferred("nvidia") or ("meta/llama-3.2-90b-vision-instruct",), timeout=NVIDIA_TIMEOUT)
 
 
 def check_cohere() -> Result:
@@ -223,7 +202,12 @@ def check_cohere() -> Result:
 
 
 def check_llm7() -> Result:
-    return chat("https://api.llm7.io/v1/chat/completions", env("LL7_API_KEY"), preferred("llm7") or ("default",))
+    key = env("LL7_API_KEY") or env("LLM7_API_KEY")
+    try:
+        return chat("https://api.llm7.io/v1/chat/completions", key, preferred("llm7") or ("default",),
+                    timeout=LLM7_TIMEOUT)
+    except requests.Timeout:
+        return "FAIL", None, f"timeout after {LLM7_TIMEOUT:.0f}s"
 
 
 def check_huggingface() -> Result:
@@ -233,11 +217,6 @@ def check_huggingface() -> Result:
     return classify(r, "token valid (whoami)")
 
 
-def check_cerebras() -> Result:
-    return chat("https://api.cerebras.ai/v1/chat/completions", env("CEREBRAS_API_KEY"),
-                preferred("cerebras") or ("gpt-oss-120b",))
-
-
 def check_openai() -> Result:
     key = env("OPENAI_API_KEY")
     if key.startswith("sk-or-"):
@@ -245,22 +224,6 @@ def check_openai() -> Result:
     r = requests.get("https://api.openai.com/v1/models", timeout=TIMEOUT,
                      headers={"Authorization": f"Bearer {key}"})
     return classify(r, "key valid (models list)")
-
-
-def check_deepseek() -> Result:
-    r = requests.get("https://api.deepseek.com/user/balance", timeout=TIMEOUT,
-                     headers={"Authorization": f"Bearer {env('DEEPSEEK_API_KEY')}"})
-    if r.status_code != 200:
-        return classify(r)
-    try:
-        data = r.json()
-        infos = data.get("balance_infos") or []
-        total = ", ".join(f"{i.get('total_balance')} {i.get('currency')}" for i in infos) or "unknown"
-        if not data.get("is_available"):
-            return "WARN", 200, f"key valid, balance {total} → not usable (opt-in, paid only)"
-        return "OK", 200, f"balance {total}"
-    except ValueError:
-        return "OK", 200, "key valid"
 
 
 def check_newsdata() -> Result:
@@ -341,18 +304,13 @@ CHECKS: Dict[str, Callable[[], Result]] = {
     "GROQ_API_KEY": check_groq,
     "GEMINI_API_KEY": guarded_gemini,
     "OLLAMA_API_KEY": check_ollama,
-    "CLOUDFLARE_TOKEN": check_cloudflare_token,
-    "CLOUDFLARE_ACCOUNT_ID": check_cloudflare_account,
-    "SAMBANOVA_API_KEY": check_sambanova,
+    "LL7_API_KEY": check_llm7,
     "MISTRAL_API_KEY": check_mistral,
     "OPENROUTER_API_KEY": check_openrouter,
-    "NVIDIA_API_KEY": check_nvidia,
     "COHERE_API_KEY": check_cohere,
-    "LL7_API_KEY": check_llm7,
     "HUGGINGFACE_API_KEY": check_huggingface,
-    "CEREBRAS_API_KEY": check_cerebras,
+    "NVIDIA_API_KEY": check_nvidia,
     "OPENAI_API_KEY": check_openai,
-    "DEEPSEEK_API_KEY": check_deepseek,
     "NEWSDATA_API_KEY": check_newsdata,
     "GNEWS_API_KEY": check_gnews,
     "SERPER_API_KEY": check_serper,

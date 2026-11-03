@@ -20,12 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 FT = ai_router.FailureType
 
 _ALL_PROVIDER_ENV = (
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
     "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "NVIDIA_API_KEY",
-    "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL", "SAMBANOVA_API_KEY",
-    "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_TOKEN", "ALP_ENABLE_DEEPSEEK",
+    "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL",
     "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY", "HUGGINGFACE_API_KEY", "HF_TOKEN",
-    "CEREBRAS_API_KEY", "OPENAI_BASE_URL",
+    "OPENAI_BASE_URL",
 )
 
 
@@ -105,15 +104,6 @@ def test_requests_timeout_is_classified_as_timeout(monkeypatch):
 
     monkeypatch.setattr(requests, "post", post)
     assert ai_router._call_provider(p, "hi", "general") == (None, FT.TIMEOUT)
-
-
-def test_deepseek_is_opt_in_only(monkeypatch):
-    _clear_env(monkeypatch)
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
-    assert [p.name for p in ai_router._build_default_providers()] == []
-    assert any("deepseek" in n for n in ai_router.unconfigured_notes())
-    monkeypatch.setenv("ALP_ENABLE_DEEPSEEK", "1")
-    assert [p.name for p in ai_router._build_default_providers()] == ["deepseek"]
 
 
 # --------------------------------------------------------------------------- #
@@ -221,52 +211,53 @@ def test_builder_sets_free_tier_limits(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# New providers
+# Verified models (2026-11-03)
 # --------------------------------------------------------------------------- #
-def test_sambanova_and_cloudflare_are_low_in_the_order(monkeypatch):
+def test_nvidia_auto_is_the_vision_model_only_and_never_discovers_others(monkeypatch):
     _clear_env(monkeypatch)
-    monkeypatch.setenv("GROQ_API_KEY", "k")
-    monkeypatch.setenv("SAMBANOVA_API_KEY", "k")
-    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc123")
-    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
-    monkeypatch.setenv("ALP_ENABLE_DEEPSEEK", "1")
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
+    monkeypatch.setenv("NVIDIA_MODEL", "auto")
+    live = ["openai/gpt-oss-20b", "meta/llama-guard-4-12b", "meta/llama-3.1-8b-instruct",
+            "nvidia/nemotron-3-super-120b-a12b", "meta/llama-3.2-90b-vision-instruct"]
+    monkeypatch.setattr(ai_router, "_live_model_ids", lambda p: live)
+    (nv,) = ai_router._build_default_providers()
+    assert nv.model == "meta/llama-3.2-90b-vision-instruct"
+    assert nv.models == ["meta/llama-3.2-90b-vision-instruct"]
+    assert "openai/gpt-oss-20b" in ai_router._RETIRED_MODELS["nvidia"]
+    # Even with the vision model excluded, discovery picks nothing else.
+    assert ai_router._choose_live_model(nv, live, {"meta/llama-3.2-90b-vision-instruct"}) is None
+    assert ai_router.request_timeout("nvidia") == 40
+
+
+def test_llm7_is_fourth_with_45s_timeout_and_60_call_cap(monkeypatch):
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
+    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY"):
+        monkeypatch.setenv(var, "k")
     providers = ai_router._build_default_providers()
-    assert [p.name for p in providers] == ["groq", "cloudflare", "sambanova", "deepseek"]
-    cf, samba = providers[1], providers[2]
-    assert samba.url == "https://api.sambanova.ai/v1/chat/completions"
-    assert samba.per_model_quota and (samba.rpm_limit, samba.rpd_limit) == (20, 20)
-    assert samba.models == ["gpt-oss-120b", "Meta-Llama-3.3-70B-Instruct", "DeepSeek-V3.1"]
-    assert cf.url == "https://api.cloudflare.com/client/v4/accounts/acc123/ai/v1/chat/completions"
-    assert cf.model.startswith("@cf/") and cf.key == "tok"
+    assert [p.name for p in providers] == ["groq", "gemini", "ollama", "llm7", "mistral"]
+    llm7 = providers[3]
+    assert llm7.model == "default" and llm7.models == ["default", "fast"] and llm7.rpd_limit == 60
+    assert ai_router.request_timeout("llm7") == 45
 
 
-def test_cloudflare_token_falls_back_to_cloudflare_token_secret(monkeypatch):
+def test_first_models_are_the_verified_ones(monkeypatch):
+    pm = ai_router._PREFERRED_MODELS
+    assert pm["groq"] == ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b")
+    assert pm["gemini"][0] == "gemini-3.5-flash-lite" and "gemini-2.5-flash-lite" not in pm["gemini"]
+    assert pm["ollama"][0] == "gpt-oss:120b"
+    assert pm["cohere"][0] == "command-r7b-12-2024"
+    assert pm["openai"] == ("gpt-4o-mini",)
+
+
+def test_openai_is_last_with_a_low_cap(monkeypatch):
     _clear_env(monkeypatch)
-    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc")
-    monkeypatch.setenv("CLOUDFLARE_TOKEN", "legacy-token")
-    (cf,) = ai_router._build_default_providers()
-    assert cf.name == "cloudflare" and cf.key == "legacy-token"
-
-
-def test_cloudflare_stays_off_without_account_id(monkeypatch):
-    _clear_env(monkeypatch)
-    monkeypatch.setenv("CLOUDFLARE_TOKEN", "legacy-token")
-    assert ai_router._build_default_providers() == []
-    notes = ai_router.unconfigured_notes()
-    assert any("CLOUDFLARE_ACCOUNT_ID is missing" in n for n in notes)
-
-
-def test_stage00_logs_missing_cloudflare_account(monkeypatch, tmp_path, caplog):
-    _clear_env(monkeypatch)
-    monkeypatch.setenv("CLOUDFLARE_TOKEN", "legacy-token")
-    setup = _load("agents/00_model_orchestrator.py", "orch_cf_missing")
-    monkeypatch.setattr(setup, "STATUS_FILE", tmp_path / "model_status.json")
-    with caplog.at_level(logging.WARNING):
-        assert setup.main() == 0
-    assert "CLOUDFLARE_ACCOUNT_ID is missing" in caplog.text
-    report = json.loads((tmp_path / "model_status.json").read_text())
-    assert any("CLOUDFLARE_ACCOUNT_ID" in n for n in report["notes"])
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-fake")
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
+    providers = ai_router._build_default_providers()
+    assert [p.name for p in providers] == ["nvidia", "openai"]
+    assert providers[-1].model == "gpt-4o-mini" and providers[-1].rpd_limit <= 20
 
 
 # --------------------------------------------------------------------------- #
@@ -288,16 +279,16 @@ def test_stage00_all_failed_is_not_fatal_and_seeds_cooldowns(monkeypatch, tmp_pa
     setup = _load("agents/00_model_orchestrator.py", "orch_all_failed")
     monkeypatch.setattr(setup, "STATUS_FILE", tmp_path / "model_status.json")
     monkeypatch.setattr(setup, "load_keys", lambda: [
-        {"name": "deepseek", "url": "u", "key": "k", "model": "m", "priority": 90, "env_used": "D"},
+        {"name": "openai", "url": "u", "key": "k", "model": "m", "priority": 80, "env_used": "O"},
         {"name": "nvidia", "url": "u", "key": "k", "model": "m", "priority": 25, "env_used": "N"},
     ])
-    statuses = {"deepseek": {"status": "credit_error", "detail": "402"},
+    statuses = {"openai": {"status": "credit_error", "detail": "402"},
                 "nvidia": {"status": "timeout", "detail": "15s"}}
     monkeypatch.setattr(setup, "health_check", lambda p: statuses[p["name"]])
     assert setup.main() == 0
     report = json.loads((tmp_path / "model_status.json").read_text())
     assert report["status"] == "all_failed"
-    assert ai_router.is_blocked("deepseek") and ai_router.is_blocked("nvidia")
+    assert ai_router.is_blocked("openai") and ai_router.is_blocked("nvidia")
 
 
 def test_stage00_empty_reasoning_reply_counts_as_reachable(monkeypatch, tmp_path):
@@ -459,12 +450,12 @@ def test_failure_alert_message(monkeypatch, tmp_path):
         "status": "failed", "failed_stage": "12_content_editor", "error": "AI translation unavailable"}}}))
     (tmp_path / "logs" / "ai_health").mkdir(parents=True)
     (tmp_path / "logs" / "ai_health" / "daily_x.json").write_text(json.dumps(
-        {"blocks": {"deepseek": {"until": time.time() + 100, "reason": "auth/credit error"}}}))
+        {"blocks": {"openrouter": {"until": time.time() + 100, "reason": "auth/credit error"}}}))
     monkeypatch.setattr(alert, "ROOT", tmp_path)
     monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
     monkeypatch.setenv("GITHUB_RUN_ID", "1")
     text = alert.build_message("daily_x", "Daily")
-    assert "12_content_editor" in text and "deepseek" in text and "/o/r/actions/runs/1" in text
+    assert "12_content_editor" in text and "openrouter" in text and "/o/r/actions/runs/1" in text
     sent = []
     monkeypatch.setattr("pipeline.telegram_api.alert_admin", lambda t: sent.append(t) or True)
     assert alert.main(["--job-id", "daily_x"]) == 0 and sent

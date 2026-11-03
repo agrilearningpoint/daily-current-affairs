@@ -52,19 +52,20 @@ Required secrets:
 
 Optional: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_API_KEY`,
 `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `COHERE_API_KEY`,
-`LL7_API_KEY`, `HUGGINGFACE_API_KEY`, `CEREBRAS_API_KEY`, `OPENAI_API_KEY`
+`LL7_API_KEY`, `HUGGINGFACE_API_KEY`, `OPENAI_API_KEY`
 (real `sk-` keys only; an OpenRouter `sk-or-` key there is skipped),
-`NEWSDATA_API_KEY`, `GNEWS_API_KEY`, `SERPER_API_KEY`, `JINA_API_KEY`, `SAMBANOVA_API_KEY`,
-`CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` (or the older `CLOUDFLARE_TOKEN`;
-Workers AI stays off until **both** the account id and a token exist),
-`DEEPSEEK_API_KEY` (paid only: also set the variable `ALP_ENABLE_DEEPSEEK=1`).
+`NEWSDATA_API_KEY`, `GNEWS_API_KEY`, `SERPER_API_KEY`, `JINA_API_KEY`.
 With none set the pipeline runs heuristic-only; production translation is
 fail-closed, so a run with no reachable provider fails and alerts `ADMIN_ID`
 instead of publishing untranslated Hindi.
 
-Provider order (pipeline/ai_router.py): Groq → Gemini → Ollama → Cloudflare →
-SambaNova → Mistral → OpenRouter → NVIDIA → Cohere (≤30 calls/run) → LLM7 (≤60)
-→ HuggingFace (≤15) → Cerebras → OpenAI; DeepSeek only with `ALP_ENABLE_DEEPSEEK=1`.
+Provider order (pipeline/ai_router.py), first model with `*_MODEL=auto`:
+Groq (`openai/gpt-oss-120b`) → Gemini (`gemini-3.5-flash-lite`) → Ollama
+(`gpt-oss:120b`) → LLM7 (`default`, ≤60 calls/run, 45 s timeout) → Mistral
+(`mistral-small-latest`) → OpenRouter (`:free` models only) → Cohere
+(`command-r7b-12-2024`, ≤30) → HuggingFace (≤15) → NVIDIA
+(`meta/llama-3.2-90b-vision-instruct` only, 40 s timeout) → OpenAI
+(`gpt-4o-mini`, ≤20).
 A 404/410 retires that model for the run (discovery never picks a known EOL
 model) and rotates to the next; Gemini calls time out after 25 s and a hung
 Gemini model is parked so the next call uses the next model.
@@ -86,7 +87,7 @@ After handling it, add its job id to the repo variable `WATCHDOG_ACK_JOBS`
 revision refused is not flagged.
 
 AI routing (pipeline/ai_router.py): free providers first; a 429 rotates to the
-provider's next model where free limits are per model (Gemini, Groq, SambaNova)
+provider's next model where free limits are per model (Gemini, Groq)
 before cooling the provider down (Retry-After honoured, repeated 429s back off
 harder); 401/402/403 park a provider for the run; repeated timeouts park it for
 30 min. Cooldowns are shared across stages via `logs/ai_health/<job>.json`

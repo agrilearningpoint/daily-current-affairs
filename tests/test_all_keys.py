@@ -21,12 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 FT = ai_router.FailureType
 
 _PROVIDER_ENV = (
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
     "OPENAI_BASE_URL", "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY",
-    "NVIDIA_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL", "SAMBANOVA_API_KEY",
-    "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_TOKEN", "ALP_ENABLE_DEEPSEEK",
+    "NVIDIA_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL",
     "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY", "HUGGINGFACE_API_KEY", "HF_TOKEN",
-    "CEREBRAS_API_KEY",
 )
 _AUX_ENV = ("SERPER_API_KEY", "GNEWS_API_KEY", "NEWSDATA_API_KEY", "JINA_API_KEY")
 
@@ -83,33 +81,29 @@ def test_new_providers_are_off_without_their_secrets():
 
 
 def test_full_provider_order_cheapest_and_most_reliable_first(monkeypatch):
-    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "SAMBANOVA_API_KEY", "MISTRAL_API_KEY",
+    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "MISTRAL_API_KEY",
                 "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "COHERE_API_KEY", "LL7_API_KEY",
-                "HUGGINGFACE_API_KEY", "CEREBRAS_API_KEY", "DEEPSEEK_API_KEY"):
+                "HUGGINGFACE_API_KEY"):
         monkeypatch.setenv(var, "k")
-    monkeypatch.setenv("CLOUDFLARE_TOKEN", "tok")
-    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc")
     monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
     names = [p.name for p in ai_router._build_default_providers()]
-    assert names == ["groq", "gemini", "ollama", "cloudflare", "sambanova", "mistral", "openrouter",
-                     "nvidia", "cohere", "llm7", "huggingface", "cerebras", "openai"]  # DeepSeek opt-in
-    monkeypatch.setenv("ALP_ENABLE_DEEPSEEK", "1")
-    assert [p.name for p in ai_router._build_default_providers()][-1] == "deepseek"
+    assert names == ["groq", "gemini", "ollama", "llm7", "mistral", "openrouter",
+                     "cohere", "huggingface", "nvidia", "openai"]
 
 
 def test_new_provider_endpoints_and_low_caps(monkeypatch):
     monkeypatch.setenv("COHERE_API_KEY", "c")
     monkeypatch.setenv("LL7_API_KEY", "l")
     monkeypatch.setenv("HUGGINGFACE_API_KEY", "h")
-    monkeypatch.setenv("CEREBRAS_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
     by = {p.name: p for p in ai_router._build_default_providers()}
     assert by["cohere"].url == "https://api.cohere.ai/compatibility/v1/chat/completions"
     assert by["cohere"].model == "command-r7b-12-2024" and by["cohere"].rpd_limit == 30
     assert by["llm7"].url == "https://api.llm7.io/v1/chat/completions" and by["llm7"].model == "default"
     assert by["huggingface"].url == "https://router.huggingface.co/v1/chat/completions"
     assert by["huggingface"].rpd_limit <= 20
-    assert by["cerebras"].url == "https://api.cerebras.ai/v1/chat/completions"
-    assert by["cerebras"].model == "gpt-oss-120b"
+    assert by["openai"].url == "https://api.openai.com/v1/chat/completions"
+    assert by["openai"].model == "gpt-4o-mini" and by["openai"].rpd_limit <= 20
 
 
 def test_daily_cap_takes_cohere_out_after_30_calls(monkeypatch):
@@ -136,24 +130,24 @@ def test_openrouter_key_in_openai_secret_is_detected_and_skipped(monkeypatch):
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("code", [401, 402])
 def test_401_and_402_take_a_provider_out_for_the_run(monkeypatch, code):
-    cerebras = ai_router.Provider(name="cerebras", url="https://api.cerebras.ai/v1/chat/completions",
-                                  key="k", model="gpt-oss-120b", priority=1)
+    paid = ai_router.Provider(name="openai", url="https://api.openai.com/v1/chat/completions",
+                              key="k", model="gpt-4o-mini", priority=1)
     backup = ai_router.Provider(name="llm7", url="https://api.llm7.io/v1/chat/completions",
                                 key="k", model="default", priority=2)
-    _use(monkeypatch, [cerebras, backup])
+    _use(monkeypatch, [paid, backup])
     calls = []
 
     def fake(provider, *a, **k):
         calls.append(provider.name)
-        if provider.name == "cerebras":
+        if provider.name == "openai":
             return None, ai_router._classify_error(code, "payment_required")
         return "ok", None
 
     monkeypatch.setattr(ai_router, "_call_provider", fake)
     assert ai_router.route("one") == "ok"
     assert ai_router.route("two") == "ok"
-    assert calls == ["cerebras", "llm7", "llm7"]
-    assert ai_router.blocked_until("cerebras") - time.time() > 3600
+    assert calls == ["openai", "llm7", "llm7"]
+    assert ai_router.blocked_until("openai") - time.time() > 3600
 
 
 def test_429_rotates_groq_to_its_next_model_in_the_same_call(monkeypatch):
@@ -212,12 +206,13 @@ def test_410_retires_the_nvidia_model_and_rotates(monkeypatch):
 def test_discovery_never_picks_an_eol_or_retired_nvidia_model():
     nvidia = ai_router.Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
                                 key="k", model="not-listed")
-    live = ["01-ai/yi-large", "meta/llama-3.1-8b-instruct", "abc/some-chat-model"]
-    # Only EOL / unreviewed models advertised: no pick at all.
+    live = ["01-ai/yi-large", "meta/llama-3.1-8b-instruct", "abc/some-chat-model",
+            "openai/gpt-oss-20b", "meta/llama-guard-4-12b"]
+    # Only EOL / hanging / unreviewed / moderation models advertised: no pick at all.
     assert ai_router._choose_live_model(nvidia, live) is None
-    live.append("openai/gpt-oss-20b")
-    assert ai_router._choose_live_model(nvidia, live) == "openai/gpt-oss-20b"
-    ai_router.block("nvidia::openai/gpt-oss-20b", 3600, "410 earlier in the run")
+    live.append("meta/llama-3.2-90b-vision-instruct")
+    assert ai_router._choose_live_model(nvidia, live) == "meta/llama-3.2-90b-vision-instruct"
+    ai_router.block("nvidia::meta/llama-3.2-90b-vision-instruct", 3600, "410 earlier in the run")
     assert ai_router._choose_live_model(nvidia, live) is None
 
 
@@ -417,19 +412,19 @@ def test_verify_keys_masks_values_reports_missing_and_detects_sk_or(monkeypatch,
     vk = _load("scripts/verify_keys.py", "verify_keys_t")
     for name in vk.SECRETS:
         monkeypatch.delenv(name, raising=False)
-    secret = "cerebras-test-secret-9876"
-    monkeypatch.setenv("CEREBRAS_API_KEY", secret)
+    secret = "cohere-test-secret-9876"
+    monkeypatch.setenv("COHERE_API_KEY", secret)
     monkeypatch.setenv("OPENAI_API_KEY", OPENROUTER_STYLE)
     monkeypatch.setattr(vk.requests, "post", lambda *a, **k: Resp(
         402, {"message": f"payment_required for key {secret}"}))
     monkeypatch.setattr(vk.requests, "get", _no_network)
-    assert vk.main(["--only", "CEREBRAS_API_KEY,OPENAI_API_KEY,GNEWS_API_KEY"]) == 0
+    assert vk.main(["--only", "COHERE_API_KEY,OPENAI_API_KEY,GNEWS_API_KEY"]) == 0
     out = capsys.readouterr().out
     assert secret not in out and OPENROUTER_STYLE not in out
-    assert re.search(r"CEREBRAS_API_KEY\s*\| FAIL\s*\| 402", out)
+    assert re.search(r"COHERE_API_KEY\s*\| FAIL\s*\| 402", out)
     assert "OpenRouter key" in out
     assert re.search(r"GNEWS_API_KEY\s*\| MISSING", out) and "Missing: GNEWS_API_KEY" in out
-    assert vk.main(["--only", "CEREBRAS_API_KEY", "--strict"]) == 1
+    assert vk.main(["--only", "COHERE_API_KEY", "--strict"]) == 1
 
 
 def test_verify_keys_workflow_is_manual_read_only_and_explicit():
@@ -449,14 +444,32 @@ def test_verify_keys_workflow_is_manual_read_only_and_explicit():
 
 def test_pipeline_workflows_pass_every_key():
     keys = ("NEWSDATA_API_KEY", "JINA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "COHERE_API_KEY",
-            "LL7_API_KEY", "HUGGINGFACE_API_KEY", "CEREBRAS_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
-            "OLLAMA_API_KEY", "CLOUDFLARE_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "SAMBANOVA_API_KEY",
-            "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY",
+            "LL7_API_KEY", "HUGGINGFACE_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
+            "OLLAMA_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
             "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "ADMIN_ID")
     for wf in ("daily", "weekly", "monthly"):
         text = (ROOT / f".github/workflows/{wf}.yml").read_text()
         for key in keys:
             assert "%s: ${{ secrets.%s }}" % (key, key) in text, (wf, key)
+
+
+# Removed on 2026-11-03 (no free access on these keys). This guard is the only
+# place in the repo that may still name them.
+_REMOVED_PROVIDERS = re.compile(r"cerebras|sambanova|cloudflare|deepseek", re.I)
+
+
+def test_removed_providers_are_gone_everywhere():
+    assert not {"cerebras", "sambanova", "cloudflare", "deepseek"} & set(ai_router._PREFERRED_MODELS)
+    this = Path(__file__).resolve()
+    hits = []
+    for sub in ("pipeline", "agents", "scripts", "tests", "docs", ".github"):
+        for path in (ROOT / sub).rglob("*"):
+            if path.is_file() and path.suffix in {".py", ".yml", ".yaml", ".md"} and path.resolve() != this:
+                if _REMOVED_PROVIDERS.search(path.read_text(encoding="utf-8", errors="ignore")):
+                    hits.append(str(path.relative_to(ROOT)))
+    if _REMOVED_PROVIDERS.search((ROOT / ".env.example").read_text()):
+        hits.append(".env.example")
+    assert not hits, hits
 
 
 # --------------------------------------------------------------------------- #
