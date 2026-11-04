@@ -736,6 +736,21 @@ def check_images(report: QAReport, doc: "fitz.Document") -> None:
                    "No embedded images found — logo/watermark may be missing")
 
 
+def check_photo_count(report: QAReport, items: Optional[List[Dict[str, Any]]]) -> None:
+    """Fewer real news photos than the target (ALP_IMAGE_TARGET, default 10) is
+    logged and recorded as INFO only: a photo shortfall never fails QA, even
+    with PDF_QA_STRICT=1.  Category graphics are not counted as photos."""
+    try:
+        target = int(os.getenv("ALP_IMAGE_TARGET", "10") or 10)
+        real = sum(1 for it in items or [] if isinstance(it, dict) and it.get("image_path")
+                   and not it.get("image_placeholder"))
+        if real < target:
+            logger.warning("Only %d real news photo(s) in the edition (target %d) — not blocking", real, target)
+            report.add("info", "few_photos", f"{real} real news photos (target {target})", count=real)
+    except Exception as exc:  # fail open
+        logger.warning("Photo count check skipped: %s", exc)
+
+
 def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
     """
     Detect text blocks that extend beyond page bounds.
@@ -895,6 +910,7 @@ def main() -> int:
     report = run_qa(pdf, min_mcq_count=min_mcq_count,
                     item_count=len(edition_items), selected_items=edition_items)
     check_story_count(report, len(edition_items), len(selected_items))
+    check_photo_count(report, edition_items)
 
     # Save report
     report_file = ctx.qa_report_path()

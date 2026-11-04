@@ -1271,11 +1271,25 @@ class NewsPhoto(Flowable):
         c.restoreState()
 
 
+def _real_photo_path(it: Dict[str, Any]) -> str:
+    """Like _photo_path, but '' for category graphics (they never headline the cover or the gallery)."""
+    if (it or {}).get("image_placeholder"):
+        return ""
+    return _photo_path(it)
+
+
+_CREDIT_PREFIX_RE = re.compile(r"^(?:photo|image|graphic|credit)\s*:", re.I)
+
+
 def _photo_credit(it: Dict[str, Any]) -> str:
+    """Full credit line printed under a photo, e.g. 'Image: The Hindu', 'Photo: PIB',
+    'Photo: <author> / Wikimedia Commons, CC BY-SA 4.0', 'Graphic: Economy (illustration...)'."""
     src = it.get("source") if isinstance(it.get("source"), dict) else {}
     name = _clean_text_for_display(it.get("image_credit") or src.get("name") or it.get("source_name") or "")
     name = re.sub(r"https?://\S+", "", name).strip(" -|")
-    return name
+    if not name:
+        return ""
+    return name if _CREDIT_PREFIX_RE.match(name) else f"Image: {name}"
 
 
 def _caption_style(align=TA_RIGHT) -> ParagraphStyle:
@@ -1296,7 +1310,7 @@ def _unit_photo_block(it: Dict[str, Any]) -> List[Flowable]:
         credit = _photo_credit(it)
         if credit:
             pad = (PRINT_W - photo.img_w) / 2.0
-            cap = Paragraph(f"<i>Image: {_safe(credit)}</i>", _caption_style(TA_RIGHT))
+            cap = Paragraph(f"<i>{_safe(credit)}</i>", _caption_style(TA_RIGHT))
             cap_t = Table([[cap]], colWidths=[PRINT_W])
             cap_t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), pad), ("RIGHTPADDING", (0, 0), (-1, -1), pad),
                                        ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
@@ -1311,7 +1325,7 @@ def _news_in_pictures_story(units) -> List[Flowable]:
     """'News in Pictures | चित्रों में खबरें': three-column photo cards, each linked to its story unit."""
     if not PDF_PHOTO_GALLERY:
         return []
-    cards_src = [(i, it) for i, (it, _ms) in enumerate(units, 1) if _photo_path(it)]
+    cards_src = [(i, it) for i, (it, _ms) in enumerate(units, 1) if _real_photo_path(it)]
     if len(cards_src) < PDF_GALLERY_MIN:
         return []
     ncol = 3
@@ -1331,7 +1345,7 @@ def _news_in_pictures_story(units) -> List[Flowable]:
         try:
             en = _short(_clean_text_for_display(it.get("headline_en", "")), 88)
             hi = _short(_hi_or_blank(it.get("headline_hi", "")), 80)
-            kids: List[Flowable] = [NewsPhoto(_photo_path(it), inner, 92 * pt, align="center", box_w=inner),
+            kids: List[Flowable] = [NewsPhoto(_real_photo_path(it), inner, 92 * pt, align="center", box_w=inner),
                                     Spacer(inner, 3 * pt),
                                     Paragraph(f"{_safe(str(it.get('category', 'National')).upper())}  •  Q{n}  ›", tag_st),
                                     Paragraph(_safe(en), head_st)]
@@ -1339,7 +1353,7 @@ def _news_in_pictures_story(units) -> List[Flowable]:
                 kids.append(text_flowable(hi, hi_st, width=inner))
             credit = _photo_credit(it)
             if credit:
-                kids.append(Paragraph(f"<i>Image: {_safe(credit)}</i>", cap_st))
+                kids.append(Paragraph(f"<i>{_safe(credit)}</i>", cap_st))
             # The WHOLE card (photo + headlines) is one tap target -> story unit n.
             cards.append([LinkTo(Stack(kids, gap=1.5 * pt), f"u{n}", full_width=True)])
         except Exception:
@@ -1584,7 +1598,7 @@ def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowab
     out.append(Spacer(PRINT_W, 10 * pt))
     # Section chips
     chips: List[Tuple[str, str, str]] = []
-    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _photo_path(it)) >= PDF_GALLERY_MIN:
+    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _real_photo_path(it)) >= PDF_GALLERY_MIN:
         chips.append(("News in Pictures", "चित्रों में खबरें", "pics"))
     if (content.get("agri_corner") or {}).get("items"):
         chips.append(("Agriculture Corner", "कृषि कॉर्नर", "agri"))
@@ -2062,12 +2076,12 @@ class MagazineCover(Flowable):
         # ---- Hero (top story) -----------------------------------------------
         hero_idx = 0
         for i, (it, _ms) in enumerate(units[:4]):
-            if _photo_path(it):
+            if _real_photo_path(it):
                 hero_idx = i
                 break
         hero_it = units[hero_idx][0] if units else {}
         # The photo-less page-cap fallback (no inline photos, no gallery) drops the cover photo too.
-        photo = _photo_path(hero_it) if units and (PDF_INLINE_PHOTOS or PDF_PHOTO_GALLERY) else ""
+        photo = _real_photo_path(hero_it) if units and (PDF_INLINE_PHOTOS or PDF_PHOTO_GALLERY) else ""
         top = H - 106
         hero_key = f"u{hero_idx + 1}" if units else "contents"
         if photo:
@@ -2084,11 +2098,12 @@ class MagazineCover(Flowable):
             credit = _photo_credit(hero_it)
             if credit:
                 c.setFont(FONT_REGULAR, FS_FOOTER); c.setFillColor(COLORS["white"])
-                cw = c.stringWidth(f"Image: {credit}", FONT_REGULAR, FS_FOOTER) + 10
+                credit = _short_text(credit, 46)
+                cw = c.stringWidth(credit, FONT_REGULAR, FS_FOOTER) + 10
                 c.setFillAlpha(0.55); c.setFillColor(HexColor("#000000"))
                 c.roundRect(W - M - cw - 6, top - ph_h + 6, cw, 14, 4, stroke=0, fill=1)
                 c.setFillAlpha(1); c.setFillColor(COLORS["white"])
-                c.drawRightString(W - M - 11, top - ph_h + 10, f"Image: {_short_text(credit, 40)}")
+                c.drawRightString(W - M - 11, top - ph_h + 10, credit)
             band_top = top - ph_h + 10   # navy band overlaps the photo's rounded bottom
         else:
             band_top = top
@@ -2322,7 +2337,7 @@ def _generate_pdf_once(
     # =========================================================================
     units = _pair_units(items, mcqs)
     sections: List[Tuple[str, str]] = [(f"MCQs ({sum(len(ms) for _i, ms in units)})", "mcq" if PDF_SHOW_TOC else "u1")]
-    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _photo_path(it)) >= PDF_GALLERY_MIN:
+    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _real_photo_path(it)) >= PDF_GALLERY_MIN:
         sections.append(("News in Pictures", "pics"))
     if (content.get("agri_corner") or {}).get("items"):
         sections.append(("Agriculture Corner", "agri"))
