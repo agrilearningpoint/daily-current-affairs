@@ -356,6 +356,82 @@
       "name_hi": "निर्मला सीतारमण"
     },
     {
+      "id": "defence_minister",
+      "post": "Union Defence Minister (Raksha Mantri)",
+      "name": "Rajnath Singh",
+      "since": null,
+      "source_url": "https://pib.gov.in/PressReleasePage.aspx?PRID=2331955",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Union Defence Minister",
+        "Defence Minister of India",
+        "Indian Defence Minister",
+        "Union Minister of Defence",
+        "Union Minister for Defence",
+        "Raksha Mantri",
+        "Defence Minister"
+      ],
+      "match_hi": [
+        "केंद्रीय रक्षा मंत्री",
+        "रक्षा मंत्री"
+      ],
+      "aliases": [
+        "Shri Rajnath Singh"
+      ],
+      "name_hi": "राजनाथ सिंह"
+    },
+    {
+      "id": "external_affairs_minister",
+      "post": "Union Minister of External Affairs",
+      "name": "S. Jaishankar",
+      "since": null,
+      "source_url": "https://www.mea.gov.in/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "External Affairs Minister",
+        "Minister of External Affairs",
+        "Union Minister of External Affairs",
+        "Minister for External Affairs",
+        "Indian Foreign Minister",
+        "Foreign Minister of India",
+        "EAM"
+      ],
+      "match_hi": [
+        "केंद्रीय विदेश मंत्री"
+      ],
+      "aliases": [
+        "Dr. S. Jaishankar",
+        "Subrahmanyam Jaishankar",
+        "S Jaishankar",
+        "Jaishankar"
+      ],
+      "name_hi": ""
+    },
+    {
+      "id": "home_minister",
+      "post": "Union Home Minister",
+      "name": "Amit Shah",
+      "since": null,
+      "source_url": "https://www.mha.gov.in/en",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Union Home Minister",
+        "Home Minister of India",
+        "Union Minister of Home Affairs",
+        "Union Minister for Home Affairs",
+        "Indian Home Minister",
+        "Union Home and Cooperation Minister"
+      ],
+      "match_hi": [
+        "केंद्रीय गृह मंत्री"
+      ],
+      "aliases": [
+        "Shri Amit Shah",
+        "Amit Anilchandra Shah"
+      ],
+      "name_hi": ""
+    },
+    {
       "id": "cds",
       "post": "Chief of Defence Staff",
       "name": "N. S. Raja Subramani",

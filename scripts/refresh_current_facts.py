@@ -162,13 +162,52 @@ def refresh(facts_doc: Dict, *, fetch: Callable[[str], Tuple[int, str]] = defaul
     return res
 
 
+CACHE = ROOT / "state" / "ai_facts_cache.json"
+
+
+def promote_cache(facts_doc: Dict, cache_doc: Dict, *, fetch: Callable[[str], Tuple[int, str]] = default_fetch,
+                  today: Optional[str] = None, max_age_days: int = 14) -> List[str]:
+    """Add AI-verified cache entries (state/ai_facts_cache.json, written by stage 17c) as facts.
+
+    Only entries verified within ``max_age_days`` whose post is not tracked yet, and only when
+    the name is still on the official source_url page today. The result goes through the PR."""
+    today = today or dt.date.today().isoformat()
+    added: List[str] = []
+    facts = facts_doc.setdefault("facts", [])
+    tracked = {norm(p) for f in facts for p in [f.get("post", "")] + list(f.get("match") or [])}
+    for key, rec in sorted((cache_doc.get("records") or {}).items()):
+        try:
+            post, name, url = str(rec.get("post") or ""), str(rec.get("name") or ""), str(rec.get("source_url") or "")
+            age = (dt.date.fromisoformat(today) - dt.date.fromisoformat(str(rec.get("verified_on"))[:10])).days
+        except (ValueError, TypeError):
+            continue
+        if not post or not name or not url.startswith("https://") or age > max_age_days or norm(post) in tracked:
+            continue
+        try:
+            status, raw = fetch(url)
+        except Exception:
+            continue
+        if status != 200 or not on_page(name, page_text(raw)):
+            continue
+        fid = "ai_" + re.sub(r"[^a-z0-9]+", "_", post.lower()).strip("_")[:50]
+        facts.append({"id": fid, "post": post, "name": name, "since": rec.get("since"), "source_url": url,
+                      "verified_on": today, "match": [post], "match_hi": [], "aliases": [], "name_hi": "",
+                      "origin": "ai_facts_cache", "second_source": rec.get("second_source", "")})
+        tracked.add(norm(post))
+        added.append(f"{fid}: {post} = {name} ({url})")
+    return added
+
+
 def summary_md(res: Dict[str, List[str]], today: str) -> str:
     lines = [f"## Current facts refresh — {today}", "",
              f"- verified: {len(res['verified'])}", f"- changed: {len(res['changed'])}",
              f"- unreachable: {len(res['unreachable'])}", f"- needs review: {len(res['review'])}", ""]
+    if res.get("promoted"):
+        lines.insert(5, f"- promoted from AI cache: {len(res['promoted'])}")
     for key, title in (("changed", "Changed (LLM answer confirmed verbatim on the official page)"),
+                       ("promoted", "Promoted from the daily AI lookup cache (re-checked on the official page)"),
                        ("review", "Needs human review (left unchanged)"), ("unreachable", "Unreachable (left unchanged)")):
-        if res[key]:
+        if res.get(key):
             lines.append(f"### {title}")
             lines.extend(f"- {x}" for x in res[key])
             lines.append("")
@@ -180,6 +219,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--facts", default=str(FACTS))
     ap.add_argument("--summary", default="")
     ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--promote-cache", action="store_true",
+                    help="also add fresh AI-verified entries from state/ai_facts_cache.json")
     a = ap.parse_args(argv)
     path = Path(a.facts)
     try:
@@ -190,7 +231,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     before = json.dumps(doc, ensure_ascii=False, sort_keys=True)
     today = dt.date.today().isoformat()
     res = refresh(doc, llm=None if a.no_llm else default_llm, today=today)
-    if res["changed"]:
+    if a.promote_cache and CACHE.is_file():
+        try:
+            res["promoted"] = promote_cache(doc, json.loads(CACHE.read_text(encoding="utf-8")), today=today)
+        except Exception as exc:
+            print(f"cache promotion skipped: {exc}", file=sys.stderr)
+    if res["changed"] or res.get("promoted"):
         doc["updated"] = today
     after = json.dumps(doc, ensure_ascii=False, sort_keys=True)
     if after != before:

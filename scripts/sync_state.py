@@ -14,7 +14,7 @@ import time
 
 FILES = ["state/jobs.json", "state/importance_memory.json", "state/published_events.json",
          "state/published_jobs.json", "state/pin_verification.json", "state/source_health.json",
-         "recovery_plan.json"]
+         "state/ai_facts_cache.json", "recovery_plan.json"]
 
 
 def timestamp(entry):
