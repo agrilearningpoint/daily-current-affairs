@@ -10,6 +10,7 @@ TAIL = [
     "12_content_editor",
     "16_mcq_generator",
     "17_mcq_validator",
+    "17c_static_gk_validator",
     "18_pdf_design",
     "19_pdf_qa",
     "22_telegram_publisher",
