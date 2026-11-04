@@ -12,19 +12,20 @@ See also [`production-audit.md`](production-audit.md) and
 | Workflow | Schedule (UTC) | IST | Edition |
 | --- | --- | --- | --- |
 | `daily.yml` | `0 2 * * *` | 07:30 | today (IST) |
-| `weekly.yml` | `30 0 * * 0` (Sun) | 06:00 | last 7 days |
-| `monthly.yml` | `30 0 1 * *` | 06:00 | previous month |
+| `weekly.yml` | `30 2 * * 0` (Sun) | 08:00 | Mon–Sun, from the published daily editions |
+| `monthly.yml` | `30 3 1 * *` | 09:00 | previous month, from the published daily editions |
 | `watchdog.yml` | `*/5 * * * *` | every 5 min | detect stuck/failed, commit plan |
 
-All four share `concurrency.group: current-affairs-pipeline` →
-**daily, weekly, monthly and watchdog never run at the same time**. A run that
-arrives while another is executing waits (it is not cancelled). This is
-deliberate: they all commit to the same git-tracked state files.
+Daily and watchdog share `concurrency.group: current-affairs-pipeline`; weekly
+and monthly have their own groups (`weekly-pipeline`, `monthly-pipeline`) so a
+period edition never delays the daily one. Concurrent state commits are merged
+by `scripts/sync_state.py`.
 
 Pipeline stages (daily): `00 → 01 → 04 → 05 → 06 → 07 → 10 → 11 → 12 → 16 →
-17 → 18 → 19 → 22 → 23 → 24`. Weekly/monthly replace the collection/selection
-front with `20_weekly_editor` / `21_monthly_editor` and then reuse the same
-`12 … 24` tail.
+17 → 18 → 19 → 22 → 23 → 24`. Weekly/monthly run `00 → 20/21 → 17c → 18 → 19 → 22 →
+23 → 24`: stage 20/21 builds the edition from the published daily editions
+(fetched by `scripts/fetch_daily_editions.py`; daily artifacts are kept 30 days,
+monthly falls back to the weekly artifacts' copies).
 
 Orchestrator exit codes (`python main.py`):
 

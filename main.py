@@ -97,16 +97,28 @@ _POST_SELECTION_STAGES: list[tuple[str, str, bool]] = [
     stage for stage in DAILY_STAGES if stage[0] in _TAIL_STAGE_NAMES
 ]
 
+# Weekly/monthly are assembled from the already-published daily editions'
+# content + MCQ JSON (pipeline/period_builder.py, run by the 20/21 stages), so
+# they skip content/MCQ re-generation (12/16/17) and keep only the Static GK
+# check (17c) and the PDF -> QA -> publish -> audit tail.
+_PERIOD_TAIL_STAGE_NAMES = (
+    "17c_static_gk_validator", "18_pdf_design", "19_pdf_qa",
+    "22_telegram_publisher", "23_telegram_pin_verifier", "24_final_health_audit",
+)
+_PERIOD_TAIL_STAGES: list[tuple[str, str, bool]] = [
+    stage for stage in DAILY_STAGES if stage[0] in _PERIOD_TAIL_STAGE_NAMES
+]
+
 WEEKLY_STAGES: list[tuple[str, str, bool]] = [
     DAILY_STAGES[0],
     ("20_weekly_editor", "agents/20_weekly_editor.py", True),
-    *_POST_SELECTION_STAGES,
+    *_PERIOD_TAIL_STAGES,
 ]
 
 MONTHLY_STAGES: list[tuple[str, str, bool]] = [
     DAILY_STAGES[0],
     ("21_monthly_editor", "agents/21_monthly_editor.py", True),
-    *_POST_SELECTION_STAGES,
+    *_PERIOD_TAIL_STAGES,
 ]
 
 STAGES_BY_TYPE = {

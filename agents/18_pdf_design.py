@@ -116,7 +116,9 @@ def run_stage(job_id: str, date_str: str) -> bool:
     output_dir.mkdir(parents=True, exist_ok=True)
     out_pdf = output_dir / f"{job_id}.pdf"
 
-    attach_news_photos(content, job_id, content_file)
+    if not job_id.startswith(("weekly_", "monthly_")):
+        # Weekly/monthly reuse the daily editions' data as-is: no new photo fetch.
+        attach_news_photos(content, job_id, content_file)
 
     has_shaping, diag = get_shaping_diagnostics()
     logger.info("Devanagari shaping diagnostics: %s", diag)

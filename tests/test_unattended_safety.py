@@ -201,6 +201,9 @@ def test_period_scored_output_is_required_for_resume(tmp_path):
     job = "weekly_2026-10-04"
     write_json_atomic(tmp_path / f"data/selected/{job}.json", {"items": [1]})
     write_json_atomic(tmp_path / f"data/scored/{job}.json", {"items": [1]})
+    # The period builder also writes the edition's content + MCQs (from the daily editions).
+    write_json_atomic(tmp_path / f"data/content/{job}.json", {"items": [1]})
+    write_json_atomic(tmp_path / f"data/mcq/{job}.json", [1])
     evidence = capture(tmp_path, job, "20_weekly_editor", {})
     (tmp_path / f"data/scored/{job}.json").unlink()
     names = ["00_model_orchestrator", "20_weekly_editor"]
