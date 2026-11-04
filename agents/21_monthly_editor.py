@@ -480,8 +480,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     from pipeline.agent_context import get_context
-    from pipeline.period_editor import prepare
-    return prepare(get_context())
+    # Weekly/monthly are built from the published daily editions' data
+    # (scripts/fetch_daily_editions.py); nothing is re-generated here.
+    from pipeline.period_builder import build
+    return build(get_context())
 
 
 if __name__ == "__main__":

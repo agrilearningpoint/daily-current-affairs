@@ -30,7 +30,9 @@ CONTENT_REWRITERS = {"16_mcq_generator", "17_mcq_validator", "17b_auto_sections"
 def stage_outputs(stage: str, job_id: str):
     templates = [STAGE_FILES[stage]] if stage in STAGE_FILES else []
     if stage in {"20_weekly_editor", "21_monthly_editor"}:
-        templates.append("data/scored/{job}.json")
+        # The period builder writes the whole edition (content + MCQs) from the
+        # published daily editions; downstream stages only read/reconcile them.
+        templates += ["data/scored/{job}.json", "data/content/{job}.json", "data/mcq/{job}.json"]
     if stage in CONTENT_REWRITERS:
         # These stages reconcile the content artifact (MCQ-driven reserve
         # backfill, photo paths), so its checkpoint hash is refreshed after them.

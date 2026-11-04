@@ -30,12 +30,41 @@ def test_post_selection_stages_are_the_named_tail_in_daily_order():
     assert _names(main._POST_SELECTION_STAGES) == [n for n in daily_order if n in set(TAIL)]
 
 
-def test_weekly_reuses_daily_tail():
-    assert _names(main.WEEKLY_STAGES) == ["00_model_orchestrator", "20_weekly_editor"] + TAIL
+# Weekly/monthly are built from the published daily editions' content + MCQs
+# (pipeline/period_builder.py), so they never re-run content/MCQ generation.
+PERIOD_TAIL = [
+    "17c_static_gk_validator",
+    "18_pdf_design",
+    "19_pdf_qa",
+    "22_telegram_publisher",
+    "23_telegram_pin_verifier",
+    "24_final_health_audit",
+]
 
 
-def test_monthly_reuses_daily_tail():
-    assert _names(main.MONTHLY_STAGES) == ["00_model_orchestrator", "21_monthly_editor"] + TAIL
+def test_weekly_builds_from_daily_editions_then_pdf_tail():
+    assert _names(main.WEEKLY_STAGES) == ["00_model_orchestrator", "20_weekly_editor"] + PERIOD_TAIL
+
+
+def test_monthly_builds_from_daily_editions_then_pdf_tail():
+    assert _names(main.MONTHLY_STAGES) == ["00_model_orchestrator", "21_monthly_editor"] + PERIOD_TAIL
+
+
+def test_period_editions_skip_content_regeneration():
+    for stages in (main.WEEKLY_STAGES, main.MONTHLY_STAGES):
+        names = set(_names(stages))
+        assert not names & {"12_content_editor", "16_mcq_generator", "17_mcq_validator", "17b_auto_sections"}
+    # Period tail keeps DAILY order.
+    daily_order = _names(main.DAILY_STAGES)
+    assert PERIOD_TAIL == [n for n in daily_order if n in set(PERIOD_TAIL)]
+
+
+def test_period_builder_checkpoints_cover_content_and_mcqs():
+    from pipeline.checkpoints import stage_outputs
+    for stage, job in (("20_weekly_editor", "weekly_2026-11-01"), ("21_monthly_editor", "monthly_2026-11-01")):
+        outs = stage_outputs(stage, job)
+        for kind in ("selected", "scored", "content", "mcq"):
+            assert f"data/{kind}/{job}.json" in outs
 
 
 def test_daily_stages_are_unique_and_ordered():

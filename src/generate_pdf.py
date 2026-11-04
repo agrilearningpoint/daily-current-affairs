@@ -68,6 +68,10 @@ PDF_MAX_MCQS = int(os.getenv("PDF_MAX_MCQS", "20"))
 PDF_PAGE_SIZE = os.getenv("PDF_PAGE_SIZE", "A4")
 PDF_TITLE = os.getenv("PDF_TITLE", "AGRI LEARNING POINT")
 CURRENT_COVER_DATE = ""
+# Running-header label; the weekly/monthly layouts (src/period_pdf.py) swap it
+# for their own edition name while they build, daily keeps this text.
+DAILY_HEADER_LABEL = "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS"
+HEADER_LABEL = DAILY_HEADER_LABEL
 
 
 def get_shaping_diagnostics() -> tuple[bool, str]:
@@ -765,7 +769,7 @@ class ExamGeniusCanvas(canvas.Canvas):
         header_y = h - 28 * pt
         self.setFont(FONT_BOLD, FS_TABLE)
         self.setFillColor(HexColor("#103F7B"))
-        self.drawString(left_m, header_y, "AGRI LEARNING POINT  |  DAILY CURRENT AFFAIRS")
+        self.drawString(left_m, header_y, HEADER_LABEL)
 
         self.setFont(FONT_SEMI, FS_FOOTER)
         self.setFillColor(HexColor("#103F7B"))
@@ -2234,6 +2238,10 @@ def generate_pdf(
     (round-robin per category, down to none), then with the gallery only, then
     without photos.  The MCQ units themselves are never cut."""
     global PDF_INLINE_PHOTOS, PDF_PHOTO_GALLERY
+    if str((content.get("job") or {}).get("type") or "").lower() in ("weekly", "monthly"):
+        # Weekly/monthly editions have their own layouts built from the daily editions.
+        from src.period_pdf import generate_period_pdf
+        return generate_period_pdf(content, mcqs, output_path=output_path, date_str=date_str)
     path = _generate_pdf_once(content, mcqs, output_path, date_str, **kwargs)
     try:
         max_pages = int(os.getenv("PDF_QA_MAX_PAGES", "45"))
