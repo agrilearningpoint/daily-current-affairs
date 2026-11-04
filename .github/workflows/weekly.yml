@@ -6,7 +6,7 @@ permissions:
 
 on:
   schedule:
-    - cron: '30 0 * * 0'   # Sunday EXACTLY 06:00 IST — weekly ONLY (daily.yml runs its own daily edition)
+    - cron: '30 2 * * 0'   # Sunday 08:00 IST — weekly ONLY, built from the published daily editions (Mon–Sun)
   workflow_dispatch:
     inputs:
       date:
@@ -18,15 +18,11 @@ on:
         required: false
         type: boolean
         default: false
-      allow_fallback:
-        description: 'Allow dictionary fallback if AI providers are rate-limited or fail?'
-        required: false
-        type: boolean
-        default: true
 
-# Shared with daily/monthly/watchdog — they all commit the same state files.
+# Own group: a weekly run never queues behind (or blocks) the daily edition.
+# Concurrent state commits are merged by scripts/sync_state.py.
 concurrency:
-  group: current-affairs-pipeline
+  group: weekly-pipeline
   cancel-in-progress: false
 
 jobs:
@@ -98,6 +94,15 @@ jobs:
           PY
           python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: weekly started"
 
+      - name: Fetch the published daily editions for this weekly
+        # Downloads each daily run's pipeline-checkpoints artifact (actions: read)
+        # into data/period_sources/; fail-soft — the period builder fails the
+        # weekly edition if too few days are available.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TZ: Asia/Kolkata
+        run: python scripts/fetch_daily_editions.py --type weekly --date "$EDITION_DATE"
+
       - name: Run weekly pipeline
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -135,7 +140,9 @@ jobs:
           ALP_MODEL_AUTO_DISCOVERY: "1"
           ALP_TRANSLATION_WAIT_BUDGET: "300"
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
-          ALP_ALLOW_FALLBACK_TRANSLATION: ${{ github.event.inputs.allow_fallback == 'false' && '0' || '1' }}
+          # Period editions reuse only verified, AI-reviewed daily items: no fallback, no re-polish.
+          ALP_ALLOW_FALLBACK_TRANSLATION: "0"
+          ALP_DISABLE_POLISH: "1"
         run: |
           DATE="$EDITION_DATE"
           echo "DATE=$DATE" >> "$GITHUB_ENV"
