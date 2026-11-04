@@ -781,9 +781,46 @@ def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
+# Weekly / monthly only: a story line printed again and again means the period
+# builder let a filler sentence or a duplicate event through.  Reported, never
+# blocking (severity "info" + a logged warning, so even PDF_QA_STRICT passes).
+REPEAT_MAX = 2
+_REPEAT_LABELS = ("static gk |", "agri learning point", "telegram:", "page ")
+
+
+def check_repeated_lines(report: QAReport, doc: "fitz.Document", min_len: int = 31,
+                         max_repeats: int = REPEAT_MAX) -> List[Tuple[str, int]]:
+    """Lines (> 30 chars) outside the page header/footer that occur more than
+    ``max_repeats`` times in the PDF.  Logs a warning; never fails QA."""
+    counts: Dict[str, int] = {}
+    try:
+        for page in doc:
+            height = float(page.rect.height)
+            for b in page.get_text("blocks"):
+                if len(b) < 5 or b[1] < 50 or b[3] > height - 50:  # running header / footer band
+                    continue
+                for line in str(b[4]).splitlines():
+                    line = " ".join(line.split())
+                    if len(line) < min_len or line.lower().startswith(_REPEAT_LABELS):
+                        continue
+                    counts[line] = counts.get(line, 0) + 1
+    except Exception as exc:  # never let a diagnostic break QA
+        logger.warning("Repeated-line check skipped: %s", exc)
+        return []
+    reps = sorted(((t, n) for t, n in counts.items() if n > max_repeats), key=lambda x: -x[1])
+    if reps:
+        logger.warning("%d line(s) repeat more than %d times in the edition, e.g. %s",
+                       len(reps), max_repeats, "; ".join(f"{t[:70]!r} x{n}" for t, n in reps[:5]))
+        report.add("info", "repeated_lines",
+                   f"{len(reps)} non-header line(s) repeat more than {max_repeats} times",
+                   examples=[{"text": t[:120], "count": n} for t, n in reps[:10]])
+    return reps
+
+
 def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
            item_count: Optional[int] = None,
-           selected_items: Optional[List[Dict[str, Any]]] = None) -> QAReport:
+           selected_items: Optional[List[Dict[str, Any]]] = None,
+           job_type: str = "") -> QAReport:
     report = QAReport(
         pdf_path=str(pdf_path),
         checked_at=datetime.now(timezone.utc).isoformat(),
@@ -813,6 +850,8 @@ def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
         check_mcqs(report, text, min_mcq_count)
         check_urls(report, text)
         check_visual_overflow(report, doc)
+        if job_type in ("weekly", "monthly"):
+            check_repeated_lines(report, doc)
         if selected_items:
             check_story_coverage(report, text, selected_items)
         if item_count is not None:
@@ -908,7 +947,8 @@ def main() -> int:
     logger.info("QA requires at least %d MCQs for %d selected stories",
                 min_mcq_count, len(selected_items))
     report = run_qa(pdf, min_mcq_count=min_mcq_count,
-                    item_count=len(edition_items), selected_items=edition_items)
+                    item_count=len(edition_items), selected_items=edition_items,
+                    job_type=str(getattr(ctx, "job_type", "") or ""))
     check_story_count(report, len(edition_items), len(selected_items))
     check_photo_count(report, edition_items)
 
