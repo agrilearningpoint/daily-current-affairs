@@ -136,9 +136,15 @@ def test_weekly_sections_and_static_gk(weekly):
     sections = [i["section"] for i in r["content"]["items"]]
     assert set(sections) <= set(pb.SECTIONS)
     assert sections == sorted(sections, key=pb.SECTIONS.index)  # grouped in edition order
+    gk_seen = []
     for it in r["content"]["items"]:
         assert 1 <= len(it["summary_pairs"]) <= 3
-        assert 0 < len(it["static_gk_pairs"]) <= 3
+        # Template sentences shared by every story are filler and never printed.
+        assert not any("will run for 3 years" in p["en"] for p in it["summary_pairs"])
+        assert len(it["static_gk_pairs"]) <= 3
+        gk_seen += [p["en"] for p in it["static_gk_pairs"]]
+    # A Static GK fact shared by several stories is printed once in the edition.
+    assert gk_seen and len(gk_seen) == len(set(gk_seen))
 
 
 def test_monthly_counts_and_quick_tables(monthly):

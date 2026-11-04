@@ -212,15 +212,23 @@ def _static_gk_box(pairs: List[Tuple[str, str]]) -> Optional[Flowable]:
     return t
 
 
+_WHOLE_RE = re.compile(r"[.!?।][\"”’')\]]*$")
+
+
 def _summary(it: Dict[str, Any], n: int) -> List[Tuple[str, str]]:
+    """The builder's whole-sentence bullets.  When the builder has decided them
+    (``summary_pairs`` present, possibly empty) the raw daily key points are never
+    used: they are cut at a character limit and would print half sentences."""
     out: List[Tuple[str, str]] = []
-    for p in it.get("summary_pairs") or []:
-        if isinstance(p, dict) and _clean_text_for_display(p.get("en")):
-            out.append((_clean_text_for_display(p.get("en")), _hi_or_blank(p.get("hi"))))
-    if not out:
-        en = [_clean_text_for_display(x) for x in it.get("key_points_en") or []]
-        hi = list(it.get("key_points_hi") or [])
-        out = [(e, _hi_or_blank(hi[i]) if i < len(hi) else "") for i, e in enumerate(en) if e]
+    if "summary_pairs" in it:
+        for p in it.get("summary_pairs") or []:
+            en = _clean_text_for_display(p.get("en")) if isinstance(p, dict) else ""
+            if en and _WHOLE_RE.search(en):
+                out.append((en, _hi_or_blank(p.get("hi"))))
+        return out[:n]
+    en = [_clean_text_for_display(x) for x in it.get("key_points_en") or []]
+    hi = list(it.get("key_points_hi") or [])
+    out = [(e, _hi_or_blank(hi[i]) if i < len(hi) else "") for i, e in enumerate(en) if e]
     return out[:n]
 
 
