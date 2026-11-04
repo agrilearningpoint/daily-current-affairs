@@ -100,6 +100,11 @@ _TITLE_RE = r"(?:(?:Shri|Smt|Sri|Dr|Mr|Ms|Mrs|Prof|Gen|General|Adm|Admiral|Air\s
 _TOK = r"(?:(?:[A-Z]\.\s?){1,4}(?=\s|[A-Z])|[A-Z][a-zA-Z'’\-]+|[A-Z](?=\s))"
 NAME_RE = re.compile(_TITLE_RE + r"(" + _TOK + r"(?:\s*" + _TOK + r"){1,4})")
 _TITLE_STRIP_RE = re.compile(r"^(?:Shri|Smt|Sri|Dr|Mr|Ms|Mrs|Prof|Gen|General|Adm|Admiral|Air Chief Marshal|Justice|Lt\.?\s*Gen)\.?\s+", re.I)
+# Historical lines ("First Chief Justice – H. J. Kania", "Founded by ...", "former Governor") are timeless facts.
+HISTORICAL_RE = re.compile(r"\b(?:first|former|founding|founder|founded|established\s+by|set\s+up\s+by|late|"
+                           r"erstwhile|ex-|previous|predecessor|succeeded|outgoing|retired|was\s+the|served\s+as|"
+                           r"till\s+\d{4}|until\s+\d{4}|from\s+\d{4}\s+to)\b", re.I)
+HISTORICAL_HI_RE = re.compile(r"पहले|प्रथम|पूर्व|संस्थापक")
 APPOINTMENT_RE = re.compile(r"\b(?:appoint(?:ed|s|ment)|takes?\s+(?:over|charge)|took\s+(?:over|charge)|"
                             r"assume[sd]?\s+(?:charge|office)|sworn|new(?:ly)?\s+(?:appointed|named)|named\s+as|"
                             r"succeed(?:s|ed)?|elected)\b", re.I)
@@ -314,6 +319,8 @@ def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
     hi = str(hi or "")
     if is_stale_latest(en, hi, year):
         return Verdict("drop", reason="stale year presented as current/latest")
+    if HISTORICAL_RE.search(en) or (not en and HISTORICAL_HI_RE.search(hi)):
+        return Verdict("keep", en=en, hi=hi, reason="historical fact")
     hits = _post_hits(en, facts)
     if hits:
         mask = [(s, e) for _f, s, e in hits]

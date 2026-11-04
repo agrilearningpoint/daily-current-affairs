@@ -197,3 +197,10 @@ def test_refresh_script_strict_on_page_check():
     assert c["name"] == "Sanjay Malhotra" and c["verified_on"] == "2026-01-01"  # hallucination rejected
     assert d["name"] == "X" and res["unreachable"]
     assert len(res["changed"]) == 1 and res["review"]
+
+
+def test_historical_officeholder_lines_are_timeless(facts):
+    for en in ("First Chief Justice – H. J. Kania", "First RBI Governor – Osborne Smith",
+               "Founded by Verghese Kurien (former NDDB Chairman)"):
+        r = v.check_line(en, "", facts, year=2026)
+        assert r.action == "keep" and r.en == en, en

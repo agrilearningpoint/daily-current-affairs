@@ -301,6 +301,16 @@ def extract_pib_images(html_text: str, base_url: str = "") -> List[str]:
     return out
 
 
+def _is_story_page(url: str) -> bool:
+    """A site home page / section index never vouches for a story photo (its og:image is a brand card)."""
+    try:
+        u = urlparse(url)
+    except ValueError:
+        return False
+    path = (u.path or "/").rstrip("/")
+    return bool(path) or bool(u.query)
+
+
 def _is_pib(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower() if url else ""
     return host.endswith("pib.gov.in")
@@ -424,12 +434,15 @@ def candidate_sources(item: Dict[str, Any], fetch: Callable[..., Tuple[int, str,
                 status, ctype, body = fetch(page, t(), 1_500_000)
                 if status == 200 and body and ("html" in ctype or not ctype):
                     html_text = body.decode("utf-8", "replace")
-                    if _is_pib(page):
+                    # Relevance: only a story page (not a site home page) vouches for its photos;
+                    # PIB photos only from a press-release page (PRID=...).
+                    if _is_pib(page) and re.search(r"[?&]PRID=\d+", page, re.I):
                         for u in extract_pib_images(html_text, page):
                             add(u, "Photo: PIB", "pib")
-                    og = extract_og_image(html_text, page)
-                    if og:
-                        add(og, "Photo: PIB" if _is_pib(page) else name, "og")
+                    if _is_story_page(page):
+                        og = extract_og_image(html_text, page)
+                        if og:
+                            add(og, "Photo: PIB" if _is_pib(page) else name, "og")
             except Exception as exc:
                 logger.info("[images] page fetch failed for %s: %s", page, exc)
         if os.getenv("ALP_IMAGE_COMMONS", "1") != "0":
@@ -580,7 +593,7 @@ def make_category_graphic(category: str, dest: Path) -> Optional[str]:
         from PIL import Image, ImageDraw, ImageFont
         cat = (category or "News").strip() or "News"
         rgb = next((v for k, v in _CATEGORY_RGB.items() if k in cat.lower()), (15, 23, 42))
-        w, h = 1000, 520
+        w, h = 1200, 240   # slim banner: marks the story without costing a page
         img = Image.new("RGB", (w, h), rgb)
         d = ImageDraw.Draw(img)
         light = tuple(min(255, c + 40) for c in rgb)
@@ -590,7 +603,7 @@ def make_category_graphic(category: str, dest: Path) -> Optional[str]:
         fdir = Path(__file__).resolve().parent.parent / "src" / "fonts"
         for name in ("Poppins-Bold.ttf", "Mukta-Bold.ttf"):
             try:
-                font = ImageFont.truetype(str(fdir / name), 84)
+                font = ImageFont.truetype(str(fdir / name), 72)
                 break
             except Exception:
                 continue

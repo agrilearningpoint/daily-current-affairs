@@ -189,3 +189,21 @@ def test_qa_photo_shortfall_is_info_only(monkeypatch):
     qa.check_photo_count(rep, [{"image_path": "a.jpg"}, {"image_path": "g.jpg", "image_placeholder": True}])
     assert [i.code for i in rep.issues] == ["few_photos"] and rep.issues[0].severity == "info"
     assert rep.passed
+
+
+def test_home_pages_never_vouch_for_photos(tmp_path):
+    pages = {"https://www.pib.gov.in/": b'<img src="https://static.pib.gov.in/WriteReadData/userfiles/image/x1.jpg">',
+             "https://www.nobelprize.org/": b'<meta property="og:image" content="https://img.example/brand.jpg">'}
+    calls = []
+
+    def fetch(url, timeout, max_bytes):
+        calls.append(url)
+        if url in pages:
+            return 200, "text/html", pages[url]
+        return 200, "image/jpeg", _photo_bytes(9)
+
+    items = [{"event_id": "h1", "importance_score": 2, "source": {"name": "PIB", "url": "https://www.pib.gov.in/"}},
+             {"event_id": "h2", "importance_score": 1, "source": {"name": "Nobel", "url": "https://www.nobelprize.org/"}}]
+    stats = ni.attach_images(items, "j", tmp_path, fetch=fetch)
+    assert stats["attached"] == 0
+    assert not any("x1.jpg" in c or "brand.jpg" in c for c in calls)
