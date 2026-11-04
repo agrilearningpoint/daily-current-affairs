@@ -141,11 +141,17 @@ The authoritative list is `DAILY_STAGES` in `main.py`; this table mirrors it.
 | 23 | `23_telegram_pin_verifier` | ✅ | Pin + verify receipt |
 | 24 | `24_final_health_audit` | ✅ | Final health audit |
 
-### Weekly (10 stages)
-`00_model_orchestrator` → `20_weekly_editor` → `12` → `16` → `17` → `18` → `19` → `22` → `23` → `24`
+### Weekly (8 stages)
+`00_model_orchestrator` → `20_weekly_editor` (period builder) → `17c` → `18` → `19` → `22` → `23` → `24`
 
-### Monthly (10 stages)
-`00_model_orchestrator` → `21_monthly_editor` → `12` → `16` → `17` → `18` → `19` → `22` → `23` → `24`
+### Monthly (8 stages)
+`00_model_orchestrator` → `21_monthly_editor` (period builder) → `17c` → `18` → `19` → `22` → `23` → `24`
+
+Weekly/monthly are built from the **already-published daily editions**:
+`scripts/fetch_daily_editions.py` downloads each daily run's `pipeline-checkpoints`
+artifact into `data/period_sources/`, and `pipeline/period_builder.py` keeps the
+verified items, dedupes, ranks and writes the edition's content + MCQs
+(layouts in `src/period_pdf.py`). Nothing is re-generated or re-translated.
 
 The weekly/monthly tail is selected **by stage name** (`_TAIL_STAGE_NAMES` in
 `main.py`), so re-ordering or inserting a daily stage can never silently change

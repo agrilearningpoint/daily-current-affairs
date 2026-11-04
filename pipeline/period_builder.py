@@ -158,11 +158,14 @@ def looks_like_news(headline: str) -> bool:
     return len(h) > 0 and letters / len(h) >= 0.6
 
 
-def is_publishable(item: Any) -> bool:
-    """Mirror of the publisher gate with ALP_ALLOW_FALLBACK_TRANSLATION=0, plus real text."""
+def is_publishable(item: Any, require_verified: bool = True) -> bool:
+    """Mirror of the publisher gate with ALP_ALLOW_FALLBACK_TRANSLATION=0, plus real text.
+
+    ``require_verified=False`` only for DRY_RUN, where the publisher skips the
+    same gate (offline fixtures have no live verification)."""
     if not isinstance(item, dict):
         return False
-    if item.get("needs_review") is not False or item.get("verification_passed") is not True:
+    if require_verified and (item.get("needs_review") is not False or item.get("verification_passed") is not True):
         return False
     head = clean_headline(item.get("headline_en"))
     if not head or _UNTITLED_RE.search(head) or len(head.split()) < 3:
@@ -230,10 +233,11 @@ def collect_verified(editions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
     stats = {"days": len(editions), "items_seen": 0, "unverified_dropped": 0, "non_news_dropped": 0,
              "duplicates_dropped": 0}
     pool: List[Dict[str, Any]] = []
+    strict = os.getenv("DRY_RUN", "0") != "1"
     for ed in editions:
         for raw in ed["content"].get("items") or []:
             stats["items_seen"] += 1
-            if not is_publishable(raw):
+            if not is_publishable(raw, require_verified=strict):
                 stats["unverified_dropped"] += 1
                 continue
             if not looks_like_news(raw.get("headline_en")):

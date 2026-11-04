@@ -38,14 +38,23 @@ MONTH = dates_from("2026-10-01", 31)        # October  -> monthly_2026-11-01
 
 @pytest.fixture(scope="module")
 def weekly():
-    eds = build_daily_editions(WEEK, 3)
-    return eds, pb.build_period("weekly", "2026-11-01", eds, WEEK)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.delenv("DRY_RUN", raising=False)
+        eds = build_daily_editions(WEEK, 3)
+        return eds, pb.build_period("weekly", "2026-11-01", eds, WEEK)
 
 
 @pytest.fixture(scope="module")
 def monthly():
-    eds = build_daily_editions(MONTH[:30], 3)
-    return eds, pb.build_period("monthly", "2026-11-01", eds, MONTH)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.delenv("DRY_RUN", raising=False)
+        eds = build_daily_editions(MONTH[:30], 3)
+        return eds, pb.build_period("monthly", "2026-11-01", eds, MONTH)
+
+
+@pytest.fixture(autouse=True)
+def _live_mode(monkeypatch):
+    monkeypatch.delenv("DRY_RUN", raising=False)
 
 
 # --------------------------------------------------------------------------- #
@@ -82,6 +91,18 @@ def test_untitled_and_empty_headlines_are_dropped():
                 {"headline_en": "Untitled story about farmers today"}, {"headline_hi": "Untitled"},
                 {"needs_review": None}, {"verification_passed": False}, {"headline_hi": "No Hindi here at all"}):
         assert not pb.is_publishable({**good, **bad}), bad
+
+
+def test_verification_gate_is_relaxed_only_in_dry_run(monkeypatch):
+    eds = build_daily_editions(WEEK[:3], 1)
+    live = pb.build_period("weekly", "2026-11-01", eds, WEEK)
+    monkeypatch.setenv("DRY_RUN", "1")
+    dry = pb.build_period("weekly", "2026-11-01", eds, WEEK)
+    assert all(i["needs_review"] is False for i in live["scored"]["items"])
+    assert any(i["needs_review"] is True for i in dry["scored"]["items"])
+    # English-only "Hindi" and Untitled headlines are dropped even in dry-run.
+    assert not any("Fallback translation" in i["headline_en"] or i["headline_en"] == "Untitled"
+                   for i in dry["scored"]["items"])
 
 
 def test_dedupe_by_event_id_and_title_similarity():

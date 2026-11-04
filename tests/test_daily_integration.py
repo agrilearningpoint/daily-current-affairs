@@ -217,10 +217,21 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
     assert "already complete with intact checkpoints" in rerun.stdout
     assert (root / "state/jobs.json").read_bytes() == before
 
-    # Both period editions use the verified shared database with ALL network unavailable.
-    for kind, edition in [("weekly", "2026-10-04"), ("monthly", "2026-10-14")]:
+    # Both period editions are built from the published daily editions' data with ALL
+    # network unavailable.  data/period_sources/ stands in for what
+    # scripts/fetch_daily_editions.py downloads: copies of this daily for more days.
+    daily_content = json.loads((root / f"data/content/{job_id}.json").read_text())
+    daily_mcqs = json.loads((root / f"data/mcq/{job_id}.json").read_text())
+    sources = root / "data/period_sources"
+    sources.mkdir(parents=True, exist_ok=True)
+    for day in range(6, 15):
+        d = f"2026-10-{day:02d}"
+        (sources / f"daily_{d}.json").write_text(json.dumps(
+            {"date": d, "job_id": f"daily_{d}", "content": daily_content, "mcqs": daily_mcqs}))
+    period_env = dict(env, PDF_QA_MIN_PAGES="2")  # one day's stories repeated: a short edition
+    for kind, edition in [("weekly", "2026-10-11"), ("monthly", "2026-11-01")]:
         run = subprocess.run([sys.executable, str(root / "main.py"), "--type", kind, "--date", edition],
-                             cwd=root, env=env, capture_output=True, text=True, timeout=180)
+                             cwd=root, env=period_env, capture_output=True, text=True, timeout=180)
         assert run.returncode == 0, run.stdout + run.stderr
         period_id = f"{kind}_{edition}"
         state = json.loads((root / "state/jobs.json").read_text())
@@ -230,7 +241,7 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
         assert health["passed"] and health["dry_run"]
         verification = subprocess.run([sys.executable, str(ROOT / "scripts/verify_e2e.py"), "--root", str(root),
                                        "--job-type", kind, "--date", edition],
-                                      env=env, capture_output=True, text=True, timeout=30)
+                                      env=period_env, capture_output=True, text=True, timeout=30)
         assert verification.returncode == 0, verification.stdout + verification.stderr
     assert not (root / "state/published_events.json").exists()
 
