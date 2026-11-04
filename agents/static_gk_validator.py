@@ -178,6 +178,8 @@ class Verdict:
     reason: str = ""
     fact_id: str = ""
     wrong: str = ""             # the wrong name that was replaced
+    new_name: str = ""          # verified name put in (AI lookup; facts use fact.name)
+    source: str = ""            # official source of an AI-verified name
 
 
 @dataclass
@@ -187,10 +189,13 @@ class Report:
     replaced: int = 0
     dropped: int = 0
     errors: int = 0
+    ai_verified: int = 0
     details: List[Dict[str, str]] = field(default_factory=list)
 
     def add(self, v: Verdict, en: str) -> None:
         self.checked += 1
+        if v.new_name:
+            self.ai_verified += 1
         if v.action == "keep":
             self.kept += 1
             return
@@ -203,8 +208,12 @@ class Report:
                                  "new": v.en[:160] if v.action == "replace" else ""})
 
     def as_dict(self) -> Dict[str, Any]:
-        return {"checked": self.checked, "kept": self.kept, "replaced": self.replaced,
-                "dropped": self.dropped, "errors": self.errors, "details": self.details}
+        out = {"checked": self.checked, "kept": self.kept, "replaced": self.replaced,
+               "dropped": self.dropped, "errors": self.errors, "details": self.details}
+        if _ACTIVE_LOOKUP is not None:
+            out["ai_lookup"] = dict(getattr(_ACTIVE_LOOKUP, "stats", {}) or {})
+            out["ai_lookup"]["verified_lines"] = self.ai_verified
+        return out
 
 
 def current_year() -> int:
@@ -313,7 +322,7 @@ def _story_has(text: str, story_text: str) -> bool:
 
 
 def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
-               year: Optional[int] = None) -> Verdict:
+               year: Optional[int] = None, lookup: Any = None) -> Verdict:
     """Decide keep / replace / drop for one bilingual Static GK line. May raise (callers fail open)."""
     en = str(en or "")
     hi = str(hi or "")
@@ -355,11 +364,52 @@ def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
     if is_officeholder_line(en, hi):
         cands = name_candidates(en)
         all_names = [n for f in facts for n in f.valid_names()]
-        for c, _s, _e in cands:
-            if _contains_name(c, all_names) or _story_has(c, story_text):
-                continue
-            return Verdict("drop", reason="officeholder name not verifiable", wrong=c)
+        unver = [c for c in cands if not (_contains_name(c[0], all_names) or _story_has(c[0], story_text))]
+        if unver:
+            v = _ai_verdict(en, hi, unver, lookup if lookup is not None else _ACTIVE_LOOKUP, story_text)
+            if v is not None:
+                return v
+            return Verdict("drop", reason="officeholder name not verifiable", wrong=unver[0][0])
     return Verdict("keep", en=en, hi=hi)
+
+
+# Set by validate_edition for the run (None = no AI lookup, today's behaviour).
+_ACTIVE_LOOKUP: Any = None
+
+
+def _ai_verdict(en: str, hi: str, unverified: Sequence[Tuple[str, int, int]], lookup: Any,
+                story_text: str) -> Optional[Verdict]:
+    """Verify an untracked post's holder through the AI lookup. None -> caller drops the line.
+
+    Exactly one unverified person name may remain once name-like words inside the post
+    phrase ("Chief Minister of Uttar Pradesh") are set aside; anything else is dropped."""
+    if lookup is None:
+        return None
+    from agents.static_gk_ai_lookup import extract_post, post_spans
+    spans = post_spans(en)
+    persons = [c for c in unverified if not any(s <= c[1] and c[2] <= e for s, e in spans)]
+    if len(persons) != 1:
+        return None
+    cand = persons[0][0]
+    post = extract_post(en, cand)
+    if not post:
+        return None
+    res = lookup(post)
+    if not res or not getattr(res, "name", ""):
+        return None
+    name = res.name
+    if _contains_name(cand, [name]) or _contains_name(name, [cand]):
+        return Verdict("keep", en=en, hi=hi, reason=f"AI-verified holder of {post}", new_name=name,
+                       source=res.source_url)
+    if story_text and _story_has(cand, story_text) and APPOINTMENT_RE.search(story_text):
+        return None  # the story reports a newer appointment; never overwrite it
+    if cand not in en:
+        return None
+    new_en = en.replace(cand, name)
+    # Hindi: the same (Latin) name is replaced; a Devanagari name cannot be verified -> blank (EN-only).
+    new_hi = hi.replace(cand, name) if cand and cand in hi else ""
+    return Verdict("replace", en=new_en, hi=new_hi, reason=f"AI-verified holder of {post}",
+                   fact_id=f"ai:{post}", wrong=cand, new_name=name, source=res.source_url)
 
 
 def check_row(row: Dict[str, Any], facts: Sequence[Fact], *, story_text: str = "",
@@ -374,12 +424,19 @@ def check_row(row: Dict[str, Any], facts: Sequence[Fact], *, story_text: str = "
         return v.action, dict(row), v
     new = dict(row)
     fact = next((f for f in facts if f.id == v.fact_id), None)
-    if v.wrong and v.wrong in ve:
-        new["value_en"] = ve.replace(v.wrong, fact.name if fact else v.en)
-    elif v.wrong and v.wrong in le:
-        new["label_en"] = le.replace(v.wrong, fact.name if fact else v.en)
+    good = v.new_name or (fact.name if fact else "")
+    if v.wrong and good and v.wrong in ve:
+        new["value_en"] = ve.replace(v.wrong, good)
+    elif v.wrong and good and v.wrong in le:
+        new["label_en"] = le.replace(v.wrong, good)
     else:
         new["value_en"] = v.en
+    if v.new_name and not fact:  # AI-verified: same name replaced in Hindi if written in Latin, else EN-only
+        if v.wrong and v.wrong in vh:
+            new["value_hi"] = vh.replace(v.wrong, v.new_name)
+        else:
+            new["value_hi"] = ""
+        return "replace", new, v
     # Hindi: a value that was just the (wrong) name becomes the verified Hindi name; otherwise
     # keep it only if it already carries the verified Hindi name, else blank it (EN-only line).
     if fact and fact.name_hi and fact.name_hi in vh:
@@ -513,9 +570,32 @@ def _mcq_list(mcq_data: Any) -> List[Dict[str, Any]]:
     return []
 
 
+def make_lookup() -> Any:
+    """The run's AI lookup (agents/static_gk_ai_lookup.py) or None. Never raises."""
+    try:
+        from agents.static_gk_ai_lookup import Lookup
+        return Lookup()
+    except Exception as exc:
+        logger.info("[static-gk] AI lookup unavailable: %s", exc)
+        return None
+
+
 def validate_edition(content: Dict[str, Any], mcq_data: Any = None,
-                     facts: Optional[Sequence[Fact]] = None) -> Dict[str, Any]:
-    """Validate every Static GK line of an edition in place. Never raises; returns a report dict."""
+                     facts: Optional[Sequence[Fact]] = None, lookup: Any = "auto") -> Dict[str, Any]:
+    """Validate every Static GK line of an edition in place. Never raises; returns a report dict.
+
+    ``lookup``: "auto" builds the AI lookup for untracked posts (a no-op without
+    SERPER_API_KEY / an LLM provider / network, and under pytest); None disables it."""
+    global _ACTIVE_LOOKUP
+    _ACTIVE_LOOKUP = make_lookup() if lookup == "auto" else lookup
+    try:
+        return _validate_edition(content, mcq_data, facts)
+    finally:
+        _ACTIVE_LOOKUP = None
+
+
+def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,
+                      facts: Optional[Sequence[Fact]] = None) -> Dict[str, Any]:
     report = Report()
     year = current_year()
     try:
