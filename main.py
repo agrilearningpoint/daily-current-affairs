@@ -76,6 +76,8 @@ DAILY_STAGES: list[tuple[str, str, bool]] = [
     ("17_mcq_validator",              "agents/17_mcq_validator.py",               True),
     # Quick Bites + Agriculture Corner: optional, fail-soft, daily-only (non-critical).
     ("17b_auto_sections",             "agents/17b_auto_sections.py",              False),
+    # Strict Static GK check (officeholders vs config/current_facts.json): fail-open, non-critical.
+    ("17c_static_gk_validator",       "agents/17c_static_gk_validator.py",        False),
     ("18_pdf_design",                 "agents/18_pdf_design.py",                  True),
     ("19_pdf_qa",                     "agents/19_pdf_qa.py",                      True),
     ("22_telegram_publisher",         "agents/22_telegram_publisher.py",          True),
@@ -87,7 +89,7 @@ DAILY_STAGES: list[tuple[str, str, bool]] = [
 # NAME (order preserved from DAILY_STAGES) so re-ordering or inserting a daily
 # stage can never silently change which stages weekly/monthly run.
 _TAIL_STAGE_NAMES = (
-    "12_content_editor", "16_mcq_generator", "17_mcq_validator", "18_pdf_design",
+    "12_content_editor", "16_mcq_generator", "17_mcq_validator", "17c_static_gk_validator", "18_pdf_design",
     "19_pdf_qa", "22_telegram_publisher", "23_telegram_pin_verifier",
     "24_final_health_audit",
 )

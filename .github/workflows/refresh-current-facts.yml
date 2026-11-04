@@ -1,0 +1,79 @@
+name: Refresh Current Facts
+
+# Weekly re-verification of config/current_facts.json (verified officeholders used
+# by the strict Static GK validator, stage 17c). Never touches main directly:
+# changes go to the rolling branch bot/refresh-current-facts and a pull request.
+# Independent of the daily pipeline: own concurrency group, no state/ writes,
+# no Telegram, no dispatch of other workflows.
+
+on:
+  schedule:
+    - cron: "30 2 * * 1"   # Mondays 02:30 UTC (08:00 IST)
+  workflow_dispatch:
+
+concurrency:
+  group: refresh-current-facts
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: "3.11"
+  BRANCH: bot/refresh-current-facts
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Re-verify facts against official sources
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'auto' }}
+        run: python scripts/refresh_current_facts.py --summary "$RUNNER_TEMP/facts_summary.md"
+
+      - name: Open or update pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- config/current_facts.json; then
+            echo "No changes to config/current_facts.json"; exit 0
+          fi
+          python -m json.tool config/current_facts.json > /dev/null
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add config/current_facts.json
+          git commit -m "facts: weekly re-verification of current officeholders"
+          git push --force origin "$BRANCH"
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/facts_summary.md" || true
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "facts: weekly re-verification of current officeholders" \
+              --body-file "$RUNNER_TEMP/facts_summary.md" \
+              || echo "::warning::Could not open a PR (enable 'Allow GitHub Actions to create pull requests'); branch $BRANCH was pushed."
+          fi

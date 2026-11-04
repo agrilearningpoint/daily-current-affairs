@@ -1,0 +1,738 @@
+{
+  "_doc": "Verified current officeholders for Static GK. Every name was checked against source_url on verified_on. 'match'/'match_hi' are the post phrases the validator (agents/static_gk_validator.py) looks for; 'names' lists all valid holders for multi-holder posts. Refreshed weekly by scripts/refresh_current_facts.py (opens a PR). Never add a value that was not verified.",
+  "updated": "2026-11-04",
+  "facts": [
+    {
+      "id": "president_india",
+      "post": "President of India",
+      "name": "Droupadi Murmu",
+      "since": "2022-07-25",
+      "source_url": "https://presidentofindia.nic.in/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "President of India",
+        "Indian President"
+      ],
+      "match_hi": [
+        "भारत के राष्ट्रपति",
+        "भारत की राष्ट्रपति"
+      ],
+      "aliases": [
+        "Smt. Droupadi Murmu",
+        "Draupadi Murmu"
+      ],
+      "name_hi": "द्रौपदी मुर्मू"
+    },
+    {
+      "id": "vice_president_india",
+      "post": "Vice-President of India",
+      "name": "C. P. Radhakrishnan",
+      "since": "2025-09-12",
+      "source_url": "https://vicepresidentofindia.nic.in/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Vice-President of India",
+        "Vice President of India",
+        "Chairman of the Rajya Sabha",
+        "Rajya Sabha Chairman"
+      ],
+      "match_hi": [
+        "उपराष्ट्रपति",
+        "राज्यसभा के सभापति"
+      ],
+      "aliases": [
+        "C.P. Radhakrishnan",
+        "CP Radhakrishnan",
+        "Radhakrishnan"
+      ],
+      "name_hi": "सी. पी. राधाकृष्णन"
+    },
+    {
+      "id": "prime_minister_india",
+      "post": "Prime Minister of India",
+      "name": "Narendra Modi",
+      "since": "2014-05-26",
+      "source_url": "https://www.pmindia.gov.in/en/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Prime Minister of India",
+        "Indian Prime Minister",
+        "PM of India"
+      ],
+      "match_hi": [
+        "भारत के प्रधानमंत्री",
+        "भारत के प्रधान मंत्री"
+      ],
+      "aliases": [
+        "Narendra Damodardas Modi",
+        "Modi"
+      ],
+      "name_hi": "नरेंद्र मोदी"
+    },
+    {
+      "id": "cji",
+      "post": "Chief Justice of India",
+      "name": "Surya Kant",
+      "since": "2025-11-24",
+      "source_url": "https://www.sci.gov.in/chief-justice-judges/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Chief Justice of India",
+        "CJI",
+        "Chief Justice of the Supreme Court"
+      ],
+      "match_hi": [
+        "भारत के मुख्य न्यायाधीश",
+        "मुख्य न्यायाधीश",
+        "सीजेआई"
+      ],
+      "aliases": [
+        "Justice Surya Kant"
+      ],
+      "name_hi": "सूर्यकांत"
+    },
+    {
+      "id": "cec",
+      "post": "Chief Election Commissioner of India",
+      "name": "Gyanesh Kumar",
+      "since": "2025-02-19",
+      "source_url": "https://www.eci.gov.in/honble-commission",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Chief Election Commissioner",
+        "CEC of India"
+      ],
+      "match_hi": [
+        "मुख्य चुनाव आयुक्त",
+        "मुख्य निर्वाचन आयुक्त"
+      ],
+      "aliases": [],
+      "name_hi": "ज्ञानेश कुमार"
+    },
+    {
+      "id": "rbi_governor",
+      "post": "Governor, Reserve Bank of India",
+      "name": "Sanjay Malhotra",
+      "since": "2024-12-11",
+      "source_url": "https://www.rbi.org.in/scripts/AboutUsDisplay.aspx?pg=Governors.htm",
+      "verified_on": "2026-11-04",
+      "match": [
+        "RBI Governor",
+        "Governor of RBI",
+        "Governor of the RBI",
+        "Governor of the Reserve Bank of India",
+        "Reserve Bank of India Governor",
+        "Governor, RBI",
+        "Governor, Reserve Bank of India",
+        "RBI's Governor"
+      ],
+      "match_hi": [
+        "आरबीआई गवर्नर",
+        "आरबीआई के गवर्नर",
+        "भारतीय रिज़र्व बैंक के गवर्नर",
+        "भारतीय रिजर्व बैंक के गवर्नर",
+        "रिज़र्व बैंक के गवर्नर",
+        "रिजर्व बैंक के गवर्नर"
+      ],
+      "aliases": [],
+      "name_hi": "संजय मल्होत्रा"
+    },
+    {
+      "id": "rbi_deputy_governors",
+      "post": "Deputy Governor, Reserve Bank of India",
+      "name": "Poonam Gupta",
+      "since": "2025-05-02",
+      "source_url": "https://www.rbi.org.in/scripts/AboutUsDisplay.aspx?pg=deputygovernors.htm",
+      "verified_on": "2026-11-04",
+      "match": [
+        "RBI Deputy Governor",
+        "Deputy Governor of RBI",
+        "Deputy Governor of the RBI",
+        "Deputy Governor of the Reserve Bank of India",
+        "Reserve Bank of India Deputy Governor",
+        "Deputy Governor, RBI"
+      ],
+      "match_hi": [
+        "आरबीआई के डिप्टी गवर्नर",
+        "आरबीआई डिप्टी गवर्नर",
+        "उप गवर्नर"
+      ],
+      "aliases": [
+        "Swaminathan Janakiraman"
+      ],
+      "name_hi": "",
+      "names": [
+        "Poonam Gupta",
+        "Swaminathan J",
+        "Shirish Chandra Murmu",
+        "Rohit Jain"
+      ],
+      "note": "Four serving Deputy Governors per RBI page: Rohit Jain (04.05.2026), Shirish Chandra Murmu (09.10.2025), Poonam Gupta (02.05.2025), Swaminathan J (26.06.2023, extended 26.06.2026)."
+    },
+    {
+      "id": "sebi_chair",
+      "post": "Chairman, SEBI",
+      "name": "Tuhin Kanta Pandey",
+      "since": "2025-03-01",
+      "source_url": "https://www.sebi.gov.in/orgchart-grid.html",
+      "verified_on": "2026-11-04",
+      "match": [
+        "SEBI Chairman",
+        "SEBI Chairperson",
+        "SEBI Chair",
+        "SEBI chief",
+        "Chairman of SEBI",
+        "Chairperson of SEBI",
+        "Chairman, SEBI",
+        "Chairman of the Securities and Exchange Board of India"
+      ],
+      "match_hi": [
+        "सेबी अध्यक्ष",
+        "सेबी के अध्यक्ष",
+        "सेबी प्रमुख"
+      ],
+      "aliases": [
+        "Tuhin Kanta Pandey"
+      ],
+      "name_hi": "तुहिन कांत पांडेय"
+    },
+    {
+      "id": "niti_ceo",
+      "post": "CEO, NITI Aayog",
+      "name": "Anurag Jain",
+      "since": "2026-08-17",
+      "source_url": "https://www.niti.gov.in/about-us/whos-who/leadership/ceo-niti-aayog",
+      "verified_on": "2026-11-04",
+      "match": [
+        "NITI Aayog CEO",
+        "CEO of NITI Aayog",
+        "CEO, NITI Aayog",
+        "Chief Executive Officer of NITI Aayog",
+        "NITI Aayog Chief Executive Officer"
+      ],
+      "match_hi": [
+        "नीति आयोग के सीईओ",
+        "नीति आयोग के मुख्य कार्यकारी अधिकारी"
+      ],
+      "aliases": [],
+      "name_hi": "अनुराग जैन"
+    },
+    {
+      "id": "icar_dg",
+      "post": "Director General, ICAR & Secretary, DARE",
+      "name": "Mangi Lal Jat",
+      "since": null,
+      "source_url": "https://icar.org.in/en",
+      "verified_on": "2026-11-04",
+      "match": [
+        "ICAR Director General",
+        "ICAR DG",
+        "DG, ICAR",
+        "DG of ICAR",
+        "Director General of ICAR",
+        "Director General, ICAR",
+        "Director-General of ICAR",
+        "Director General of the Indian Council of Agricultural Research",
+        "Secretary, DARE",
+        "Secretary (DARE)",
+        "DARE Secretary"
+      ],
+      "match_hi": [
+        "आईसीएआर के महानिदेशक",
+        "आईसीएआर महानिदेशक",
+        "भाकृअनुप के महानिदेशक",
+        "महानिदेशक (आईसीएआर)",
+        "महानिदेशक(आईसीएआर)"
+      ],
+      "aliases": [
+        "M. L. Jat",
+        "M.L. Jat",
+        "ML Jat",
+        "Dr. Mangi Lal Jat",
+        "Mangi Lal Jat"
+      ],
+      "name_hi": "मांगी लाल जाट"
+    },
+    {
+      "id": "apeda_chair",
+      "post": "Chairman, APEDA",
+      "name": "Abhishek Dev",
+      "since": null,
+      "source_url": "https://apeda.gov.in/whos-who",
+      "verified_on": "2026-11-04",
+      "match": [
+        "APEDA Chairman",
+        "APEDA Chairperson",
+        "APEDA Chair",
+        "Chairman of APEDA",
+        "Chairperson of APEDA",
+        "Chairman, APEDA",
+        "APEDA chief"
+      ],
+      "match_hi": [
+        "एपीडा के अध्यक्ष",
+        "एपीडा अध्यक्ष"
+      ],
+      "aliases": [],
+      "name_hi": "अभिषेक देव"
+    },
+    {
+      "id": "nabard_chair",
+      "post": "Chairman, NABARD",
+      "name": "Shaji Krishnan V",
+      "since": "2022-12",
+      "source_url": "https://www.nabard.org/pdf/2026/A3.%20BOARD%20OF%20DIRECTORS%20AS%20ON%2031%20MARCH%202026%20(NAR%202026),%20Web%20V%20A.5c,%2024.08.2026.pdf",
+      "verified_on": "2026-11-04",
+      "match": [
+        "NABARD Chairman",
+        "NABARD Chairperson",
+        "NABARD Chair",
+        "Chairman of NABARD",
+        "Chairman, NABARD",
+        "NABARD chief"
+      ],
+      "match_hi": [
+        "नाबार्ड के अध्यक्ष",
+        "नाबार्ड अध्यक्ष"
+      ],
+      "aliases": [
+        "Shaji K V",
+        "Shaji K.V.",
+        "Shaji KV",
+        "Shaji Krishnan",
+        "Dr Shaji Krishnan V"
+      ],
+      "name_hi": "शाजी कृष्णन वी"
+    },
+    {
+      "id": "agri_minister",
+      "post": "Union Minister of Agriculture & Farmers Welfare",
+      "name": "Shivraj Singh Chouhan",
+      "since": "2024-06-10",
+      "source_url": "https://icar.org.in/en",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Union Agriculture Minister",
+        "Union Minister of Agriculture",
+        "Agriculture Minister of India",
+        "Union Minister for Agriculture",
+        "Minister of Agriculture and Farmers Welfare",
+        "Minister of Agriculture & Farmers Welfare",
+        "Minister for Agriculture and Farmers Welfare",
+        "Union Minister for Agriculture & Farmers’ Welfare",
+        "Union Agriculture and Farmers Welfare Minister"
+      ],
+      "match_hi": [
+        "केंद्रीय कृषि मंत्री",
+        "केंद्रीय कृषि एवं किसान कल्याण मंत्री",
+        "कृषि एवं किसान कल्याण मंत्री"
+      ],
+      "aliases": [
+        "Shivraj Singh Chauhan",
+        "Shivraj Chouhan"
+      ],
+      "name_hi": "शिवराज सिंह चौहान"
+    },
+    {
+      "id": "finance_minister",
+      "post": "Union Finance Minister",
+      "name": "Nirmala Sitharaman",
+      "since": "2019-05-31",
+      "source_url": "https://dea.gov.in/our-teams",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Union Finance Minister",
+        "Finance Minister of India",
+        "Union Minister of Finance",
+        "Union Minister for Finance",
+        "Indian Finance Minister"
+      ],
+      "match_hi": [
+        "केंद्रीय वित्त मंत्री"
+      ],
+      "aliases": [
+        "Smt. Nirmala Sitharaman"
+      ],
+      "name_hi": "निर्मला सीतारमण"
+    },
+    {
+      "id": "cds",
+      "post": "Chief of Defence Staff",
+      "name": "N. S. Raja Subramani",
+      "since": "2026-05-31",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2267339",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Chief of Defence Staff",
+        "CDS of India"
+      ],
+      "match_hi": [
+        "चीफ ऑफ डिफेंस स्टाफ",
+        "सीडीएस",
+        "प्रमुख रक्षा अध्यक्ष"
+      ],
+      "aliases": [
+        "NS Raja Subramani",
+        "N.S. Raja Subramani",
+        "Raja Subramani",
+        "General N S Raja Subramani"
+      ],
+      "name_hi": "एन. एस. राजा सुब्रमणि"
+    },
+    {
+      "id": "army_chief",
+      "post": "Chief of the Army Staff",
+      "name": "Dhiraj Seth",
+      "since": "2026-06-30",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2279326",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Chief of the Army Staff",
+        "Chief of Army Staff",
+        "Army Chief",
+        "COAS"
+      ],
+      "match_hi": [
+        "थल सेना प्रमुख",
+        "सेना प्रमुख",
+        "थलसेना प्रमुख"
+      ],
+      "aliases": [
+        "General Dhiraj Seth"
+      ],
+      "name_hi": "धीरज सेठ"
+    },
+    {
+      "id": "navy_chief",
+      "post": "Chief of the Naval Staff",
+      "name": "Krishna Swaminathan",
+      "since": "2026-05-31",
+      "source_url": "https://indiannavy.gov.in/content/chief-naval-staff-cns",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Chief of the Naval Staff",
+        "Chief of Naval Staff",
+        "Navy Chief",
+        "Naval Chief"
+      ],
+      "match_hi": [
+        "नौसेना प्रमुख"
+      ],
+      "aliases": [
+        "Admiral Krishna Swaminathan"
+      ],
+      "name_hi": "कृष्णा स्वामीनाथन"
+    },
+    {
+      "id": "air_chief",
+      "post": "Chief of the Air Staff",
+      "name": "Ashutosh Dixit",
+      "since": "2026-10-31",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2330846",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Chief of the Air Staff",
+        "Chief of Air Staff",
+        "Air Force Chief",
+        "IAF Chief"
+      ],
+      "match_hi": [
+        "वायु सेना प्रमुख",
+        "वायुसेना प्रमुख"
+      ],
+      "aliases": [
+        "Air Chief Marshal Ashutosh Dixit"
+      ],
+      "name_hi": "आशुतोष दीक्षित"
+    },
+    {
+      "id": "isro_chair",
+      "post": "Chairman, ISRO & Secretary, Department of Space",
+      "name": "V. Narayanan",
+      "since": "2025-01-14",
+      "source_url": "https://www.isro.gov.in/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "ISRO Chairman",
+        "ISRO Chairperson",
+        "ISRO Chief",
+        "Chairman of ISRO",
+        "Chairman, ISRO",
+        "Secretary, Department of Space",
+        "Chairman, Space Commission"
+      ],
+      "match_hi": [
+        "इसरो प्रमुख",
+        "इसरो के अध्यक्ष",
+        "इसरो अध्यक्ष"
+      ],
+      "aliases": [
+        "V Narayanan",
+        "Dr V Narayanan",
+        "Dr. V. Narayanan"
+      ],
+      "name_hi": "वी. नारायणन"
+    },
+    {
+      "id": "upsc_chair",
+      "post": "Chairman, UPSC",
+      "name": "Ajay Kumar",
+      "since": "2025-05-15",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2317336",
+      "verified_on": "2026-11-04",
+      "match": [
+        "UPSC Chairman",
+        "UPSC Chairperson",
+        "UPSC Chair",
+        "Chairman of UPSC",
+        "Chairman, UPSC",
+        "Chairman of the Union Public Service Commission"
+      ],
+      "match_hi": [
+        "यूपीएससी अध्यक्ष",
+        "यूपीएससी के अध्यक्ष",
+        "संघ लोक सेवा आयोग के अध्यक्ष"
+      ],
+      "aliases": [
+        "Dr. Ajay Kumar",
+        "Dr Ajay Kumar"
+      ],
+      "name_hi": "अजय कुमार"
+    },
+    {
+      "id": "cag",
+      "post": "Comptroller and Auditor General of India",
+      "name": "K. Sanjay Murthy",
+      "since": "2024-11-21",
+      "source_url": "https://cag.gov.in/en/page-cag-of-india",
+      "verified_on": "2026-11-04",
+      "match": [
+        "Comptroller and Auditor General",
+        "Comptroller & Auditor General",
+        "CAG of India",
+        "CAG"
+      ],
+      "match_hi": [
+        "नियंत्रक एवं महालेखा परीक्षक",
+        "नियंत्रक और महालेखा परीक्षक",
+        "कैग"
+      ],
+      "aliases": [
+        "K Sanjay Murthy",
+        "Sanjay Murthy"
+      ],
+      "name_hi": "के. संजय मूर्ति"
+    },
+    {
+      "id": "nddb_chair",
+      "post": "Chairman, NDDB",
+      "name": "Meenesh Shah",
+      "since": null,
+      "source_url": "https://www.nddb.coop/",
+      "verified_on": "2026-11-04",
+      "match": [
+        "NDDB Chairman",
+        "NDDB Chairperson",
+        "Chairman of NDDB",
+        "Chairman, NDDB",
+        "Chairman of the National Dairy Development Board"
+      ],
+      "match_hi": [
+        "एनडीडीबी के अध्यक्ष",
+        "एनडीडीबी अध्यक्ष"
+      ],
+      "aliases": [
+        "Dr Meenesh Shah",
+        "Meenesh C. Shah"
+      ],
+      "name_hi": "मीनेश शाह"
+    },
+    {
+      "id": "fssai_ceo",
+      "post": "CEO, FSSAI",
+      "name": "Rajit Punhani",
+      "since": null,
+      "source_url": "https://fssai.gov.in/about-us/directory",
+      "verified_on": "2026-11-04",
+      "match": [
+        "FSSAI CEO",
+        "CEO of FSSAI",
+        "CEO, FSSAI",
+        "Chief Executive Officer of FSSAI",
+        "FSSAI Chief Executive Officer"
+      ],
+      "match_hi": [
+        "एफएसएसएआई के सीईओ",
+        "एफएसएसएआई के मुख्य कार्यकारी अधिकारी"
+      ],
+      "aliases": [],
+      "name_hi": "राजित पुन्हानी"
+    },
+    {
+      "id": "fssai_chair",
+      "post": "Chairperson, FSSAI",
+      "name": "Punya Salila Srivastava",
+      "since": null,
+      "source_url": "https://fssai.gov.in/about-us/directory",
+      "verified_on": "2026-11-04",
+      "match": [
+        "FSSAI Chairperson",
+        "FSSAI Chairman",
+        "Chairperson of FSSAI",
+        "Chairman of FSSAI",
+        "Chairperson, FSSAI"
+      ],
+      "match_hi": [
+        "एफएसएसएआई की अध्यक्ष",
+        "एफएसएसएआई के अध्यक्ष"
+      ],
+      "aliases": [],
+      "name_hi": "पुण्य सलिला श्रीवास्तव"
+    },
+    {
+      "id": "iffco_chair",
+      "post": "Chairman, IFFCO",
+      "name": "Dileep Sanghani",
+      "since": null,
+      "source_url": "https://www.iffco.in/en/leadership",
+      "verified_on": "2026-11-04",
+      "match": [
+        "IFFCO Chairman",
+        "Chairman of IFFCO",
+        "Chairman, IFFCO"
+      ],
+      "match_hi": [
+        "इफको के अध्यक्ष",
+        "इफको अध्यक्ष"
+      ],
+      "aliases": [
+        "Dilip Sanghani"
+      ],
+      "name_hi": "दिलीप संघाणी"
+    },
+    {
+      "id": "iffco_md",
+      "post": "Managing Director, IFFCO",
+      "name": "K. J. Patel",
+      "since": null,
+      "source_url": "https://www.iffco.in/en/leadership",
+      "verified_on": "2026-11-04",
+      "match": [
+        "IFFCO Managing Director",
+        "IFFCO MD",
+        "Managing Director of IFFCO",
+        "MD of IFFCO",
+        "Managing Director, IFFCO"
+      ],
+      "match_hi": [
+        "इफको के प्रबंध निदेशक"
+      ],
+      "aliases": [
+        "K J Patel",
+        "KJ Patel",
+        "K.J. Patel"
+      ],
+      "name_hi": "के. जे. पटेल"
+    },
+    {
+      "id": "fao_dg",
+      "post": "Director-General, FAO",
+      "name": "Qu Dongyu",
+      "since": "2019-08-01",
+      "source_url": "https://www.fao.org/director-general/en",
+      "verified_on": "2026-11-04",
+      "match": [
+        "FAO Director-General",
+        "FAO Director General",
+        "Director-General of FAO",
+        "Director General of FAO",
+        "FAO DG",
+        "FAO chief",
+        "Director-General of the Food and Agriculture Organization"
+      ],
+      "match_hi": [
+        "एफएओ के महानिदेशक"
+      ],
+      "aliases": [],
+      "name_hi": "क्यू डोंगयू"
+    },
+    {
+      "id": "wto_dg",
+      "post": "Director-General, WTO",
+      "name": "Ngozi Okonjo-Iweala",
+      "since": "2021-03-01",
+      "source_url": "https://www.wto.org/english/thewto_e/dg_e/dg_e.htm",
+      "verified_on": "2026-11-04",
+      "match": [
+        "WTO Director-General",
+        "WTO Director General",
+        "Director-General of WTO",
+        "Director General of WTO",
+        "Director-General of the WTO",
+        "WTO DG",
+        "WTO chief"
+      ],
+      "match_hi": [
+        "डब्ल्यूटीओ के महानिदेशक",
+        "विश्व व्यापार संगठन के महानिदेशक"
+      ],
+      "aliases": [
+        "Ngozi Okonjo Iweala",
+        "Okonjo-Iweala"
+      ],
+      "name_hi": "न्गोज़ी ओकोंजो-इवेला"
+    },
+    {
+      "id": "who_dg",
+      "post": "Director-General, WHO",
+      "name": "Tedros Adhanom Ghebreyesus",
+      "since": "2017-07-01",
+      "source_url": "https://www.who.int/director-general",
+      "verified_on": "2026-11-04",
+      "match": [
+        "WHO Director-General",
+        "WHO Director General",
+        "Director-General of WHO",
+        "Director General of WHO",
+        "Director-General of the WHO",
+        "WHO DG",
+        "WHO chief"
+      ],
+      "match_hi": [
+        "डब्ल्यूएचओ के महानिदेशक",
+        "विश्व स्वास्थ्य संगठन के महानिदेशक"
+      ],
+      "aliases": [
+        "Tedros Adhanom",
+        "Dr Tedros",
+        "Tedros"
+      ],
+      "name_hi": "टेड्रोस अदनोम घेब्रेयसस"
+    },
+    {
+      "id": "imf_md",
+      "post": "Managing Director, IMF",
+      "name": "Kristalina Georgieva",
+      "since": "2019-10-01",
+      "source_url": "https://www.imf.org/en/About/senior-officials/Bios/kristalina-georgieva",
+      "verified_on": "2026-11-04",
+      "match": [
+        "IMF Managing Director",
+        "Managing Director of IMF",
+        "Managing Director of the IMF",
+        "IMF MD",
+        "IMF chief",
+        "Managing Director of the International Monetary Fund"
+      ],
+      "match_hi": [
+        "आईएमएफ की प्रबंध निदेशक",
+        "आईएमएफ प्रमुख",
+        "अंतरराष्ट्रीय मुद्रा कोष की प्रबंध निदेशक"
+      ],
+      "aliases": [
+        "Georgieva"
+      ],
+      "name_hi": "क्रिस्टालिना जॉर्जीवा"
+    }
+  ]
+}

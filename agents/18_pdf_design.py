@@ -47,9 +47,20 @@ def attach_news_photos(content: Dict[str, Any], job_id: str, content_file: Path)
     (data/images/<job_id>/), set item image_path, and persist the content.
     Fail-soft: any problem leaves the edition without (some) photos, never fails it."""
     try:
-        from pipeline.news_images import attach_images
+        from pipeline.news_images import attach_images, fill_category_graphics, real_photo_count
         items = content.get("items") or []
         stats = attach_images(items, job_id, ROOT / "data" / "images")
+        real = real_photo_count(items)
+        target = int(os.getenv("ALP_IMAGE_TARGET", "10") or 10)
+        if real < target:
+            # Fail open: a photo shortfall only logs a warning, it never blocks the edition.
+            logger.warning("News photos: only %d real photo(s) (target %d); edition continues", real, target)
+            try:
+                stats["category_graphics"] = fill_category_graphics(
+                    items, job_id, ROOT / "data" / "images", real, target)
+            except Exception as exc:  # pragma: no cover - fail soft
+                logger.warning("Category graphics skipped: %s", exc)
+        stats["real_photos"] = real
         for it in items:
             p = it.get("image_path")
             if p:

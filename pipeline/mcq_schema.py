@@ -46,7 +46,13 @@ MIN_STATIC_GK, MAX_STATIC_GK = 4, 6
 
 PROMPT_TEMPLATE = """You write one bilingual (English + Hindi) competitive-exam MCQ for an Indian current-affairs booklet.
 Use ONLY facts stated in NEWS. Do not add facts that are not in NEWS, except Static GK about the
-institutions/schemes named in NEWS (headquarters, establishment year, head, parent ministry) that you are certain of.
+institutions/schemes named in NEWS: timeless facts only (headquarters, capital, establishment/founding year,
+founding Act, parent ministry) that you are certain of.
+Static GK must NEVER name a current officeholder (chairman, governor, minister, chief, DG, CEO, MD, head)
+from memory: name one only if NEWS states it or it is listed under VERIFIED OFFICEHOLDERS below, exactly as listed.
+Never present a year before {stale_year} as "current" or "latest".
+VERIFIED OFFICEHOLDERS (as of {facts_date}):
+{officeholders}
 
 NEWS (headline): {headline}
 NEWS (text): {text}
@@ -77,9 +83,28 @@ def _is_hi(text: Any) -> bool:
     return bool(DEVANAGARI_RE.search(str(text or "")))
 
 
+def _officeholder_context(text: str) -> Tuple[str, str, int]:
+    """(verified officeholder lines, facts date, stale-year cutoff) for the prompt. Never raises."""
+    import datetime as _dt
+    year = _dt.date.today().year
+    m = re.match(r"(\d{4})-", os.getenv("ALP_JOB_DATE", "") or "")
+    if m:
+        year = int(m.group(1))
+    try:
+        from agents.static_gk_validator import FACTS_PATH, facts_for_prompt
+        lines = facts_for_prompt(text)
+        date = json.loads(FACTS_PATH.read_text(encoding="utf-8")).get("updated", "")
+    except Exception:
+        lines, date = "", ""
+    return (lines or "- (none relevant: do not name any officeholder)"), (date or "n/a"), year - 1
+
+
 def build_prompt(item: Dict[str, Any], source_text: str) -> str:
     headline = re.sub(r"^\s*>>\s*", "", _ws(item.get("headline_en")))
-    return PROMPT_TEMPLATE.format(headline=headline, text=_ws(source_text)[:2500])
+    text = _ws(source_text)[:2500]
+    officeholders, facts_date, stale_year = _officeholder_context(f"{headline} {text}")
+    return PROMPT_TEMPLATE.format(headline=headline, text=text, officeholders=officeholders,
+                                  facts_date=facts_date, stale_year=stale_year)
 
 
 def parse_llm_json(raw: Any) -> Optional[Dict[str, Any]]:

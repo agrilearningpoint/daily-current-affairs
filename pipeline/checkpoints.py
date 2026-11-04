@@ -16,13 +16,15 @@ STAGE_FILES = {
     "12_content_editor": "data/content/{job}.json",
     "16_mcq_generator": "data/mcq/{job}.json",
     "17_mcq_validator": "data/mcq/{job}.json",
+    "17c_static_gk_validator": "data/mcq/{job}.json",
     "18_pdf_design": "output/{job}.pdf",
     "19_pdf_qa": "logs/qa/{job}_qa.json",
     "24_final_health_audit": "logs/qa/{job}_health.json",
 }
 
 
-CONTENT_REWRITERS = {"16_mcq_generator", "17_mcq_validator", "17b_auto_sections", "18_pdf_design"}
+CONTENT_REWRITERS = {"16_mcq_generator", "17_mcq_validator", "17b_auto_sections", "17c_static_gk_validator",
+                     "18_pdf_design"}
 
 
 def stage_outputs(stage: str, job_id: str):

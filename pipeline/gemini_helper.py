@@ -74,6 +74,9 @@ Rules:
 1. Always provide exactly 5 options (A to E). If options are pure numbers/dates, no slash is needed; if text/names, format as 'English / हिंदी'.
 2. Provide 5 to 6 explanation_pairs where every English bullet is paired with its exact Hindi translation.
 3. Provide 4 to 7 static_gk pairs covering Establishment, Headquarters, Nodal Ministry, Launch Year, or Act.
+4. static_gk must be timeless facts only. NEVER name a current officeholder (chairman, governor, minister, chief,
+   DG, CEO, head) from memory, and never present an old year as "current" or "latest"; officeholders are checked
+   against config/current_facts.json and wrong ones are removed.
 """
 
 
