@@ -474,12 +474,10 @@ def _stale_holder(en: str, hi: str, facts: Sequence[Fact], year: Optional[int]) 
             new_en = strip_year_label(rx.sub(f.name, en), year)
         else:
             wrong = hi_hit
-        if hi_hit and f.name_hi:
-            new_hi = strip_year_label(hi.replace(hi_hit, f.name_hi), year)
-        elif hi and not hi_hit and f.name_hi and f.name_hi in hi:
-            new_hi = strip_year_label(hi, year)
-        else:
-            new_hi = ""
+        if not en:
+            return Verdict("drop", reason=f"former holder of {f.id} in a Hindi-only line", fact_id=f.id)
+        # Hindi stays fail-closed: kept only when it already carries the verified Hindi name.
+        new_hi = strip_year_label(hi, year) if (hi and not hi_hit and f.name_hi and f.name_hi in hi) else ""
         return Verdict("replace", en=new_en, hi=new_hi, reason=f"former holder for {f.id}", fact_id=f.id,
                        wrong=wrong)
     return None
@@ -659,11 +657,6 @@ def check_row(row: Dict[str, Any], facts: Sequence[Fact], *, story_text: str = "
         return "replace", new, v
     new["label_en"], new["label_hi"] = strip_year_label(le, year), strip_year_label(lh, year)
     fact = next((f for f in facts if f.id == v.fact_id), None)
-    if fact and fact.name_hi:
-        stale_hi = next((n for n in fact.stale_names_hi if n and n in vh), "")
-        if stale_hi:
-            vh = vh.replace(stale_hi, fact.name_hi)
-            new["value_hi"] = vh
     good = v.new_name or (fact.name if fact else "")
     if v.wrong and good and v.wrong in ve:
         new["value_en"] = ve.replace(v.wrong, good)
