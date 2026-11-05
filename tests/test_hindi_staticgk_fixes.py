@@ -257,3 +257,11 @@ def test_non_breaking_hyphen_kept_as_hyphen():
     assert _strip_html("AI\u2011driven state\u2011level") == "AI-driven state-level"
     assert _safe("Q2\u2011FY27") == "Q2-FY27"
     assert sanitize_glyphs("co\u00adoperation") == "cooperation"
+
+
+def test_fallback_and_quoted_titles_not_blanked():
+    # content.translate_headline_deterministic output (labelled English) is left alone
+    assert H.fix_pair("Union Cabinet approved a scheme", "परीक्षा संदर्भ: Union Cabinet approved a scheme") \
+        == "परीक्षा संदर्भ: Union Cabinet approved a scheme"
+    hi = '"Cabinet Approves Agriculture Export Scheme with Rs 5000 Crore Outlay" से संबंधित प्रश्न'
+    assert H.fix_pair("Question on the export scheme", hi) == hi      # quoted title kept verbatim

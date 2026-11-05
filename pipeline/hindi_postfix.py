@@ -45,7 +45,7 @@ LATIN_RE = re.compile(r"[A-Za-z]")
 _DEVA_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
 _DL = "\u0900-\u0963\u0966-\u097F"   # Devanagari letters/marks/digits (no danda)
 MIXED_RE = re.compile(rf"[{_DL}]+[A-Za-z]+[{_DL}A-Za-z]*|[A-Za-z]+[{_DL}]+[{_DL}A-Za-z]*")
-_PAREN_RE = re.compile(r"\([^()]*\)")
+_PAREN_RE = re.compile(r"\([^()]*\)|\"[^\"]*\"|“[^”]*”|‘[^’]*’|'[^']*'")  # glosses / quoted titles
 _SUFFIX_HI = (("ings", "िंग्स"), ("ing", "िंग"), ("tion", "शन"), ("ers", "र्स"), ("er", "र"), ("ed", "ेड"), ("s", "्स"))
 # Latin words that are standard in Hindi copy (official names written in Latin).
 _ALLOWED_LATIN = {"aayog", "bharat", "yojana", "abhiyan", "mission", "app", "portal"}
@@ -159,7 +159,10 @@ def _en_rx(phrase: str) -> re.Pattern:
     return re.compile(rf"(?<![A-Za-z]){body}(?![A-Za-z])", re.I if phrase.islower() else 0)
 
 
-_EN_TO_HI_RX = [(_en_rx(k), v) for k, v in sorted(EN_TO_HI.items(), key=lambda kv: -len(kv[0]))]
+# Leftover replacement uses names only (multi-word or capitalised); lowercase single words
+# ("export") are for mixed-script repair, never swapped into an English phrase.
+_EN_TO_HI_RX = [(_en_rx(k), v) for k, v in sorted(EN_TO_HI.items(), key=lambda kv: -len(kv[0]))
+                if " " in k or k[:1].isupper()]
 _WORD_HI = {k.lower(): v for k, v in EN_TO_HI.items() if " " not in k}
 
 
@@ -187,8 +190,11 @@ def apply_glossary(en: str, hi: str) -> str:
     if en and _ACT_EN_RE.search(en) and not _BILL_EN_RE.search(en):
         out = _BILL_HI_RE.sub("अधिनियम", out)
     if DEVA_RE.search(out):
+        quoted = [m.span() for m in _PAREN_RE.finditer(out) if not m.group(0).startswith("(")]
         for rx, rep in _EN_TO_HI_RX:
-            out = rx.sub(rep, out)
+            out = rx.sub(lambda m: m.group(0) if any(a <= m.start() < b for a, b in quoted) else rep, out)
+            if quoted:
+                quoted = [m.span() for m in _PAREN_RE.finditer(out) if not m.group(0).startswith("(")]
     return out
 
 
@@ -278,6 +284,7 @@ def leftover_words(hi: str) -> List[str]:
     return out
 
 
+_FALLBACK_RE = re.compile(r"^\s*(?:परीक्षा संदर्भ|मुख्य बिंदु):|— समसामयिक (?:घटनाक्रम|विवरण)")
 _RUN_RE = re.compile(r"[A-Za-z][A-Za-z'’\-]*(?:[\s,]+[A-Za-z][A-Za-z'’\-]*){3,}")
 _FUNCTION_WORDS = {"of", "and", "the", "for", "in", "to", "on", "with", "by", "from", "a", "an", "is", "are", "was"}
 
@@ -346,6 +353,11 @@ def fix_pair(en: str, hi: str, *, name_map: Optional[Dict[str, str]] = None,
                 return ""
             out = fixed
             st["mixed_fixed"] = st.get("mixed_fixed", 0) + 1
+        if _FALLBACK_RE.search(out):
+            # content.translate_headline_deterministic's labelled English (offline/AI-down
+            # fallback) is a deliberate format, not a broken translation: leave it.
+            st["fallback_kept"] = st.get("fallback_kept", 0) + 1
+            return out
         left = leftover_words(out)
         words = max(1, len(out.split()))
         if untranslated_run(out) or (len(left) >= 4 and len(left) / words >= 0.4):
