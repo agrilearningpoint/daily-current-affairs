@@ -66,9 +66,10 @@ _SCIENCE_RE = re.compile(
     r"artificial\s+intelligence|semiconductor\w*|cyber\w*)\b", re.I)
 _INTL_RE = re.compile(
     r"\b(?:EU|UN|UNESCO|WHO|IMF|WTO|G20|G7|BRICS|SCO|ASEAN|QUAD|bilateral|foreign\s+(?:minister|secretary|policy)|"
-    r"ambassador|high\s+commissioner|summit|Brussels|Russia|Ukraine|China|Pakistan|Nepal|Bangladesh|Sri\s+Lanka|"
+    r"ambassador|high\s+commissioner|Brussels|Russia|Ukraine|China|Pakistan|Nepal|Bangladesh|Sri\s+Lanka|"
     r"UAE|Israel|Iran|Gaza|Japan|Europe|European|Macedonia|Bhutan|Oman|Senegal|Africa\w*|Washington|Moscow|"
     r"Beijing|Tokyo|EAM)\b")
+# ("summit" alone is not international: the PM's RE summit in Delhi is domestic.)
 _ECON_RE = re.compile(
     r"\b(?:gdp|inflation|gst|tax\w*|dut(?:y|ies)|rbi|sebi|bank\w*|econom\w*|fiscal|budget|export\w*|import\w*|"
     r"trade|pmi|iip|rupee|forex|invest\w*|fdi|insolvency|ibc|crore|market\w*|ipo|deposits?|interest\s+rates?|"
@@ -83,6 +84,16 @@ AGRI_RE = re.compile(
     r"pm-?kisan|pmfby|fasal\s+bima)\b", re.I)
 # Agriculture words that are not farm news on their own ("fishermen detained").
 AGRI_FALSE_RE = re.compile(r"\bfishermen\b.*\b(?:detain|arrest|navy|coast\s+guard)", re.I)
+# Words that make a weak agri match (irrigation tank, rural, co-op bank) political/crime/banking news.
+AGRI_OFFTOPIC_RE = re.compile(
+    r"\b(?:sand\s+mining|illegal\s+mining|DVAC|vigilance|corruption|bribe\w*|arrest\w*|raids?|FIR|"
+    r"chargesheet|CBI|ED\b|enforcement\s+directorate|DMK|AIADMK|BJP|Congress|YSRCP|TMC|AAP|MLA|MP\b|"
+    r"youth\s+wing|party|poll\w*|election\w*|murder|police|urban\s+co-?operative\s+banks?|"
+    r"bank\s+in\s+a\s+box|co-?operative\s+banks?|UCBs?)\b", re.I)
+AGRI_STRONG_RE = re.compile(
+    r"\b(?:agri\w*|farm(?:er|ers|ing)|kisan|krishi|crops?|kharif|rabi|msp|minimum\s+support\s+price|paddy|"
+    r"wheat|pulses|oilseeds?|sugarcane|horticultur\w*|fertili[sz]er\w*|urea|fisheries|aquaculture|"
+    r"livestock|animal\s+husbandry|dairy|icar|iari|kvk|nafed|pm-?kisan|pmfby|fasal\s+bima|millets?|PACS)\b", re.I)
 
 _JUNK_SENT_RE = re.compile(
     r"\b(?:updated|image\s+used|representational|photo\s+credit|also\s+read|click\s+here|subscribe|"
@@ -116,6 +127,11 @@ def clean_headline(text: Any) -> str:
     t = re.sub(r"^\W+(?=\w)", "", t)  # stray zero-width / bullet characters
     t = strip_publisher_suffix(t)
     t = re.sub(r"\s+[-–|]\s+(?:News\s+On\s+AIR|PM\s+India|DD\s+News|pib\.gov\.in|www\.[\w.]+)\s*$", "", t, flags=re.I)
+    try:  # "(Key: DD News)", " - Buffalo Toronto Public Media" and other source tails
+        from pipeline.news_filters import strip_tags
+        t = strip_tags(t)
+    except Exception:  # pragma: no cover
+        pass
     letters = [c for c in t if c.isalpha() and c.isascii()]
     if letters and sum(c.isupper() for c in letters) / len(letters) > 0.8:
         words = []
@@ -182,9 +198,12 @@ def two_line_text(item: Dict[str, Any], limit: int = EN_MAX_CHARS) -> str:
     out = head.rstrip(" ;:") if head.rstrip().endswith(("!", "?", ".")) else head.rstrip(" .;:") + "."
     summary = _norm(item.get("raw_facts") or item.get("summary") or "")
     summary = summary.split(" | Also reported:")[0]
+    head_words = {w for w in _tokens(head) if len(w) >= 4}
     for sent in _sentences(summary)[:3]:
         if len(sent) < 40 or _JUNK_SENT_RE.search(sent) or _jaccard(sent, head) > 0.55:
             continue
+        if head_words and not (head_words & _tokens(sent)):
+            break  # a sentence from another paragraph/story (spliced "Velu for the party's ..." line)
         if len(out) + 1 + len(sent) <= limit and sent.endswith((".", "!", "?")):
             out = f"{out} {sent}"
         break
@@ -218,7 +237,12 @@ def is_agri(item: Dict[str, Any]) -> bool:
     text = f"{item.get('headline_en') or item.get('title') or ''}"
     if AGRI_FALSE_RE.search(text) or re.search(r"\bseed\s+(?:fund\w*|round|capital)\b", text, re.I):
         return False
-    return bool(AGRI_RE.search(text))  # the headline itself must be about farm/rural/food
+    if not AGRI_RE.search(text):  # the headline itself must be about farm/rural/food
+        return False
+    if AGRI_OFFTOPIC_RE.search(text) and not AGRI_STRONG_RE.search(re.sub(
+            r"co-?operative\s+banks?", " ", text, flags=re.I)):
+        return False  # "irrigation tank ... sand mining charge against DMK's Velu"
+    return True
 
 
 def _bad_candidate(item: Dict[str, Any]) -> bool:
@@ -258,15 +282,16 @@ def _relevance(item: Dict[str, Any]) -> float:
 
 
 def _pick(pool: Iterable[Dict[str, Any]], exclude_texts: Sequence[str], limit: int,
-          topic_cap: int = 2) -> List[Dict[str, Any]]:
-    """Best-first, de-duplicated (same event / running topic) candidate list."""
-    from pipeline.news_filters import topic_key
+          topic_cap: int = 2, rare: Optional[set] = None) -> List[Dict[str, Any]]:
+    """Best-first, de-duplicated (same event / shared rare entity / running topic) list."""
+    from pipeline.news_filters import same_event_entity, topic_key
+    rare = rare or set()
     chosen: List[Dict[str, Any]] = []
     seen_texts = [t for t in exclude_texts if t]
     topics: Dict[str, int] = {}
     for it in pool:
         head = clean_headline(it.get("headline_en") or it.get("title"))
-        if any(same_event(head, t) for t in seen_texts):
+        if any(same_event(head, t) or same_event_entity(head, t, rare) for t in seen_texts):
             continue
         tk = topic_key(it)
         if tk and topics.get(tk, 0) >= topic_cap:
@@ -407,7 +432,8 @@ def agri_static_gk(texts: Sequence[str], limit: int = 5) -> List[Dict[str, str]]
 # --------------------------------------------------------------------------- #
 def build_sections(content: Dict[str, Any], candidates: Sequence[Dict[str, Any]],
                    budget_seconds: Optional[float] = None,
-                   translate: Optional[Callable[[Sequence[str], float], Dict[str, str]]] = None) -> Dict[str, Any]:
+                   translate: Optional[Callable[[Sequence[str], float], Dict[str, str]]] = None,
+                   job_date: Optional[str] = None) -> Dict[str, Any]:
     """Add ``quick_bites`` and ``agri_corner`` to *content* in place; return stats.
 
     *candidates* are scored/selected/reserve stories (any order).  MCQ units
@@ -423,19 +449,32 @@ def build_sections(content: Dict[str, Any], candidates: Sequence[Dict[str, Any]]
     unit_ids = {str(i.get("event_id") or "") for i in units}
     unit_heads = [clean_headline(i.get("headline_en")) for i in units]
 
+    from pipeline.freshness import filter_fresh
+    from pipeline.news_filters import is_opinion, rare_entities, repair_headline
     seen_ids, pool = set(), []
     for it in sorted((c for c in candidates if isinstance(c, dict)), key=_relevance, reverse=True):
         eid = str(it.get("event_id") or "")
         if eid and (eid in unit_ids or eid in seen_ids):
             continue
         seen_ids.add(eid)
+        if is_opinion(it):
+            continue
+        fixed = repair_headline(it)
+        if not fixed:
+            continue  # truncated headline with no full title to repair it from
+        if fixed != (it.get("headline_en") or it.get("title")):
+            it = dict(it, headline_en=fixed)
         if _bad_candidate(it):
             continue
         pool.append(it)
+    pool, stale = filter_fresh(pool, job_date)  # months-old news (MSP of May, a Feb Budget) is not a Quick Bite
+    stats["stale_dropped"] = len(stale)
+    rare = rare_entities([clean_headline(it.get("headline_en") or it.get("title")) for it in pool]
+                         + [h for h in unit_heads if h])
 
     # ---- Agriculture Corner ------------------------------------------------
     agri_pool = [it for it in pool if is_agri(it)]
-    agri_new = _pick(agri_pool, unit_heads, AGRI_MAX)
+    agri_new = _pick(agri_pool, unit_heads, AGRI_MAX, rare=rare)
     agri_unit_rows = []
     for u in units:
         if is_agri(u) and len(agri_unit_rows) + len(agri_new) < AGRI_MAX + 2:
@@ -452,7 +491,7 @@ def build_sections(content: Dict[str, Any], candidates: Sequence[Dict[str, Any]]
     if len(qb_pool) < QB_MIN:  # thin day: relax the floor rather than ship a short section
         qb_pool = [it for it in pool if not is_agri(it)]
     agri_heads = [clean_headline(a.get("headline_en") or a.get("title")) for a in agri_new]
-    qb_cands = _pick(qb_pool, unit_heads + agri_heads, QB_MAX + 8)
+    qb_cands = _pick(qb_pool, unit_heads + agri_heads, QB_MAX + 8, rare=rare)
 
     # ---- one batched, validated translation pass ---------------------------
     rows_qb = [(it, two_line_text(it)) for it in qb_cands]

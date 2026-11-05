@@ -138,11 +138,10 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
     "Economy": (
         "gdp", "inflation", "budget", "economic", "mospi", "trade", "export", "import",
-        "gst", "finance", "survey", "forex", "deficit", "growth", "industry", "fiscal",
+        "gst", "finance", "economic survey", "forex", "deficit", "gdp growth", "industry", "fiscal",
     ),
     "Government Schemes": (
-        "scheme", "yojana", "mission", "initiative", "cabinet", "policy", "mou", "launched",
-        "approved", "gazette", "notification", "programme", "program", "guidelines",
+        "scheme", "yojana", "mission", "abhiyan", "initiative", "programme", "beneficiar",
     ),
     "International": (
         "united nations", "fao", "world bank", "imf", "wto", "who", "unesco", "unep",
@@ -151,10 +150,12 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Science & Technology": (
         "scient", "research", "technology", "space", "satellite", "quantum", "vaccine",
         "medical", "health", "dst", "innovation", "startup", "digital", "isro", "drdo",
+        "barc", "atomic", "nuclear", "dental", "hospital", "midhani", "csir",
     ),
     "Environment": (
         "environment", "forest", "climate change", "pollution", "wildlife", "carbon",
         "renewable", "solar", "wind", "biodiversity", "moefcc", "cpcb", "emission",
+        "zoolog", "botanical", "taxonom", "species", "zsi", "fauna", "flora",
     ),
     "Sports": ("sports", "cricket", "hockey", "tournament", "medal", "olympic", "federation"),
 }
@@ -279,15 +280,83 @@ def parse_dt(raw: Any) -> Optional[datetime]:
         return None
 
 
+# Keywords that are word stems ("scient" -> scientist, "taxonom" -> taxonomy); all
+# others match whole words only ("repo" must not match "report", "who" "whole").
+_STEM_KEYWORDS = {"scient", "agri", "zoolog", "taxonom", "beneficiar", "econom"}
+_KW_RES: dict[str, re.Pattern] = {}
+
+
+def _kw_re(keyword: str) -> re.Pattern:
+    rx = _KW_RES.get(keyword)
+    if rx is None:
+        tail = r"\w*" if keyword in _STEM_KEYWORDS else r"(?:s|es)?\b"
+        rx = _KW_RES[keyword] = re.compile(r"\b" + re.escape(keyword) + tail)
+    return rx
+
+
+# Foreign actors: "International" needs one of these, not just "summit"/"global".
+FOREIGN_RE = re.compile(
+    r"\b(?:united\s+nations|unesco|imf|wto|world\s+bank|fao|unep|undp|ilo|g20|g7|brics|sco|asean|quad|"
+    r"saarc|bimstec|nato|opec|european|bilateral|foreign|abroad|overseas|ambassador|embassy|"
+    r"high\s+commission\w*|visit\s+to|usa|america\w*|britain|british|russia\w*|ukraine|china|chinese|"
+    r"pakistan|nepal|bangladesh|sri\s+lanka|bhutan|myanmar|maldives|afghanistan|iran|israel|gaza|"
+    r"palestin\w*|saudi|uae|qatar|oman|japan\w*|korea\w*|australia\w*|canada|france|french|germany|"
+    r"german|italy|spain|africa\w*|brazil|mexico|singapore|indonesia|vietnam|thailand|malaysia|"
+    r"philippines|taiwan|washington|moscow|beijing|tokyo|london|paris|geneva|new\s+york|dubai|"
+    r"trump|putin|xi\s+jinping|binance|global\s+south)\b"
+    r"|(?-i:\b(?:US|USA|UK|UN|EU|WHO|UAE|UNGA|UNSC)\b)", re.I)
+# Courts/judiciary and law-and-order are national news whatever the feed's desk.
+_JUDICIARY_RE = re.compile(r"\b(?:supreme\s+court|high\s+court|sc\b|hc\b|bench|chief\s+justice|cji|"
+                           r"verdict|judgment|petition|plea|tribunal)\b", re.I)
+
+
+def category_scores(text: str) -> dict[str, int]:
+    lower = f" {(text or '').lower()} "
+    return {category: sum(1 for keyword in keywords if _kw_re(keyword).search(lower))
+            for category, keywords in CATEGORY_KEYWORDS.items()}
+
+
+def _best_text_category(text: str) -> tuple[str, int]:
+    scores = category_scores(text)
+    if not FOREIGN_RE.search(text or ""):
+        scores["International"] = 0  # domestic: PM's RE address in Delhi is not International
+    if _JUDICIARY_RE.search(text or ""):
+        # "SC on 'protest economy'": a court story, not Economy/Banking
+        for cat in ("Economy", "Banking & Finance", "Government Schemes"):
+            scores[cat] = 0
+    best = max(scores, key=lambda c: scores[c]) if scores else "National"
+    return (best, scores[best]) if scores.get(best, 0) else ("National", 0)
+
+
 def infer_category(text: str, source_category: str = "") -> str:
     alias = CATEGORY_ALIASES.get((source_category or "").strip().lower())
     if alias:
-        return alias
-    lower = f" {(text or '').lower()} "
-    scores = {category: sum(1 for keyword in keywords if keyword in lower)
-              for category, keywords in CATEGORY_KEYWORDS.items()}
-    best = max(scores, key=scores.get) if scores else "National"
-    return best if scores.get(best, 0) else "National"
+        return refine_category(alias, text)
+    return _best_text_category(text)[0]
+
+
+def refine_category(category: str, text: str) -> str:
+    """Correct a feed/desk category the story text clearly contradicts.
+
+    * International with no foreign actor in the text -> best domestic category;
+    * Economy / Banking / Schemes for a court story -> National;
+    * any desk category that the text does not support at all while another
+      category scores >= 2 -> that category (ZSI taxonomy summit on an Economy desk).
+    """
+    cat = category or "National"
+    if not text:
+        return cat
+    best, best_score = _best_text_category(text)
+    if cat == "International" and not FOREIGN_RE.search(text):
+        return best if best_score else "National"
+    if cat in ("Economy", "Banking & Finance", "Government Schemes") and _JUDICIARY_RE.search(text):
+        return best if best_score and best not in ("Economy", "Banking & Finance", "Government Schemes") \
+            else "National"
+    if cat in CATEGORY_KEYWORDS:
+        own = category_scores(text).get(cat, 0)
+        if own == 0 and best_score >= 2 and best != cat:
+            return best
+    return cat
 
 
 def _is_gnews_url(url: str) -> bool:

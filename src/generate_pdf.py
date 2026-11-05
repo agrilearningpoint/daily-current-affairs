@@ -2179,7 +2179,7 @@ class MagazineCover(Flowable):
                 break
             c.setFillColor(COVER_NAVY); c.circle(num_x, y - 10, 10, stroke=0, fill=1)
             c.setFillColor(COLORS["white"]); c.setFont(FONT_BOLD, FS_TABLE)
-            c.drawCentredString(num_x, y - 13.5, str(i + 1))
+            c.drawCentredString(num_x, y - 13.5, str(shown + 1))  # 1, 2, 3 (not story index 1, 3, 4)
             p.drawOn(c, M + 34, y - h1)
             if fh:
                 fh.drawOn(c, M + 34, y - h1 - 2 - h2)

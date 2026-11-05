@@ -61,8 +61,11 @@ class Agent:
             return True
 
         scored = [x for x in scored if _is_valid_candidate(x)]
+        scored = self._clean_candidates(scored)
+        scored = self._drop_stale(scored)
         scored = self._drop_previous_edition_repeats(scored)
         scored.sort(key=lambda x: x.get("student_relevance", x.get("importance_score", 0)), reverse=True)
+        scored = self._dedupe_same_event(scored)
         n_before = len(scored)
         selected = self._diverse_selection(scored, target)
         selected = self._ensure_official(selected, scored, target)
@@ -106,6 +109,59 @@ class Agent:
         self.context["selected_count"] = len(selected)
         self.context["reserve_count"] = len(reserves)
         return self.context
+
+    def _clean_candidates(self, scored):
+        """Drop opinion/column pieces; repair leftover tags (" - PM India",
+        "(Key: DD News)") and truncated headlines from the full title, or drop them."""
+        from pipeline.news_filters import is_opinion, repair_headline
+        kept, n_op, n_bad = [], 0, 0
+        for x in scored:
+            if is_opinion(x):
+                n_op += 1
+                continue
+            if x.get("headline_en") or x.get("title"):
+                h = repair_headline(x)
+                if not h:
+                    n_bad += 1
+                    continue
+                if h != (x.get("headline_en") or x.get("title")):
+                    x["headline_en"] = h
+            kept.append(x)
+        if n_op or n_bad:
+            logging.info(f"[{self.name}] dropped {n_op} opinion/column piece(s), "
+                         f"{n_bad} unrepairable truncated headline(s)")
+        self.context["opinion_dropped"] = n_op
+        return kept
+
+    def _drop_stale(self, scored):
+        """Daily only: drop items older than ~72 h before ALP_JOB_DATE (publish date,
+        URL date, PIB PRID, or a months-old event date in the text)."""
+        if self.job_type != "daily":
+            return scored
+        from pipeline.freshness import filter_fresh
+        job_date = os.getenv("ALP_JOB_DATE") or (self.job_id.split("_", 1)[1] if "_" in self.job_id else None)
+        kept, dropped = filter_fresh(scored, job_date)
+        for x, why in dropped[:20]:
+            logging.info(f"[{self.name}] stale: {why}: {(x.get('headline_en') or x.get('title') or '')[:90]}")
+        self.context["stale_dropped"] = len(dropped)
+        return kept
+
+    def _dedupe_same_event(self, scored):
+        """Keep only the best-ranked item of each same-event cluster (input sorted
+        best-first): headline overlap, or a shared rare entity ("Binance")."""
+        from pipeline.auto_sections import clean_headline, same_event
+        from pipeline.news_filters import rare_entities, same_event_entity
+        heads = [clean_headline(x.get("headline_en") or x.get("title")) for x in scored]
+        rare = rare_entities(heads)
+        kept, kept_heads = [], []
+        for x, h in zip(scored, heads):
+            if h and any(same_event(h, k) or same_event_entity(h, k, rare) for k in kept_heads):
+                continue
+            kept.append(x)
+            if h:
+                kept_heads.append(h)
+        self.context["same_event_dropped"] = len(scored) - len(kept)
+        return kept
 
     def _drop_previous_edition_repeats(self, scored):
         """Daily only: never re-print a story an earlier daily edition (last
