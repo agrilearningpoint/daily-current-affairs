@@ -145,6 +145,11 @@ class Agent:
             raise RuntimeError(error_msg)
 
         renumber_mcqs(valid_mcqs)
+        # Spread the keyed answer over A-E (generators tend to put it first);
+        # seeded by job date + question index so re-runs are identical.
+        from pipeline.mcq_quality import balance_answer_positions, job_date_of, letter_spread
+        balance_answer_positions(valid_mcqs, job_date_of(self.job_id, content))
+        logging.info(f"[{self.name}] answer-key spread: {letter_spread(valid_mcqs)}")
         write_json_atomic(data_path(MCQ_DIR, self.job_id), valid_mcqs)
 
         # Content now lists exactly the stories that have a question unit.
