@@ -58,9 +58,14 @@ NEWS (headline): {headline}
 NEWS (text): {text}
 
 Rules:
-- question: one clear question; it must NOT contain the answer.
+- question: one clear question; it must NOT contain the answer. Do NOT ask for a word or number that is in the
+  headline, and do not copy the headline's key noun into the question. Prefer a static/conceptual fact about the
+  scheme or body (who recommends/implements/regulates it) or a detail from the NEWS text that the headline lacks.
+- distractors: real, related entities of the same kind (other real ministries, bodies, States, schemes). Never
+  invent person names. Never give a person a post (minister, governor, chairman...) unless VERIFIED OFFICEHOLDERS
+  lists them in it. Percentages must be plausible (never above 100% for a share).
 - options: exactly 5, all of the same kind (all names, all numbers, ...), all different. The correct option text
-  must be copied exactly from NEWS. Never use "None of the above" / "All of the above".
+  must be copied exactly from NEWS (or be the well-known body for a static fact, e.g. MSP -> CACP). Never use "None of the above" / "All of the above".
 - Hindi: natural exam-style Devanagari. Keep numbers, ₹ amounts, acronyms and proper nouns accurate.
 - explanation: 4 or 5 full sentences, each with its Hindi translation.
 - static_gk: 4 to 6 short label/value facts in English and Hindi.
@@ -205,6 +210,11 @@ def _option_hi_ok(en: str, hi: str) -> bool:
     return hi.strip() == en.strip() and not re.search(r"\b[a-z]{4,}\b", en)
 
 
+def _mapped(m: Dict[str, Any], answer: str) -> bool:
+    from pipeline.mcq_quality import known_mapping_supports
+    return known_mapping_supports(str(m.get("question_en") or ""), answer)
+
+
 def schema_errors(m: Dict[str, Any], source_text: str) -> List[str]:
     """Stage 17 checks for MCQs that carry the reference-format fields."""
     errs: List[str] = []
@@ -223,7 +233,7 @@ def schema_errors(m: Dict[str, Any], source_text: str) -> List[str]:
     letter = str(m.get("correct") or "")
     if len(letter) != 1 or letter not in LETTERS[:len(opts)]:
         errs.append("schema: correct letter out of range")
-    elif not _in_text(opts[LETTERS.index(letter)], source_text):
+    elif not _in_text(opts[LETTERS.index(letter)], source_text) and not _mapped(m, opts[LETTERS.index(letter)]):
         errs.append("schema: correct answer not found in source text")
     pairs = m.get("explanation_pairs") or []
     if not (MIN_EXPLANATION <= len(pairs) <= MAX_EXPLANATION):
@@ -238,6 +248,17 @@ def schema_errors(m: Dict[str, Any], source_text: str) -> List[str]:
     return errs
 
 
+def _self_verify(route: Callable[..., Any], m: Dict[str, Any], item: Dict[str, Any], src: str) -> str:
+    """Letter the model picks for its own question ('' when unavailable)."""
+    from pipeline.mcq_quality import build_verify_prompt, parse_verify_reply
+    try:
+        raw = route(build_verify_prompt(m, item.get("headline_en") or "", src), task="mcq", needs_hindi=False)
+    except Exception as exc:
+        logger.info("[MCQ schema] %s: self-check unavailable: %s", item.get("event_id"), exc)
+        return ""
+    return parse_verify_reply(raw)
+
+
 def llm_mode_enabled() -> bool:
     return os.getenv("ALP_MCQ_MODE", "llm").strip().lower() not in ("deterministic", "off", "0")
 
@@ -248,6 +269,7 @@ def generate_llm_mcqs(
     route: Optional[Callable[..., Any]] = None,
     attempts: Optional[int] = None,
     extra_check: Optional[Callable[[Dict[str, Any], Dict[str, Any]], List[str]]] = None,
+    verify: Optional[bool] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Return {event_id: validated MCQ}.  Items that fail are simply absent (caller falls back).
 
@@ -255,7 +277,14 @@ def generate_llm_mcqs(
     (stage 16 passes the generic fail-closed validator, so an MCQ accepted here is
     never rejected later).  A rejected attempt is retried with the rejection
     reasons appended to the prompt, which fixes most near-misses.
+
+    An accepted MCQ is then self-verified (the model answers its own question
+    blind).  On a key mismatch the item is regenerated once; a second mismatch
+    drops the LLM question (the caller falls back to templates).  An unusable
+    verifier reply does not block the MCQ: the deterministic checks still apply.
     """
+    if verify is None:
+        verify = os.getenv("ALP_MCQ_SELF_VERIFY", "1").strip().lower() not in ("0", "off", "false", "no")
     if attempts is None:
         try:
             attempts = max(1, int(os.getenv("ALP_MCQ_LLM_ATTEMPTS", "3")))
@@ -276,7 +305,9 @@ def generate_llm_mcqs(
         src = source_text_fn(item)
         prompt = build_prompt(item, src)
         feedback = ""
-        for attempt in range(attempts):
+        max_tries, regenerated, attempt = attempts, False, -1
+        while attempt + 1 < max_tries:
+            attempt += 1
             ask = prompt
             if attempt:
                 ask = prompt + "\nReturn valid JSON only."
@@ -304,6 +335,18 @@ def generate_llm_mcqs(
                     errs = list(extra_check(m, item) or [])
                 except Exception as exc:
                     errs = [f"validator error: {exc}"]
+            if not errs and verify:
+                chosen = _self_verify(route, m, item, src)
+                if chosen and chosen != m.get("correct"):
+                    logger.info("[MCQ schema] %s self-check picked %s, key is %s", item.get("event_id"),
+                                chosen, m.get("correct"))
+                    if regenerated:
+                        break  # second mismatch: drop the LLM question
+                    regenerated = True
+                    max_tries = max(max_tries, attempt + 2)
+                    feedback = (f"a blind self-check answered {chosen} but the key was {m.get('correct')}; "
+                                "key the option that NEWS (or the well-known static fact) actually supports")
+                    continue
             if not errs:
                 out[str(item.get("event_id", ""))] = m
                 break

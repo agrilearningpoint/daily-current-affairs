@@ -1339,9 +1339,11 @@ def renumber_mcqs(mcqs):
 
 
 def validate_mcqs(mcqs, content_items):
-    src_by_event = {}
+    from pipeline.mcq_quality import known_mapping_supports, quality_errors
+    src_by_event, ci_by_event = {}, {}
     for c in content_items or []:
         src_by_event[c.get("event_id")] = _evidence_text(c)
+        ci_by_event[c.get("event_id")] = c
     valid, rejected, seen_q = [], [], set()
     stats = {"total": len(mcqs or []), "passed": 0, "failed": 0}
 
@@ -1377,7 +1379,8 @@ def validate_mcqs(mcqs, content_items):
                     return True
                 return False
 
-            if not _in_src(base_correct, src_text) and not _in_src(correct, src_text):
+            if (not _in_src(base_correct, src_text) and not _in_src(correct, src_text)
+                    and not known_mapping_supports(m.get("question_en") or "", base_correct)):
                 errs.append("answer not supported by source text")
             if any(_in_src(o.split(" / ")[0].strip(), src_text) for i, o in enumerate(opts) if i != ci_idx and len(o.split(" / ")[0].strip()) > 4):
                 errs.append("a distractor also appears in the source text (ambiguous answer)")
@@ -1405,6 +1408,7 @@ def validate_mcqs(mcqs, content_items):
             errs.append("question leaks the answer")
         if not (m.get("question_hi") or "").strip():
             errs.append("missing Hindi question")
+        errs.extend(quality_errors(m, ci_by_event.get(m.get("event_id")), src_by_event.get(m.get("event_id"), "")))
 
         similar_pair = None
         for i in range(len(opts)):

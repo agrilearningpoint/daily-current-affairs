@@ -260,9 +260,14 @@ def candidates_for_item(ci: Dict[str, Any], evidence: str, pools: Dict[str, Any]
                         all_items: List[Dict[str, Any]], llm_mcq: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """All MCQ candidates for one story, best first (LLM, bilingual templates, legacy templates)."""
     from pipeline.content import _build_item_candidates
+    from pipeline.mcq_quality import concept_mcqs
     out: List[Dict[str, Any]] = []
     if llm_mcq:
         out.append(llm_mcq)
+    try:
+        out.extend(concept_mcqs(ci, evidence))
+    except Exception:
+        logger.exception("[MCQ builder] concept candidates failed for %s", ci.get("event_id"))
     for fn in BILINGUAL_TEMPLATES:
         try:
             m = fn(ci, evidence)
@@ -273,10 +278,52 @@ def candidates_for_item(ci: Dict[str, Any], evidence: str, pools: Dict[str, Any]
             out.append(m)
     try:
         for m in _build_item_candidates(ci, pools, all_items):
-            if _legacy_ok(m):
+            m = _legacy_fix(m, ci)
+            if m is not None and _legacy_ok(m):
                 out.append(_bilingualize(m))
     except Exception:
         logger.exception("[MCQ builder] legacy candidates failed for %s", ci.get("event_id"))
+    return out
+
+
+_LEGACY_EXPL = {
+    "static-number": "{point}. The figure reported is {val}.",
+    "scheme-ministry": "{point}. The ministry / organisation involved is {val}.",
+    "report-rank": "{point}. The rank / position reported is {val}.",
+    "who-org": "{point}. The institution featured is {val}.",
+}
+_LEGACY_EXPL_HI = {
+    "static-number": "{point}। रिपोर्ट किया गया आंकड़ा {val} है।",
+    "scheme-ministry": "{point}। संबंधित मंत्रालय/संगठन {val} है।",
+    "report-rank": "{point}। रिपोर्ट की गई रैंक/स्थिति {val} है।",
+    "who-org": "{point}। संबंधित संस्था {val} है।",
+}
+
+
+def _legacy_fix(m: Dict[str, Any], ci: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Legacy templates: drop number questions whose number was cut out of the headline
+    (the stem then reads "could cover of exports"), and replace the
+    "headline + source name" explanation with the story's first key point."""
+    opts = m.get("options") or []
+    letter = str(m.get("correct") or "")
+    if len(letter) != 1 or "ABCDE".find(letter) < 0 or "ABCDE".find(letter) >= len(opts):
+        return None
+    ans = str(opts["ABCDE".index(letter)]).split(" / ")[0].strip()
+    mtype = m.get("type")
+    if mtype == "static-number":
+        digits = re.findall(r"\d+(?:[.,]\d+)*", ans)
+        if any(d in _plain(ci.get("headline_en")) for d in digits):
+            return None
+    tpl = _LEGACY_EXPL.get(mtype)
+    if not tpl:
+        return m
+    p_en, p_hi = _expl_lines(ci)
+    if not p_en or p_en == _plain(ci.get("headline_en")):
+        return None  # nothing beyond the headline to explain with
+    out = dict(m)
+    out["explanation_en"] = tpl.format(point=p_en.rstrip("."), val=ans)
+    if p_hi and DEVANAGARI_RE.search(p_hi):
+        out["explanation_hi"] = _LEGACY_EXPL_HI[mtype].format(point=p_hi.rstrip("।. "), val=ans)
     return out
 
 
@@ -342,7 +389,18 @@ def _bilingualize(m: Dict[str, Any]) -> Dict[str, Any]:
 def first_valid(cands: List[Dict[str, Any]], ci: Dict[str, Any], seen_q: set) -> Tuple[Optional[Dict[str, Any]], List[str]]:
     """First candidate that passes the fail-closed validator and is not a repeated question."""
     from pipeline.content import _qkey, validate_mcqs
+    from pipeline.mcq_quality import answer_in_headline
     reasons: List[str] = []
+    # Prefer questions the headline does not answer (static / body facts); stable order otherwise.
+    # LLM (when the headline does not answer it) > concept > LLM > other templates.
+    def _rank(c):
+        hl = answer_in_headline(c, ci)
+        if c.get("type") == "llm-schema":
+            return 2 if hl else 0
+        if c.get("type") == "concept":
+            return 1
+        return 4 if hl else 3
+    cands = sorted(cands, key=_rank)
     for c in cands:
         if _qkey(c.get("question_en")) in seen_q:
             reasons.append(f"{c.get('type')}: duplicate question")
