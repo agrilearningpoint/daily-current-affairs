@@ -190,13 +190,75 @@ def test_refresh_script_strict_on_page_check():
     def llm(prompt):
         return next(a for k, a in answers.items() if k in prompt)
 
-    res = mod.refresh(doc, fetch=fetch, llm=llm, today="2026-11-04")
+    searched = []
+
+    def search(q):
+        searched.append(q)
+        return [{"link": "https://news.example.com/x", "title": "New Person named APEDA Chairman", "snippet": ""}]
+
+    res = mod.refresh(doc, fetch=fetch, llm=llm, today="2026-11-04", search=search)
     a, b, c, d = doc["facts"]
-    assert a["name"] == "New Person" and a["verified_on"] == "2026-11-04"      # confirmed on page
+    assert a["name"] == "New Person" and a["verified_on"] == "2026-11-04"      # page + second source
+    assert a["second_source"] == "https://news.example.com/x" and searched == ["Chairman, APEDA New Person"]
     assert b["verified_on"] == "2026-11-04"                                     # still on page
     assert c["name"] == "Sanjay Malhotra" and c["verified_on"] == "2026-01-01"  # hallucination rejected
     assert d["name"] == "X" and res["unreachable"]
     assert len(res["changed"]) == 1 and res["review"]
+
+
+def _load_refresh():
+    spec = importlib.util.spec_from_file_location("t_refresh2", str(ROOT / "scripts" / "refresh_current_facts.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _facts_file(tmp_path):
+    p = tmp_path / "current_facts.json"
+    p.write_text(json.dumps({"updated": "2026-01-01", "facts": [
+        {"id": "a", "post": "Chairman, APEDA", "name": "Old Name", "match": ["APEDA Chairman"],
+         "source_url": "https://apeda.gov.in/x", "verified_on": "2026-01-01"},
+        {"id": "b", "post": "Chairman, NDDB", "name": "Meenesh Shah", "match": ["NDDB Chairman"],
+         "source_url": "https://nddb.coop/y", "verified_on": "2026-01-01"}]}), encoding="utf-8")
+    return p
+
+
+def test_refresh_main_change_needs_second_source_and_writes_file(tmp_path, monkeypatch):
+    mod = _load_refresh()
+    p, ch = _facts_file(tmp_path), tmp_path / "changes.txt"
+    pages = {"https://apeda.gov.in/x": "<p>Shri New Person — Chairman, APEDA</p>",
+             "https://nddb.coop/y": "Dr Meenesh Shah, Chairman NDDB"}
+    monkeypatch.setattr(mod, "default_fetch", lambda u: (200, pages[u]))
+    monkeypatch.setattr(mod, "default_llm", lambda prompt: '{"name": "New Person", "since": null}')
+    # same-domain hit does not count; other-domain hit does
+    monkeypatch.setattr(mod, "default_search", lambda q: [
+        {"link": "https://apeda.gov.in/news", "title": "New Person", "snippet": ""},
+        {"link": "https://pib.gov.in/r", "title": "", "snippet": "New Person takes charge as APEDA Chairman"}])
+    assert mod.main(["--facts", str(p), "--changes", str(ch)]) == 0
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    assert doc["facts"][0]["name"] == "New Person" and doc["facts"][0]["second_source"] == "https://pib.gov.in/r"
+    assert len(doc["facts"]) == 2 and "Old Name -> New Person" in ch.read_text(encoding="utf-8")
+
+
+def test_refresh_main_unreachable_page_keeps_old_value(tmp_path, monkeypatch):
+    mod = _load_refresh()
+    p, ch = _facts_file(tmp_path), tmp_path / "changes.txt"
+    original = p.read_text(encoding="utf-8")
+
+    def fetch(u):
+        raise OSError("timeout")
+    monkeypatch.setattr(mod, "default_fetch", fetch)
+    monkeypatch.setattr(mod, "default_search", lambda q: (_ for _ in ()).throw(AssertionError("no search")))
+    assert mod.main(["--facts", str(p), "--changes", str(ch)]) == 0
+    assert p.read_text(encoding="utf-8") == original and ch.read_text(encoding="utf-8") == ""
+
+
+def test_refresh_main_fails_open_on_bad_file(tmp_path):
+    mod = _load_refresh()
+    p = tmp_path / "current_facts.json"
+    p.write_text("{not json", encoding="utf-8")
+    assert mod.main(["--facts", str(p), "--changes", str(tmp_path / "c.txt")]) == 0
+    assert p.read_text(encoding="utf-8") == "{not json"
 
 
 def test_historical_officeholder_lines_are_timeless(facts):

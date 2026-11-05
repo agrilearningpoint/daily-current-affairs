@@ -4,23 +4,26 @@
 Re-verify config/current_facts.json against each entry's official source_url.
 
 For every fact:
-  1. Fetch source_url (timeout 25 s).  Unreachable -> the entry is left as is
+  1. Fetch source_url (timeout 15 s).  Unreachable -> the entry is left as is
      and reported ("unreachable"); nothing is guessed.
   2. If the recorded name (or an alias / Hindi name) is on the page -> still
      verified: ``verified_on`` is bumped to today.
   3. Otherwise ask an LLM (pipeline.llm_helper.call_llm) who holds the post
      according to THIS page text only.  The answer is accepted only when the
      returned name appears verbatim on the page (strict check) and the page
-     mentions the post.  An accepted change rewrites name/since/aliases and
+     mentions the post, AND a Serper search for "<post> <new name>" finds the
+     name on a different domain than the official page (second source; at most
+     40 Serper calls per run, 10 s each).  An accepted change rewrites name/since/aliases and
      clears name_hi (the validator then blanks unverified Hindi names).
      Anything else -> entry kept, reported as "needs review".
   Multi-holder posts (``names``) are only checked, never rewritten by the LLM.
 
-Writes the file only when something changed and prints a Markdown summary
-(used as the PR body by .github/workflows/refresh-current-facts.yml).
+Writes the file only when something changed and no entry would be lost, prints a
+Markdown summary and writes the list of changes to --changes (default
+/tmp/facts_changes.txt; used by .github/workflows/refresh-current-facts.yml).
 
-Usage: python scripts/refresh_current_facts.py [--facts PATH] [--summary PATH] [--no-llm]
-Exit code is always 0 unless the facts file itself is unreadable (2).
+Usage: python scripts/refresh_current_facts.py [--facts PATH] [--summary PATH] [--changes PATH] [--no-llm]
+Fails open: always exits 0; on any error the facts file is left unchanged.
 """
 from __future__ import annotations
 
@@ -62,8 +65,52 @@ def on_page(name: str, text: str) -> bool:
 def default_fetch(url: str) -> Tuple[int, str]:
     import requests
     r = requests.get(url, headers={"User-Agent": UA, "Accept": "text/html,application/xhtml+xml,*/*",
-                                   "Accept-Language": "en-US,en;q=0.9"}, timeout=25)
+                                   "Accept-Language": "en-US,en;q=0.9"}, timeout=15)
     return r.status_code, r.text
+
+
+SERPER_MAX_CALLS = 40
+_serper_calls = 0
+
+
+def default_search(query: str) -> List[Dict]:
+    """Serper web search; capped at SERPER_MAX_CALLS per run, 10 s timeout. [] on any problem."""
+    global _serper_calls
+    import os
+    key = os.getenv("SERPER_API_KEY", "")
+    if not key or _serper_calls >= SERPER_MAX_CALLS:
+        return []
+    _serper_calls += 1
+    try:
+        import requests
+        r = requests.post("https://google.serper.dev/search", json={"q": query, "num": 10, "gl": "in"},
+                          headers={"X-API-KEY": key, "Content-Type": "application/json"}, timeout=10)
+        return list((r.json() or {}).get("organic") or []) if r.status_code == 200 else []
+    except Exception:
+        return []
+
+
+def _domain(url: str) -> str:
+    from urllib.parse import urlparse
+    host = (urlparse(str(url or "")).hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def second_source(post: str, name: str, official_url: str, search: Callable[[str], List[Dict]]) -> str:
+    """Return a URL on a different domain than official_url whose result text names ``name``, else ''."""
+    official = _domain(official_url)
+    try:
+        results = search(f"{post} {name}") or []
+    except Exception:
+        return ""
+    for r in results:
+        link = str(r.get("link") or "")
+        dom = _domain(link)
+        if not dom or dom == official or dom.endswith("." + official) or official.endswith("." + dom):
+            continue
+        if on_page(name, f"{r.get('title', '')} {r.get('snippet', '')}"):
+            return link
+    return ""
 
 
 def default_llm(prompt: str) -> str:
@@ -115,7 +162,8 @@ def post_on_page(fact: Dict, text: str) -> bool:
 
 
 def refresh(facts_doc: Dict, *, fetch: Callable[[str], Tuple[int, str]] = default_fetch,
-            llm: Optional[Callable[[str], str]] = default_llm, today: Optional[str] = None) -> Dict[str, List[str]]:
+            llm: Optional[Callable[[str], str]] = default_llm, today: Optional[str] = None,
+            search: Callable[[str], List[Dict]] = default_search) -> Dict[str, List[str]]:
     today = today or dt.date.today().isoformat()
     res: Dict[str, List[str]] = {"verified": [], "changed": [], "unreachable": [], "review": []}
     for f in facts_doc.get("facts") or []:
@@ -153,9 +201,14 @@ def refresh(facts_doc: Dict, *, fetch: Callable[[str], Tuple[int, str]] = defaul
             continue
         # STRICT: the LLM's name must be printed on the page, and the page must be about the post.
         if new and on_page(new, text) and post_on_page(f, text) and norm(new) != norm(f.get("name")):
+            second = second_source(f.get("post", ""), new, url, search)
+            if not second:
+                res["review"].append(f"{fid}: page names {new!r} but no second source on another domain")
+                continue
             old = f.get("name")
-            f.update({"name": new, "since": since, "aliases": [], "name_hi": "", "verified_on": today})
-            res["changed"].append(f"{fid}: {old} -> {new} ({url})")
+            f.update({"name": new, "since": since, "aliases": [], "name_hi": "", "verified_on": today,
+                      "second_source": second})
+            res["changed"].append(f"{fid}: {old} -> {new} ({url}; 2nd: {second})")
         else:
             res["review"].append(f"{fid}: '{f.get('name')}' not found on page; LLM answer "
                                  f"{new!r} failed the strict on-page check")
@@ -204,7 +257,7 @@ def summary_md(res: Dict[str, List[str]], today: str) -> str:
              f"- unreachable: {len(res['unreachable'])}", f"- needs review: {len(res['review'])}", ""]
     if res.get("promoted"):
         lines.insert(5, f"- promoted from AI cache: {len(res['promoted'])}")
-    for key, title in (("changed", "Changed (LLM answer confirmed verbatim on the official page)"),
+    for key, title in (("changed", "Changed (on the official page + a second source)"),
                        ("promoted", "Promoted from the daily AI lookup cache (re-checked on the official page)"),
                        ("review", "Needs human review (left unchanged)"), ("unreachable", "Unreachable (left unchanged)")):
         if res.get(key):
@@ -218,19 +271,33 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--facts", default=str(FACTS))
     ap.add_argument("--summary", default="")
+    ap.add_argument("--changes", default="/tmp/facts_changes.txt")
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--promote-cache", action="store_true",
                     help="also add fresh AI-verified entries from state/ai_facts_cache.json")
     a = ap.parse_args(argv)
-    path = Path(a.facts)
     try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print(f"cannot read {path}: {exc}", file=sys.stderr)
-        return 2
+        _run(a)
+    except Exception as exc:  # fail open: the facts file is left as it was
+        print(f"refresh skipped ({type(exc).__name__}: {exc}); facts file unchanged", file=sys.stderr)
+    return 0
+
+
+def _ids(doc: Dict) -> set:
+    return {str(f.get("id")) for f in (doc.get("facts") or [])}
+
+
+def _run(a) -> None:
+    path = Path(a.facts)
+    changes_path = Path(a.changes) if a.changes else None
+    if changes_path:
+        changes_path.write_text("", encoding="utf-8")
+    doc = json.loads(path.read_text(encoding="utf-8"))
     before = json.dumps(doc, ensure_ascii=False, sort_keys=True)
+    old_ids, old_n = _ids(doc), len(doc.get("facts") or [])
     today = dt.date.today().isoformat()
-    res = refresh(doc, llm=None if a.no_llm else default_llm, today=today)
+    res = refresh(doc, fetch=default_fetch, llm=None if a.no_llm else default_llm, today=today,
+                  search=default_search)
     if a.promote_cache and CACHE.is_file():
         try:
             res["promoted"] = promote_cache(doc, json.loads(CACHE.read_text(encoding="utf-8")), today=today)
@@ -239,6 +306,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if res["changed"] or res.get("promoted"):
         doc["updated"] = today
     after = json.dumps(doc, ensure_ascii=False, sort_keys=True)
+    if len(doc.get("facts") or []) < old_n or not old_ids <= _ids(doc):
+        print("refusing to write: an entry would be lost; facts file unchanged", file=sys.stderr)
+        return
     if after != before:
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -247,7 +317,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(md)
     if a.summary:
         Path(a.summary).write_text(md, encoding="utf-8")
-    return 0
+    if changes_path:
+        lines = [f"changed {x}" for x in res["changed"]] + [f"added {x}" for x in res.get("promoted") or []]
+        changes_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
 if __name__ == "__main__":
