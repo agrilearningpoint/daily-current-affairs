@@ -127,6 +127,10 @@ class Fact:
     rx_hi: Optional[re.Pattern] = None
     override: bool = False      # name comes from a verified override (state/ai_facts_cache.json)
     blocked: bool = False       # today's news reports a change that could not be verified -> drop named lines
+    stale_names: List[str] = field(default_factory=list)     # earlier / commonly hallucinated holders
+    stale_names_hi: List[str] = field(default_factory=list)
+    portfolio: List[str] = field(default_factory=list)       # subjects a minister holds (ministers only)
+    rank: str = ""                                            # "cabinet" | "mos_ic" | "mos" (ministers only)
 
     @property
     def multi(self) -> bool:
@@ -151,22 +155,121 @@ def _phrase_rx(phrases: Sequence[str], hindi: bool = False) -> Optional[re.Patte
     return re.compile(rf"(?<![A-Za-z])(?:{body})(?![A-Za-z])", re.I)
 
 
+def _facts_doc(path: Optional[Path] = None) -> Dict[str, Any]:
+    p = Path(path or os.getenv("ALP_CURRENT_FACTS", "") or FACTS_PATH)
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 def load_facts(path: Optional[Path] = None) -> List[Fact]:
     """Load config/current_facts.json. Returns [] when missing/invalid (callers fail open)."""
-    p = Path(path or os.getenv("ALP_CURRENT_FACTS", "") or FACTS_PATH)
-    data = json.loads(p.read_text(encoding="utf-8"))
+    data = _facts_doc(path)
     out: List[Fact] = []
     for f in data.get("facts") or []:
         if not isinstance(f, dict) or not f.get("name") or not f.get("match"):
             continue
+        lst = lambda k: [str(x) for x in f.get(k) or []]  # noqa: E731
         fact = Fact(id=str(f.get("id") or f.get("post")), post=str(f.get("post") or ""), name=str(f["name"]),
-                    names=[str(x) for x in f.get("names") or []], aliases=[str(x) for x in f.get("aliases") or []],
-                    name_hi=str(f.get("name_hi") or ""), match=[str(x) for x in f.get("match") or []],
-                    match_hi=[str(x) for x in f.get("match_hi") or []])
+                    names=lst("names"), aliases=lst("aliases"),
+                    name_hi=str(f.get("name_hi") or ""), match=lst("match"), match_hi=lst("match_hi"),
+                    stale_names=lst("stale_names"), stale_names_hi=lst("stale_names_hi"),
+                    portfolio=lst("portfolio"), rank=str(f.get("rank") or ""))
         fact.rx = _phrase_rx(fact.match)
         fact.rx_hi = _phrase_rx(fact.match_hi, hindi=True)
         out.append(fact)
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Organisation facts (founded year / headquarters / ministry)
+# --------------------------------------------------------------------------- #
+@dataclass
+class OrgFact:
+    id: str
+    name: str
+    match: List[str]
+    founded: List[int]
+    hq: List[str]
+    hq_hi: str
+    ministry: List[str]          # accepted ministry / department phrases
+    ministry_name: str
+    ministry_hi: str
+    rx: Optional[re.Pattern] = None
+
+
+def load_orgs(path: Optional[Path] = None) -> List[OrgFact]:
+    """Verified organisation facts ('orgs' in current_facts.json). [] when absent."""
+    try:
+        data = _facts_doc(path)
+    except Exception:
+        return []
+    out: List[OrgFact] = []
+    for o in data.get("orgs") or []:
+        if not isinstance(o, dict) or not o.get("match"):
+            continue
+        org = OrgFact(id=str(o.get("id")), name=str(o.get("name") or ""), match=[str(x) for x in o["match"]],
+                      founded=[int(x) for x in o.get("founded") or []], hq=[str(x) for x in o.get("hq") or []],
+                      hq_hi=str(o.get("hq_hi") or ""), ministry=[str(x) for x in o.get("ministry") or []],
+                      ministry_name=str(o.get("ministry_name") or ""), ministry_hi=str(o.get("ministry_hi") or ""))
+        org.rx = re.compile(r"(?<![A-Za-z])(?:" + "|".join(
+            re.escape(m).replace(r"\ ", r"\s+") for m in sorted(org.match, key=len, reverse=True)) + r")(?![A-Za-z])")
+        out.append(org)
+    return out
+
+
+FOUNDED_RE = re.compile(r"\b(?:establish(?:ed|ment)?|founded|foundation|set\s+up|incorporat(?:ed|ion)|formed|"
+                        r"inception|constituted|year\s+of\s+(?:establishment|incorporation))\b|स्थापना|गठन", re.I)
+HQ_RE = re.compile(r"\b(?:headquarter(?:s|ed)?|HQ|head\s+office|registered\s+office|based\s+(?:in|at))\b|मुख्यालय", re.I)
+MINISTRY_FIELD_RE = re.compile(r"\b(?:(?:parent|nodal|administrative|controlling)\s+(?:ministry|department)|"
+                               r"under\s+the\s+(?:administrative\s+control\s+of\s+(?:the\s+)?)?(?:ministry|department)|"
+                               r"(?:ministry|department)\s*$)", re.I)
+FILLER_MINISTRY_RE = re.compile(r"\b(?:parent|nodal|administrative)\s+ministry\b\s*[–:\-]*\s*"
+                                r"(?:the\s+)?(?:government\s+of\s+india|union\s+government|central\s+government|"
+                                r"goi|n/?a|none|not\s+applicable)\s*\.?$", re.I)
+
+
+def _org_in(text: str, orgs: Sequence[OrgFact]) -> List[OrgFact]:
+    return [o for o in orgs if o.rx and o.rx.search(text or "")]
+
+
+def check_org_line(label: str, value: str, orgs: Sequence[OrgFact], context: Optional[OrgFact] = None
+                   ) -> Tuple[str, str, str, str]:
+    """Founded/HQ/ministry check for one line about a tracked organisation.
+
+    Returns (action, field, new_value_en, new_value_hi): action keep | replace | drop.
+    ``label``/``value`` are the row parts (a plain sentence goes in ``label`` with value '').
+    A line naming two tracked organisations is not judged (keep)."""
+    line = f"{label} – {value}" if value else label
+    if FILLER_MINISTRY_RE.search(line):
+        return "drop", "ministry", "", ""
+    hits = _org_in(line, orgs)
+    if len(hits) > 1:
+        return "keep", "", "", ""
+    org = hits[0] if hits else context
+    if org is None:
+        return "keep", "", "", ""
+    head = label if value else line
+    body = value if value else line
+    if FOUNDED_RE.search(head) and org.founded:
+        ys = _years(body)
+        if ys and not any(y in org.founded for y in ys):
+            if value and re.fullmatch(r"\s*(?:in\s+)?(?:19|20)\d{2}\s*\.?\s*", value):
+                return "replace", "founded", str(org.founded[0]), str(org.founded[0])
+            return "drop", "founded", "", ""
+        return "keep", "founded", "", ""
+    if HQ_RE.search(head) and org.hq:
+        if not any(re.search(rf"(?<![A-Za-z]){re.escape(h)}(?![A-Za-z])", body, re.I) for h in org.hq):
+            if value and len(value.split()) <= 4:
+                return "replace", "hq", org.hq[0], org.hq_hi
+            return "drop", "hq", "", ""
+        return "keep", "hq", "", ""
+    if (MINISTRY_FIELD_RE.search(head) or (value and re.search(r"\bministry\b", label, re.I))) and org.ministry:
+        if re.search(r"\bministry|department\b", body, re.I) and not any(
+                re.search(re.escape(m), body, re.I) for m in org.ministry):
+            if value and org.ministry_name:
+                return "replace", "ministry", org.ministry_name, org.ministry_hi
+            return "drop", "ministry", "", ""
+        return "keep", "ministry", "", ""
+    return "keep", "", "", ""
 
 
 # --------------------------------------------------------------------------- #
@@ -323,17 +426,124 @@ def _story_has(text: str, story_text: str) -> bool:
     return bool(story_text) and _contains_name(story_text, [text])
 
 
+_YEAR_LABEL_RE = re.compile(r"\s*\((?:as\s+of\s+|in\s+)?((?:19|20)\d{2})\)")
+_PORTFOLIO_RE = re.compile(r"\bMinister\s+(?:of\s+State\s+)?(?:\(\s*Independent\s+Charge\s*\)\s+)?(?:of|for)\s+(?:the\s+)?"
+                           r"(.+?)(?=\s*(?:[–—:;.(]|\s-\s|$))", re.I)
+_RUN: Dict[str, int] = {"officeholder_lines": 0, "lookup_candidates": 0}
+_ACTIVE_ORGS: List[OrgFact] = []
+
+
+def strip_year_label(text: str, year: Optional[int] = None) -> str:
+    """'Chief Justice of India (2024)' -> 'Chief Justice of India' (a past year labels old data)."""
+    year = year or current_year()
+    return _YEAR_LABEL_RE.sub(lambda m: "" if int(m.group(1)) < year else m.group(0), text or "")
+
+
+def _name_rx(names: Sequence[str]) -> Optional[re.Pattern]:
+    alts = []
+    for n in sorted({n for n in names if n}, key=len, reverse=True):
+        toks = [re.escape(t.strip(".")) for t in re.split(r"[\s.]+", _TITLE_STRIP_RE.sub("", n)) if t.strip(".")]
+        if toks:
+            alts.append(r"[\s.]*".join(toks))
+    if not alts:
+        return None
+    return re.compile(_TITLE_RE + r"(?:" + "|".join(alts) + r")\.?(?![A-Za-z])", re.I)
+
+
+def _stale_holder(en: str, hi: str, facts: Sequence[Fact], year: Optional[int]) -> Optional[Verdict]:
+    """A known earlier/hallucinated holder named in EN or HI (e.g. 'RBI Governor – Shaktikanta Das')."""
+    for f in facts:
+        if not (f.stale_names or f.stale_names_hi) or f.multi:
+            continue
+        en_hit = bool(f.stale_names) and _contains_name(en, f.stale_names)
+        hi_hit = next((n for n in f.stale_names_hi if n and n in hi), "")
+        if not (en_hit or hi_hit):
+            continue
+        post = bool((f.rx and f.rx.search(en)) or (f.rx_hi and f.rx_hi.search(hi)))
+        if not post:
+            if is_officeholder_line(en, hi) or CURRENT_RE.search(en) or CURRENT_HI_RE.search(hi):
+                return Verdict("drop", reason=f"former holder of {f.id} named without the post", fact_id=f.id)
+            continue
+        new_en = en
+        if en_hit:
+            rx = _name_rx(f.stale_names)
+            if rx is None or not rx.search(en):
+                return Verdict("drop", reason=f"former holder of {f.id} (could not rewrite)", fact_id=f.id)
+            m = rx.search(en)
+            wrong = m.group(0).strip()
+            new_en = strip_year_label(rx.sub(f.name, en), year)
+        else:
+            wrong = hi_hit
+        if not en:
+            return Verdict("drop", reason=f"former holder of {f.id} in a Hindi-only line", fact_id=f.id)
+        # Hindi stays fail-closed: kept only when it already carries the verified Hindi name.
+        new_hi = strip_year_label(hi, year) if (hi and not hi_hit and f.name_hi and f.name_hi in hi) else ""
+        return Verdict("replace", en=new_en, hi=new_hi, reason=f"former holder for {f.id}", fact_id=f.id,
+                       wrong=wrong)
+    return None
+
+
+def _wrong_portfolio(en: str, facts: Sequence[Fact]) -> Optional[Verdict]:
+    """A tracked minister named with a ministry or rank they do not hold."""
+    if not re.search(r"\bMinister\b", en):
+        return None
+    for f in facts:
+        if not f.portfolio or not _contains_name(en, f.valid_names()):
+            continue
+        if f.rank == "cabinet" and re.search(r"\bMinister\s+of\s+State\b|\bMoS\b", en):
+            return Verdict("drop", reason=f"wrong rank for {f.name}", fact_id=f.id)
+        port = [_norm(p) for p in f.portfolio]
+        for m in _PORTFOLIO_RE.finditer(en):
+            claimed = re.sub(r"^(?:the\s+)?(?:Ministry|Department)\s+of\s+", "", m.group(1).strip(), flags=re.I)
+            subjects = [x for x in (_norm(t) for t in re.split(r",|\band\b|&", claimed)) if x]
+            for subj in subjects:
+                if not any(subj in p or p in subj for p in port):
+                    return Verdict("drop", reason=f"wrong portfolio for {f.name}: {subj}", fact_id=f.id)
+    return None
+
+
 def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
-               year: Optional[int] = None, lookup: Any = None) -> Verdict:
+               year: Optional[int] = None, lookup: Any = None, orgs: Optional[Sequence[OrgFact]] = None,
+               org_ctx: Optional[OrgFact] = None) -> Verdict:
     """Decide keep / replace / drop for one bilingual Static GK line. May raise (callers fail open)."""
     en = str(en or "")
     hi = str(hi or "")
     if is_stale_latest(en, hi, year):
         return Verdict("drop", reason="stale year presented as current/latest")
+    orgs = _ACTIVE_ORGS if orgs is None else orgs
+    if orgs and en:
+        act, fld, _nv, _nh = check_org_line(en, "", orgs, org_ctx)
+        if act != "keep":
+            return Verdict("drop", reason=f"wrong {fld} for organisation" if fld != "ministry" or org_ctx
+                           or _org_in(en, orgs) else "meaningless parent ministry")
     if HISTORICAL_RE.search(en) or (not en and HISTORICAL_HI_RE.search(hi)):
         return Verdict("keep", en=en, hi=hi, reason="historical fact")
+    if is_officeholder_line(en, hi):
+        _RUN["officeholder_lines"] += 1
+    v = _stale_holder(en, hi, facts, year)
+    if v is not None:
+        return v
+    v = _wrong_portfolio(en, facts)
+    if v is not None:
+        return v
+    if not en and hi:
+        for f in facts:
+            mh = f.rx_hi.search(hi) if f.rx_hi else None
+            if mh and not _foreign_context(hi, mh.start(), mh.end()):
+                if f.name_hi and f.name_hi in hi:
+                    return Verdict("keep", en=en, hi=hi)
+                if re.search(r"[–:\-]\s*\S", hi[mh.end():]):
+                    return Verdict("drop", reason=f"Hindi-only {f.id} line without the verified name", fact_id=f.id)
     hits = _post_hits(en, facts)
     if hits:
+        label_en, label_hi = strip_year_label(en, year), strip_year_label(hi, year)
+        if label_en != en or label_hi != hi:
+            v = check_line(label_en, label_hi, facts, story_text=story_text, year=year, lookup=lookup,
+                           orgs=orgs, org_ctx=org_ctx)
+            if v.action == "keep":
+                return Verdict("replace", en=label_en, hi=label_hi, reason="past year label removed",
+                               fact_id=hits[0][0].id)
+            return v
         mask = [(s, e) for _f, s, e in hits]
         cands = name_candidates(en, mask)
         new_en, new_hi = en, hi
@@ -390,6 +600,7 @@ def _ai_verdict(en: str, hi: str, unverified: Sequence[Tuple[str, int, int]], lo
 
     Exactly one unverified person name may remain once name-like words inside the post
     phrase ("Chief Minister of Uttar Pradesh") are set aside; anything else is dropped."""
+    _RUN["lookup_candidates"] += 1
     if lookup is None:
         return None
     from agents.static_gk_ai_lookup import extract_post, post_spans
@@ -420,16 +631,31 @@ def _ai_verdict(en: str, hi: str, unverified: Sequence[Tuple[str, int, int]], lo
 
 
 def check_row(row: Dict[str, Any], facts: Sequence[Fact], *, story_text: str = "",
-              year: Optional[int] = None) -> Tuple[str, Dict[str, Any], Verdict]:
+              year: Optional[int] = None, org_ctx: Optional[OrgFact] = None) -> Tuple[str, Dict[str, Any], Verdict]:
     """MCQ schema row {label_en, value_en, label_hi, value_hi}. Returns (action, new_row, verdict)."""
     le, ve = str(row.get("label_en") or ""), str(row.get("value_en") or "")
     lh, vh = str(row.get("label_hi") or ""), str(row.get("value_hi") or "")
     en = f"{le} – {ve}" if le and ve else (le or ve)
     hi = f"{lh} – {vh}" if lh and vh else (lh or vh)
-    v = check_line(en, hi, facts, story_text=story_text, year=year)
+    if _ACTIVE_ORGS and not is_stale_latest(en, hi, year):
+        act, fld, nv, nh = check_org_line(le, ve, _ACTIVE_ORGS, org_ctx)
+        if act == "drop":
+            return "drop", dict(row), Verdict("drop", reason=f"wrong or meaningless {fld} (organisation fact)")
+        if act == "replace":
+            new = dict(row)
+            new["value_en"], new["value_hi"] = nv, nh
+            return "replace", new, Verdict("replace", en=f"{le} – {nv}", hi=f"{lh} – {nh}" if nh else "",
+                                           reason=f"wrong {fld} for organisation", wrong=ve, new_name=nv)
+    v = check_line(en, hi, facts, story_text=story_text, year=year, orgs=[])
     if v.action != "replace":
         return v.action, dict(row), v
     new = dict(row)
+    if v.reason == "past year label removed":
+        for k in ("label_en", "value_en", "label_hi", "value_hi"):
+            if isinstance(new.get(k), str):
+                new[k] = strip_year_label(new[k], year)
+        return "replace", new, v
+    new["label_en"], new["label_hi"] = strip_year_label(le, year), strip_year_label(lh, year)
     fact = next((f for f in facts if f.id == v.fact_id), None)
     good = v.new_name or (fact.name if fact else "")
     if v.wrong and good and v.wrong in ve:
@@ -669,6 +895,7 @@ def validate_pairs(pairs: Any, facts: Sequence[Fact], report: Report, story_text
     if not isinstance(pairs, list):
         return pairs
     out = []
+    ctx: Optional[OrgFact] = None
     for p in pairs:
         if isinstance(p, dict):
             en, hi = str(p.get("en") or ""), str(p.get("hi") or "")
@@ -679,7 +906,10 @@ def validate_pairs(pairs: Any, facts: Sequence[Fact], report: Report, story_text
         else:
             out.append(p)
             continue
-        v = _safe_line(lambda: check_line(en, hi, facts, story_text=story_text, year=year), en, hi, report)
+        here = _org_in(en, _ACTIVE_ORGS) if _ACTIVE_ORGS else []
+        ctx = here[0] if len(here) == 1 else (None if here else ctx)
+        v = _safe_line(lambda: check_line(en, hi, facts, story_text=story_text, year=year, org_ctx=ctx),
+                       en, hi, report)
         if v is None:
             v = Verdict("drop" if is_officeholder_line(en, hi) else "keep", en=en, hi=hi, reason="validator error")
         report.add(v, en)
@@ -706,6 +936,7 @@ def validate_rows(rows: Any, facts: Sequence[Fact], report: Report, story_text: 
     if not isinstance(rows, list):
         return rows
     out = []
+    ctx: Optional[OrgFact] = None
     for r in rows:
         if not isinstance(r, dict) or not ("label_en" in r or "value_en" in r):
             if isinstance(r, dict) and ("en" in r or "hi" in r):
@@ -714,7 +945,9 @@ def validate_rows(rows: Any, facts: Sequence[Fact], report: Report, story_text: 
                 out.append(r)
             continue
         en = f"{r.get('label_en', '')} – {r.get('value_en', '')}"
-        res = _safe_line(lambda: check_row(r, facts, story_text=story_text, year=year), en,
+        here = _org_in(en, _ACTIVE_ORGS) if _ACTIVE_ORGS else []
+        ctx = here[0] if len(here) == 1 else (None if here else ctx)
+        res = _safe_line(lambda: check_row(r, facts, story_text=story_text, year=year, org_ctx=ctx), en,
                          f"{r.get('label_hi', '')} {r.get('value_hi', '')}", report)
         if res is None:
             act = "drop" if is_officeholder_line(en) else "keep"
@@ -765,23 +998,65 @@ def make_lookup() -> Any:
         from agents.static_gk_ai_lookup import Lookup
         return Lookup()
     except Exception as exc:
+        _LOOKUP_ERR[0] = f"{type(exc).__name__}: {exc}"[:120]
         logger.info("[static-gk] AI lookup unavailable: %s", exc)
         return None
 
 
 def validate_edition(content: Dict[str, Any], mcq_data: Any = None,
                      facts: Optional[Sequence[Fact]] = None, lookup: Any = "auto",
-                     cache_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                     cache_doc: Optional[Dict[str, Any]] = None,
+                     orgs: Optional[Sequence[OrgFact]] = None) -> Dict[str, Any]:
     """Validate every Static GK line of an edition in place. Never raises; returns a report dict.
 
     ``lookup``: "auto" builds the AI lookup for untracked posts (a no-op without
     SERPER_API_KEY / an LLM provider / network, and under pytest); None disables it."""
-    global _ACTIVE_LOOKUP
+    global _ACTIVE_LOOKUP, _ACTIVE_ORGS
+    _LOOKUP_ERR[0] = ""
     _ACTIVE_LOOKUP = make_lookup() if lookup == "auto" else lookup
     try:
-        return _validate_edition(content, mcq_data, facts, cache_doc)
+        _ACTIVE_ORGS = load_orgs() if orgs is None else list(orgs)
+    except Exception:
+        _ACTIVE_ORGS = []
+    _RUN.update(officeholder_lines=0, lookup_candidates=0)
+    try:
+        out = _validate_edition(content, mcq_data, facts, cache_doc)
+        _explain_lookup(out, lookup)
+        return out
     finally:
         _ACTIVE_LOOKUP = None
+        _ACTIVE_ORGS = []
+
+
+_LOOKUP_ERR = [""]
+
+
+def _explain_lookup(out: Dict[str, Any], requested: Any) -> None:
+    """Always say why the AI lookup made no calls (it is lazy: only an untracked post with an
+    unverifiable holder name triggers it)."""
+    ai = out.setdefault("ai_lookup", {})
+    ai["officeholder_lines"] = _RUN["officeholder_lines"]
+    ai["lookup_candidates"] = _RUN["lookup_candidates"]
+    lk = _ACTIVE_LOOKUP
+    if lk is None:
+        ai.setdefault("lookups", 0)
+        ai["off_reason"] = ("disabled by caller" if requested is None
+                            else f"unavailable: {_LOOKUP_ERR[0] or 'not constructed'}")
+    elif not ai.get("lookups") and not ai.get("cache_hits") and not ai.get("off_reason"):
+        ready, why = (True, "")
+        try:
+            ready, why = lk.status() if hasattr(lk, "status") else (True, "")
+        except Exception as exc:
+            ready, why = False, f"status error: {type(exc).__name__}"
+        if not ready:
+            ai["off_reason"] = why
+        elif not _RUN["lookup_candidates"]:
+            ai["off_reason"] = (f"idle: none of {_RUN['officeholder_lines']} officeholder line(s) needed a lookup "
+                                "(tracked posts checked against current_facts; other names verified by the story)")
+        else:
+            ai["off_reason"] = "idle: candidate lines had no searchable post"
+    if ai.get("off_reason"):
+        logger.info("[static-gk] AI lookup: %s", ai["off_reason"])
 
 
 def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,

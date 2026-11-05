@@ -1,6 +1,6 @@
 {
-  "_doc": "Verified current officeholders for Static GK. Every name was checked against source_url on verified_on. 'match'/'match_hi' are the post phrases the validator (agents/static_gk_validator.py) looks for; 'names' lists all valid holders for multi-holder posts. Refreshed weekly by scripts/refresh_current_facts.py (opens a PR). Never add a value that was not verified.",
-  "updated": "2026-11-04",
+  "_doc": "Verified current officeholders for Static GK. Every name was checked against source_url on verified_on. 'match'/'match_hi' are the post phrases the validator (agents/static_gk_validator.py) looks for; 'names' lists all valid holders for multi-holder posts. Refreshed weekly by scripts/refresh_current_facts.py (opens a PR). Never add a value that was not verified. 'stale_names'/'stale_names_hi' are earlier or commonly hallucinated holders (replaced when the post is named, dropped otherwise); 'portfolio'/'rank' let the validator reject a wrong ministry or rank for a tracked minister. 'orgs' holds verified founded year / HQ / ministry for organisations; a wrong value is corrected in a label–value row and the line dropped otherwise.",
+  "updated": "2026-11-05",
   "facts": [
     {
       "id": "president_india",
@@ -89,7 +89,25 @@
       "aliases": [
         "Justice Surya Kant"
       ],
-      "name_hi": "सूर्यकांत"
+      "name_hi": "सूर्यकांत",
+      "stale_names": [
+        "D. Y. Chandrachud",
+        "Dhananjaya Y. Chandrachud",
+        "DY Chandrachud",
+        "Sanjiv Khanna",
+        "B. R. Gavai",
+        "Bhushan Ramkrishna Gavai",
+        "N. V. Ramana"
+      ],
+      "stale_names_hi": [
+        "डी.वाई. चंद्रचूड़",
+        "डी वाई चंद्रचूड़",
+        "धनंजय यशवंत चंद्रचूड़",
+        "चंद्रचूड़",
+        "संजीव खन्ना",
+        "बी.आर. गवई",
+        "गवई"
+      ]
     },
     {
       "id": "cec",
@@ -114,7 +132,7 @@
       "post": "Governor, Reserve Bank of India",
       "name": "Sanjay Malhotra",
       "since": "2024-12-11",
-      "source_url": "https://www.rbi.org.in/scripts/AboutUsDisplay.aspx?pg=Governors.htm",
+      "source_url": "https://rbi.org.in/Content/PastGovernors_Tbl.html",
       "verified_on": "2026-11-04",
       "match": [
         "RBI Governor",
@@ -135,7 +153,19 @@
         "रिजर्व बैंक के गवर्नर"
       ],
       "aliases": [],
-      "name_hi": "संजय मल्होत्रा"
+      "name_hi": "संजय मल्होत्रा",
+      "stale_names": [
+        "Shaktikanta Das",
+        "Urjit Patel",
+        "Urjit R. Patel",
+        "Raghuram Rajan"
+      ],
+      "stale_names_hi": [
+        "शक्तिकांत दास",
+        "शक्तिकान्त दास",
+        "उर्जित पटेल",
+        "रघुराम राजन"
+      ]
     },
     {
       "id": "rbi_deputy_governors",
@@ -251,7 +281,20 @@
         "Dr. Mangi Lal Jat",
         "Mangi Lal Jat"
       ],
-      "name_hi": "मांगी लाल जाट"
+      "name_hi": "मांगी लाल जाट",
+      "stale_names": [
+        "M. K. Ranjitsinh",
+        "M.K. Ranjitsinh",
+        "Ranjitsinh",
+        "Himanshu Pathak",
+        "Trilochan Mohapatra"
+      ],
+      "stale_names_hi": [
+        "रणजीतसिंह",
+        "रंजीतसिंह",
+        "हिमांशु पाठक",
+        "त्रिलोचन महापात्र"
+      ]
     },
     {
       "id": "apeda_chair",
@@ -331,7 +374,14 @@
         "Shivraj Singh Chauhan",
         "Shivraj Chouhan"
       ],
-      "name_hi": "शिवराज सिंह चौहान"
+      "name_hi": "शिवराज सिंह चौहान",
+      "stale_names": [
+        "Narendra Singh Tomar"
+      ],
+      "stale_names_hi": [
+        "नरेंद्र सिंह तोमर",
+        "तोमर"
+      ]
     },
     {
       "id": "finance_minister",
@@ -809,6 +859,287 @@
         "Georgieva"
       ],
       "name_hi": "क्रिस्टालिना जॉर्जीवा"
+    },
+    {
+      "id": "mnre_minister",
+      "post": "Union Minister of New and Renewable Energy",
+      "name": "Pralhad Joshi",
+      "since": "2024-06-11",
+      "source_url": "https://mnre.gov.in/en/whos-who/",
+      "second_source": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2024018",
+      "verified_on": "2026-11-05",
+      "match": [
+        "Union Minister of New and Renewable Energy",
+        "Union Minister for New and Renewable Energy",
+        "Minister of New and Renewable Energy",
+        "Minister for New and Renewable Energy",
+        "New and Renewable Energy Minister",
+        "MNRE Minister",
+        "Minister of New & Renewable Energy",
+        "Union Minister of New & Renewable Energy"
+      ],
+      "match_hi": [
+        "नवीन और नवीकरणीय ऊर्जा मंत्री",
+        "नवीन एवं नवीकरणीय ऊर्जा मंत्री",
+        "नवीन व नवीकरणीय ऊर्जा मंत्री"
+      ],
+      "aliases": [
+        "Pralhad Venkatesh Joshi",
+        "Shri Pralhad Joshi",
+        "Prahlad Joshi"
+      ],
+      "name_hi": "प्रल्हाद जोशी",
+      "stale_names": [
+        "R. K. Singh",
+        "R.K. Singh",
+        "Raj Kumar Singh",
+        "RK Singh"
+      ],
+      "stale_names_hi": [
+        "आर.के. सिंह",
+        "आर के सिंह",
+        "राज कुमार सिंह",
+        "राजकुमार सिंह"
+      ],
+      "rank": "cabinet",
+      "portfolio": [
+        "New and Renewable Energy",
+        "New & Renewable Energy",
+        "Renewable Energy",
+        "Consumer Affairs",
+        "Food and Public Distribution",
+        "Food",
+        "Public Distribution",
+        "Education"
+      ],
+      "portfolio_source": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/"
+    },
+    {
+      "id": "fahd_minister",
+      "post": "Union Minister of Fisheries, Animal Husbandry & Dairying and Panchayati Raj",
+      "name": "Rajiv Ranjan Singh",
+      "since": "2024-06-11",
+      "source_url": "https://www.dahd.gov.in/ministry/our-team",
+      "second_source": "https://panchayat.gov.in/en/our-team",
+      "verified_on": "2026-11-05",
+      "match": [
+        "Union Minister of Fisheries, Animal Husbandry and Dairying",
+        "Minister of Fisheries, Animal Husbandry and Dairying",
+        "Minister of Fisheries, Animal Husbandry & Dairying",
+        "Union Minister for Fisheries, Animal Husbandry and Dairying",
+        "Union Minister for Fisheries, Animal Husbandry & Dairying",
+        "Union Fisheries Minister",
+        "Union Animal Husbandry Minister",
+        "Union Minister of Panchayati Raj",
+        "Minister of Panchayati Raj",
+        "Union Panchayati Raj Minister"
+      ],
+      "match_hi": [
+        "मत्स्यपालन, पशुपालन एवं डेयरी मंत्री",
+        "मत्स्यपालन, पशुपालन और डेयरी मंत्री",
+        "मत्स्य पालन, पशुपालन और डेयरी मंत्री",
+        "पंचायती राज मंत्री"
+      ],
+      "aliases": [
+        "Lalan Singh",
+        "Rajiv Ranjan Singh alias Lalan Singh",
+        "Shri Rajiv Ranjan Singh",
+        "Rajiv Ranjan alias Lalan Singh"
+      ],
+      "name_hi": "राजीव रंजन सिंह",
+      "rank": "cabinet",
+      "portfolio": [
+        "Fisheries",
+        "Animal Husbandry",
+        "Dairying",
+        "Animal Husbandry and Dairying",
+        "Panchayati Raj"
+      ],
+      "portfolio_source": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/"
+    }
+  ],
+  "orgs": [
+    {
+      "id": "midhani",
+      "name": "Mishra Dhatu Nigam Limited (MIDHANI)",
+      "match": [
+        "MIDHANI",
+        "Mishra Dhatu Nigam"
+      ],
+      "founded": [
+        1973
+      ],
+      "hq": [
+        "Hyderabad"
+      ],
+      "hq_hi": "हैदराबाद",
+      "ministry": [
+        "Ministry of Defence",
+        "Department of Defence Production",
+        "Defence"
+      ],
+      "ministry_name": "Ministry of Defence",
+      "ministry_hi": "रक्षा मंत्रालय",
+      "source_url": "https://midhani-india.in/midhani_rti_act/particulars-of-organisation-functions-and-duties",
+      "verified_on": "2026-11-05"
+    },
+    {
+      "id": "zsi",
+      "name": "Zoological Survey of India (ZSI)",
+      "match": [
+        "ZSI",
+        "Zoological Survey of India"
+      ],
+      "founded": [
+        1916
+      ],
+      "hq": [
+        "Kolkata",
+        "Calcutta"
+      ],
+      "hq_hi": "कोलकाता",
+      "ministry": [
+        "Ministry of Environment, Forest and Climate Change",
+        "MoEFCC",
+        "MoEF&CC",
+        "Environment, Forest and Climate Change",
+        "Environment"
+      ],
+      "ministry_name": "Ministry of Environment, Forest and Climate Change",
+      "ministry_hi": "पर्यावरण, वन एवं जलवायु परिवर्तन मंत्रालय",
+      "source_url": "https://zsi.gov.in/page/en/",
+      "second_source": "https://pib.gov.in/PressReleaseIframePage.aspx?PRID=2028694",
+      "verified_on": "2026-11-05"
+    },
+    {
+      "id": "apeda",
+      "name": "APEDA",
+      "match": [
+        "APEDA",
+        "Agricultural and Processed Food Products Export Development Authority"
+      ],
+      "founded": [
+        1985,
+        1986
+      ],
+      "hq": [
+        "New Delhi",
+        "Delhi"
+      ],
+      "hq_hi": "नई दिल्ली",
+      "ministry": [
+        "Ministry of Commerce and Industry",
+        "Ministry of Commerce & Industry",
+        "Department of Commerce",
+        "Commerce"
+      ],
+      "ministry_name": "Ministry of Commerce and Industry",
+      "ministry_hi": "वाणिज्य एवं उद्योग मंत्रालय",
+      "source_url": "https://farmerconnect.apeda.gov.in/Home/AboutAPEDA",
+      "second_source": "https://www.indiacode.nic.in/handle/123456789/1865?locale=en",
+      "verified_on": "2026-11-05"
+    },
+    {
+      "id": "cacp",
+      "name": "Commission for Agricultural Costs and Prices (CACP)",
+      "match": [
+        "CACP",
+        "Commission for Agricultural Costs and Prices",
+        "Commission for Agricultural Costs & Prices"
+      ],
+      "founded": [
+        1965,
+        1985
+      ],
+      "hq": [
+        "New Delhi",
+        "Delhi"
+      ],
+      "hq_hi": "नई दिल्ली",
+      "ministry": [
+        "Ministry of Agriculture and Farmers Welfare",
+        "Ministry of Agriculture & Farmers Welfare",
+        "Department of Agriculture and Farmers Welfare",
+        "Agriculture"
+      ],
+      "ministry_name": "Ministry of Agriculture and Farmers Welfare",
+      "ministry_hi": "कृषि एवं किसान कल्याण मंत्रालय",
+      "source_url": "https://cacp.da.gov.in/Home/AboutUs",
+      "verified_on": "2026-11-05"
+    },
+    {
+      "id": "nabard",
+      "name": "NABARD",
+      "match": [
+        "NABARD",
+        "National Bank for Agriculture and Rural Development"
+      ],
+      "founded": [
+        1982
+      ],
+      "hq": [
+        "Mumbai",
+        "Bombay"
+      ],
+      "hq_hi": "मुंबई",
+      "ministry": [
+        "Ministry of Finance",
+        "Department of Financial Services",
+        "Finance"
+      ],
+      "ministry_name": "Ministry of Finance",
+      "ministry_hi": "वित्त मंत्रालय",
+      "source_url": "https://www.nabard.org/ftrcontent.aspx?id=492",
+      "second_source": "https://financialservices.gov.in/nabard",
+      "verified_on": "2026-11-05"
+    },
+    {
+      "id": "rbi",
+      "name": "Reserve Bank of India",
+      "match": [
+        "RBI",
+        "Reserve Bank of India"
+      ],
+      "founded": [
+        1935
+      ],
+      "hq": [
+        "Mumbai",
+        "Bombay"
+      ],
+      "hq_hi": "मुंबई",
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "source_url": "https://rbi.org.in/Content/PastGovernors_Tbl.html",
+      "second_source": "http://www.rbi.org.in/Scripts/AboutusDisplay.aspx",
+      "verified_on": "2026-11-05"
+    },
+    {
+      "id": "icar",
+      "name": "Indian Council of Agricultural Research (ICAR)",
+      "match": [
+        "ICAR",
+        "Indian Council of Agricultural Research"
+      ],
+      "founded": [],
+      "hq": [
+        "New Delhi",
+        "Delhi"
+      ],
+      "hq_hi": "नई दिल्ली",
+      "ministry": [
+        "Ministry of Agriculture and Farmers Welfare",
+        "Ministry of Agriculture & Farmers Welfare",
+        "Department of Agricultural Research and Education",
+        "DARE",
+        "Agriculture"
+      ],
+      "ministry_name": "Ministry of Agriculture and Farmers Welfare",
+      "ministry_hi": "कृषि एवं किसान कल्याण मंत्रालय",
+      "source_url": "https://icar.org.in/en/contact-us",
+      "second_source": "https://icar.org.in/sites/default/files/Circulars/D%20O%20No.%20504%20%2810.09.2026%29001.pdf",
+      "verified_on": "2026-11-05"
     }
   ]
 }

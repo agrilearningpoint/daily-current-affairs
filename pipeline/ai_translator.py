@@ -251,6 +251,15 @@ def _build_prompt(text: str, task: str) -> Tuple[str, str]:
         "4. Do NOT add commentary or explanations.\n"
         "5. Return ONLY the Hindi translation, nothing else."
     )
+    try:  # official Hindi names (ZSI = भारतीय प्राणी सर्वेक्षण, Act = अधिनियम ...)
+        from pipeline.hindi_postfix import glossary_hint
+        hint = glossary_hint(text)
+    except Exception:
+        hint = ""
+    if hint:
+        system += "\n6. Use these official Hindi names exactly:\n" + hint
+    system += ("\n7. Never mix scripts inside a word; translate 'Act' as अधिनियम (विधेयक only for a Bill) "
+               "and 'Parent Ministry' as मूल मंत्रालय.")
     if task == "headline":
         user = "Translate this news headline to Hindi:\n\n" + text
     elif task == "key_points":
@@ -408,6 +417,13 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
 
     if not _DEVANAGARI_RE.search(hindi):
         issues.append("no Devanagari characters")
+    try:
+        from pipeline.hindi_postfix import mixed_words
+        mixed = mixed_words(hindi)
+    except Exception:
+        mixed = []
+    if mixed:
+        issues.append(f"mixed-script words: {mixed[:3]}")
 
     # Numbers check
     en_vals = _numeric_values(" ".join(_NUM_RE.findall(english)))
@@ -549,6 +565,11 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
 
             if router is not None:
                 router.report_success(name)
+            try:
+                from pipeline.hindi_postfix import apply_glossary
+                hindi = apply_glossary(text, hindi)
+            except Exception:
+                pass
             passed, conf, issues = _validate(text, hindi)
             record_ai_usage(name, live.get("model", ""), f"translator:{task}", passed,
                             "" if passed else "validation rejected")

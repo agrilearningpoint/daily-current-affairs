@@ -138,7 +138,15 @@ FONT_HINDI_BOLD = "Mukta-Bold"
 
 
 # --- GLYPH SUPPORT & SANITIZATION ---
+# Hyphen look-alikes LLMs emit (U+2010 hyphen, U+2011 non-breaking hyphen, U+2012 figure dash,
+# U+2212 minus) are always folded to ASCII '-' before the glyph check: the bundled fonts lack
+# U+2011, and dropping it glued words together ("part‑time" -> "parttime", "net‑zero" -> "netzero").
+_HYPHEN_FOLD = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2043": "-", "\u2212": "-",
+                              "\ufe63": "-", "\uff0d": "-", "\u00ad": None})
 _SYMBOL_FALLBACK = {
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2015": "-",
     "\u25b6": "\u00bb",
     "\u25b8": "\u00bb",
     "\u2794": "\u00bb",
@@ -193,6 +201,7 @@ def sanitize_glyphs(text: str) -> str:
     """Replace/drop codepoints the bundled fonts cannot render (tofu guard)."""
     if not text:
         return text
+    text = text.translate(_HYPHEN_FOLD)
     out: List[str] = []
     for ch in text:
         if ord(ch) < 128 or glyph_supported(ch):

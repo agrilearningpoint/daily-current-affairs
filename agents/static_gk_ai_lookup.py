@@ -317,6 +317,15 @@ class Lookup:
         return self._cache
 
     # -- public ------------------------------------------------------------ #
+    def status(self) -> Tuple[bool, str]:
+        """(ready, reason) without spending a lookup; the reason is recorded in stats."""
+        if self._ready is None:
+            self._ready = self.ready()
+            if not self._ready[0]:
+                self.stats["off_reason"] = self._ready[1]
+                logger.info("[static-gk-ai] off: %s", self._ready[1])
+        return self._ready
+
     def __call__(self, post: str, expect: Optional[List[str]] = None,
                  fresh: bool = False) -> Optional[AIFact]:
         """``expect``: names today's news gives for the post (informational; the verified

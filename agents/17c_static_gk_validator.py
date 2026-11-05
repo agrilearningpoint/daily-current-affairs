@@ -55,6 +55,15 @@ def run(job_id: str) -> int:
     before_c, before_m = copy.deepcopy(content), copy.deepcopy(mcq)
     report = validate_edition(content, mcq)
     content["static_gk_validation"] = {k: v for k, v in report.items() if k != "details"}
+    # Hindi post-fix (glossary, mixed script, English leftovers, name spelling). Fail-closed per
+    # line (an unrepairable Hindi line is blanked -> English-only); fail-open for the stage.
+    if os.getenv("ALP_HINDI_POSTFIX", "1") != "0":
+        try:
+            from pipeline.hindi_postfix import budgeted_translators, fix_edition
+            word_tr, line_tr = budgeted_translators()
+            content["hindi_postfix"] = fix_edition(content, mcq, translator=word_tr, line_translator=line_tr)
+        except Exception as exc:
+            logger.warning("[17c] Hindi post-fix skipped (%s)", exc)
     try:
         write_json_atomic(content_path, content)
         if mcq is not None and mcq != before_m:
