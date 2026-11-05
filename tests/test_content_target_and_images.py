@@ -269,7 +269,8 @@ def test_llm_mcq_rejection_is_retried_with_feedback():
 
     out = generate_llm_mcqs([CYCLONE], lambda it: "Telangana cyclone", route=route, attempts=3)
     assert "cyc" in out and out["cyc"]["static_gk"] == []
-    assert len(prompts) == 2 and "previous answer was rejected" in prompts[1]
+    gen = [p for p in prompts if "MCQ SELF-CHECK" not in p]  # self-verify calls are separate
+    assert len(gen) == 2 and "previous answer was rejected" in gen[1]
 
 
 def _write_content(state, tmp_path, monkeypatch, items, reserves):

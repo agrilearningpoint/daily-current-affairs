@@ -61,7 +61,8 @@ def run(job_id: str, job_type: str) -> int:
                   + _load_items(ROOT / "data" / "selected" / f"{job_id}.json")
                   + [x for x in content.get("reserve_items") or [] if isinstance(x, dict)])
     try:
-        stats = build_sections(content, candidates)
+        jd = os.getenv("ALP_JOB_DATE") or (job_id.split("_", 1)[1] if "_" in job_id else None)
+        stats = build_sections(content, candidates, job_date=jd)
     except Exception as exc:  # fail-soft: optional sections never fail the run
         logger.warning("[17b] auto sections skipped: %s", exc)
         return 0

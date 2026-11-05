@@ -92,14 +92,19 @@ class Agent:
         DEMOTE = re.compile(r"crime|murder|rape|accident|traffic|celebrity|bollywood|gossip|match-fixing|political party rally", re.I)
         from pipeline.official_sources import is_must_include
         try:
-            from pipeline.collector import infer_category
+            from pipeline.collector import infer_category, refine_category
         except Exception:  # pragma: no cover
-            infer_category = None
+            infer_category = refine_category = None
         for it in items:
             # Feeds registered as discovery/aggregator carry no subject category, so
             # they missed every category boost and the selection round-robin.
             if infer_category and str(it.get("category") or "").lower() in GENERIC_CATEGORIES:
                 it["category"] = infer_category(f"{it.get('headline_en', '')} {it.get('raw_facts', '')}")
+            elif refine_category and it.get("category"):
+                # desk category the text contradicts: SC story on a Banking feed,
+                # the PM's Delhi address filed as International, ZSI summit as Economy
+                it["category"] = refine_category(
+                    it["category"], f"{it.get('headline_en', '')} {str(it.get('raw_facts', ''))[:600]}")
             r = min(100, it.get("importance_score", 0) + BOOST.get(it.get("category", ""), 0))
             head = it.get("headline_en", "")
             if DEMOTE.search(head + " " + it.get("raw_facts", "")):
