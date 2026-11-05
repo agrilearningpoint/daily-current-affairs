@@ -125,6 +125,8 @@ class Fact:
     match_hi: List[str]
     rx: Optional[re.Pattern] = None
     rx_hi: Optional[re.Pattern] = None
+    override: bool = False      # name comes from a verified override (state/ai_facts_cache.json)
+    blocked: bool = False       # today's news reports a change that could not be verified -> drop named lines
 
     @property
     def multi(self) -> bool:
@@ -337,6 +339,10 @@ def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
         new_en, new_hi = en, hi
         replaced_any = False
         for f, _s, _e in hits:
+            if f.blocked:
+                if cands or _contains_name(en, f.valid_names()):
+                    return Verdict("drop", reason=f"unverified change of {f.id} reported today", fact_id=f.id)
+                continue
             if _contains_name(en, f.valid_names()):
                 continue
             wrong = [c for c in cands if not _contains_name(c[0], f.valid_names())]
@@ -345,7 +351,8 @@ def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
             w = wrong[0][0]
             if f.multi:
                 return Verdict("drop", reason=f"unverified holder for multi-holder post {f.id}", fact_id=f.id, wrong=w)
-            if story_text and _story_has(w, story_text) and APPOINTMENT_RE.search(story_text):
+            if (not f.override and story_text and _story_has(w, story_text)
+                    and APPOINTMENT_RE.search(story_text)):
                 return Verdict("drop", reason=f"story reports a new {f.post}; facts may lag", fact_id=f.id, wrong=w)
             if w not in new_en:
                 return Verdict("drop", reason=f"wrong officeholder for {f.id} (could not rewrite)", fact_id=f.id, wrong=w)
@@ -446,6 +453,188 @@ def check_row(row: Dict[str, Any], facts: Sequence[Fact], *, story_text: str = "
     else:
         new["value_hi"] = ""
     return "replace", new, v
+
+
+# --------------------------------------------------------------------------- #
+# Freshness: verified overrides + today's appointment trigger
+# --------------------------------------------------------------------------- #
+OVERRIDE_DAYS = 30
+APPT_SIGNAL_RE = re.compile(
+    r"\b(?:appoint(?:ed|s)|takes?\s+(?:over|charge)|took\s+(?:over|charge)|taking\s+charge|sworn\s+in|"
+    r"named\s+(?:as|the)|assume[sd]?\s+(?:office|charge)|assuming\s+(?:office|charge)|succeed(?:s|ed|ing)?|"
+    r"in\s+place\s+of|replac(?:es|ed|ing))\b", re.I)
+APPT_SIGNAL_HI_RE = re.compile(r"नियुक्त|कार्यभार|शपथ")
+SUCCESSION_RE = re.compile(r"\b(?:succeed(?:s|ed|ing)?|in\s+place\s+of|replac(?:es|ed|ing))\b", re.I)
+_NEW_BEFORE_RE = re.compile(r"\bnew(?:ly\s+appointed)?\s+(?:\S+\s+){0,2}$", re.I)
+_SENT_SPLIT_RE = re.compile(r"(?<=[.!?।])\s+|\n+")
+
+
+def _today() -> "datetime.date":
+    d = os.getenv("ALP_JOB_DATE", "")
+    try:
+        return datetime.strptime(d[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return datetime.now(timezone.utc).date()
+
+
+def _as_override(f: Fact, name: str) -> Fact:
+    """Copy of *f* whose holder is *name* (no Hindi name/aliases: those are unverified)."""
+    return Fact(id=f.id, post=f.post, name=name, names=[], aliases=[], name_hi="", match=f.match,
+                match_hi=f.match_hi, rx=f.rx, rx_hi=f.rx_hi, override=True)
+
+
+def _cache_path() -> Path:
+    from agents.static_gk_ai_lookup import CACHE_PATH
+    return Path(os.getenv("ALP_AI_FACTS_CACHE", "") or CACHE_PATH)
+
+
+def apply_overrides(facts: Sequence[Fact], cache_doc: Optional[Dict[str, Any]] = None,
+                    today: Optional[Any] = None) -> List[Fact]:
+    """Facts with verified override records applied. An override holds for OVERRIDE_DAYS from
+    verification, and only while current_facts still has the name it replaced. Never raises."""
+    out = list(facts)
+    try:
+        if cache_doc is None:
+            from agents.static_gk_ai_lookup import load_cache
+            cache_doc = load_cache(_cache_path())
+        today = today or _today()
+        idx = {f.id: i for i, f in enumerate(out)}
+        for rec in (cache_doc.get("records") or {}).values():
+            if not isinstance(rec, dict) or not rec.get("overrides_current_facts"):
+                continue
+            i = idx.get(str(rec.get("fact_id") or ""))
+            name = str(rec.get("name") or "")
+            if i is None or not name or out[i].multi:
+                continue
+            try:
+                age = (today - datetime.strptime(str(rec.get("verified_on"))[:10], "%Y-%m-%d").date()).days
+            except ValueError:
+                continue
+            if not 0 <= age <= OVERRIDE_DAYS:
+                continue
+            f = out[i]
+            if _norm(f.name) == _norm(name) or _norm(f.name) != _norm(str(rec.get("previous_name") or "")):
+                continue  # current_facts already updated (or changed since): override is obsolete
+            out[i] = _as_override(f, name)
+    except Exception as exc:  # fail open: plain current_facts
+        logger.info("[static-gk] overrides not applied: %s", exc)
+        return list(facts)
+    return out
+
+
+def _edition_texts(content: Dict[str, Any]) -> List[str]:
+    out: List[str] = []
+    for it in content.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        for k in ("headline_en", "title", "headline_hi", "title_hi", "summary_en", "summary_hi",
+                  "detailed_explanation_en", "detailed_explanation_hi", "body", "content"):
+            v = it.get(k)
+            if isinstance(v, str) and v:
+                out.append(v)
+        for k in ("key_points_en", "key_points_hi"):
+            v = it.get(k)
+            if isinstance(v, list):
+                out.extend(str(x) for x in v if x)
+    return out
+
+
+def detect_appointments(texts: Sequence[str], facts: Sequence[Fact]) -> Dict[str, List[str]]:
+    """Tracked posts that today's stories report as changing hands: {fact_id: [new names]}.
+
+    A sentence counts when it names a tracked post and carries an appointment signal
+    (appointed, takes charge, sworn in, named as, new <post>, assumes office; Hindi नियुक्त,
+    कार्यभार, शपथ). A sentence that names the current holder counts only with a succession
+    word (succeeds / replaces / in place of), so "Governor X appointed Y as ED" is ignored.
+    Names are person names near the post that are not the current holder ([] = none given)."""
+    found: Dict[str, List[str]] = {}
+    for text in texts:
+        for sent in _SENT_SPLIT_RE.split(str(text or "")):
+            if not sent or len(sent) < 12:
+                continue
+            for f in facts:
+                if f.multi:
+                    continue
+                m = f.rx.search(sent) if f.rx else None
+                if m and not _foreign_context(sent, m.start(), m.end()):
+                    sig = APPT_SIGNAL_RE.search(sent) or _NEW_BEFORE_RE.search(sent[:m.start()])
+                    if not sig:
+                        continue
+                    if _contains_name(sent, f.valid_names()) and not SUCCESSION_RE.search(sent):
+                        continue
+                    names = [c[0] for c in name_candidates(sent, [(m.start(), m.end())])
+                             if not _contains_name(c[0], f.valid_names())
+                             and min(abs(c[1] - m.end()), abs(m.start() - c[2])) <= 80]
+                    lst = found.setdefault(f.id, [])
+                    lst.extend(n for n in names if n not in lst)
+                    continue
+                mh = f.rx_hi.search(sent) if f.rx_hi else None
+                if mh and APPT_SIGNAL_HI_RE.search(sent) and not (f.name_hi and f.name_hi in sent):
+                    found.setdefault(f.id, [])
+    return found
+
+
+def _call_lookup(lookup: Any, post: str, expect: Sequence[str]) -> Any:
+    try:
+        return lookup(post, expect=list(expect), fresh=True)
+    except TypeError:
+        return lookup(post)
+
+
+def _save_override(f: Fact, res: Any, today: Any) -> None:
+    try:
+        from agents.static_gk_ai_lookup import load_cache, save_cache
+        path = _cache_path()
+        doc = load_cache(path)
+        doc.setdefault("records", {})[f"override:{f.id}"] = {
+            "post": f.post, "fact_id": f.id, "name": res.name, "previous_name": f.name,
+            "since": getattr(res, "since", None), "source_url": getattr(res, "source_url", ""),
+            "second_source": getattr(res, "second_source", ""), "verified_on": today.isoformat(),
+            "overrides_current_facts": True, "method": "appointment-trigger+serper+official-page+llm"}
+        doc["updated"] = today.isoformat()
+        save_cache(doc, path)
+    except Exception as exc:
+        logger.info("[static-gk] override not cached: %s", exc)
+
+
+def resolve_appointments(facts: Sequence[Fact], appts: Dict[str, List[str]], lookup: Any,
+                         today: Optional[Any] = None) -> Tuple[List[Fact], List[Dict[str, str]]]:
+    """Apply today's appointment signals. For each signalled post the strict AI lookup decides:
+    confirmed new holder -> override fact (cached for later days); story named nobody and the
+    lookup confirms the current holder -> unchanged; anything else -> post blocked (lines dropped)."""
+    today = today or _today()
+    out = list(facts)
+    log: List[Dict[str, str]] = []
+    for i, f in enumerate(out):
+        if f.id not in appts:
+            continue
+        names = appts[f.id]
+        res = None
+        if lookup is not None:
+            try:
+                res = _call_lookup(lookup, f.post, names)
+            except Exception as exc:
+                logger.info("[static-gk] appointment lookup failed for %s: %s", f.id, exc)
+        got = str(getattr(res, "name", "") or "") if res else ""
+        if got and names and any(_contains_name(got, [n]) or _contains_name(n, [got]) for n in names):
+            outcome = "confirmed"
+        elif got and not names and not _contains_name(got, f.valid_names()):
+            outcome = "confirmed"
+        elif got and not names and _contains_name(got, f.valid_names()):
+            outcome = "unchanged"
+        else:
+            outcome = "blocked"
+        if outcome == "confirmed":
+            if not _contains_name(got, f.valid_names()):
+                _save_override(f, res, today)
+                out[i] = _as_override(f, got)
+        elif outcome == "blocked":
+            nf = Fact(**{k: getattr(f, k) for k in f.__dataclass_fields__})
+            nf.blocked = True
+            out[i] = nf
+        log.append({"fact_id": f.id, "story_names": ", ".join(names), "lookup": got, "outcome": outcome})
+        logger.info("[static-gk] appointment signal for %s (story: %s) -> %s %s", f.id, names or "-", outcome, got)
+    return out, log
 
 
 # --------------------------------------------------------------------------- #
@@ -581,7 +770,8 @@ def make_lookup() -> Any:
 
 
 def validate_edition(content: Dict[str, Any], mcq_data: Any = None,
-                     facts: Optional[Sequence[Fact]] = None, lookup: Any = "auto") -> Dict[str, Any]:
+                     facts: Optional[Sequence[Fact]] = None, lookup: Any = "auto",
+                     cache_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Validate every Static GK line of an edition in place. Never raises; returns a report dict.
 
     ``lookup``: "auto" builds the AI lookup for untracked posts (a no-op without
@@ -589,13 +779,14 @@ def validate_edition(content: Dict[str, Any], mcq_data: Any = None,
     global _ACTIVE_LOOKUP
     _ACTIVE_LOOKUP = make_lookup() if lookup == "auto" else lookup
     try:
-        return _validate_edition(content, mcq_data, facts)
+        return _validate_edition(content, mcq_data, facts, cache_doc)
     finally:
         _ACTIVE_LOOKUP = None
 
 
 def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,
-                      facts: Optional[Sequence[Fact]] = None) -> Dict[str, Any]:
+                      facts: Optional[Sequence[Fact]] = None,
+                      cache_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     report = Report()
     year = current_year()
     try:
@@ -604,6 +795,16 @@ def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,
     except Exception as exc:
         logger.warning("[static-gk] current_facts unavailable (%s): dropping officeholder-type lines", exc)
         return drop_officeholder_lines(content, mcq_data, reason=f"facts unavailable: {exc}")
+    appt_log: List[Dict[str, str]] = []
+    overridden: List[str] = []
+    try:
+        facts = apply_overrides(facts, cache_doc)
+        overridden = [f.id for f in facts if f.override]
+        appts = detect_appointments(_edition_texts(content), facts)
+        if appts:
+            facts, appt_log = resolve_appointments(facts, appts, _ACTIVE_LOOKUP)
+    except Exception as exc:  # fail open: block every signalled post is not possible here; plain facts
+        logger.warning("[static-gk] freshness step failed (%s); using current_facts", exc)
     try:
         items = [it for it in (content.get("items") or []) if isinstance(it, dict)]
         by_event = {str(it.get("event_id")): it for it in items}
@@ -625,6 +826,10 @@ def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,
         logger.warning("[static-gk] validator aborted (%s): dropping officeholder-type lines", exc)
         return drop_officeholder_lines(content, mcq_data, reason=f"validator error: {exc}")
     out = report.as_dict()
+    if overridden:
+        out["overrides"] = overridden
+    if appt_log:
+        out["appointments"] = appt_log
     logger.info("[static-gk] checked=%d kept=%d replaced=%d dropped=%d errors=%d",
                 report.checked, report.kept, report.replaced, report.dropped, report.errors)
     return out
@@ -679,7 +884,7 @@ def drop_officeholder_lines(content: Dict[str, Any], mcq_data: Any = None, reaso
 def facts_for_prompt(text: str, limit: int = 8, facts: Optional[Sequence[Fact]] = None) -> str:
     """Verified officeholders relevant to *text*, one per line, for the MCQ prompt ('' on any error)."""
     try:
-        facts = facts if facts is not None else load_facts()
+        facts = facts if facts is not None else apply_overrides(load_facts())
         rel = []
         for f in facts:
             acr = {w for ph in f.match for w in re.findall(r"\b[A-Z]{3,}\b", ph)}
