@@ -317,22 +317,25 @@ class Lookup:
         return self._cache
 
     # -- public ------------------------------------------------------------ #
-    def __call__(self, post: str) -> Optional[AIFact]:
+    def __call__(self, post: str, expect: Optional[List[str]] = None,
+                 fresh: bool = False) -> Optional[AIFact]:
+        """``expect``: names today's news gives for the post (informational; the verified
+        result is still decided by the sources). ``fresh=True`` skips the memo/cache read."""
         try:
-            return self._lookup(post)
+            return self._lookup(post, fresh=fresh)
         except Exception as exc:  # FAIL-OPEN
             self.stats["errors"] += 1
             logger.info("[static-gk-ai] lookup error for %r: %s", post, type(exc).__name__)
             return None
 
-    def _lookup(self, post: str) -> Optional[AIFact]:
+    def _lookup(self, post: str, fresh: bool = False) -> Optional[AIFact]:
         post = re.sub(r"\s+", " ", str(post or "")).strip(" -–:,.")
         key = post_key(post)
         if not key or len(key) < 4:
             return None
-        if key in self._memo:
+        if key in self._memo and not fresh:
             return self._memo[key]
-        rec = self._cache_doc().get("records", {}).get(key)
+        rec = None if fresh else self._cache_doc().get("records", {}).get(key)
         if isinstance(rec, dict) and cache_fresh(rec, self.today):
             self.stats["cache_hits"] += 1
             fact = AIFact(post=rec.get("post") or post, name=rec["name"], since=rec.get("since"),
