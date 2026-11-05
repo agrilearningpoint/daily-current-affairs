@@ -1,27 +1,27 @@
 name: Refresh Current Facts
 
-# Weekly re-verification of config/current_facts.json (verified officeholders used
-# by the strict Static GK validator, stage 17c). Never touches main directly:
-# changes go to the rolling branch bot/refresh-current-facts and a pull request.
-# Independent of the daily pipeline: own concurrency group, no state/ writes,
-# no Telegram, no dispatch of other workflows.
+# Daily re-verification of config/current_facts.json (verified officeholders used
+# by the strict Static GK validator, stage 17c). A changed name is applied only when
+# it is on the official page AND a second source on another domain confirms it.
+# Changes are committed straight to main ([skip ci]); if the push is refused
+# (e.g. branch protection) the run only warns. Admin DM via ADMIN_ID only —
+# never the paid group. No state/ writes, no dispatch of other workflows.
 
 on:
   schedule:
-    - cron: "30 2 * * 1"   # Mondays 02:30 UTC (08:00 IST)
+    - cron: "0 20 * * *"   # 20:00 UTC = 01:30 IST daily
   workflow_dispatch:
 
 concurrency:
-  group: refresh-current-facts
+  group: refresh-current-facts-daily
   cancel-in-progress: false
 
 permissions:
   contents: write
-  pull-requests: write
 
 env:
   PYTHON_VERSION: "3.11"
-  BRANCH: bot/refresh-current-facts
+  FACTS: config/current_facts.json
 
 jobs:
   refresh:
@@ -46,34 +46,71 @@ jobs:
           pip install -r requirements.txt
 
       - name: Re-verify facts against official sources
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'auto' }}
-        run: python scripts/refresh_current_facts.py --promote-cache --summary "$RUNNER_TEMP/facts_summary.md"
-
-      - name: Open or update pull request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if git diff --quiet -- config/current_facts.json; then
-            echo "No changes to config/current_facts.json"; exit 0
+          python scripts/refresh_current_facts.py --promote-cache \
+            --summary "$RUNNER_TEMP/facts_summary.md" --changes /tmp/facts_changes.txt
+
+      - name: Commit changes to main
+        id: commit
+        run: |
+          if git diff --quiet -- "$FACTS"; then
+            echo "No changes to $FACTS"; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          python -m json.tool config/current_facts.json > /dev/null
+          if ! python -m json.tool "$FACTS" > /dev/null; then
+            echo "::warning::$FACTS is not valid JSON; not committing"; git checkout -- "$FACTS"
+            echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          # real name changes/additions (not just verified_on bumps) trigger the admin DM
+          if [ -s /tmp/facts_changes.txt ]; then echo "real=true" >> "$GITHUB_OUTPUT"; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$BRANCH"
-          git add config/current_facts.json
-          git commit -m "facts: weekly re-verification of current officeholders"
-          git push --force origin "$BRANCH"
-          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
-            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/facts_summary.md" || true
-          else
-            gh pr create --base main --head "$BRANCH" \
-              --title "facts: weekly re-verification of current officeholders" \
-              --body-file "$RUNNER_TEMP/facts_summary.md" \
-              || echo "::warning::Could not open a PR (enable 'Allow GitHub Actions to create pull requests'); branch $BRANCH was pushed."
-          fi
+          git add "$FACTS"
+          git commit -m "facts: daily re-verification of current officeholders [skip ci]"
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then echo "pushed=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+            echo "push attempt $i failed; rebasing"
+            git pull --rebase origin main || { git rebase --abort || true; }
+          done
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Could not push facts update to main (branch protection or conflict); skipped."
+          exit 0
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Current facts refresh"
+            if [ -s /tmp/facts_changes.txt ]; then
+              echo "### Changes"; sed 's/^/- /' /tmp/facts_changes.txt
+              echo ""; echo "Pushed to main: ${{ steps.commit.outputs.pushed || 'false' }}"
+            else
+              echo "No changes."
+            fi
+            [ -f "$RUNNER_TEMP/facts_summary.md" ] && { echo ""; cat "$RUNNER_TEMP/facts_summary.md"; }
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Admin DM on changes
+        if: steps.commit.outputs.real == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          PUSHED: ${{ steps.commit.outputs.pushed }}
+        run: |
+          python - <<'PY'
+          import os
+          from pipeline.telegram_api import alert_admin
+          changes = open("/tmp/facts_changes.txt", encoding="utf-8").read().strip() or "(see run summary)"
+          state = "pushed to main" if os.getenv("PUSHED") == "true" else "NOT pushed (see warning)"
+          alert_admin(f"Current facts refresh: {state}\n{changes}")
+          PY
