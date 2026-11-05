@@ -1307,7 +1307,8 @@ def generate_mcqs(content_items, target=None, llm_mcqs=None):
             per_item.append([llm])
             continue
         try:
-            per_item.append(_build_item_candidates(ci, pools, content_items))
+            from pipeline.mcq_builder import _legacy_fix
+            per_item.append([f for f in (_legacy_fix(m, ci) for m in _build_item_candidates(ci, pools, content_items)) if f])
         except Exception:
             logger.exception("[MCQ] candidate build failed for %s", ci.get("event_id"))
             per_item.append([])

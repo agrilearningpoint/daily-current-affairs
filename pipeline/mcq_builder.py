@@ -111,11 +111,28 @@ def _clip(t: str, n: int) -> str:
     return t if len(t) <= n else t[:n].rsplit(" ", 1)[0].rstrip(",;:") + "…"
 
 
+def _sentences(t: Any) -> List[str]:
+    return [x.strip() for x in re.split(r"(?<=[.!?।])\s+", _ws(t)) if len(x.strip()) > 25]
+
+
 def _expl_lines(ci: Dict[str, Any]) -> Tuple[str, str]:
+    """First story sentence that says more than the headline (EN) and its Hindi pair.
+    Falls back to the first key point / the headline."""
+    from pipeline.mcq_quality import explanation_is_headline_only
+    head = _plain(ci.get("headline_en"))
     kps_en = [p for p in (ci.get("key_points_en") or []) if _ws(p)]
     kps_hi = [p for p in (ci.get("key_points_hi") or []) if _ws(p)]
-    en = _ws(kps_en[0]) if kps_en else _plain(ci.get("headline_en"))
+    en = _ws(kps_en[0]) if kps_en else head
     hi = _ws(kps_hi[0]) if kps_hi and DEVANAGARI_RE.search(kps_hi[0]) else _plain(ci.get("headline_hi"))
+    if not explanation_is_headline_only(en, head, ""):
+        return en, hi
+    pool_en = [(_ws(p), i) for i, p in enumerate(kps_en)]
+    for key in ("summary_en", "detailed_explanation_en", "exam_fact_en"):
+        pool_en += [(x, -1) for x in _sentences(ci.get(key))]
+    for cand, i in pool_en:
+        if cand and not explanation_is_headline_only(cand, head, ""):
+            h = _ws(kps_hi[i]) if 0 <= i < len(kps_hi) and DEVANAGARI_RE.search(kps_hi[i]) else hi
+            return cand.rstrip("."), h
     return en, hi
 
 
