@@ -92,7 +92,7 @@ _TAG_RES = (
                r"[\w.-]+\.(?:com|in|org|net|gov\.in|co\.in|nic\.in)|www\.[\w.]+|[A-Z][\w&.' ]{1,40}"
                r"\s+(?:Media|News|Times|Post|Radio|Network|Online))\s*$", re.I),
 )
-TRUNCATED_RE = re.compile(r"(?:…|\.\.\.|\u2026)\s*$|^\s*(?:…|\.\.\.)")
+TRUNCATED_RE = re.compile(r"…|\.\.\.|\s(?:of|the|and|for|to|with|in|on|a|an|at|by|from)\s*$", re.I)
 
 
 def strip_tags(headline: str) -> str:
@@ -119,8 +119,7 @@ def repair_headline(item: dict) -> str:
     head = strip_tags(item.get("headline_en") or item.get("title") or "")
     if head and not is_truncated(head):
         return head
-    stem = re.sub(r"(?:…|\.\.\.|\u2026)\s*$", "", head).strip()
-    stem = re.sub(r"^\s*(?:…|\.\.\.)\s*", "", stem)
+    stem = re.split(r"…|\.\.\.", head)[0].strip()
     for alt in (item.get("title"), item.get("headline_en"), item.get("og_title"), item.get("page_title")):
         alt = strip_tags(alt or "")
         if alt and not is_truncated(alt) and len(alt) >= len(stem) and (
@@ -153,17 +152,18 @@ _GENERIC_ENT = {"union", "minister", "ministry", "government", "india", "indian"
 
 
 def _content_tokens(text: str) -> set:
-    return {w for w in re.findall(r"[a-z0-9]{3,}", (text or "").lower()) if w not in _STOP}
+    """Content words, cut to a 4-letter stem ("hack" ~ "hackers")."""
+    return {w[:4] for w in re.findall(r"[a-z0-9]{3,}", (text or "").lower()) if w not in _STOP}
 
 
-def entity_tokens(text: str) -> set:
+def entity_tokens(text: str, include_initial: bool = False) -> set:
     """Distinctive names in a headline: capitalised words, acronyms, 'Form 6'-style ids."""
     t = re.sub(r"[‐-―−]", " ", text or "")
     ents = set()
     for m in re.finditer(r"\b[A-Z][A-Za-z0-9]{2,}\b", t):
         w = m.group(0)
         start = not t[:m.start()].strip() or re.search(r"[.:!?|]\s*$", t[:m.start()])
-        if start and not w.isupper():
+        if start and not w.isupper() and not include_initial:
             continue  # sentence-initial capital is not a name
         ents.add(w.lower())
     ents |= {f"{a.lower()} {b}" for a, b in re.findall(r"\b([A-Z][a-z]+)\s+(\d{1,3}[A-Z]?)\b", t)}
@@ -181,9 +181,11 @@ def rare_entities(headlines, max_df: int = 3) -> set:
 
 def same_event_entity(a: str, b: str, rare: set) -> bool:
     """Two headlines name the same rare entity and share another content word."""
-    shared = entity_tokens(a) & entity_tokens(b) & set(rare or ())
+    # sentence-initial words count here ("Binance hack: ...") but only when the pool
+    # saw them as names elsewhere (rare is built from non-initial capitals)
+    shared = entity_tokens(a, True) & entity_tokens(b, True) & set(rare or ())
     if not shared:
         return False
     common = _content_tokens(a) & _content_tokens(b)
-    others = common - {w for e in shared for w in e.split()}
+    others = common - {w[:4] for e in shared for w in e.split()}
     return bool(others) or len(shared) >= 2

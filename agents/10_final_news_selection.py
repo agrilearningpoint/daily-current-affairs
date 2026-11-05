@@ -153,9 +153,18 @@ class Agent:
         from pipeline.news_filters import rare_entities, same_event_entity
         heads = [clean_headline(x.get("headline_en") or x.get("title")) for x in scored]
         rare = rare_entities(heads)
+        def _nums(t):
+            return set(re.findall(r"\d+(?:\.\d+)?", t))
+
+        def _dup(a, b):
+            na, nb = _nums(a), _nums(b)
+            if na and nb and not na & nb:
+                return False  # different figures: distinct items ("story 1" vs "story 2", two PMI prints)
+            return same_event(a, b) or same_event_entity(a, b, rare)
+
         kept, kept_heads = [], []
         for x, h in zip(scored, heads):
-            if h and any(same_event(h, k) or same_event_entity(h, k, rare) for k in kept_heads):
+            if h and any(_dup(h, k) for k in kept_heads):
                 continue
             kept.append(x)
             if h:
