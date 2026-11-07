@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "records": {
+    "president of india": {
+      "post": "President of India",
+      "name": "Smt. Droupadi Murmu",
+      "since": "2022-07-25",
+      "source_url": "http://www.presidentofindia.gov.in/",
+      "second_source": "https://dpl.rashtrapatibhavan.gov.in/dpl-president",
+      "verified_on": "2026-11-07",
+      "verified_at": "2026-11-07T00:00:00+00:00",
+      "method": "serper+official-page+llm"
+    }
+  },
+  "updated": "2026-11-07"
+}
