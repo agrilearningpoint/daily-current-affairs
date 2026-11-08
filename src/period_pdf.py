@@ -28,6 +28,7 @@ from reportlab.platypus import (CondPageBreak, Flowable, HRFlowable, KeepTogethe
 from reportlab.lib.pagesizes import A4
 
 import src.generate_pdf as G
+from pipeline.text_normalize import clip_words
 from src.generate_pdf import (COLORS, FONT_BOLD, FONT_SEMI, FS_BODY, FS_CHAPTER, FS_FOOTER, FS_MAIN_TITLE,
                               FS_MODULE, FS_TABLE, PAGE_H, PAGE_W, PRINT_W, STYLES, Anchor, LinkTo,
                               _agri_corner_story, _bilingual_options, _clean_text_for_display,
@@ -223,8 +224,10 @@ def _summary(it: Dict[str, Any], n: int) -> List[Tuple[str, str]]:
     if "summary_pairs" in it:
         for p in it.get("summary_pairs") or []:
             en = _clean_text_for_display(p.get("en")) if isinstance(p, dict) else ""
-            if en and _WHOLE_RE.search(en):
-                out.append((en, _hi_or_blank(p.get("hi"))))
+            hi = _hi_or_blank(p.get("hi")) if isinstance(p, dict) else ""
+            # Bilingual edition, fail-closed: a bullet whose Hindi was blanked is dropped as a pair.
+            if en and hi and _WHOLE_RE.search(en):
+                out.append((en, hi))
         return out[:n]
     en = [_clean_text_for_display(x) for x in it.get("key_points_en") or []]
     hi = list(it.get("key_points_hi") or [])
@@ -261,7 +264,7 @@ def _story_block(it: Dict[str, Any], num: int, total: int, compact: bool) -> Lis
         ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING", (0, 0), (-1, -1), 9), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
-    first: List[Flowable] = [Anchor(f"s{num}", f"{num}. {en[:70]}", 1), head, Spacer(PRINT_W, 5 * pt)]
+    first: List[Flowable] = [Anchor(f"s{num}", f"{num}. {clip_words(en, 70)}", 1), head, Spacer(PRINT_W, 5 * pt)]
     if not compact:
         first += G._unit_photo_block(it) if G._real_photo_path(it) else []
     lines = _summary(it, 2 if compact else 3)
@@ -431,8 +434,9 @@ def _build_once(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path
         ltr = str(m.get("correct") or "").strip().upper()
         mcq_blocks.append((n, ltr if ltr in _LETTERS[:len(opts)] else "A", blk))
 
+    # EN and HI one-liner lists share numbering: a line without Hindi is dropped as a pair.
     ols = [o for o in content.get("one_liners") or [] if isinstance(o, dict)
-           and _good_headline(o.get("text_en"))]
+           and _good_headline(o.get("text_en")) and _hi_or_blank(o.get("text_hi"))]
     if one_liner_cap is not None:
         ols = ols[:one_liner_cap]
     tables = [t for t in (content.get("quick_tables") or []) if isinstance(t, dict)

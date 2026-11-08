@@ -115,7 +115,8 @@ def test_char_limit_key_points_become_whole_sentences_of_the_same_story():
     seen: list = []
     for it in (sfi, tncc, shah):
         it["summary_pairs"] = pb._summary_pairs(it, seen, set())
-        body = " ".join(pb.split_sentences(pb.clean_source_text(it["detailed_explanation_en"])))
+        body = " ".join(pb.clean_line(x, it, False)   # relative weekdays resolved to the event date
+                        for x in pb.split_sentences(pb.clean_source_text(it["detailed_explanation_en"])))
         assert it["summary_pairs"], it["event_id"]
         for b in _bullets(it):
             assert pb.complete_sentence(b), b                  # starts like a sentence, ends with . ! ? ।
@@ -166,6 +167,13 @@ def _mea_story(n: int, day: str) -> dict:
                                   {"en": "MEA is headquartered at South Block, New Delhi.", "hi": ""}])
 
 
+def _fake_tr(en: str) -> str:
+    """Offline stand-in for the translator: Devanagari only, every number kept."""
+    import re as _re
+    nums = " ".join(_re.findall(r"\d+(?:[.,]\d+)*", en.replace(",", "")))
+    return f"यह वाक्य {nums} का हिंदी अनुवाद है।".replace("  ", " ")
+
+
 def _editions(items_by_day: dict) -> list:
     return [{"date": d, "content": {"items": its, "one_liners": []}, "mcqs": []} for d, its in items_by_day.items()]
 
@@ -173,7 +181,7 @@ def _editions(items_by_day: dict) -> list:
 def test_repeated_sentence_filler_and_gk_printed_at_most_once():
     days = ["2026-10-28", "2026-10-29", "2026-10-30"]
     eds = _editions({d: [_mea_story(i * 2 + j, d) for j in range(2)] for i, d in enumerate(days)})
-    r = pb.build_period("weekly", "2026-11-04", eds, days)
+    r = pb.build_period("weekly", "2026-11-04", eds, days, translators=(None, _fake_tr))
     items = r["content"]["items"]
     assert len(items) == 6
     lines = [b for it in items for b in _bullets(it)]
@@ -195,7 +203,8 @@ def test_near_identical_bullets_deduped_within_story_and_across_edition():
               "The RBI kept the repo rate unchanged at 5.5 per cent on Friday.")
     seen: list = []
     pa, pb_ = pb._summary_pairs(a, seen, set()), pb._summary_pairs(b, seen, set())
-    assert [p["en"] for p in pa] == ["The RBI kept the repo rate unchanged at 5.5 per cent on Friday.",
+    # "on Friday" is resolved against the edition date (Thu 29 Oct 2026 -> Fri 23 Oct).
+    assert [p["en"] for p in pa] == ["The RBI kept the repo rate unchanged at 5.5 per cent on 23 October.",
                                      "Inflation is projected at 3.1 per cent for the year."]
     assert [p["en"] for p in pb_] == ["Growth is now forecast at 6.8 per cent this year."]
 
@@ -230,7 +239,11 @@ def test_renderer_never_falls_back_to_raw_cut_key_points():
     assert period_pdf._summary(it, 3) == []
     it = {"summary_pairs": [{"en": "A whole sentence about the story is here.", "hi": ""},
                             {"en": "a cut line without an end", "hi": ""}]}
-    assert period_pdf._summary(it, 3) == [("A whole sentence about the story is here.", "")]
+    # Fail-closed bilingual edition: a bullet with no Hindi is dropped as a pair, never EN-only.
+    assert period_pdf._summary(it, 3) == []
+    it["summary_pairs"][0]["hi"] = "कहानी के बारे में एक पूरा वाक्य यहाँ है।"
+    assert period_pdf._summary(it, 3) == [("A whole sentence about the story is here.",
+                                           "कहानी के बारे में एक पूरा वाक्य यहाँ है।")]
 
 
 def _qa():

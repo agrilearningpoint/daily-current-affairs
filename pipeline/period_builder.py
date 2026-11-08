@@ -30,7 +30,10 @@ import re
 from datetime import date, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+
+from pipeline.text_normalize import (caption_residue, exact_money, publish_date, resolve_weekdays,
+                                     strip_source_tags, tidy)
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCES_DIRNAME = "data/period_sources"
@@ -889,26 +892,158 @@ def filler_sentences(items: List[Dict[str, Any]], max_stories: int = 2) -> set:
     return {t for t, s in where.items() if len(s) > max_stories}
 
 
+class PeriodHindi:
+    """Hindi for the period edition's bullets / one-liners: carried from the daily data,
+    repaired by ``hindi_postfix`` in strict mode, translated here when missing.
+
+    FAIL-CLOSED: a line whose Hindi cannot be made clean is dropped as a pair (the
+    edition never prints an English-only bullet)."""
+
+    def __init__(self, translators: Optional[Tuple[Optional[Callable[[str], str]],
+                                                   Optional[Callable[[str], str]]]] = None):
+        from pipeline.hindi_postfix import load_name_map
+        try:
+            self.name_map = load_name_map()
+        except Exception:
+            self.name_map = {}
+        self.word_tr, self.line_tr = translators if translators is not None else _period_translators()
+        self.stats: Dict[str, int] = {}
+
+    def fix(self, en: str, hi: str) -> str:
+        from pipeline.hindi_postfix import fix_pair
+        hi = str(hi or "")
+        if hi and has_devanagari(hi):
+            out = fix_pair(en, hi, name_map=self.name_map, translator=self.word_tr,
+                           line_translator=self.line_tr, stats=self.stats, strict=True)
+            if out:
+                return _close_hi(out) if _TERMINAL_RE.search(en) else out
+            return ""
+        if self.line_tr is None:
+            return ""
+        try:
+            new = str(self.line_tr(en) or "")
+        except Exception:
+            new = ""
+        if not has_devanagari(new):
+            self.stats["translate_failed"] = self.stats.get("translate_failed", 0) + 1
+            return ""
+        self.stats["translated"] = self.stats.get("translated", 0) + 1
+        out = fix_pair(en, new, name_map=self.name_map, translator=self.word_tr,
+                       line_translator=None, stats=self.stats, strict=True)
+        return (_close_hi(out) if _TERMINAL_RE.search(en) else out) if out else ""
+
+
+def _period_translators():
+    """(word, line) translators for the period stage (budgeted; (None, None) offline/pytest)."""
+    try:
+        from pipeline.hindi_postfix import budgeted_translators
+        return budgeted_translators(max_calls=int(os.getenv("ALP_PERIOD_TRANSLATE_CALLS", "90")),
+                                    budget_s=float(os.getenv("ALP_PERIOD_TRANSLATE_BUDGET_S", "240")))
+    except Exception:
+        return None, None
+
+
+def story_pub_date(it: Dict[str, Any]):
+    return publish_date(it.get("published") or it.get("pub_time_ist") or it.get("published_at"),
+                        it.get("edition_date"))
+
+
+def story_source_text(it: Dict[str, Any]) -> str:
+    parts = [str(it.get(k) or "") for k in ("detailed_explanation_en", "summary_en", "headline_en")]
+    parts += [str(x or "") for x in it.get("key_points_en") or []]
+    return " ".join(parts)
+
+
+def clean_line(text: Any, it: Optional[Dict[str, Any]], hindi: bool) -> str:
+    """Display text of one bullet / one-liner: no source tag, exact ₹ figure, ₹ not Rs,
+    relative weekday resolved to the event date, tidy punctuation."""
+    s = strip_source_tags(clean_headline(text))
+    if it:
+        s = exact_money(s, story_source_text(it), hindi)
+        s = resolve_weekdays(s, story_pub_date(it))
+    else:
+        s = exact_money(s, "", hindi)
+    return tidy(s)
+
+
+_HI_SPLIT_RE = re.compile(r"(?<=[।!?])\s+")
+
+
+def _hi_sentence_map(it: Dict[str, Any]) -> Dict[str, str]:
+    """EN sentence (normalised) -> HI sentence of the daily's own translation, when the
+    EN and HI texts split into the same number of sentences."""
+    out: Dict[str, str] = {}
+    for ek, hk in (("detailed_explanation_en", "detailed_explanation_hi"), ("summary_en", "summary_hi")):
+        en_s = split_sentences(clean_source_text(it.get(ek)))
+        hi_s = [x.strip() for x in _HI_SPLIT_RE.split(re.sub(r"\s+", " ", str(it.get(hk) or "")).strip()) if x.strip()]
+        if en_s and len(en_s) == len(hi_s) and all(has_devanagari(h) for h in hi_s):
+            for e, h in zip(en_s, hi_s):
+                out.setdefault(_norm(e), h)
+    return out
+
+
 def _summary_pairs(it: Dict[str, Any], seen: Optional[List[str]] = None,
-                   filler: Optional[set] = None, limit: int = 3) -> List[Dict[str, str]]:
-    """Up to ``limit`` whole-sentence bullets of this story, unique within the
-    story and across the edition (``seen``), with generic filler dropped."""
+                   filler: Optional[set] = None, limit: int = 3,
+                   hindi: Optional[PeriodHindi] = None, qa: Optional[Dict[str, Any]] = None
+                   ) -> List[Dict[str, str]]:
+    """Up to ``limit`` whole-sentence bilingual bullets of this story, unique within the
+    story and across the edition (``seen``), with generic filler dropped.  Every bullet's
+    Hindi comes from the daily data (key point, then the sentence-aligned daily
+    translation) or is translated here; a bullet whose Hindi cannot be made clean is
+    dropped as a pair and counted in ``qa``."""
     seen = seen if seen is not None else []
     filler = filler or set()
     head = _norm(it.get("headline_en"))
+    hi_map = _hi_sentence_map(it)
     out: List[Dict[str, str]] = []
+    eligible = 0
     for p in _candidate_pairs(it):
         n = _norm(p["en"])
         if filler_key(p["en"]) in filler or n == head or (head and (n.startswith(head) or is_similar(n, head, _SIM_BULLET))) \
-                or _is_dup_text(p["en"], seen):
+                or _is_dup_text(p["en"], seen) or caption_residue(p["en"]):
             continue
+        en = clean_line(p["en"], it, False)
+        if not complete_sentence(en):
+            continue
+        eligible += 1
+        hi_src = p.get("hi") or hi_map.get(n, "")
+        hi = clean_line(hi_src, it, True) if hi_src else ""
+        hi = hi if _hi_ok(hi) else ""
+        if hindi is None:      # selection-only call (no Hindi stage): keep the EN line as-is
+            hi = _close_hi(hi) if hi else ""
+        else:
+            hi = hindi.fix(en, hi)
+            if not hi:
+                continue
         seen.append(n)
-        out.append(p)
+        out.append({"en": en, "hi": hi})
         if len(out) >= limit:
             break
-    # Bilingual lines first, so the summary carries as much Hindi as the daily had.
-    out.sort(key=lambda q: 0 if q["hi"] else 1)
+    if qa is not None:
+        expected = min(limit, eligible)
+        qa["bullets_expected"] = qa.get("bullets_expected", 0) + expected
+        short = expected - len(out)
+        if short > 0:
+            qa["bullets_missing_hi"] = qa.get("bullets_missing_hi", 0) + short
+            qa.setdefault("stories_short", []).append(
+                {"event_id": it.get("event_id", ""), "headline_en": it.get("headline_en", ""),
+                 "en_bullets": expected, "hi_bullets": len(out)})
     return out
+
+
+def period_hindi_qa(qa: Dict[str, Any], max_missing: Optional[float] = None) -> Dict[str, Any]:
+    """Bilingual completeness of the period edition's story bullets.
+
+    A story whose English has more bullets than its Hindi is a warning; the edition
+    fails when more than ``max_missing`` (default 10%) of the bullets lack Hindi."""
+    limit = float(os.getenv("ALP_PERIOD_HI_MAX_MISSING", "0.10")) if max_missing is None else max_missing
+    exp, miss = int(qa.get("bullets_expected", 0)), int(qa.get("bullets_missing_hi", 0))
+    ratio = miss / exp if exp else 0.0
+    qa["missing_ratio"] = round(ratio, 3)
+    qa["warnings"] = [f"story '{s['headline_en'][:60]}': {s['en_bullets']} EN bullets, {s['hi_bullets']} HI"
+                      for s in qa.get("stories_short", [])]
+    qa["passed"] = ratio <= limit
+    return qa
 
 
 _GK_GENERIC = {"ministry", "india", "indian", "national", "year", "established", "establishment", "headquarters",
@@ -993,8 +1128,51 @@ def _fmt(d: str, with_year: bool) -> str:
     return f"{x.day} {x.strftime('%B')}" + (f" {x.year}" if with_year else "")
 
 
+def _clean_one_liners(ols: List[Dict[str, Any]], verified: Dict[str, Dict[str, Any]],
+                      hindi: PeriodHindi, limit: int, qa: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for o in ols:
+        it = verified.get(o.get("event_id"))
+        en = clean_line(o.get("text_en"), it, False)
+        if not en or caption_residue(en):
+            qa["one_liners_dropped"] = qa.get("one_liners_dropped", 0) + 1
+            continue
+        hi = hindi.fix(en, clean_line(o.get("text_hi"), it, True))
+        if not hi:
+            qa["one_liners_dropped"] = qa.get("one_liners_dropped", 0) + 1
+            continue
+        out.append({**o, "text_en": en, "text_hi": hi})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _clean_agri(agri: Dict[str, Any], hindi: PeriodHindi, qa: Dict[str, Any]) -> Dict[str, Any]:
+    items = []
+    for x in agri.get("items") or []:
+        en = clean_line(x.get("en"), None, False)
+        hi = hindi.fix(en, clean_line(x.get("hi"), None, True)) if en and not caption_residue(en) else ""
+        if hi:
+            items.append({**x, "en": en, "hi": hi})
+        else:
+            qa["agri_dropped"] = qa.get("agri_dropped", 0) + 1
+    return {**agri, "items": items}
+
+
+def _clean_headlines(stories: List[Dict[str, Any]], hindi: PeriodHindi) -> None:
+    from pipeline.hindi_postfix import fix_pair
+    for s in stories:
+        en = tidy(exact_money(strip_source_tags(s.get("headline_en")), story_source_text(s), False))
+        s["headline_en"] = en or s.get("headline_en", "")
+        hi = tidy(exact_money(strip_source_tags(s.get("headline_hi")), story_source_text(s), True))
+        fixed = hindi.fix(en, hi)
+        if not fixed:  # keep the story (selection is decided elsewhere); repair what we can
+            fixed = fix_pair(en, hi, name_map=hindi.name_map) or hi
+        s["headline_hi"] = fixed.rstrip("।") if not _TERMINAL_RE.search(en) else fixed
+
+
 def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
-                 dates: List[str]) -> Dict[str, Any]:
+                 dates: List[str], translators=None) -> Dict[str, Any]:
     """Pure function: daily editions in → {content, mcqs, selected, scored, stats}."""
     if job_type not in SETTINGS:
         raise ValueError(f"period builder needs weekly/monthly, got {job_type!r}")
@@ -1016,9 +1194,18 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     filler = filler_sentences(ranked)
     seen_lines: List[str] = []
     seen_gk: List[str] = []
+    hindi = PeriodHindi(translators)
+    qa: Dict[str, Any] = {}
+    _clean_headlines(stories, hindi)
     for s in stories:
-        s["summary_pairs"] = _summary_pairs(s, seen_lines, filler)
+        s["summary_pairs"] = _summary_pairs(s, seen_lines, filler, hindi=hindi, qa=qa)
         _attach_static_gk(s, first_mcq, seen_gk, filler)
+    period_hindi_qa(qa)
+    for w in qa["warnings"]:
+        print(f"[period-qa] WARNING {w}")
+    if not qa["passed"]:
+        raise ValueError(f"{job_type} {job_date}: {qa['bullets_missing_hi']} of {qa['bullets_expected']} story "
+                         f"bullets have no clean Hindi ({qa['missing_ratio']:.0%} > allowed); edition not built")
     start, end = dates[0], dates[-1]
     if job_type == "weekly":
         title_range = f"{_fmt(start, False)} – {_fmt(end, True)}"
@@ -1032,8 +1219,9 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
                 "date_display": title_range, "period_start": start, "period_end": end},
         "edition_title": title,
         "items": stories,
-        "one_liners": pick_one_liners(editions, verified, story_ids, cfg["one_liners"]),
-        "agri_corner": pick_agri_corner(editions, cfg["agri"], cfg["agri_gk"]),
+        "one_liners": _clean_one_liners(pick_one_liners(editions, verified, story_ids, cfg["one_liners"] * 2),
+                                        verified, hindi, cfg["one_liners"], qa),
+        "agri_corner": _clean_agri(pick_agri_corner(editions, cfg["agri"], cfg["agri_gk"]), hindi, qa),
         "source_days": [e["date"] for e in editions],
         "missing_days": [d for d in dates if d not in {e["date"] for e in editions}],
     }
@@ -1042,6 +1230,8 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     stats.update({"verified_unique": len(ranked), "stories": len(stories), "mcqs": len(mcqs),
                   "one_liners": len(content["one_liners"])})
     content["period_stats"] = stats
+    qa["hindi_postfix"] = dict(hindi.stats)
+    content["period_qa"] = qa
     period = {"start": start, "end": end, "type": job_type}
     return {"content": content, "mcqs": mcqs, "stats": stats,
             "selected": {"items": stories, "period": period},

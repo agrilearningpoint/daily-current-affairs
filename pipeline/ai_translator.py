@@ -418,8 +418,15 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     if not _DEVANAGARI_RE.search(hindi):
         issues.append("no Devanagari characters")
     try:
-        from pipeline.hindi_postfix import mixed_words
+        from pipeline.hindi_postfix import mixed_words, untranslated_run
+        from pipeline.text_normalize import garbled_hi, hi_truncated_start
         mixed = mixed_words(hindi)
+        if untranslated_run(hindi):
+            issues.append("untranslated English phrase")
+        if hi_truncated_start(hindi):
+            issues.append("truncated start")
+        if garbled_hi(hindi):
+            issues.append("garbled structure")
     except Exception:
         mixed = []
     if mixed:
