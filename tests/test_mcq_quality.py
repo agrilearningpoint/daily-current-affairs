@@ -97,7 +97,7 @@ def test_broken_templates_rejected():
 def test_current_officeholder_title_is_fine():
     assert q.stale_title_error("Union Agriculture Minister Shivraj Singh Chouhan") == ""
     assert q.stale_title_error("NABARD") == ""
-    assert q.quality_errors(_mcq(["NABARD", "SIDBI", "Exim Bank", "NHB", "IFCI"]), MSP_ITEM, "") == []
+    assert q.quality_errors(_mcq(["NABARD", "SIDBI", "Exim Bank / एक्ज़िम बैंक", "NHB", "IFCI"]), MSP_ITEM, "") == []
 
 
 def test_legacy_number_template_dropped_when_number_was_in_headline():

@@ -281,22 +281,113 @@ def _story_block(it: Dict[str, Any], num: int, total: int, compact: bool) -> Lis
     return out
 
 
-def _mcq_block(m: Dict[str, Any], n: int) -> Optional[Flowable]:
+_Q_FS = 13.0   # practice-set stem: still a large mobile size, a notch under the 14pt story stems
+_QUES_EN_TIGHT = ParagraphStyle("PQuesEN", parent=STYLES["ques_en"], fontSize=_Q_FS, leading=_Q_FS * 1.24)
+# Devanagari is scaled up ~12% by the shaper, so 12pt here prints at the same visual size as the 13pt EN stem.
+_QUES_HI_TIGHT = ParagraphStyle("PQuesHI", parent=STYLES["ques_hi"], fontSize=12.0, leading=12.0 * 1.24)
+_OPT_LATIN = ParagraphStyle("POptLatin", parent=STYLES["option_text"], leftIndent=1.5 * 2.835)
+_OPT_GAP = 10 * pt
+
+
+def _opt_width(ltr: str, en: str, hi: str) -> float:
+    """Rough rendered width of one option line (Latin measured, Devanagari estimated)."""
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    st = STYLES["option_text"]
+    w = stringWidth(f"{ltr}) {en}", st.fontName, st.fontSize)
+    if hi and _canon(hi) != _canon(en):
+        w += stringWidth(" / ", st.fontName, st.fontSize) + len(hi) * st.fontSize * 0.47
+    return w + 1.5 * 2.835
+
+
+def _canon(s: str) -> str:
+    return re.sub(r"\s+", "", str(s or "")).lower()
+
+
+def _opt_flow(ltr: str, en: str, hi: str, width: float) -> Flowable:
+    if hi and _canon(hi) != _canon(en):
+        return text_flowable(f"{ltr}) {en} / {hi}", STYLES["option_text"], width=width, left_pad_mm=1.5)
+    # Same left indent as the shaped bilingual lines (options without Hindi used to sit further left).
+    return Paragraph(f"<b>{ltr})</b> {_safe(en)}", _OPT_LATIN)
+
+
+def _options_grid(opts: List[Tuple[str, str]]) -> Flowable:
+    """Options three or two per row when they are short (A B C / D E), one per row
+    when long: same font, a fraction of the height."""
+    rows_ = list(zip(_LETTERS, opts))
+    widest = max(_opt_width(l, e, h) for l, (e, h) in rows_)
+    ncol = 1
+    for k in (3, 2):
+        if widest <= (PRINT_W - _OPT_GAP * (k - 1)) / k - 4:
+            ncol = k
+            break
+    col_w = (PRINT_W - _OPT_GAP * (ncol - 1)) / ncol
+    cells = [_opt_flow(l, e, h, col_w - 2) for l, (e, h) in rows_]
+    while len(cells) % ncol:
+        cells.append(Paragraph("", _OPT_LATIN))
+    data = [cells[i:i + ncol] for i in range(0, len(cells), ncol)]
+    t = Table(data, colWidths=[PRINT_W / ncol] * ncol)
+    t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
+                           ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                           ("TOPPADDING", (0, 0), (-1, -1), 0.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5)]))
+    return t
+
+
+def _mcq_parts(m: Dict[str, Any]) -> Optional[Tuple[str, str, Flowable]]:
+    """(EN stem, HI stem, options grid): everything of a question that does not depend on its number."""
     q_en = _clean_text_for_display(m.get("question_en"))
     if not q_en or _UNTITLED_RE.search(q_en):
         return None
     opts = _bilingual_options(m)
     if len(opts) < 4:
         return None
-    block: List[Flowable] = [text_flowable(f"Q{n}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{n}.</b> {_safe(q_en)}")]
-    q_hi = _hi_or_blank(m.get("question_hi"))
+    return q_en, _hi_or_blank(m.get("question_hi")), _options_grid(opts)
+
+
+def _mcq_assemble(n: int, parts: Tuple[str, str, Flowable]) -> Flowable:
+    q_en, q_hi, grid = parts
+    block: List[Flowable] = [Paragraph(f"<b>Q{n}.</b> {_safe(q_en)}", _QUES_EN_TIGHT)]
     if q_hi:
-        block += [Spacer(PRINT_W, 2 * pt), text_flowable(f"प्रश्न {n}: {q_hi}", STYLES["ques_hi"])]
-    block.append(Spacer(PRINT_W, 4 * pt))
-    for ltr, (o_en, o_hi) in zip(_LETTERS, opts):
-        block += [_option_line(ltr, o_en, o_hi), Spacer(PRINT_W, 1.5 * pt)]
-    block.append(Spacer(PRINT_W, 9 * pt))
+        block += [Spacer(PRINT_W, 1 * pt), text_flowable(f"प्रश्न {n}: {q_hi}", _QUES_HI_TIGHT)]
+    block += [Spacer(PRINT_W, 2 * pt), grid, Spacer(PRINT_W, 3 * pt),
+              HRFlowable(width="100%", thickness=0.4, color=COLORS["border_light"]), Spacer(PRINT_W, 3 * pt)]
     return KeepTogether(block)
+
+
+def _mcq_block(m: Dict[str, Any], n: int) -> Optional[Flowable]:
+    """One question: bold stem (EN, then HI), options in a compact grid, a hairline.
+    Fonts stay at mobile sizes; the density comes from the grid and tighter spacing
+    (audit 2026-11-08: 50 MCQs filled 18 pages at 2-3 per page)."""
+    parts = _mcq_parts(m)
+    return _mcq_assemble(n, parts) if parts else None
+
+
+def _flow_height(flows: List[Flowable]) -> float:
+    from reportlab.pdfgen.canvas import Canvas
+    c = Canvas(os.devnull)
+    h = 0.0
+    for f in flows:
+        for x in (f._content if isinstance(f, KeepTogether) else [f]):
+            h += x.wrapOn(c, PRINT_W, PAGE_H)[1]
+    return h
+
+
+def _pack_order(heights: List[float], first_avail: float, avail: float, lookahead: int = 10) -> List[int]:
+    """Near-original order that wastes less page space: when the next question does not
+    fit the rest of the page, the tallest of the next few that does fit moves up."""
+    queue, order, rem = list(range(len(heights))), [], first_avail
+    while queue:
+        if heights[queue[0]] <= rem:
+            pick = queue[0]
+        else:
+            fits = [i for i in queue[1:lookahead] if heights[i] <= rem]
+            if not fits:
+                rem = avail
+                continue
+            pick = max(fits, key=lambda i: heights[i])
+        queue.remove(pick)
+        order.append(pick)
+        rem -= heights[pick]
+    return order
 
 
 def _answer_key(rows: List[Tuple[int, str]]) -> List[Flowable]:
@@ -423,16 +514,19 @@ def _build_once(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path
     title = str(content.get("edition_title") or f"{kind.title()} Current Affairs {date_display}")
 
     mcq_blocks: List[Tuple[int, str, Flowable]] = []
-    for m in mcqs or []:
-        if not isinstance(m, dict):
-            continue
+    built = [(m, _mcq_parts(m)) for m in mcqs or [] if isinstance(m, dict)]
+    built = [(m, p) for m, p in built if p]
+    if built:
+        # Questions are numbered after packing, so the answer key always follows the print order.
+        avail = PAGE_H - 62 * pt - 44 * pt - 12 * pt - 2 * pt   # frame minus its 6pt paddings, 2pt slack
+        band_h = _flow_height(_band("PRACTICE SET", "अभ्यास प्रश्न", "mcq"))
+        heights = [_flow_height([_mcq_assemble(88, p)]) for _m, p in built]
+        built = [built[i] for i in _pack_order(heights, avail - band_h, avail)]
+    for m, parts in built:
         n = len(mcq_blocks) + 1
-        blk = _mcq_block(m, n)
-        if blk is None:
-            continue
         opts = _bilingual_options(m)
         ltr = str(m.get("correct") or "").strip().upper()
-        mcq_blocks.append((n, ltr if ltr in _LETTERS[:len(opts)] else "A", blk))
+        mcq_blocks.append((n, ltr if ltr in _LETTERS[:len(opts)] else "A", _mcq_assemble(n, parts)))
 
     # EN and HI one-liner lists share numbering: a line without Hindi is dropped as a pair.
     ols = [o for o in content.get("one_liners") or [] if isinstance(o, dict)

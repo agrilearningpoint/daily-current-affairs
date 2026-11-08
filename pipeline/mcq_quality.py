@@ -330,6 +330,7 @@ def quality_errors(m: Dict[str, Any], ci: Optional[Dict[str, Any]] = None, evide
     if headline and m.get("type") != "concept" and explanation_is_headline_only(
             m.get("explanation_en") or "", headline, answer, src_name):
         errs.append("explanation only repeats the headline")
+    errs.extend(hardening_errors(m, evidence))
     return errs
 
 
@@ -458,3 +459,354 @@ def parse_verify_reply(raw: Any) -> str:
         return mo.group(1).upper()
     mo = re.fullmatch(r"\(?([A-Ea-e])\)?[.)]?", s)
     return mo.group(1).upper() if mo else ""
+
+
+# --------------------------------------------------------------------------- #
+# Hardening gates (weekly audit 2026-11-08): key consistency, grounding,
+# give-aways, option entity types and complete Hindi.  Shared by the daily
+# validator (quality_errors) and the weekly/monthly assembly (harden_mcq).
+# --------------------------------------------------------------------------- #
+_DEV_RE = re.compile(r"[\u0900-\u097F]")
+_MULT = {"k": 1e3, "thousand": 1e3, "lakh": 1e5, "lakhs": 1e5, "crore": 1e7, "crores": 1e7, "cr": 1e7,
+         "million": 1e6, "mn": 1e6, "billion": 1e9, "bn": 1e9, "trillion": 1e12, "trn": 1e12, "tn": 1e12}
+_UNIT = {"%": "%", "per cent": "%", "percent": "%", "mt": "t", "tonne": "t", "tonnes": "t", "ton": "t",
+         "tons": "t", "metric tonne": "t", "metric tonnes": "t", "mmt": "mt", "lmt": "lt", "kg": "kg", "km": "km", "gw": "gw", "mw": "mw", "ha": "ha",
+         "hectare": "ha", "hectares": "ha", "year": "yr", "years": "yr", "day": "day", "days": "day"}
+_UNIT_SCALE = {"mt": ("t", 1e6), "lt": ("t", 1e5)}
+_NUM_RE = re.compile(
+    r"(?<![\w.,])(₹|rs\.?|inr|us\$|\$)?\s*(\d+(?:,\d{2,3})*(?:\.\d+)?)\s*"
+    r"(k|thousand|lakhs?|crores?|cr|million|mn|billion|bn|trillion|trn|tn)?\.?\s*"
+    r"(%|per\s*cent|percent|mmt|lmt|mt|metric\s*tonnes?|tonnes?|tons?|kg|km|gw|mw|ha|hectares?|years?|days?)?(?![\w])", re.I)
+
+
+def _parse_num(mo: "re.Match") -> Tuple[float, str, bool]:
+    cur, num, mult, unit = mo.group(1), mo.group(2), (mo.group(3) or "").lower(), (mo.group(4) or "").lower()
+    v = float(num.replace(",", "")) * _MULT.get(mult, 1.0)
+    u = _UNIT.get(re.sub(r"\s+", " ", unit), unit)
+    if u in _UNIT_SCALE:
+        u, sc = _UNIT_SCALE[u]
+        v *= sc
+    return v, u, bool(cur)
+
+
+def option_number(o: str) -> Optional[Tuple[float, str, bool]]:
+    """(value, unit, is_money) when the option is a bare quantity ('1.5 MT', '₹8 crore', '12%')."""
+    s = _base(o)
+    mo = _NUM_RE.search(s)
+    if not mo:
+        return None
+    rest = _ws(s[:mo.start()] + " " + s[mo.end():])
+    if len(re.findall(r"[A-Za-z]{2,}", rest)) > 2:
+        return None
+    return _parse_num(mo)
+
+
+def _num_supported(n: Tuple[float, str, bool], text: str) -> bool:
+    v, u, _money = n
+    for mo in _NUM_RE.finditer(text or ""):
+        tv, tu, _tm = _parse_num(mo)
+        if u and tu and u != tu:
+            continue
+        if u and not tu:
+            continue
+        if abs(tv - v) <= max(1e-9, abs(v) * 0.005):
+            return True
+    return False
+
+
+def _name_variants(o: str) -> List[str]:
+    s = _base(o)
+    out = [s]
+    out += re.findall(r"\(([^)]{2,40})\)", s)
+    main = _ws(re.sub(r"\([^)]*\)", " ", s))
+    if main != s and len(main) > 4:
+        out.append(main)
+    if "," in main:
+        out.append(main.split(",")[0].strip())
+    # 'Union Environment Minister Shri Bhupender Yadav' -> 'Bhupender Yadav'
+    mo = re.search(r"(?:Minister|Secretary|Governor|Chairman|Chairperson|Chief|Director|President|"
+                   r"Shri|Smt|Dr|Mr|Ms)\.?\s+((?:[A-Z][\w.'-]*\s*){2,4})$", main)
+    if mo:
+        out.append(_ws(re.sub(r"^(?:Shri|Smt|Dr|Mr|Ms)\.?\s+", "", mo.group(1))))
+    return [x for x in out if len(x.strip()) >= 2]
+
+
+def option_spans(o: str, text: str) -> List[Tuple[int, int]]:
+    """Where the option occurs in ``text`` (word-boundary, case-insensitive; numbers by value)."""
+    if not text:
+        return []
+    n = option_number(o)
+    if n is not None:
+        spans = []
+        for mo in _NUM_RE.finditer(text):
+            if _num_supported(n, mo.group(0)):
+                spans.append(mo.span())
+        return spans
+    spans = []
+    for v in _name_variants(o):
+        for mo in re.finditer(r"(?<!\w)" + re.escape(v) + r"(?!\w)", text, re.I):
+            spans.append(mo.span())
+        if spans:
+            break
+    return spans
+
+
+_GENERIC_STEM = set("""which what when where who whom whose following recently recent news according india indian
+government union central state states scheme ministry minister national question mentioned reported
+announced launched under about their there these those being during other among amount quantity total
+number value""".split())
+
+
+def _stem_keys(q: str) -> set:
+    return {w[:5] for w in re.findall(r"[a-z]{4,}", (q or "").lower()) if w not in _GENERIC_STEM}
+
+
+def _near_stem(spans: List[Tuple[int, int]], text: str, q: str, window: int = 110) -> bool:
+    keys = _stem_keys(q)
+    if not keys:
+        return bool(spans)
+    for a, b in spans:
+        ctx = text[max(0, a - window):b + window].lower()
+        ctx_keys = {w[:5] for w in re.findall(r"[a-z]{4,}", ctx)}
+        if len(keys & ctx_keys) >= min(2, len(keys)):
+            return True
+    return False
+
+
+def standing_fact_supports(question: str, answer: str) -> bool:
+    """A verified standing fact (config/current_facts.json officeholder) backs the key."""
+    q, a = question or "", _base(answer)
+    for f in _facts():
+        if any(len(p) >= 4 and re.search(r"\b" + re.escape(p) + r"\b", q, re.I) for p in f.get("match") or []):
+            if any(_norm_name(h) and _norm_name(h) in _norm_name(a) for h in _holder_names(f)):
+                return True
+    return False
+
+
+def key_check(m: Dict[str, Any], story: str, cross: str = "") -> Tuple[str, int, str]:
+    """('ok'|'rekey'|'drop', key index, reason).
+
+    The keyed option must occur in the story; when another option is the one the
+    story supports (it occurs next to the stem's subject) the key moves to it; a
+    key nothing in the story supports is dropped unless a verified mapping /
+    standing fact backs it; a one-liner / Static GK line that supports a
+    different option is a contradiction (drop)."""
+    opts = [_base(o) for o in (m.get("options") or [])]
+    letter = str(m.get("correct") or "")
+    idx = LETTERS.find(letter) if len(letter) == 1 else -1
+    if not (0 <= idx < len(opts)):
+        return "drop", idx, "key out of range"
+    q = _ws(m.get("question_en"))
+    backed = known_mapping_supports(q, opts[idx]) or standing_fact_supports(q, opts[idx])
+    spans = {i: option_spans(o, story) for i, o in enumerate(opts)}
+    sup = [i for i, s in spans.items() if s]
+    new = idx
+    if sup:
+        near = [i for i in sup if _near_stem(spans[i], story, q)]
+        cand = near or sup
+        if idx in cand and len(cand) == 1:
+            new = idx
+        elif len(cand) == 1 and not backed:
+            new = cand[0]
+        elif idx in cand or backed:
+            if len(cand) > 1 and not backed:
+                return "drop", idx, "ambiguous: several options occur in the story"
+        else:
+            return "drop", idx, "ambiguous key"
+    elif not backed:
+        return "drop", idx, "answer not supported by the story text"
+    if cross:
+        cs = [i for i, o in enumerate(opts) if _near_stem(option_spans(o, cross), cross, q)]
+        if cs and new not in cs:
+            return "drop", new, f"key contradicts the edition's one-liner/Static GK (supports {LETTERS[cs[0]]})"
+    if new != idx:
+        return "rekey", new, f"key moved {LETTERS[idx]}->{LETTERS[new]}: the story supports '{opts[new]}'"
+    return "ok", idx, ""
+
+
+# ---- give-aways and entity types ------------------------------------------ #
+GIVEAWAY_WORDS_RE = re.compile(r"\b(?:leading|first|only|highest|largest|biggest|top|best|most|record|sole|"
+                               r"unique|maximum|lowest|smallest)\b", re.I)
+_QUOTE_RE = re.compile(r"[‘’“”\"]|(?<!\w)'|'(?!\w)")
+_ROLE_MINISTRY_RE = re.compile(r"\b(?:Foreign|External Affairs|Home|Defence|Finance|Health|Agriculture|"
+                               r"Environment|Commerce|Railway|Education|Law)\s+(?:Secretary|Minister)\b", re.I)
+_ASKS_MINISTRY_RE = re.compile(r"\bwhich\s+(?:union\s+)?ministry\b|\bof which ministry\b", re.I)
+UN_ORGANS_RE = re.compile(r"General Assembly|Security Council|Economic and Social Council|\bECOSOC\b|"
+                          r"Trusteeship Council|International Court of Justice|\bICJ\b|UN Secretariat", re.I)
+UN_BODIES_RE = re.compile(r"\b(?:WHO|UNESCO|ILO|UNDP|UNICEF|FAO|WFP|UNEP|UNHCR|IFAD|UNIDO|UNCTAD|ITU|IMO|ICAO|"
+                          r"WMO|WIPO|IAEA|UNFPA)\b|World Health Organi[sz]ation|Programme\b", re.I)
+REGION_COUNTRY = {"zaporizhzhia": "ukraine", "kherson": "ukraine", "donetsk": "ukraine", "luhansk": "ukraine",
+                  "kharkiv": "ukraine", "kyiv": "ukraine", "odesa": "ukraine", "dnipro": "ukraine",
+                  "sumy": "ukraine", "ukraine": "ukraine", "gaza": "palestine", "west bank": "palestine",
+                  "kursk region": "russia", "belgorod region": "russia"}
+CITY_COUNTRY = {"oryol": "russia", "belgorod": "russia", "kursk": "russia", "bryansk": "russia",
+                "moscow": "russia", "voronezh": "russia", "rostov": "russia", "st petersburg": "russia",
+                "kyiv": "ukraine", "kharkiv": "ukraine", "odesa": "ukraine", "lviv": "ukraine",
+                "tel aviv": "israel", "haifa": "israel", "tehran": "iran", "isfahan": "iran",
+                "lahore": "pakistan", "karachi": "pakistan", "islamabad": "pakistan", "dhaka": "bangladesh"}
+_UT_CITIES = {"delhi", "new delhi", "nct of delhi", "chandigarh", "puducherry", "pondicherry"}
+_SUBSTATE_ASK_RE = re.compile(r"\b(?:which|what)\s+(?:district|city|town|village|block|tehsil)\b", re.I)
+
+
+def _tables() -> Tuple[Dict[str, str], Dict[str, str]]:
+    from pipeline.mcq_builder import COUNTRIES, COUNTRY_ALIASES, INDIAN_STATES, STATE_ALIASES
+    st = {k.lower(): k for k in INDIAN_STATES}
+    st.update({k.lower(): v for k, v in STATE_ALIASES.items()})
+    co = {k.lower(): k for k in COUNTRIES}
+    co.update({k.lower(): v for k, v in COUNTRY_ALIASES.items()})
+    return st, co
+
+
+def option_type(o: str) -> str:
+    s = _base(o)
+    n = option_number(s)
+    if n is not None:
+        return "num:" + (n[1] or ("money" if n[2] else ""))
+    st, co = _tables()
+    low = s.lower().strip()
+    if low in _UT_CITIES:
+        return "ut_city"   # a UT and a city: compatible with states and with cities
+    if low in st:
+        return "state"
+    if low in co:
+        return "country"
+    if "," in s:
+        tail = s.rsplit(",", 1)[1].strip().lower()
+        if tail in st:
+            return "place+state"
+        if tail in co:
+            return "place+country"
+    if low in CITY_COUNTRY:
+        return "city:" + CITY_COUNTRY[low]
+    if UN_ORGANS_RE.search(s):
+        return "un_organ"
+    if UN_BODIES_RE.search(s) and re.search(r"United Nations|\bUN\b|World|International", s):
+        return "un_body"
+    return "text"
+
+
+def type_errors(m: Dict[str, Any]) -> List[str]:
+    opts = [_base(o) for o in (m.get("options") or [])]
+    letter = str(m.get("correct") or "")
+    idx = LETTERS.find(letter) if len(letter) == 1 else -1
+    if not (0 <= idx < len(opts)) or len(opts) < 4:
+        return []
+    q = _ws(m.get("question_en")).lower()
+    types = [option_type(o) for o in opts]
+    ct, others = types[idx], [t for i, t in enumerate(types) if i != idx and t != "ut_city"]
+    errs: List[str] = []
+    if ct == "ut_city" or not others:
+        return errs
+    if ct.startswith("num:"):
+        nums = [option_number(o) for o in opts]
+        if any(t != ct for t in others):
+            errs.append("option types differ: every option must be a number with the same unit")
+        else:
+            vals = [abs(x[0]) for x in nums if x and x[0]]
+            if vals and max(vals) / min(vals) > 50:
+                errs.append("option magnitudes differ by more than 50x")
+    elif ct in ("state", "country") and any(t != ct for t in others):
+        errs.append(f"option types differ: correct is a {ct}, a distractor is not")
+    elif ct != "text" and len(set(others)) == 1 and others[0] != ct:
+        errs.append(f"give-away: only the correct option is a {ct} (others: {others[0]})")
+    elif ct == "text" and len(set(others)) == 1 and others[0] in ("state", "country") \
+            and not _SUBSTATE_ASK_RE.search(q):
+        errs.append(f"give-away: only the correct option is not a {others[0]}")
+    if _SUBSTATE_ASK_RE.search(q) and any(t == "state" for t in types):
+        errs.append("absurd option: a state offered for a district/city/village question")
+    stem_country = next((c for r, c in REGION_COUNTRY.items() if re.search(r"\b" + re.escape(r) + r"\b", q)), "")
+    if stem_country and any(t.startswith("city:") and t != "city:" + stem_country for t in types):
+        errs.append(f"absurd option: a city outside {stem_country} for a question about {stem_country}")
+    return errs
+
+
+def giveaway_errors(m: Dict[str, Any]) -> List[str]:
+    opts = [_base(o) for o in (m.get("options") or [])]
+    letter = str(m.get("correct") or "")
+    idx = LETTERS.find(letter) if len(letter) == 1 else -1
+    if not (0 <= idx < len(opts)) or len(opts) < 4 or m.get("type") == "concept":
+        return []   # concept MCQs: verified mapping with curated, same-kind distractors
+    q = _ws(m.get("question_en"))
+    ans, others = opts[idx], [o for i, o in enumerate(opts) if i != idx]
+    errs: List[str] = []
+    w = GIVEAWAY_WORDS_RE.search(ans)
+    if w and not any(GIVEAWAY_WORDS_RE.search(o) for o in others):
+        errs.append(f"give-away: only the correct option says '{w.group(0)}'")
+    keys = _stem_keys(q)
+    def hits(o: str) -> set:
+        return {t[:5] for t in re.findall(r"[a-z]{4,}", o.lower()) if t not in _GENERIC_STEM} & keys
+    if hits(ans) and not any(hits(o) for o in others):
+        errs.append(f"give-away: the correct option repeats a stem word ({sorted(hits(ans))[0]})")
+    if _QUOTE_RE.search(ans) and not any(_QUOTE_RE.search(o) for o in others):
+        errs.append("give-away: only the correct option is a quotation")
+    lens = sorted(len(o) for o in others)
+    if len(ans) >= 1.5 * max(lens) and len(ans) - max(lens) >= 15:
+        errs.append("give-away: the correct option is uniquely longer")
+    if _ASKS_MINISTRY_RE.search(q) and _ROLE_MINISTRY_RE.search(q):
+        errs.append("give-away: the stem's job title names the ministry")
+    return errs + type_errors(m)
+
+
+def option_hindi(m: Dict[str, Any]) -> List[str]:
+    opts = [str(o or "") for o in (m.get("options") or [])]
+    his = list(m.get("options_hi") or [])
+    out = []
+    for i, o in enumerate(opts):
+        h = str(his[i] or "") if i < len(his) else ""
+        if not h and " / " in o:
+            h = o.split(" / ", 1)[1]
+        out.append(h)
+    return out
+
+
+def hindi_errors(m: Dict[str, Any]) -> List[str]:
+    """An MCQ is printed only with a Hindi stem and Hindi for every option
+    (bare numbers / acronyms may stay as they are)."""
+    if not _DEV_RE.search(str(m.get("question_hi") or "")):
+        return ["Hindi missing: question"]
+    for o, h in zip(m.get("options") or [], option_hindi(m)):
+        if _DEV_RE.search(h):
+            continue
+        en = _base(o)
+        if option_number(en) is not None or not re.search(r"[A-Za-z]", en) \
+                or re.fullmatch(r"[A-Z0-9&.\- ]{2,12}", en.strip()):
+            continue
+        return [f"Hindi missing: option '{en[:40]}'"]
+    return []
+
+
+OPINION_STEM_RE = re.compile(r"\baccording to (?:the )?(?:experts|analysts|observers|economists)\b|"
+                             r"\bstand(?:s)? to gain\b|\bin the opinion of\b", re.I)
+
+
+def hardening_errors(m: Dict[str, Any], evidence: str = "", cross: str = "") -> List[str]:
+    """Hardening gates (no re-key) run by the fail-closed validator.  The complete-Hindi
+    gate (hindi_errors) is applied where questions are chosen for print: stage 16
+    (mcq_builder.first_valid) and the weekly/monthly assembly (harden_mcq)."""
+    errs: List[str] = []
+    if OPINION_STEM_RE.search(str(m.get("question_en") or "")):
+        errs.append("opinion question (no single verifiable answer)")
+    if evidence or cross:
+        action, new, why = key_check(m, evidence, cross)
+        if action != "ok":
+            errs.append(("wrong key: " if action == "rekey" else "") + why)
+    return errs + giveaway_errors(m)
+
+
+def harden_mcq(m: Dict[str, Any], story: str, cross: str = "",
+               ci: Optional[Dict[str, Any]] = None) -> Tuple[Optional[Dict[str, Any]], List[str]]:
+    """Weekly/monthly gate: returns (fixed copy, []) or (None, reasons).
+    A key the story contradicts is moved to the supported option (explanations
+    that named the old answer are cleared); everything else that fails is dropped."""
+    action, new, why = key_check(m, story, cross)
+    if action == "drop":
+        return None, [why]
+    out = dict(m)
+    if action == "rekey":
+        old = _base((m.get("options") or [])[LETTERS.index(str(m.get("correct")))])
+        out["correct"] = LETTERS[new]
+        out["rekeyed"] = why
+        if old.lower() in (str(m.get("explanation_en") or "") + " " + str(m.get("explanation_pairs") or "")).lower():
+            out["explanation_en"], out["explanation_hi"], out["explanation_pairs"] = "", "", []
+    errs = hindi_errors(out) + [e for e in quality_errors(out, ci or {}, story) if not e.startswith("explanation only")]
+    return (None, errs) if errs else (out, [])
