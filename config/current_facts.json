@@ -956,6 +956,69 @@
         "Panchayati Raj"
       ],
       "portfolio_source": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/"
+    },
+    {
+      "id": "health_minister",
+      "post": "Union Minister of Health and Family Welfare",
+      "name": "Jagat Prakash Nadda",
+      "since": "2024-06-10",
+      "source_url": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/",
+      "verified_on": "2026-11-08",
+      "match": [
+        "Union Health Minister",
+        "Union Minister of Health and Family Welfare",
+        "Union Minister for Health and Family Welfare",
+        "Minister of Health and Family Welfare",
+        "Health Minister of India",
+        "Union Health and Family Welfare Minister"
+      ],
+      "match_hi": [
+        "केंद्रीय स्वास्थ्य मंत्री",
+        "स्वास्थ्य एवं परिवार कल्याण मंत्री",
+        "स्वास्थ्य और परिवार कल्याण मंत्री"
+      ],
+      "aliases": [
+        "J.P. Nadda",
+        "J. P. Nadda",
+        "JP Nadda",
+        "Shri Jagat Prakash Nadda"
+      ],
+      "name_hi": "जगत प्रकाश नड्डा",
+      "rank": "cabinet",
+      "portfolio": [
+        "Health and Family Welfare",
+        "Chemicals and Fertilizers"
+      ],
+      "portfolio_source": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/"
+    },
+    {
+      "id": "environment_minister",
+      "post": "Union Minister of Environment, Forest and Climate Change",
+      "name": "Bhupender Yadav",
+      "since": "2021-07-07",
+      "source_url": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/",
+      "verified_on": "2026-11-08",
+      "match": [
+        "Union Environment Minister",
+        "Union Minister of Environment, Forest and Climate Change",
+        "Union Minister for Environment, Forest and Climate Change",
+        "Minister of Environment, Forest and Climate Change",
+        "Environment Minister of India"
+      ],
+      "match_hi": [
+        "केंद्रीय पर्यावरण मंत्री",
+        "पर्यावरण, वन और जलवायु परिवर्तन मंत्री"
+      ],
+      "aliases": [
+        "Bhupendra Yadav",
+        "Shri Bhupender Yadav"
+      ],
+      "name_hi": "भूपेंद्र यादव",
+      "rank": "cabinet",
+      "portfolio": [
+        "Environment, Forest and Climate Change"
+      ],
+      "portfolio_source": "https://www.pmindia.gov.in/en/news_updates/portfolios-of-the-union-council-of-ministers-2/"
     }
   ],
   "orgs": [
