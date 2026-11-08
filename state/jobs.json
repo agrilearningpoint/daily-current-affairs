@@ -1800,7 +1800,7 @@
     "checkpoint_run_id": "42431500110"
   },
   "weekly_2026-11-08": {
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "weekly_2026-11-08",
     "job_type": "weekly",
     "job_date": "2026-11-08",
@@ -1810,37 +1810,37 @@
       "end": "2026-11-08T23:59:59.999999+05:30"
     },
     "github_run_id": "42462014672",
-    "status": "running",
-    "updated_at": "2026-11-08T08:14:09.670662+00:00",
-    "started_at": "2026-11-08T07:38:18.377343+00:00",
+    "status": "awaiting_publish",
+    "updated_at": "2026-11-08T08:15:47.032093+00:00",
+    "started_at": "2026-11-08T08:14:12.344367+00:00",
     "artifacts": {
       "data/selected/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "eed395868b7c2490212adc9808add506f2c8eb83611381583c0471e016cc2b70"
+        "sha256": "9942e1d92b73b7bdd527f9d9d0dbe6f3c3f4223347b5566de058eca38df6a6c8"
       },
       "data/scored/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "c17e02dc883d49d0691dd747f74856d4d784c5ad4250df2de016a60e1f9c2778"
+        "sha256": "88015269b92713c1a5cfdd9266be076be94f9418e6d784e56a98abff4e5e0479"
       },
       "data/content/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "db123fec0bdbded124145fce16ff23eea82786503181edba9e40270ec11f72d2"
+        "sha256": "ec31b7cf348102dd8432bbee1fdd7aa2848424c6c7fe37f8f147f3b3a831d6ae"
       },
       "data/mcq/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "e365faab48163d3b3782a60ecbedeb53752a2d1c8eba73116cb5f765db21800b"
+        "sha256": "ce272d8bb5666bcb92182fb84c82b3182d46baacba3795e048fe1a0aa8a51b7e"
       },
       "output/weekly_2026-11-08.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "2d776b53ae70fb4fa27c005010b66be704bd62ed530715798fa134674df1b7e3"
+        "sha256": "75963e722096ef60de0ee5dba3580d21f242b5b37fc90595ba0329826edf30c0"
       },
       "logs/qa/weekly_2026-11-08_qa.json": {
         "stage": "19_pdf_qa",
-        "sha256": "b9ac7db512b9d1c2a944e8f20aea66772d0d2e824e56cd8b4feac94170ca1fa7"
+        "sha256": "23832bac538ddfbc1bbe3d2807815091da2114824f0104ceaa6691bcdedadda5"
       }
     },
-    "checkpoint_run_id": "42459575137",
-    "last_success_stage": "19_pdf_qa",
-    "publish_hold": "review"
+    "checkpoint_run_id": "42462014672",
+    "publish_hold": "review",
+    "last_success_stage": "19_pdf_qa"
   }
 }
