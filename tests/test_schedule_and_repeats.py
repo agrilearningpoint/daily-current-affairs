@@ -106,8 +106,11 @@ def test_review_hold_parks_before_publish_then_resumes(fake_pipeline, monkeypatc
     main.watchdog()
     plan = json.loads((main.ROOT / "recovery_plan.json").read_text())
     assert "daily_2026-10-06" not in plan["stuck_running"]
-    monkeypatch.setenv("ALP_HOLD_PUBLISH", "0")
     monkeypatch.setattr(main, "resume_after", lambda *a: "19_pdf_qa")
+    fake_pipeline.clear()                                   # second review run rebuilds
+    assert main.execute_job("daily", "2026-10-06") == 0
+    assert fake_pipeline == ["10_final_news_selection", "19_pdf_qa"]
+    monkeypatch.setenv("ALP_HOLD_PUBLISH", "0")
     fake_pipeline.clear()
     assert main.execute_job("daily", "2026-10-06") == 0
     assert fake_pipeline == ["22_telegram_publisher", "24_final_health_audit"]

@@ -349,3 +349,59 @@ def test_period_pdf_compacts_to_page_limit(monkeypatch, tmp_path):
     content = {"job": {"type": "weekly"}, "one_liners": [{}] * 40}
     P.generate_period_pdf(content, [], output_path=str(tmp_path / "x.pdf"))
     assert calls == [(False, None), (True, None), (True, 20)]
+
+
+# --------------------------------------------------------------------------- #
+# Editorial filters (weekly 2026-11-08 review)
+# --------------------------------------------------------------------------- #
+def test_one_liner_cleanup_strips_key_tags_and_source_tails():
+    from pipeline import period_builder as pb
+    assert pb.clean_one_liner("US consortium pushes for $4.4 billion LNG project (Key: $4.4 billion)") == \
+        "US consortium pushes for $4.4 billion LNG project"
+    assert pb.clean_one_liner("PM's address at the Summit in Delhi - PM India (Key: Delhi PM India)") == \
+        "PM's address at the Summit in Delhi"
+    assert pb.clean_one_liner("Russian strikes kill 26 (Key: sident Volodymyr Zelenskyy said") == "Russian strikes kill 26"
+    assert pb.heading_only("UPI: Transforming India's Payment Landscape")
+    assert pb.heading_only("Bankers Books Evidence Act, 2026")
+    assert not pb.heading_only("Cabinet approves extension of Jal Jeevan Mission till December 2028")
+
+
+def _mcq(q, opts, correct="A", **kw):
+    return dict(question_en=q, question_hi="प्रश्न", options=opts, correct=correct, **kw)
+
+
+def test_template_and_junk_mcqs_are_rejected():
+    from pipeline import period_builder as pb
+    opts = ["ICAR", "CACP", "NAFED", "APEDA", "CWC"]
+    assert pb._mcq_ok(_mcq("Who chairs X?", opts))
+    q = 'Which organisation is associated with the news "Cabinet approves MSP"?'
+    assert not pb._mcq_ok(_mcq(q, opts), "Cabinet approves MSP on CACP advice")      # keyed ICAR: not in story
+    assert pb._mcq_ok(_mcq(q, opts, correct="B"), "Cabinet approves MSP on CACP advice")
+    states = ["Delhi", "Goa", "Bihar", "Kerala", "Karnataka"]
+    q2 = 'The news "AIDSO protests" is related to which State / Union Territory?'
+    assert not pb._mcq_ok(_mcq(q2, states), "AIDSO protests in Kalaburagi, Karnataka")
+    assert pb._mcq_ok(_mcq(q2, states, correct="E"), "AIDSO protests in Kalaburagi, Karnataka")
+    assert not pb._mcq_ok(_mcq("Which of the following topics was featured in the PIB updates alongside RBI?", opts))
+    assert not pb._mcq_ok(_mcq("Which institution's cultivars are mentioned in the Kisan Credit Card news release?", opts))
+    assert not pb._mcq_ok(_mcq("Dup?", ["A1", "A1", "B", "C", "D"]))
+
+
+def test_balance_answers_spreads_letters_and_keeps_answer_text():
+    from collections import Counter
+    from pipeline import period_builder as pb
+    ms = [_mcq(f"Q{i}?", [f"right{i}", "w1", "w2", "w3", "w4"]) for i in range(50)]
+    pb.balance_answers(ms, "weekly_2026-11-08")
+    counts = Counter(m["correct"] for m in ms)
+    assert set(counts) == set("ABCDE") and max(counts.values()) == 10
+    assert all(m["options"]["ABCDE".index(m["correct"])] == f"right{i}" for i, m in enumerate(ms))
+    again = [_mcq(f"Q{i}?", [f"right{i}", "w1", "w2", "w3", "w4"]) for i in range(50)]
+    pb.balance_answers(again, "weekly_2026-11-08")
+    assert [m["correct"] for m in again] == [m["correct"] for m in ms]      # deterministic
+
+
+def test_blocklist_drops_stale_events(tmp_path, monkeypatch):
+    from pipeline import period_builder as pb
+    path = tmp_path / "bl.json"
+    path.write_text('{"headline_patterns": [{"pattern": "MSP for 14 Kharif crops"}]}', encoding="utf-8")
+    monkeypatch.setattr(pb, "_BLOCKLIST_PATH", path)
+    assert pb._blocklist()[0].search("Cabinet approves higher MSP for 14 Kharif crops for 2026-27")

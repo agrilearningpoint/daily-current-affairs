@@ -534,6 +534,11 @@ def execute_job(job_type: str, date_str: str | None) -> int:
         log_err(f"job '{job_id}' requires manual reconciliation; refusing automatic replay")
         return 1
     resume_from = resolve_resume_stage(job_id, stages)
+    if os.getenv("ALP_HOLD_PUBLISH", "0") == "1" and previous.get("publish_hold") == "review":
+        # Another review run of a held edition rebuilds from scratch so the
+        # reviewer sees what the current code produces.
+        resume_from = None
+        log(f"job '{job_id}' held for review — review re-run rebuilds from the first stage")
     skipping = resume_from is not None
 
     previous = load_jobs_state().get(job_id, {})
