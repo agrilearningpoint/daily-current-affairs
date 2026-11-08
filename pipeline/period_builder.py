@@ -116,8 +116,35 @@ _KEYWORD_SECTIONS: List[Tuple[str, re.Pattern]] = [
 ]
 
 
+_POLITY_RE = re.compile(r"\b(?:ncsc|ncst|nhrc|ncw|national\s+commission\s+for\s+(?:scheduled|women|minorities)|"
+                        r"scheduled\s+(?:castes?|tribes?)|lok\s+sabha|rajya\s+sabha|election\s+commission|"
+                        r"supreme\s+court|high\s+court|constitution\w*)\b", re.I)
+_INDIA_INVEST_RE = re.compile(r"\b(?:to\s+invest|invests?|investment|fdi|bank(?:s|ing)?|lender|financial\s+services)\b"
+                              r".{0,60}\bindia\b|\bindia\b.{0,60}\b(?:investment|fdi|banking\s+business)", re.I)
+_DIPLOMATIC_RE = re.compile(r"\b(?:bilateral|summit|joint\s+statement|state\s+visit|ambassador|foreign\s+secretary|"
+                            r"external\s+affairs|trade\s+(?:deal|pact|agreement|talks|negotiations?|policy)|tariffs?|"
+                            r"midterms?|election)\b", re.I)
+
+
+def _agri_evidence(item: Dict[str, Any]) -> bool:
+    """Real agriculture terms ("farm" or "trade" alone are not enough): one in the
+    headline, or three different ones in the opening text."""
+    from pipeline.exam_relevance import agri_terms
+    head = str(item.get("headline_en") or "")
+    if agri_terms(event_title(head)):
+        return True
+    body = " ".join(str(item.get(k) or "") for k in ("summary_en", "detailed_explanation_en"))[:600]
+    return agri_terms(body) >= 3
+
+
 def section_for(item: Dict[str, Any]) -> str:
-    """Map a daily category onto a period section; generic categories are refined by headline keywords."""
+    """Map a daily category onto a period section; generic categories are refined by headline keywords.
+
+    Agriculture needs real agri terms (India-US trade and NCSC stories were filed
+    under it); bank credit to agriculture (RBI agri-infra PSL limit) is Agriculture;
+    a foreign bank's India investment (Barclays) is Economy; statutory
+    commissions (NCSC/NHRC) are National."""
+    from pipeline.exam_relevance import BANK_AGRI_RE, agri_terms
     cat = str(item.get("category") or "").lower()
     head = f"{item.get('headline_en', '')}"
     if "important day" in cat:
@@ -126,17 +153,35 @@ def section_for(item: Dict[str, Any]) -> str:
         return "Sports"
     if any(k in cat for k in ("appoint", "award", "person", "obituar")):
         return "Appointments & Awards"
-    if any(k in cat for k in ("agri", "rural", "farm", "fisher", "animal", "food")):
+    if BANK_AGRI_RE.search(head) and agri_terms(head):
+        return "Agriculture"              # RBI / NABARD credit to agriculture
+    agri_cat = any(k in cat for k in ("agri", "rural", "farm", "fisher", "animal", "food"))
+    if agri_cat and _agri_evidence(item):
         return "Agriculture"
+    if _POLITY_RE.search(head):
+        return "National"
     if any(k in cat for k in ("defence", "defense", "science", "tech", "space", "environment", "health")):
         return "Defence & Science"
-    if any(k in cat for k in ("econom", "bank", "financ", "business", "budget", "trade", "market")):
+    if _INDIA_INVEST_RE.search(head) and not _DIPLOMATIC_RE.search(head):
         return "Economy"
-    international = any(k in cat for k in ("international", "world", "global", "foreign"))
+    if any(k in cat for k in ("econom", "bank", "financ", "business", "budget", "trade", "market")):
+        return "International" if _foreign(head) and _DIPLOMATIC_RE.search(head) else "Economy"
+    international = any(k in cat for k in ("international", "world", "global", "foreign")) or \
+        (agri_cat and _foreign(head))
     for sec, rx in _KEYWORD_SECTIONS:
+        if sec == "Agriculture" and not _agri_evidence(item):
+            continue
         if rx.search(head) and not (international and sec in ("Economy", "Agriculture")):
             return sec
     return "International" if international else "National"
+
+
+def _foreign(text: str) -> bool:
+    try:
+        from pipeline.collector import FOREIGN_RE
+    except Exception:  # pragma: no cover
+        return False
+    return bool(FOREIGN_RE.search(text or ""))
 
 
 # Notice-board / document titles that sometimes slip through a daily edition.
@@ -250,17 +295,37 @@ def _story(item: Dict[str, Any], day: str) -> Dict[str, Any]:
     it["section"] = section_for(it)
     if not it.get("event_id"):
         it["event_id"] = f"{day}:{_norm(it['headline_en'])[:60]}"
+    from pipeline.exam_relevance import exam_score, is_boosted
+    it["exam_score"] = exam_score(it)
+    it["exam_boosted"] = is_boosted(it)
     return it
 
 
-def collect_verified(editions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+def _period_bounds(editions: List[Dict[str, Any]], period: Optional[Tuple[str, str]]) -> Tuple[str, str]:
+    if period:
+        return period
+    days = sorted(e["date"] for e in editions if e.get("date"))
+    return (days[0], days[-1]) if days else ("", "")
+
+
+def collect_verified(editions: List[Dict[str, Any]], period: Optional[Tuple[str, str]] = None
+                     ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    """Publishable, fresh, exam-relevant stories of the period (the dailies' printed
+    stories and their prepared reserve stories), deduped at event level and ranked
+    by exam score."""
+    from pipeline.exam_relevance import drop_reason
+    from pipeline.freshness import period_stale_reason
     stats = {"days": len(editions), "items_seen": 0, "unverified_dropped": 0, "non_news_dropped": 0,
-             "duplicates_dropped": 0}
+             "duplicates_dropped": 0, "stale_dropped": 0, "irrelevant_dropped": 0, "reserve_candidates": 0}
     pool: List[Dict[str, Any]] = []
     strict = os.getenv("DRY_RUN", "0") != "1"
     blocked = _blocklist()
+    start, end = _period_bounds(editions, period)
+    drops: List[Dict[str, str]] = []
     for ed in editions:
-        for raw in ed["content"].get("items") or []:
+        printed = [(x, False) for x in ed["content"].get("items") or []]
+        reserve = [(x, True) for x in ed["content"].get("reserve_items") or [] if isinstance(x, dict)]
+        for raw, is_reserve in printed + reserve:
             stats["items_seen"] += 1
             if not is_publishable(raw, require_verified=strict):
                 stats["unverified_dropped"] += 1
@@ -271,13 +336,44 @@ def collect_verified(editions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
             if any(b.search(clean_headline(raw.get("headline_en"))) for b in blocked):
                 stats["blocklisted_dropped"] = stats.get("blocklisted_dropped", 0) + 1
                 continue
-            pool.append(_story(raw, ed["date"]))
+            it = _story(raw, ed["date"])
+            why = drop_reason(it)
+            if why:
+                stats["irrelevant_dropped"] += 1
+                drops.append({"headline": it["headline_en"][:90], "reason": why})
+                continue
+            if start and end:
+                why = period_stale_reason(it, start, end)
+                if why:
+                    stats["stale_dropped"] += 1
+                    drops.append({"headline": it["headline_en"][:90], "reason": f"stale: {why}"})
+                    continue
+                _set_event_day(it, start, end)
+            if is_reserve:
+                it["from_reserve"] = True
+                stats["reserve_candidates"] += 1
+            pool.append(it)
+    stats["drop_log"] = drops[:60]
     return dedupe(pool, stats), stats
 
 
-def _rank_key(it: Dict[str, Any]) -> Tuple[float, str]:
+def _set_event_day(it: Dict[str, Any], start: str, end: str) -> None:
+    """Date the story by its event (\"on Thursday\" -> that Thursday), not by the
+    daily edition that carried it; kept only when the event falls in the period."""
+    from pipeline.freshness import event_date
     try:
-        score = float(it.get("importance_score") or 0)
+        ed = event_date(it, date.fromisoformat(it["edition_date"]))
+    except (KeyError, ValueError):
+        return
+    if ed and start <= ed.isoformat() <= end and ed.isoformat() != it["edition_date"]:
+        it["published_edition_date"] = it["edition_date"]
+        it["edition_date"] = ed.isoformat()
+
+
+def _rank_key(it: Dict[str, Any]) -> Tuple[float, str]:
+    """Exam score (importance + agri/banking boost) when known, else importance."""
+    try:
+        score = float(it.get("exam_score") if it.get("exam_score") is not None else it.get("importance_score") or 0)
     except (TypeError, ValueError):
         score = 0.0
     return (score, it.get("edition_date", ""))
@@ -333,6 +429,8 @@ def same_event(a: Dict[str, Any], b: Dict[str, Any], threshold: float = 0.8) -> 
     that names the same people/places/numbers."""
     if a.get("event_id") and a.get("event_id") == b.get("event_id"):
         return True
+    if same_topic_event(a, b):
+        return True
     ha, hb = a.get("headline_en", ""), b.get("headline_en", "")
     if is_similar(ha, hb, threshold):
         return True
@@ -351,6 +449,45 @@ def same_event(a: Dict[str, Any], b: Dict[str, Any], threshold: float = 0.8) -> 
     # launches X in Odisha" and "NABARD launches Y in Odisha" stay two stories).
     return ((len(shared) >= 2 and sim >= 0.5 and ratio >= 0.5 and words >= 0.4)
             or (len(shared) >= 3 and ratio >= 0.66 and words >= 0.3))
+
+
+# Subject keys of an event: two stories about the same subject, place/body and
+# days are one event even when different people comment on it (Stalin and
+# Palaniswami on Tamil Nadu's October GST growth, both 2 Nov).
+_TOPIC_KEYS = re.compile(
+    r"\b(?:gst|msp|repo\s+rate|inflation|cpi|wpi|gdp|iip|pmi|forex|fdi|exports?|imports?|monsoon|cyclone|"
+    r"earthquake|floods?|budget|tariffs?|trade\s+deal|kcc|kisan\s+credit|pmmsy|pm-?kisan|pmfby|omss|"
+    r"maize\s+conference|khet\s+bachaa?o|semicon\w*|agniveer|vistar|surya\s+ghar|corvettes?|torpedo\w*|"
+    r"organic\s+fisheries|hackathon|carbon\s+market\w*|kiwi|elections?|polls?|summit)\b", re.I)
+_PLACE_STOP = {"india", "indian", "new", "delhi", "union", "centre", "government", "minister", "ministry", "chief",
+               "state", "national", "president", "prime", "rs", "crore", "lakh", "per", "cent"}
+
+
+def _topic_keys(it: Dict[str, Any]) -> set:
+    text = f"{event_title(it.get('headline_en'))} {(split_sentences(clean_source_text(it.get('summary_en'))) or [''])[0]}"
+    return {re.sub(r"\s+", " ", m.group(0).lower()).rstrip("s") for m in _TOPIC_KEYS.finditer(text)}
+
+
+def same_topic_event(a: Dict[str, Any], b: Dict[str, Any], max_days: int = 3) -> bool:
+    """Same subject (topic key) + the same named place/body + within ``max_days``."""
+    try:
+        gap = abs((date.fromisoformat(a.get("edition_date", "")[:10]) -
+                   date.fromisoformat(b.get("edition_date", "")[:10])).days)
+    except ValueError:
+        gap = 0
+    if gap > max_days:
+        return False
+    ta, tb = _topic_keys(a), _topic_keys(b)
+    if not (ta & tb):
+        return False
+    ea, eb = a.get("_ents") or entities(a), b.get("_ents") or entities(b)
+    def norm(ents: set) -> set:
+        return {re.sub(r"[’']s$", "", e) for e in ents}
+    shared = {e for e in (norm(ea) & norm(eb)) if e not in _PLACE_STOP and not re.fullmatch(r"[\d,.%]+", e)}
+    shared -= {k for k in ta & tb}
+    if len(shared) >= 2:
+        return True
+    return len(shared) >= 1 and (gap <= 1 or len(ta & tb) >= 2)
 
 
 _WORD_STOP = {"with", "from", "that", "this", "over", "after", "into", "their", "will", "have", "says", "said",
@@ -378,28 +515,52 @@ def dedupe(items: List[Dict[str, Any]], stats: Optional[Dict[str, int]] = None,
     return kept
 
 
-def pick_stories(ranked: List[Dict[str, Any]], total: int, per_section: int) -> List[Dict[str, Any]]:
-    """Top stories by importance with a per-section cap, returned in section order."""
+def pick_stories(ranked: List[Dict[str, Any]], total: int, per_section: int,
+                 accept: Optional[Any] = None) -> List[Dict[str, Any]]:
+    """Top stories by exam score with a per-section cap, returned in section order.
+
+    ``accept(story) -> bool`` is asked before a story is taken (it rebuilds or
+    fetches a missing body); a refused story is skipped and the next-ranked one
+    is promoted in its place, so the edition never prints a headline-only story."""
     chosen: List[Dict[str, Any]] = []
     counts: Dict[str, int] = {}
+    refused: set = set()
+
+    def ok(it: Dict[str, Any]) -> bool:
+        if id(it) in refused:
+            return False
+        if accept is None or accept(it):
+            return True
+        refused.add(id(it))
+        return False
+
     # Every section that has news gets its best story first, then importance decides.
     for sec in SECTIONS:
-        best = next((x for x in ranked if x["section"] == sec), None)
-        if best is not None and len(chosen) < total:
-            chosen.append(best)
-            counts[sec] = 1
+        for x in ranked:
+            if len(chosen) >= total:
+                break
+            if x["section"] == sec and ok(x):
+                chosen.append(x)
+                counts[sec] = 1
+                break
     picked = {id(x) for x in chosen}
     for it in ranked:
         if len(chosen) >= total:
             break
         if id(it) in picked or counts.get(it["section"], 0) >= per_section:
             continue
+        if not ok(it):
+            continue
         counts[it["section"]] = counts.get(it["section"], 0) + 1
         chosen.append(it)
         picked.add(id(it))
     if len(chosen) < total:  # caps left room: fill with the best remaining stories
-        ids = {id(x) for x in chosen}
-        chosen += [x for x in ranked if id(x) not in ids][: total - len(chosen)]
+        for x in ranked:
+            if len(chosen) >= total:
+                break
+            if id(x) not in picked and ok(x):
+                chosen.append(x)
+                picked.add(id(x))
     order = {s: i for i, s in enumerate(SECTIONS)}
     return sorted(chosen, key=lambda x: (order.get(x["section"], 99), -_rank_key(x)[0]))
 
@@ -557,14 +718,67 @@ def heading_only(en: str) -> bool:
     return bool(re.match(r"^[^:]{2,45}:\s", en)) and not re.search(r"\d", en) and len(en.split()) <= 12
 
 
-def pick_one_liners(editions, verified: Dict[str, Dict[str, Any]], story_ids: List[str], limit: int):
+_RAW_PIB_TITLE_RE = re.compile(r"^(?:PM['’]s|Prime\s+Minister['’]s|President['’]s|Vice\s+President['’]s|Text\s+of|"
+                               r"English\s+rendering|Transcript)\b.{0,20}\b(?:address|remarks|speech|statement)\b", re.I)
+_VERB_RE = re.compile(r"\b(?:is|are|was|were|has|have|had|will|would|can|may|be|been|being|"
+                      r"[a-z]{2,}(?:ed|es|ing)|[a-z]{2,}[^s\W]s)\b")
+_REPEAT_JOIN_RE = re.compile(r"\b([A-Z][\w.]{2,})\.\s+\1\b")
+
+
+def garbled(text: Any) -> bool:
+    """Scraper joins and broken sentences: a name repeated across a sentence break
+    ("... E.V. Velu. Velu for the party's ..."), unbalanced quotes, glued texts,
+    a lowercase start or a photo-caption residue."""
+    t = str(text or "").strip()
+    if not t:
+        return True
+    if _REPEAT_JOIN_RE.search(t) or run_on(t) or t[:1].islower():
+        return True
+    if t.count("“") != t.count("”") or t.count('"') % 2:
+        return True
+    return bool(re.search(r"\b[A-Z]\.\s+Photo\b|\bPhoto\s*:\s|\bFile\s+photo\b", t))
+
+
+def fact_line_ok(en: str) -> bool:
+    """A one-liner / Agri-corner line must state a fact: a sentence with a verb,
+    not a heading ("Academic Bank of Credits and APAAR", "Khet Bachaao Abhiyaan -
+    Rabi 2026.") or a raw PIB title ("PM's address at the inauguration of ...")."""
+    en = (en or "").strip()
+    if len(en.split()) < 6 or _RAW_PIB_TITLE_RE.search(en) or garbled(en):
+        return False
+    return bool(_VERB_RE.search(en))
+
+
+def _line_dropped(en: str, day: str, period: Optional[Tuple[str, str]], blocked: List[re.Pattern]) -> str:
+    """Why a revision line is not printed ("" = keep)."""
+    from pipeline.exam_relevance import drop_reason
+    from pipeline.freshness import period_stale_reason
+    if any(b.search(en) for b in blocked):
+        return "blocklisted"
+    why = drop_reason({"headline_en": en})
+    if why:
+        return why
+    if period and period[0]:
+        why = period_stale_reason({"headline_en": en, "edition_date": day}, period[0], period[1])
+        if why:
+            return f"stale: {why}"
+    return ""
+
+
+def pick_one_liners(editions, verified: Dict[str, Dict[str, Any]], story_ids: List[str], limit: int,
+                    period: Optional[Tuple[str, str]] = None, stats: Optional[Dict[str, Any]] = None):
     out, seen = [], []
+    blocked = _blocklist()
+    dropped = 0
     for ed in editions:
         for ol in ed["content"].get("one_liners") or []:
             if not isinstance(ol, dict) or ol.get("event_id") not in verified:
                 continue
             en, hi = clean_one_liner(ol.get("text_en")), clean_one_liner(ol.get("text_hi"))
             if not en or _UNTITLED_RE.search(en) or not has_devanagari(hi) or heading_only(en):
+                continue
+            if not fact_line_ok(en) or _line_dropped(en, ed["date"], period, blocked):
+                dropped += 1
                 continue
             if any(is_similar(en, s) for s in seen):
                 continue
@@ -577,19 +791,33 @@ def pick_one_liners(editions, verified: Dict[str, Dict[str, Any]], story_ids: Li
         if eid not in have and eid in verified:
             it = verified[eid]
             hen = clean_one_liner(it["headline_en"])
-            if hen and not heading_only(hen) and not any(is_similar(hen, s) for s in seen):
+            if hen and not heading_only(hen) and fact_line_ok(hen) and not any(is_similar(hen, s) for s in seen):
                 out.append({"category": it["section"], "text_en": hen,
                             "text_hi": clean_one_liner(it["headline_hi"]), "event_id": eid})
                 seen.append(hen)
     # Events not already printed as full stories first (fresh revision lines), then
     # the stories' own one-liners, so the digest repeats as little as possible.
+    # Exam-core events (Cabinet, agriculture, RBI agri credit, schemes) lead each group.
+    from pipeline.exam_relevance import boost
     rank = {e: i for i, e in enumerate(story_ids)}
-    out.sort(key=lambda o: (o["event_id"] in rank, rank.get(o["event_id"], 0)))
+    out.sort(key=lambda o: (o["event_id"] in rank, -boost({"headline_en": o["text_en"]}), rank.get(o["event_id"], 0)))
+    if stats is not None:
+        stats["one_liners_dropped"] = dropped
     return out[:limit]
 
 
-def pick_agri_corner(editions, limit: int, gk_limit: int) -> Dict[str, Any]:
-    items, gk, seen, seen_gk = [], [], [], set()
+def pick_agri_corner(editions, limit: int, gk_limit: int, period: Optional[Tuple[str, str]] = None,
+                     seen_orgs: Optional[set] = None, seen_gk: Optional[List[str]] = None,
+                     stats: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Agriculture Corner: real agri facts only (no NH projects, PMAY-G visits or a
+    DVAC raid), whole sentences, fresh, blocklist-clean; its Static GK skips
+    organisations already boxed under a story."""
+    from pipeline.exam_relevance import agri_terms
+    items, gk, seen, seen_gk_l = [], [], [], set()
+    blocked = _blocklist()
+    seen_orgs = seen_orgs if seen_orgs is not None else set()
+    seen_gk = seen_gk if seen_gk is not None else []
+    dropped = 0
     for ed in editions:
         ac = ed["content"].get("agri_corner") or {}
         for x in ac.get("items") or []:
@@ -598,15 +826,24 @@ def pick_agri_corner(editions, limit: int, gk_limit: int) -> Dict[str, Any]:
             en, hi = clean_headline(x.get("en")), clean_headline(x.get("hi"))
             if not en or _UNTITLED_RE.search(en) or not has_devanagari(hi) or any(is_similar(en, s) for s in seen):
                 continue
+            if not agri_terms(en) or not fact_line_ok(en) or _line_dropped(en, ed["date"], period, blocked):
+                dropped += 1
+                continue
             seen.append(en)
             items.append({"en": en, "hi": hi, "event_id": x.get("event_id", ""), "date": ed["date"]})
         for g in ac.get("static_gk") or []:
             if not isinstance(g, dict):
                 continue
             en, hi = clean_headline(g.get("en")), clean_headline(g.get("hi"))
-            if en and has_devanagari(hi) and en.lower() not in seen_gk:
-                seen_gk.add(en.lower())
+            if en and has_devanagari(hi) and en.lower() not in seen_gk_l:
+                if (gk_orgs(en) & seen_orgs) or _is_dup_text(en, seen_gk):
+                    continue
+                seen_gk_l.add(en.lower())
                 gk.append({"en": en, "hi": hi})
+    from pipeline.exam_relevance import boost
+    items.sort(key=lambda i: -boost({"headline_en": i["en"]}))
+    if stats is not None:
+        stats["agri_corner_dropped"] = dropped
     return {"items": items[:limit], "static_gk": gk[:gk_limit]}
 
 
@@ -911,6 +1148,191 @@ def _summary_pairs(it: Dict[str, Any], seen: Optional[List[str]] = None,
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Never a headline-only story: rebuild the body from the daily's own fields,
+# then from the source page, else drop the story (the next-ranked one is taken).
+# --------------------------------------------------------------------------- #
+_CUT_RE = re.compile(r"(?:…|\.\.\.|\s(?:of|the|and|for|to|with|in|on|a|an|at|by|from|its|their))\s*$", re.I)
+
+
+def _as_sentence(text: Any) -> str:
+    """A daily key point / fact as a whole sentence, or "" when it looks cut."""
+    t = clean_source_text(text)
+    if not t or _BAD in t or len(t.split()) < 6 or len(t) >= 195 or _CUT_RE.search(t):
+        return ""
+    if not _TERMINAL_RE.search(t):
+        t += "."
+    return t if complete_sentence(t) else ""
+
+
+def rebuild_text(it: Dict[str, Any]) -> str:
+    """Sentences for a story whose printed bullets came out empty, from the daily
+    artifact's full data: summary, key points, exam fact, static facts."""
+    parts: List[str] = []
+    for key in ("summary_en", "detailed_explanation_en", "what_happened_en", "why_it_matters_en", "background_en"):
+        parts += [x for x in split_sentences(clean_source_text(it.get(key))) if complete_sentence(x)]
+    for kp in it.get("key_points_en") or []:
+        parts.append(_as_sentence(kp))
+    parts.append(_as_sentence(it.get("exam_fact_en")))
+    sf = it.get("static_facts")
+    for k, v in (sf.items() if isinstance(sf, dict) else []):
+        if isinstance(k, str) and not k.startswith("_") and isinstance(v, str):
+            parts.append(_as_sentence(v))
+    for f in it.get("facts_en") or it.get("key_facts_en") or []:
+        parts.append(_as_sentence(f))
+    out: List[str] = []
+    for x in parts:
+        if x and not _is_dup_text(x, [_norm(y) for y in out]):
+            out.append(x)
+    return " ".join(out)
+
+
+def source_url(it: Dict[str, Any]) -> str:
+    src = it.get("source") if isinstance(it.get("source"), dict) else {}
+    for u in (src.get("url"), it.get("source_url"), it.get("link"), it.get("url")):
+        u = str(u or "").strip()
+        if u.startswith(("http://", "https://")) and re.sub(r"https?://[^/]+/?", "", u):
+            return u
+    return ""
+
+
+_JUNK_PARA_RE = re.compile(r"(?i)cookie|subscribe|sign\s+in|log\s*in|copyright|all\s+rights\s+reserved|"
+                           r"terms\s+of\s+use|follow\s+us|download\s+the\s+app|advertisement|read\s+more|"
+                           r"click\s+here|share\s+this|whatsapp|posted\s+on:|release\s+id:")
+
+
+def fetch_source_text(url: str, timeout: float = 8.0) -> str:
+    """Article text of *url* as stage 01/04 read it: og:description / meta description
+    plus the page's paragraphs. "" on any failure, offline (DRY_RUN /
+    ALP_DISABLE_NETWORK) or when disabled (ALP_PERIOD_FETCH=0)."""
+    if not url or os.getenv("ALP_PERIOD_FETCH", "1") == "0" or os.getenv("DRY_RUN", "0") == "1" \
+            or os.getenv("ALP_DISABLE_NETWORK", "0") == "1":
+        return ""
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        r = requests.get(url, timeout=timeout, allow_redirects=True,
+                         headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                                  "Accept-Language": "en-IN,en;q=0.9"})
+        if r.status_code != 200 or not r.text:
+            return ""
+        soup = BeautifulSoup(r.content[:400_000], "html.parser")
+        desc = ""
+        for attrs in ({"property": "og:description"}, {"name": "description"}, {"name": "twitter:description"}):
+            tag = soup.find("meta", attrs=attrs)
+            if tag and tag.get("content"):
+                desc = re.sub(r"\s+", " ", tag["content"]).strip()
+                break
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "aside", "form"]):
+            tag.decompose()
+        paras = []
+        for p in soup.find_all("p"):
+            t = re.sub(r"\s+", " ", p.get_text(" ", strip=True))
+            if len(t) > 40 and not _JUNK_PARA_RE.search(t):
+                paras.append(t)
+        text = " ".join(([desc] if desc and len(desc.split()) >= 8 else []) + paras)
+        return text[:4000]
+    except Exception:
+        return ""
+
+
+def ensure_body(it: Dict[str, Any], seen: List[str], filler: set, budget: Dict[str, int],
+                fetcher: Optional[Any] = None) -> bool:
+    """Give *it* summary bullets: its own text first, then the daily artifact's full
+    data, then the source page. False = still headline-only (the caller drops it)."""
+    pairs = _summary_pairs(it, seen, filler)
+    if pairs:
+        it["summary_pairs"] = pairs
+        return True
+    text = rebuild_text(it)
+    if text:
+        probe = dict(it, detailed_explanation_en=text, summary_en="", key_points_en=[], key_points_hi=[])
+        pairs = _summary_pairs(probe, seen, filler)
+        if pairs:
+            it["summary_pairs"] = pairs
+            it["body_source"] = "daily_fields"
+            return True
+    url = source_url(it)
+    if url and budget.get("fetch", 0) > 0:
+        budget["fetch"] -= 1
+        fetched = (fetcher or fetch_source_text)(url)
+        if fetched:
+            probe = dict(it, detailed_explanation_en=fetched, summary_en="", key_points_en=[], key_points_hi=[])
+            pairs = _summary_pairs(probe, seen, filler)
+            if pairs:
+                it["summary_pairs"] = pairs
+                it["detailed_explanation_en"] = fetched
+                it["body_source"] = "source_fetch"
+                return True
+    it["summary_pairs"] = []
+    return False
+
+
+def has_body(it: Dict[str, Any]) -> bool:
+    """A story prints at least one bullet (summary pair, key point or summary line)."""
+    for p in it.get("summary_pairs") or []:
+        if isinstance(p, dict) and str(p.get("en") or "").strip():
+            return True
+    if "summary_pairs" in it:
+        return False
+    head = _norm(it.get("headline_en"))
+    for k in it.get("key_points_en") or []:
+        if _norm(clean_headline(k)) and _norm(clean_headline(k)) != head:
+            return True
+    sm = _norm(clean_headline(it.get("summary_en")))
+    return bool(sm) and sm != head and not head.startswith(sm)
+
+
+# --------------------------------------------------------------------------- #
+# Static GK: one box per organisation per edition
+# --------------------------------------------------------------------------- #
+_ORG_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "rbi": ("RBI", "Reserve Bank of India", "Reserve Bank"), "sebi": ("SEBI", "Securities and Exchange Board"),
+    "nabard": ("NABARD",), "icar": ("ICAR", "Indian Council of Agricultural Research"),
+    "cacp": ("CACP", "Commission for Agricultural Costs and Prices"),
+    "pmmsy": ("PMMSY", "Pradhan Mantri Matsya Sampada Yojana"), "kcc": ("KCC", "Kisan Credit Card"),
+    "mea": ("Ministry of External Affairs", "MEA"), "mod": ("Ministry of Defence", "MoD"),
+    "brics": ("BRICS",), "ndb": ("NDB", "New Development Bank"), "sco": ("SCO", "Shanghai Cooperation"),
+    "g20": ("G20", "G-20"), "asean": ("ASEAN",), "aiib": ("AIIB", "Asian Infrastructure Investment Bank"),
+    "apeda": ("APEDA",), "fci": ("FCI", "Food Corporation of India"), "isro": ("ISRO",), "drdo": ("DRDO",),
+    "niti": ("NITI Aayog",), "csir": ("CSIR",), "neeri": ("NEERI",), "ncsc": ("NCSC",), "nhrc": ("NHRC",),
+    "pmkisan": ("PM-KISAN", "PM Kisan"), "wto": ("WTO", "World Trade Organization"), "imf": ("IMF",),
+    "world_bank": ("World Bank",), "fao": ("FAO", "Food and Agriculture Organization"),
+}
+_ORG_RX: Optional[List[Tuple[str, re.Pattern]]] = None
+
+
+def _org_patterns() -> List[Tuple[str, re.Pattern]]:
+    global _ORG_RX
+    if _ORG_RX is None:
+        table = {k: list(v) for k, v in _ORG_ALIASES.items()}
+        try:
+            facts = json.loads((ROOT / "config" / "current_facts.json").read_text(encoding="utf-8"))
+            for o in facts.get("orgs") or []:
+                if isinstance(o, dict) and o.get("id") and o.get("match"):
+                    table.setdefault(str(o["id"]), []).extend(str(m) for m in o["match"])
+        except (OSError, ValueError):
+            pass
+        _ORG_RX = []
+        for key, names in table.items():
+            alts = "|".join(re.escape(n).replace(r"\ ", r"\s+") for n in sorted(set(names), key=len, reverse=True))
+            _ORG_RX.append((key, re.compile(r"(?<![A-Za-z])(?:" + alts + r")(?![A-Za-z])")))
+    return _ORG_RX
+
+
+# Unnamed organisation-attribute lines ("Established – 1935", "Role – Central bank of India").
+_ORG_ATTR_RE = re.compile(r"(?i)^(?:year\s+of\s+)?(?:established|establishment|founded|foundation|set\s+up|"
+                          r"headquarter\w*|hq|head\s+office|role|function|founding\s+act|governing\s+act|"
+                          r"parent\s+(?:body|organi[sz]ation|ministry)|nodal\s+(?:ministry|body)|governor|"
+                          r"chair(?:man|person)?|head|ceo|type|status|regulator\s+of)\b")
+
+
+def gk_orgs(text: Any) -> set:
+    """Organisations / schemes a Static GK line (or a story) names."""
+    t = str(text or "")
+    return {k for k, rx in _org_patterns() if rx.search(t)}
+
+
 _GK_GENERIC = {"ministry", "india", "indian", "national", "year", "established", "establishment", "headquarters",
                "headquartered", "founded", "full", "form", "minister", "current", "parent", "capital", "state",
                "country", "currency", "first", "unique", "launch", "launched", "under", "which", "with", "from",
@@ -929,7 +1351,8 @@ def _gk_relevant(en: str, story_words: set) -> bool:
 
 
 def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, Any]],
-                      seen: Optional[List[str]] = None, filler: Optional[set] = None) -> None:
+                      seen: Optional[List[str]] = None, filler: Optional[set] = None,
+                      seen_orgs: Optional[set] = None) -> None:
     """Carry the story's verified Static GK pairs (daily MCQ schema first) as content pairs.
 
     The builder decides the final list (the renderer's static_facts / exam-fact
@@ -944,6 +1367,8 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
     text = " ".join(str(story.get(k) or "") for k in ("headline_en", "summary_en", "detailed_explanation_en"))
     text += " " + " ".join(str(x or "") for x in story.get("key_points_en") or [])
     story_words = {w[:5] for w in _norm(text).split() if len(w) >= 4}
+    seen_orgs = seen_orgs if seen_orgs is not None else set()
+    story_orgs = gk_orgs(text)
 
     def add(en: Any, hi: Any) -> None:
         en_c, hi_c = clean_headline(en), clean_headline(hi)
@@ -957,6 +1382,11 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
             return
         if _is_dup_text(en_c, seen) or _is_dup_text(en_c, [_norm(q["en"]) for q in pairs]):
             return
+        named = gk_orgs(en_c)
+        if named & seen_orgs:
+            return  # this organisation's box was already printed under an earlier story
+        if not named and story_orgs and story_orgs <= seen_orgs and _ORG_ATTR_RE.match(en_c):
+            return  # an unnamed attribute line ("Established – 1935") of an organisation already boxed
         pairs.append({"en": en_c, "hi": hi_c if has_devanagari(hi_c) else ""})
 
     m = mcqs_by_event.get(story.get("event_id"))
@@ -981,6 +1411,8 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
             add(f"Exam Fact – {ef}", f"परीक्षा तथ्य – {hi}" if has_devanagari(hi) else "")
     story["static_gk_pairs"] = pairs[:3]
     seen.extend(_norm(q["en"]) for q in story["static_gk_pairs"])
+    for q in story["static_gk_pairs"]:
+        seen_orgs.update(gk_orgs(q["en"]) or (story_orgs if len(story_orgs) == 1 else set()))
     story["static_facts"] = {}
     story["exam_fact_en"] = story["exam_fact_hi"] = ""
 
@@ -993,8 +1425,70 @@ def _fmt(d: str, with_year: bool) -> str:
     return f"{x.day} {x.strftime('%B')}" + (f" {x.year}" if with_year else "")
 
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _mark_cover(stories: List[Dict[str, Any]]) -> None:
+    """Cover "TOP STORIES" come from the boosted set (Cabinet, agriculture, RBI
+    agri credit, schemes), best exam score first; the renderer reads these keys."""
+    boosted = sorted((s for s in stories if s.get("exam_boosted")), key=lambda x: -_rank_key(x)[0])
+    for s in stories:
+        s["cover_eligible"] = bool(s.get("exam_boosted"))
+        s["cover_rank"] = 0
+    for i, s in enumerate(boosted, 1):
+        s["cover_rank"] = i
+
+
+def promote_big_ticket(stories: List[Dict[str, Any]], ranked: List[Dict[str, Any]],
+                       editions: List[Dict[str, Any]], accept: Any, limit: int = 4) -> List[Dict[str, Any]]:
+    """Big-ticket exam items of the period (Cabinet decisions, Khet Bachaao Abhiyaan,
+    International Maize Conference, OMSS, Semicon ...) must be stories: one the caps
+    left out — or that a daily printed only as a one-liner / Agri-corner line whose
+    story is in the pool — replaces the weakest story outside the boosted set."""
+    from pipeline.exam_relevance import BIG_TICKET_RE, CABINET_RE
+    if not stories:
+        return stories
+    chosen = {id(x) for x in stories}
+    ids = {x.get("event_id") for x in stories}
+    by_event = {x.get("event_id"): x for x in ranked}
+    wanted: List[Dict[str, Any]] = []
+    for it in ranked:
+        if id(it) not in chosen and (BIG_TICKET_RE.search(it["headline_en"]) or CABINET_RE.search(it["headline_en"])):
+            wanted.append(it)
+    for ed in editions:   # one-liner / Agri-corner lines whose event has a full story in the pool
+        lines = [(o.get("text_en"), o.get("event_id")) for o in ed["content"].get("one_liners") or []
+                 if isinstance(o, dict)]
+        lines += [(o.get("en"), o.get("event_id")) for o in (ed["content"].get("agri_corner") or {}).get("items") or []
+                  if isinstance(o, dict)]
+        for text, eid in lines:
+            it = by_event.get(eid)
+            if it is not None and eid not in ids and id(it) not in chosen and it not in wanted \
+                    and (BIG_TICKET_RE.search(str(text or "")) or CABINET_RE.search(str(text or ""))):
+                wanted.append(it)
+    out = list(stories)
+    done = 0
+    for it in wanted:
+        if done >= limit:
+            break
+        if any(same_event(it, s) for s in out):
+            continue
+        weak = [s for s in out if not s.get("exam_boosted")]
+        if not weak or not accept(it):
+            continue
+        victim = min(weak, key=lambda x: _rank_key(x)[0])
+        out[out.index(victim)] = it
+        it["promoted"] = True
+        done += 1
+    order = {s: i for i, s in enumerate(SECTIONS)}
+    return sorted(out, key=lambda x: (order.get(x["section"], 99), -_rank_key(x)[0]))
+
+
 def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
-                 dates: List[str]) -> Dict[str, Any]:
+                 dates: List[str], fetcher: Optional[Any] = None) -> Dict[str, Any]:
     """Pure function: daily editions in → {content, mcqs, selected, scored, stats}."""
     if job_type not in SETTINGS:
         raise ValueError(f"period builder needs weekly/monthly, got {job_type!r}")
@@ -1002,23 +1496,39 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     if len(editions) < cfg["min_days"]:
         raise ValueError(f"only {len(editions)} daily editions found for {job_type} {job_date} "
                          f"(min {cfg['min_days']})")
-    ranked, stats = collect_verified(editions)
+    period = (dates[0], dates[-1])
+    ranked, stats = collect_verified(editions, period)
     if not ranked:
         raise ValueError(f"no verified stories in the {job_type} period")
     verified = {it["event_id"]: it for it in ranked}
-    stories = pick_stories(ranked, cfg["stories"], cfg["per_section"])
+    filler = filler_sentences(ranked)
+    seen_lines: List[str] = []
+    budget = {"fetch": _env_int("ALP_PERIOD_FETCH_MAX", 15)}
+    title_only: List[str] = []
+
+    def accept(it: Dict[str, Any]) -> bool:
+        if ensure_body(it, seen_lines, filler, budget, fetcher):
+            return True
+        title_only.append(it["headline_en"][:90])
+        return False
+
+    stories = pick_stories(ranked, cfg["stories"], cfg["per_section"], accept=accept)
+    stories = promote_big_ticket(stories, ranked, editions, accept)
+    stats["title_only_dropped"] = len(title_only)
+    stats["title_only_log"] = title_only[:30]
+    stats["bodies_rebuilt"] = sum(1 for x in stories if x.get("body_source") == "daily_fields")
+    stats["bodies_fetched"] = sum(1 for x in stories if x.get("body_source") == "source_fetch")
+    _mark_cover(stories)
     story_ids = [s["event_id"] for s in stories]
     mcqs = pick_mcqs(editions, set(verified), story_ids, cfg["mcqs"], verified)
     balance_answers(mcqs, f"{job_type}_{job_date}")
     first_mcq = {}
     for m in mcqs:
         first_mcq.setdefault(m.get("event_id"), m)
-    filler = filler_sentences(ranked)
-    seen_lines: List[str] = []
     seen_gk: List[str] = []
+    seen_orgs: set = set()
     for s in stories:
-        s["summary_pairs"] = _summary_pairs(s, seen_lines, filler)
-        _attach_static_gk(s, first_mcq, seen_gk, filler)
+        _attach_static_gk(s, first_mcq, seen_gk, filler, seen_orgs)
     start, end = dates[0], dates[-1]
     if job_type == "weekly":
         title_range = f"{_fmt(start, False)} – {_fmt(end, True)}"
@@ -1032,8 +1542,8 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
                 "date_display": title_range, "period_start": start, "period_end": end},
         "edition_title": title,
         "items": stories,
-        "one_liners": pick_one_liners(editions, verified, story_ids, cfg["one_liners"]),
-        "agri_corner": pick_agri_corner(editions, cfg["agri"], cfg["agri_gk"]),
+        "one_liners": pick_one_liners(editions, verified, story_ids, cfg["one_liners"], period, stats),
+        "agri_corner": pick_agri_corner(editions, cfg["agri"], cfg["agri_gk"], period, seen_orgs, seen_gk, stats),
         "source_days": [e["date"] for e in editions],
         "missing_days": [d for d in dates if d not in {e["date"] for e in editions}],
     }

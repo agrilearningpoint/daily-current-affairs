@@ -21,6 +21,15 @@ DETAILS = """- boosts exam-friendly categories, demotes crime/politics/ad noise;
 
 import re as _re
 
+try:
+    from pipeline.exam_relevance import boost as _exam_boost, drop_reason as _exam_drop_reason
+except Exception:  # pragma: no cover - fail open: no extra demotion/boost
+    def _exam_boost(_it):
+        return 0
+
+    def _exam_drop_reason(_it):
+        return ""
+
 GENERIC_CATEGORIES = {"", "discovery", "aggregator", "fallback", "other", "general", "govt_national"}
 OFFICIAL_BONUS = 15
 # Partisan sound-bites: "X accuses Y", "Congress slams ...", "... says Congress MP".
@@ -119,7 +128,16 @@ class Agent:
                 r = max(0, r - 15)
             elif not POLITICAL_RHETORIC.search(head):
                 r = min(100, r + exam_signal_bonus(head))
-            if is_must_include(it):
+            # Shared with the weekly/monthly builder (pipeline/exam_relevance.py): state party
+            # politics, market listicles, opinion pieces and crime are demoted; Cabinet,
+            # agriculture ministry / ICAR, RBI agri credit and schemes are lifted.
+            why_not = _exam_drop_reason(it)
+            if why_not:
+                r = max(0, r - 40)
+                it["exam_demoted"] = why_not
+            else:
+                r = min(100, r + _exam_boost(it) // 2)
+            if is_must_include(it) and not why_not:
                 it["must_include"] = True
                 r = min(100, r + OFFICIAL_BONUS)
             it["student_relevance"] = r

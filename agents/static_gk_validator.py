@@ -194,6 +194,12 @@ class OrgFact:
     ministry_name: str
     ministry_hi: str
     rx: Optional[re.Pattern] = None
+    members: List[str] = field(default_factory=list)      # verified member countries (groupings)
+    members_hi: str = ""
+    secretariat: List[str] = field(default_factory=list)  # verified secretariat seat(s)
+    secretariat_hi: str = ""
+    no_secretariat: bool = False                          # e.g. BRICS, G20: no permanent secretariat
+    no_hq: bool = False                                   # no headquarters at all (BRICS, G20)
 
 
 def load_orgs(path: Optional[Path] = None) -> List[OrgFact]:
@@ -209,7 +215,11 @@ def load_orgs(path: Optional[Path] = None) -> List[OrgFact]:
         org = OrgFact(id=str(o.get("id")), name=str(o.get("name") or ""), match=[str(x) for x in o["match"]],
                       founded=[int(x) for x in o.get("founded") or []], hq=[str(x) for x in o.get("hq") or []],
                       hq_hi=str(o.get("hq_hi") or ""), ministry=[str(x) for x in o.get("ministry") or []],
-                      ministry_name=str(o.get("ministry_name") or ""), ministry_hi=str(o.get("ministry_hi") or ""))
+                      ministry_name=str(o.get("ministry_name") or ""), ministry_hi=str(o.get("ministry_hi") or ""),
+                      members=[str(x) for x in o.get("members") or []], members_hi=str(o.get("members_hi") or ""),
+                      secretariat=[str(x) for x in o.get("secretariat") or []],
+                      secretariat_hi=str(o.get("secretariat_hi") or ""),
+                      no_secretariat=bool(o.get("no_secretariat")), no_hq=bool(o.get("no_hq")))
         org.rx = re.compile(r"(?<![A-Za-z])(?:" + "|".join(
             re.escape(m).replace(r"\ ", r"\s+") for m in sorted(org.match, key=len, reverse=True)) + r")(?![A-Za-z])")
         out.append(org)
@@ -225,6 +235,72 @@ MINISTRY_FIELD_RE = re.compile(r"\b(?:(?:parent|nodal|administrative|controlling
 FILLER_MINISTRY_RE = re.compile(r"\b(?:parent|nodal|administrative)\s+ministry\b\s*[–:\-]*\s*"
                                 r"(?:the\s+)?(?:government\s+of\s+india|union\s+government|central\s+government|"
                                 r"goi|n/?a|none|not\s+applicable)\s*\.?$", re.I)
+
+
+SECRETARIAT_RE = re.compile(r"\bsecretariat\b|सचिवालय", re.I)
+MEMBERS_RE = re.compile(r"\bmembers?(?:\s+(?:countries|states|nations))?\b|\bmembership\b|सदस्य", re.I)
+# Country names for member lists (members of the tracked groupings + common extras).
+_COUNTRY_ALIASES = {
+    "brazil": "Brazil", "russia": "Russia", "russian federation": "Russia", "india": "India", "china": "China",
+    "south africa": "South Africa", "egypt": "Egypt", "ethiopia": "Ethiopia", "iran": "Iran",
+    "uae": "United Arab Emirates", "united arab emirates": "United Arab Emirates", "indonesia": "Indonesia",
+    "saudi arabia": "Saudi Arabia", "argentina": "Argentina", "kazakhstan": "Kazakhstan",
+    "kyrgyzstan": "Kyrgyzstan", "kyrgyz republic": "Kyrgyzstan", "tajikistan": "Tajikistan",
+    "uzbekistan": "Uzbekistan", "pakistan": "Pakistan", "belarus": "Belarus", "brunei": "Brunei Darussalam",
+    "brunei darussalam": "Brunei Darussalam", "cambodia": "Cambodia", "laos": "Lao PDR", "lao pdr": "Lao PDR",
+    "malaysia": "Malaysia", "myanmar": "Myanmar", "philippines": "Philippines", "singapore": "Singapore",
+    "thailand": "Thailand", "vietnam": "Viet Nam", "viet nam": "Viet Nam", "timor-leste": "Timor-Leste",
+    "east timor": "Timor-Leste", "turkey": "Turkey", "türkiye": "Turkey", "mongolia": "Mongolia",
+    "afghanistan": "Afghanistan", "nepal": "Nepal", "sri lanka": "Sri Lanka", "bangladesh": "Bangladesh",
+    "japan": "Japan", "usa": "United States", "united states": "United States",
+}
+_COUNTRY_RE = re.compile(r"(?<![A-Za-z])(" + "|".join(re.escape(k) for k in sorted(_COUNTRY_ALIASES, key=len,
+                                                                                    reverse=True)) + r")(?![A-Za-z])",
+                         re.I)
+
+
+def _countries(text: str) -> set:
+    return {_COUNTRY_ALIASES[m.group(1).lower()] for m in _COUNTRY_RE.finditer(text or "")}
+
+
+def _members_org(countries: set, orgs: Sequence[OrgFact]) -> Optional[OrgFact]:
+    """The grouping a bare member list is about (>= 3 of its members named)."""
+    best = None
+    for o in orgs:
+        if o.members:
+            n = len(countries & set(o.members))
+            if n >= 3 and (best is None or n > best[0]):
+                best = (n, o)
+    return best[1] if best else None
+
+
+def _check_grouping(org: OrgFact, head: str, body: str, value: str) -> Optional[Tuple[str, str, str, str]]:
+    """Members / secretariat / headquarters of a grouping (BRICS has 10 members, no secretariat)."""
+    if SECRETARIAT_RE.search(head) and (org.no_secretariat or org.secretariat):
+        if org.no_secretariat:
+            return "drop", "secretariat", "", ""
+        if not any(re.search(rf"(?<![A-Za-z]){re.escape(x)}(?![A-Za-z])", body, re.I) for x in org.secretariat):
+            if value and len(value.split()) <= 4:
+                return "replace", "secretariat", org.secretariat[0], org.secretariat_hi
+            return "drop", "secretariat", "", ""
+        return "keep", "secretariat", "", ""
+    if HQ_RE.search(head) and org.no_hq:
+        return "drop", "hq", "", ""
+    if MEMBERS_RE.search(head) and org.members:
+        listed = _countries(body)
+        nums = [int(x) for x in re.findall(r"(?<![\d.])(\d{1,2})(?![\d.])", body)]
+        if len(listed) >= 2:
+            ok = listed == set(org.members)
+        elif nums:
+            ok = len(org.members) in nums
+        else:
+            return "keep", "members", "", ""
+        if ok:
+            return "keep", "members", "", ""
+        if value and (len(listed) >= 2 or len(value.split()) <= 4):
+            return "replace", "members", ", ".join(org.members), org.members_hi
+        return "drop", "members", "", ""
+    return None
 
 
 def _org_in(text: str, orgs: Sequence[OrgFact]) -> List[OrgFact]:
@@ -245,10 +321,15 @@ def check_org_line(label: str, value: str, orgs: Sequence[OrgFact], context: Opt
     if len(hits) > 1:
         return "keep", "", "", ""
     org = hits[0] if hits else context
-    if org is None:
-        return "keep", "", "", ""
     head = label if value else line
     body = value if value else line
+    if org is None and MEMBERS_RE.search(head):
+        org = _members_org(_countries(body), orgs)
+    if org is None:
+        return "keep", "", "", ""
+    grouping = _check_grouping(org, head, body, value)
+    if grouping is not None:
+        return grouping
     if FOUNDED_RE.search(head) and org.founded:
         ys = _years(body)
         if ys and not any(y in org.founded for y in ys):
@@ -511,6 +592,13 @@ def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
     if is_stale_latest(en, hi, year):
         return Verdict("drop", reason="stale year presented as current/latest")
     orgs = _ACTIVE_ORGS if orgs is None else orgs
+    if orgs and en and " – " in en and MEMBERS_RE.search(en.split(" – ", 1)[0]):
+        le, ve = en.split(" – ", 1)
+        act, fld, nv, nh = check_org_line(le, ve, orgs, org_ctx)
+        if act == "replace" and fld == "members":
+            lh = hi.split(" – ", 1)[0] if " – " in hi else ""
+            return Verdict("replace", en=f"{le} – {nv}", hi=f"{lh} – {nh}" if lh and nh else "",
+                           reason="wrong member list for grouping", wrong=ve)
     if orgs and en:
         act, fld, _nv, _nh = check_org_line(en, "", orgs, org_ctx)
         if act != "keep":
