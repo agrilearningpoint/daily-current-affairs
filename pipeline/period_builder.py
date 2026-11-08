@@ -1320,6 +1320,13 @@ def _org_patterns() -> List[Tuple[str, re.Pattern]]:
     return _ORG_RX
 
 
+# Unnamed organisation-attribute lines ("Established – 1935", "Role – Central bank of India").
+_ORG_ATTR_RE = re.compile(r"(?i)^(?:year\s+of\s+)?(?:established|establishment|founded|foundation|set\s+up|"
+                          r"headquarter\w*|hq|head\s+office|role|function|founding\s+act|governing\s+act|"
+                          r"parent\s+(?:body|organi[sz]ation|ministry)|nodal\s+(?:ministry|body)|governor|"
+                          r"chair(?:man|person)?|head|ceo|type|status|regulator\s+of)\b")
+
+
 def gk_orgs(text: Any) -> set:
     """Organisations / schemes a Static GK line (or a story) names."""
     t = str(text or "")
@@ -1378,8 +1385,8 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
         named = gk_orgs(en_c)
         if named & seen_orgs:
             return  # this organisation's box was already printed under an earlier story
-        if not named and story_orgs and story_orgs <= seen_orgs:
-            return  # an unnamed line ("Established – 1935") about an organisation already boxed
+        if not named and story_orgs and story_orgs <= seen_orgs and _ORG_ATTR_RE.match(en_c):
+            return  # an unnamed attribute line ("Established – 1935") of an organisation already boxed
         pairs.append({"en": en_c, "hi": hi_c if has_devanagari(hi_c) else ""})
 
     m = mcqs_by_event.get(story.get("event_id"))
