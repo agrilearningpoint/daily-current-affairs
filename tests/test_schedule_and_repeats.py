@@ -96,6 +96,25 @@ def test_watchdog_flags_only_overdue_awaiting_publish(monkeypatch, tmp_path):
     assert plan["stuck_running"] == ["daily_b"]
 
 
+def test_review_hold_parks_before_publish_then_resumes(fake_pipeline, monkeypatch):
+    monkeypatch.delenv("ALP_PUBLISH_NOT_BEFORE", raising=False)
+    monkeypatch.setenv("ALP_HOLD_PUBLISH", "1")
+    assert main.execute_job("daily", "2026-10-06") == 0
+    assert fake_pipeline == ["10_final_news_selection", "19_pdf_qa"]
+    entry = main.load_jobs_state()["daily_2026-10-06"]
+    assert entry["status"] == "awaiting_publish" and entry["publish_hold"] == "review"
+    main.watchdog()
+    plan = json.loads((main.ROOT / "recovery_plan.json").read_text())
+    assert "daily_2026-10-06" not in plan["stuck_running"]
+    monkeypatch.setenv("ALP_HOLD_PUBLISH", "0")
+    monkeypatch.setattr(main, "resume_after", lambda *a: "19_pdf_qa")
+    fake_pipeline.clear()
+    assert main.execute_job("daily", "2026-10-06") == 0
+    assert fake_pipeline == ["22_telegram_publisher", "24_final_health_audit"]
+    entry = main.load_jobs_state()["daily_2026-10-06"]
+    assert entry["status"] == "success" and "publish_hold" not in entry
+
+
 def main_ist():
     from zoneinfo import ZoneInfo
     return ZoneInfo("Asia/Kolkata")
