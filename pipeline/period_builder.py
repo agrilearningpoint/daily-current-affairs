@@ -109,7 +109,7 @@ _KEYWORD_SECTIONS: List[Tuple[str, re.Pattern]] = [
                           r"grand\s+slam|chess|badminton|wrestling|athlete|t20|odi|test\s+match)\b", re.I)),
     ("Defence & Science", re.compile(r"\b(?:isro|drdo|satellite|missile|navy|naval|army|air\s+force|iaf|defence|defense|"
                                      r"orbit|rocket|launch\s+vehicle|gslv|pslv|space|scientists?|research(?:ers)?|"
-                                     r"vaccine|climate|cyclone|earthquake|species)\b", re.I)),
+                                     r"vaccine|climate|species)\b", re.I)),
     ("Economy", re.compile(r"\b(?:rbi|gdp|inflation|repo|bank(?:s|ing)?|gst|tax|exports?|imports?|trade|fdi|investment|"
                            r"market|sebi|budget|fiscal|economy|economic|rupee|ipo|manufacturing\s+facility)\b", re.I)),
     ("Agriculture", re.compile(r"\b(?:farmers?|agri\w*|crops?|kharif|rabi|msp|paddy|wheat|fisher\w*|dairy|"
@@ -118,6 +118,13 @@ _KEYWORD_SECTIONS: List[Tuple[str, re.Pattern]] = [
                                  r"united\s+nations|\bun\b|g20|brics|quad|asean|embassy)\b", re.I)),
 ]
 
+
+# Natural disasters (cyclone damage, floods) are National news, not Defence & Science.
+_DISASTER_RE = re.compile(r"\b(?:cyclone|cyclonic|earthquake|floods?|landslides?|cloudburst|tsunami|heatwave)\b", re.I)
+_ECON_TERMS_RE = re.compile(r"\b(?:rbi|reserve\s+bank|gdp|inflation|repo|banks?|banking|lender|loans?|credit|gst|tax\w*|"
+                            r"exports?|imports?|trade|tariffs?|fdi|invest\w*|market|sebi|budget|fiscal|econom\w*|"
+                            r"rupee|ipo|crore|lakh|billion|million|\$|₹|rs\.?|statistic\w*|survey|insurance|"
+                            r"lng|oil|gas|fund\w*|scheme)\b", re.I)
 
 _POLITY_RE = re.compile(r"\b(?:ncsc|ncst|nhrc|ncw|national\s+commission\s+for\s+(?:scheduled|women|minorities)|"
                         r"scheduled\s+(?:castes?|tribes?)|lok\s+sabha|rajya\s+sabha|election\s+commission|"
@@ -163,12 +170,18 @@ def section_for(item: Dict[str, Any]) -> str:
         return "Agriculture"
     if _POLITY_RE.search(head):
         return "National"
+    if _DISASTER_RE.search(head):
+        return "International" if _foreign(head) else "National"
     if any(k in cat for k in ("defence", "defense", "science", "tech", "space", "environment", "health")):
         return "Defence & Science"
     if _INDIA_INVEST_RE.search(head) and not _DIPLOMATIC_RE.search(head):
         return "Economy"
     if any(k in cat for k in ("econom", "bank", "financ", "business", "budget", "trade", "market")):
-        return "International" if _foreign(head) and _DIPLOMATIC_RE.search(head) else "Economy"
+        if _foreign(head) and (_DIPLOMATIC_RE.search(head) or not re.search(r"\bindia", head, re.I)):
+            return "International"      # a foreign story with no India angle (Pakistan LNG, Ukraine strikes)
+        if _ECON_TERMS_RE.search(head):
+            return "Economy"
+        # filed under an economy category without economy content (exam-reform panel)
     international = any(k in cat for k in ("international", "world", "global", "foreign")) or \
         (agri_cat and _foreign(head))
     for sec, rx in _KEYWORD_SECTIONS:
@@ -311,6 +324,24 @@ def _period_bounds(editions: List[Dict[str, Any]], period: Optional[Tuple[str, s
     return (days[0], days[-1]) if days else ("", "")
 
 
+_STATE_DESK_RE = re.compile(r"thehindu\.com/news/(?:cities|national/(?!world)[a-z-]+)/", re.I)
+
+
+def local_story_reason(it: Dict[str, Any]) -> str:
+    """A state/city-desk report (a college training camp, a local protest, a rally speech)
+    is not weekly exam news unless it is agricultural or an official/national decision."""
+    from pipeline.exam_relevance import AGRI_MINISTRY_RE, CABINET_RE, agri_terms
+    src = it.get("source") if isinstance(it.get("source"), dict) else {}
+    url = str(src.get("url") or it.get("source_url") or it.get("link") or "")
+    if not _STATE_DESK_RE.search(url):
+        return ""
+    head = str(it.get("headline_en") or "")
+    if agri_terms(head) or AGRI_MINISTRY_RE.search(head) or CABINET_RE.search(head) \
+            or re.search(r"\b(?:supreme\s+court|high\s+court|election\s+commission|rbi|isro|drdo|icar)\b", head, re.I):
+        return ""
+    return "state/city-desk local news"
+
+
 def collect_verified(editions: List[Dict[str, Any]], period: Optional[Tuple[str, str]] = None
                      ) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
     """Publishable, fresh, exam-relevant stories of the period (the dailies' printed
@@ -340,7 +371,7 @@ def collect_verified(editions: List[Dict[str, Any]], period: Optional[Tuple[str,
                 stats["blocklisted_dropped"] = stats.get("blocklisted_dropped", 0) + 1
                 continue
             it = _story(raw, ed["date"])
-            why = drop_reason(it)
+            why = drop_reason(it) or local_story_reason(it)
             if why:
                 stats["irrelevant_dropped"] += 1
                 drops.append({"headline": it["headline_en"][:90], "reason": why})
@@ -576,7 +607,7 @@ _LETTERS = "ABCDE"
 # Kept only when the story itself names the keyed answer.
 _TEMPLATE_Q_RE = re.compile(
     r"(?i)^which organi[sz]ation is associated with the news"
-    r"|is related to which state\s*/\s*union territory")
+    r"|is related to which state\s*/\s*union territory|involves which country")
 # Never kept: built from boilerplate, not from the story.
 _JUNK_Q_RE = re.compile(
     r"(?i)what is the key figure\s*/\s*financial outlay associated with"
@@ -584,6 +615,41 @@ _JUNK_Q_RE = re.compile(
     r"|along with regulator guidelines"
     r"|highlighted in the recent PIB release"
     r"|\bcultivars (?:are|is) (?:mentioned|highlighted)\b|organi[sz]ation's cultivars")
+
+
+# Fragments of the feed's category blurbs (pipeline.content.EXAM_HINTS): an MCQ whose
+# question / options / explanation / exam point quotes them was built from the blurb,
+# not from the news ("RBI Nagpur ... regulator guidelines and PSL quotas").
+_BLURB_FRAG_RE = re.compile(
+    r"(?i)\b(?:PSL\)?\s+quotas?|monetary\s+policy\s+reviews|regulator(?:y)?\s+guidelines,|ICAR\s+cultivars|"
+    r"MSP\s+notifications|key\s+crop\s+statistics|flagship\s+objectives|target\s+demographics|"
+    r"implementing\s+ministries|financial\s+outlays,|macroeconomic\s+indicators,|global\s+indices|"
+    r"ISRO/DRDO\s+breakthroughs|statutory\s+bodies,\s+constitutional|factual\s+metrics)")
+
+
+def blurb_mcq(m: Dict[str, Any]) -> bool:
+    """The blurb woven into the question (not just the verbatim blurb sentence that the
+    daily appends to an explanation, which is stripped first)."""
+    from pipeline.content import EXAM_HINT_DEFAULT, EXAM_HINTS
+    parts = [m.get("question_en"), m.get("explanation_en"), m.get("exam_point")]
+    ol = m.get("one_liner")
+    parts.append(ol.get("en") if isinstance(ol, dict) else ol)
+    parts += [_opt_text(o) for o in (m.get("options_bi") or m.get("options") or [])]
+    text = " ".join(str(x or "") for x in parts)
+    for hint in list(EXAM_HINTS.values()) + [EXAM_HINT_DEFAULT]:
+        text = text.replace(hint, " ")
+    return bool(_BLURB_FRAG_RE.search(text))
+
+
+# Template give-aways (the stem quotes the headline that names the answer): used only to
+# reach the QA floor of a thin edition, never ahead of a real question.
+# The "associated with the news" / "related to which State" / "involves which country"
+# templates key a guess (ICAR for a Tamil Nadu laptop scheme, RBI for a SEBI IPO nod,
+# Delhi for a national panel), so they also wait for the floor - and even then only
+# when the story names the keyed answer.
+_WEAK_Q_RE = re.compile(r"(?i)centrally featured in|organi[sz]ation is associated with the news|"
+                        r"is related to which state|involves which country")
+_MCQ_FLOOR = 10
 
 
 def _story_text(it: Optional[Dict[str, Any]]) -> str:
@@ -612,7 +678,7 @@ def _mcq_ok(m: Dict[str, Any], story: Optional[str] = None) -> bool:
     q_en, q_hi = clean_headline(m.get("question_en")), clean_headline(m.get("question_hi"))
     if not q_en or _UNTITLED_RE.search(q_en) or not has_devanagari(q_hi):
         return False
-    if _JUNK_Q_RE.search(q_en):
+    if _JUNK_Q_RE.search(q_en) or blurb_mcq(m):
         return False
     opts = m.get("options_bi") or m.get("options") or []
     if len(opts) < 4:
@@ -735,11 +801,32 @@ def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List
     seen_q: List[str] = []
     out: List[Dict[str, Any]] = []
 
-    def take(m: Dict[str, Any]) -> None:
+    taken_by_event: Dict[str, List[Tuple[str, str]]] = {}
+
+    def _answer(m: Dict[str, Any]) -> str:
+        opts = m.get("options_bi") or m.get("options") or []
+        c = str(m.get("correct") or "").strip().upper()
+        i = _LETTERS.index(c) if c in _LETTERS else -1
+        return _norm(_opt_text(opts[i]).split(" / ")[0]) if 0 <= i < len(opts) else ""
+
+    weak: List[Dict[str, Any]] = []
+
+    def take(m: Dict[str, Any], allow_weak: bool = False) -> None:
+        if not allow_weak and _WEAK_Q_RE.search(str(m.get("question_en") or "")):
+            weak.append(m)
+            return
         key = _norm(clean_headline(m.get("question_en")))
         if key in seen_q or any(is_similar(key, s, 0.9) for s in seen_q):
             return
+        # Same event: never the same answer twice (Q13/Q48 "Skill India centre -> Bhopal"),
+        # and never one question giving away another's answer ("... in Delhi" / "where?").
+        ans = _answer(m)
+        for q_prev, a_prev in taken_by_event.get(str(m.get("event_id")), []):
+            if (ans and ans == a_prev) or (a_prev and re.search(rf"(?<!\w){re.escape(a_prev)}(?!\w)", key)) \
+                    or (ans and re.search(rf"(?<!\w){re.escape(ans)}(?!\w)", q_prev)):
+                return
         seen_q.append(key)
+        taken_by_event.setdefault(str(m.get("event_id")), []).append((key, ans))
         out.append(dict(m))
 
     order = list(story_ids) + [e for e in by_event if e not in set(story_ids)]
@@ -762,6 +849,11 @@ def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List
         if len(out) >= limit:
             break
         take(m)
+    named = lambda m: verified is not None and _mcq_ok(m, _story_text(verified.get(m.get("event_id"))))
+    for m in sorted(weak, key=lambda m: not named(m)):     # the story names the key first
+        if len(out) >= min(limit, _MCQ_FLOOR):
+            break
+        take(m, allow_weak=True)
     for n, m in enumerate(out, 1):
         m["q_num"] = n
     return out
@@ -1169,6 +1261,23 @@ def _candidate_pairs(it: Dict[str, Any]) -> List[Dict[str, str]]:
     return out
 
 
+_ECHO_SKIP = {"the", "and", "for", "with", "from", "under", "into", "www", "gov", "pib", "shri", "smt", "ministry",
+              "external", "affairs", "press", "release", "joint", "of", "to", "in", "on", "at", "by", "as", "an"}
+
+
+def headline_echo(sentence: Any, it: Dict[str, Any]) -> bool:
+    """A "bullet" that only re-strings words of the headline / source name
+    ("Union Minister Ashwini Vaishnaw, Web Application Portal.", "Senegal Ministry of
+    External, Shri ...") - built from a headline-only feed item, not story text."""
+    src = it.get("source") if isinstance(it.get("source"), dict) else {}
+    ref = f"{it.get('headline_en', '')} {src.get('name', '')}"
+    ref_words = {w[:6] for w in re.findall(r"[a-z0-9]+", ref.lower())}
+    words = [w for w in re.findall(r"[a-z0-9]+", str(sentence or "").lower()) if w not in _ECHO_SKIP and len(w) > 1]
+    if not words:
+        return True
+    return sum(1 for w in words if w[:6] in ref_words) / len(words) >= 0.9
+
+
 def _is_dup_text(text: str, pool: List[str], threshold: float = _SIM_BULLET) -> bool:
     n = _norm(text)
     return any(n == q or is_similar(n, q, threshold) for q in pool)
@@ -1198,6 +1307,22 @@ def filler_sentences(items: List[Dict[str, Any]], max_stories: int = 2) -> set:
     return {t for t, s in where.items() if len(s) > max_stories}
 
 
+_HI_UNION_RE = re.compile(r"संयुक्त(\s+(?:गृह|वित्त|शिक्षा|कृषि|रक्षा|स्वास्थ्य|विदेश)?\s*)मंत्री")
+
+
+def _hi_glossary(en: str, hi: str) -> str:
+    """Deterministic repairs of recurring MT slips: "Union Minister" -> "संयुक्त मंत्री"
+    (= joint minister), "presidential address" -> "राष्ट्रपति संबोधन", ", ।"."""
+    if not hi:
+        return hi
+    if re.search(r"\bUnion\b", en):
+        hi = _HI_UNION_RE.sub(lambda m: "केंद्रीय" + (m.group(1) if m.group(1).strip() else " ") + "मंत्री", hi)
+    if re.search(r"(?i)\bpresidential\s+address\b", en):
+        hi = hi.replace("राष्ट्रपति संबोधन", "अध्यक्षीय संबोधन")
+    hi = re.sub(r"\s*,\s*([।.])", r"\1", hi)
+    return hi
+
+
 class PeriodHindi:
     """Hindi for the period edition's bullets / one-liners: carried from the daily data,
     repaired by ``hindi_postfix`` in strict mode, translated here when missing.
@@ -1222,6 +1347,7 @@ class PeriodHindi:
             out = fix_pair(en, hi, name_map=self.name_map, translator=self.word_tr,
                            line_translator=self.line_tr, stats=self.stats, strict=True)
             if out:
+                out = _hi_glossary(en, out)
                 return _close_hi(out) if _TERMINAL_RE.search(en) else out
             return ""
         if self.line_tr is None:
@@ -1236,6 +1362,7 @@ class PeriodHindi:
         self.stats["translated"] = self.stats.get("translated", 0) + 1
         out = fix_pair(en, new, name_map=self.name_map, translator=self.word_tr,
                        line_translator=None, stats=self.stats, strict=True)
+        out = _hi_glossary(en, out) if out else out
         return (_close_hi(out) if _TERMINAL_RE.search(en) else out) if out else ""
 
 
@@ -1306,7 +1433,7 @@ def _summary_pairs(it: Dict[str, Any], seen: Optional[List[str]] = None,
     for p in _candidate_pairs(it):
         n = _norm(p["en"])
         if filler_key(p["en"]) in filler or n == head or (head and (n.startswith(head) or is_similar(n, head, _SIM_BULLET))) \
-                or _is_dup_text(p["en"], seen) or caption_residue(p["en"]):
+                or _is_dup_text(p["en"], seen) or caption_residue(p["en"]) or headline_echo(p["en"], it):
             continue
         en = clean_line(p["en"], it, False)
         if not complete_sentence(en):
@@ -1354,7 +1481,7 @@ def _bilingual_pairs(it: Dict[str, Any], hindi: PeriodHindi, qa: Dict[str, Any],
         if not isinstance(p, dict):
             continue
         en = clean_line(p.get("en"), it, False)
-        if not en or caption_residue(en) or not complete_sentence(en):
+        if not en or caption_residue(en) or not complete_sentence(en) or headline_echo(en, it):
             continue
         expected += 1
         hi_src = p.get("hi") or hi_map.get(_norm(p.get("en"))) or hi_map.get(_norm(en), "")
@@ -1612,6 +1739,12 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
     story_words = {w[:5] for w in _norm(text).split() if len(w) >= 4}
     seen_orgs = seen_orgs if seen_orgs is not None else set()
     story_orgs = gk_orgs(text)
+    # What the reader sees (headline, summary, printed bullets): a GK box about an
+    # organisation only mentioned in passing deep in the source text ("former ISRO
+    # chairman" in an exam-reform story) is off-topic.
+    shown = " ".join([str(story.get("headline_en") or ""), str(story.get("summary_en") or "")]
+                     + [str(p.get("en") or "") for p in story.get("summary_pairs") or [] if isinstance(p, dict)])
+    shown_orgs = gk_orgs(shown)
 
     def add(en: Any, hi: Any) -> None:
         en_c, hi_c = clean_headline(en), clean_headline(hi)
@@ -1626,6 +1759,8 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
         if _is_dup_text(en_c, seen) or _is_dup_text(en_c, [_norm(q["en"]) for q in pairs]):
             return
         named = gk_orgs(en_c)
+        if named and not named & shown_orgs:
+            return  # about an organisation the printed story does not name
         if named & seen_orgs:
             return  # this organisation's box was already printed under an earlier story
         if not named and story_orgs and story_orgs <= seen_orgs and _ORG_ATTR_RE.match(en_c):

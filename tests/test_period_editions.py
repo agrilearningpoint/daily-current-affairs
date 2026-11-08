@@ -151,7 +151,10 @@ def test_monthly_counts_and_quick_tables(monthly):
     _eds, r = monthly
     c = r["content"]
     assert 50 <= len(c["items"]) <= 60
-    assert len(r["mcqs"]) == 100
+    # Up to 100; template give-aways ("associated with the news ...") no longer pad the
+    # count past the QA floor (weekly 2026-11-08 v2 review), so the synthetic month
+    # keeps only its grounded questions.
+    assert 60 <= len(r["mcqs"]) <= 100
     assert c["quick_tables"] and all(t["rows"] for t in c["quick_tables"])
     assert c["missing_days"] == ["2026-10-31"]
     assert c["job"]["type"] == "monthly" and c["job"]["date_display"] == "October 2026"
