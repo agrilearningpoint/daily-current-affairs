@@ -370,14 +370,19 @@ def _mcq(q, opts, correct="A", **kw):
     return dict(question_en=q, question_hi="प्रश्न", options=opts, correct=correct, **kw)
 
 
-def test_template_and_giveaway_mcqs_are_rejected():
+def test_template_and_junk_mcqs_are_rejected():
     from pipeline import period_builder as pb
     opts = ["ICAR", "CACP", "NAFED", "APEDA", "CWC"]
     assert pb._mcq_ok(_mcq("Who chairs X?", opts))
-    assert not pb._mcq_ok(_mcq('Which organisation is associated with the news "Cabinet approves MSP"?', opts))
-    assert not pb._mcq_ok(_mcq('The news "AIDSO protests" is related to which State / Union Territory?', opts))
-    assert not pb._mcq_ok(_mcq("Which state has most MSMEs?",
-                               ["Maharashtra leading with one crore MSMEs", "Kerala", "Delhi", "Goa", "Bihar"]))
+    q = 'Which organisation is associated with the news "Cabinet approves MSP"?'
+    assert not pb._mcq_ok(_mcq(q, opts), "Cabinet approves MSP on CACP advice")      # keyed ICAR: not in story
+    assert pb._mcq_ok(_mcq(q, opts, correct="B"), "Cabinet approves MSP on CACP advice")
+    states = ["Delhi", "Goa", "Bihar", "Kerala", "Karnataka"]
+    q2 = 'The news "AIDSO protests" is related to which State / Union Territory?'
+    assert not pb._mcq_ok(_mcq(q2, states), "AIDSO protests in Kalaburagi, Karnataka")
+    assert pb._mcq_ok(_mcq(q2, states, correct="E"), "AIDSO protests in Kalaburagi, Karnataka")
+    assert not pb._mcq_ok(_mcq("Which of the following topics was featured in the PIB updates alongside RBI?", opts))
+    assert not pb._mcq_ok(_mcq("Which institution's cultivars are mentioned in the Kisan Credit Card news release?", opts))
     assert not pb._mcq_ok(_mcq("Dup?", ["A1", "A1", "B", "C", "D"]))
 
 

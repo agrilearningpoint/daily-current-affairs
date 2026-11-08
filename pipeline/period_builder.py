@@ -409,24 +409,46 @@ _LETTERS = "ABCDE"
 
 # Template fallback questions whose "answer" is a guess, not a fact from the story
 # (e.g. "Which organisation is associated with the news ..." -> ICAR for an MSP story).
+# Kept only when the story itself names the keyed answer.
 _TEMPLATE_Q_RE = re.compile(
     r"(?i)^which organi[sz]ation is associated with the news"
-    r"|is related to which state\s*/\s*union territory"
-    r"|what is the key figure\s*/\s*financial outlay associated with"
+    r"|is related to which state\s*/\s*union territory")
+# Never kept: built from boilerplate, not from the story.
+_JUNK_Q_RE = re.compile(
+    r"(?i)what is the key figure\s*/\s*financial outlay associated with"
     r"|\bPIB (?:updates|release)\b.*\b(?:alongside|along with)\b"
     r"|along with regulator guidelines"
-    r"|highlighted in the recent PIB release")
+    r"|highlighted in the recent PIB release"
+    r"|\bcultivars (?:are|is) (?:mentioned|highlighted)\b|organi[sz]ation's cultivars")
+
+
+def _story_text(it: Optional[Dict[str, Any]]) -> str:
+    if not it:
+        return ""
+    # Not exam_fact/key points/detail: for feed items those can carry the feed's own
+    # category blurb ("Key crop statistics, ICAR cultivars, MSP notifications ..."),
+    # which is not news and once keyed ICAR as the body behind an MSP story.
+    parts = [it.get("headline_en"), it.get("summary_en"),
+             " ".join(map(str, it.get("organizations") or []))]
+    return " ".join(str(p) for p in parts if p)
+
+
+def _answer_in_story(answer: str, story: str) -> bool:
+    """The keyed option (its English name or its bracketed acronym) appears in the story."""
+    en = answer.split(" / ")[0].strip()
+    names = {en} | set(re.findall(r"\(([^)]+)\)", answer))
+    return any(n and re.search(rf"(?<!\w){re.escape(n.strip())}(?!\w)", story, re.I) for n in names)
 
 
 def _opt_text(o: Any) -> str:
     return clean_headline(o.get("en") if isinstance(o, dict) else o)
 
 
-def _mcq_ok(m: Dict[str, Any]) -> bool:
+def _mcq_ok(m: Dict[str, Any], story: Optional[str] = None) -> bool:
     q_en, q_hi = clean_headline(m.get("question_en")), clean_headline(m.get("question_hi"))
     if not q_en or _UNTITLED_RE.search(q_en) or not has_devanagari(q_hi):
         return False
-    if _TEMPLATE_Q_RE.search(q_en):
+    if _JUNK_Q_RE.search(q_en):
         return False
     opts = m.get("options_bi") or m.get("options") or []
     if len(opts) < 4:
@@ -437,11 +459,9 @@ def _mcq_ok(m: Dict[str, Any]) -> bool:
     correct = str(m.get("correct") or "").strip().upper()
     if correct not in _LETTERS[:len(opts)]:
         return False
-    # Giveaway: the right option is far longer than every distractor.
-    idx = _LETTERS.index(correct)
-    right = len(_opt_text(opts[idx]).split(" / ")[0])
-    others = [len(_opt_text(o).split(" / ")[0]) for i, o in enumerate(opts) if i != idx]
-    return not (right > 25 and right > 1.8 * max(others))
+    if story is not None and _TEMPLATE_Q_RE.search(q_en):
+        return _answer_in_story(_opt_text(opts[_LETTERS.index(correct)]), story)
+    return True
 
 
 _LETTER_REF_RE = re.compile(r"\b[Oo]ption\s*[A-E]\b|\([A-E]\)|विकल्प\s*[A-E]")
@@ -473,13 +493,19 @@ def balance_answers(mcqs: List[Dict[str, Any]], seed: str) -> None:
 
 
 def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List[str],
-              limit: int) -> List[Dict[str, Any]]:
+              limit: int, verified: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """MCQs of verified events only: selected stories first (round-robin), then the rest."""
     by_event: Dict[str, List[Dict[str, Any]]] = {}
+    unconfirmed: List[Dict[str, Any]] = []   # template MCQs whose key the story does not name
     for ed in editions:
         for m in ed["mcqs"]:
-            if m.get("event_id") in verified_ids and _mcq_ok(m):
+            if m.get("event_id") not in verified_ids or not _mcq_ok(m):
+                continue
+            story = _story_text((verified or {}).get(m.get("event_id"))) if verified is not None else None
+            if _mcq_ok(m, story):
                 by_event.setdefault(m["event_id"], []).append(m)
+            else:
+                unconfirmed.append(m)
     seen_q: List[str] = []
     out: List[Dict[str, Any]] = []
 
@@ -498,6 +524,11 @@ def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List
             if len(ms) > rnd and len(out) < limit:
                 take(ms[rnd])
         rnd += 1
+    # Last resort only (a thin period that would otherwise fail the MCQ minimum).
+    for m in unconfirmed:
+        if len(out) >= limit:
+            break
+        take(m)
     for n, m in enumerate(out, 1):
         m["q_num"] = n
     return out
@@ -977,7 +1008,7 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     verified = {it["event_id"]: it for it in ranked}
     stories = pick_stories(ranked, cfg["stories"], cfg["per_section"])
     story_ids = [s["event_id"] for s in stories]
-    mcqs = pick_mcqs(editions, set(verified), story_ids, cfg["mcqs"])
+    mcqs = pick_mcqs(editions, set(verified), story_ids, cfg["mcqs"], verified)
     balance_answers(mcqs, f"{job_type}_{job_date}")
     first_mcq = {}
     for m in mcqs:
