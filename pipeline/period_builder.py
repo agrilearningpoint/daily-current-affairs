@@ -1293,12 +1293,17 @@ def _bilingual_pairs(it: Dict[str, Any], hindi: PeriodHindi, qa: Dict[str, Any],
         hi = hindi.fix(en, hi if _hi_ok(hi) else "")
         if hi:
             out.append({"en": en, "hi": hi})
+        elif os.getenv("DRY_RUN", "0") == "1":
+            # Offline dry run (no translator): keep the EN line, marked, so dev PDFs show
+            # bodies; a live edition never carries it (dropped as a pair).
+            out.append({"en": en, "hi": "", "en_only_dry_run": True})
     qa["bullets_expected"] = qa.get("bullets_expected", 0) + expected
-    if expected > len(out):
-        qa["bullets_missing_hi"] = qa.get("bullets_missing_hi", 0) + expected - len(out)
+    have = sum(1 for p in out if p["hi"])
+    if expected > have:
+        qa["bullets_missing_hi"] = qa.get("bullets_missing_hi", 0) + expected - have
         qa.setdefault("stories_short", []).append(
             {"event_id": it.get("event_id", ""), "headline_en": it.get("headline_en", ""),
-             "en_bullets": expected, "hi_bullets": len(out)})
+             "en_bullets": expected, "hi_bullets": have})
     return out
 
 
@@ -1745,6 +1750,12 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     for s in stories:
         s["summary_pairs"] = _bilingual_pairs(s, hindi, qa)
         _attach_static_gk(s, first_mcq, seen_gk, filler, seen_orgs)
+    # A story left with no bilingual bullet would print headline-only: drop it (counted above).
+    empty = [x for x in stories if not x.get("summary_pairs")]
+    if empty:
+        qa["stories_dropped_no_hindi"] = [x.get("headline_en", "")[:90] for x in empty]
+        stories = [x for x in stories if x.get("summary_pairs")]
+        story_ids = [x["event_id"] for x in stories]
     period_hindi_qa(qa)
     for w in qa["warnings"]:
         print(f"[period-qa] WARNING {w}")

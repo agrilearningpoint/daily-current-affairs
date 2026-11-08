@@ -227,3 +227,17 @@ def test_one_liners_cleaned_and_dropped_when_hindi_bad():
     assert len(out) == 1 and qa["one_liners_dropped"] == 1
     assert out[0]["text_en"] == "Govt clears ₹4,371.10 crore VISTAR scheme"
     assert out[0]["text_hi"] == "सरकार ने ₹4,371.10 करोड़ की विस्तार योजना को मंजूरी दी"
+
+
+def test_dry_run_keeps_marked_en_only_bullets_live_never(monkeypatch):
+    from src import period_pdf
+    it = {"summary_pairs": [{"en": "A whole sentence about the story is here.", "hi": "", "en_only_dry_run": True}]}
+    assert period_pdf._summary(it, 3) == [("A whole sentence about the story is here.", "")]
+    monkeypatch.setenv("DRY_RUN", "1")
+    qa: dict = {}
+    story = _story(summary_pairs=[{"en": "She directed officials to clear payments to 2,400 farmers within a week.",
+                                   "hi": ""}])
+    out = pb._bilingual_pairs(story, pb.PeriodHindi((None, None)), qa)
+    assert out and out[0].get("en_only_dry_run") and qa["bullets_missing_hi"] == 1
+    monkeypatch.delenv("DRY_RUN")
+    assert pb._bilingual_pairs(story, pb.PeriodHindi((None, None)), {}) == []

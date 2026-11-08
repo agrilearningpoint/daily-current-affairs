@@ -226,7 +226,7 @@ def _summary(it: Dict[str, Any], n: int) -> List[Tuple[str, str]]:
             en = _clean_text_for_display(p.get("en")) if isinstance(p, dict) else ""
             hi = _hi_or_blank(p.get("hi")) if isinstance(p, dict) else ""
             # Bilingual edition, fail-closed: a bullet whose Hindi was blanked is dropped as a pair.
-            if en and hi and _WHOLE_RE.search(en):
+            if en and (hi or p.get("en_only_dry_run")) and _WHOLE_RE.search(en):
                 out.append((en, hi))
         return out[:n]
     en = [_clean_text_for_display(x) for x in it.get("key_points_en") or []]
