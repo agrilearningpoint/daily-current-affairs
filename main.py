@@ -557,6 +557,25 @@ def execute_job(job_type: str, date_str: str | None) -> int:
             log(f"stage {name}: already completed earlier, skipping")
             continue
 
+        if name in _PUBLISH_GATED_STAGES and os.getenv("ALP_HOLD_PUBLISH", "0") == "1":
+            # Review hold (workflow_dispatch publish=false): build + QA the PDF,
+            # keep checkpoints, send nothing. A later publish=true run resumes
+            # here and sends the exact reviewed PDF. The watchdog never
+            # auto-recovers a held edition.
+            update_job(job_id, status="awaiting_publish")
+            with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                state = load_jobs_state(strict=True)
+                state[job_id]["publish_hold"] = "review"
+                save_jobs_state(state)
+            log(f"job '{job_id}' READY — publish held for review (ALP_HOLD_PUBLISH=1); "
+                "checkpoints kept, nothing sent")
+            return 0
+        if name in _PUBLISH_GATED_STAGES and load_jobs_state().get(job_id, {}).get("publish_hold"):
+            with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                state = load_jobs_state(strict=True)
+                state[job_id].pop("publish_hold", None)
+                save_jobs_state(state)
+
         if name in _PUBLISH_GATED_STAGES:
             gate = publish_not_before(job_type, ctx["ALP_JOB_DATE"])
             if gate is not None and datetime.now(timezone.utc) < gate:
@@ -642,6 +661,10 @@ def watchdog(stuck_hours: float | None = None) -> int:
             age_h = float("inf")
         if status == "running" and age_h > (RUNNING_STUCK_HOURS if stuck_hours is None else stuck_hours):
             stuck.append(jid)
+        elif status == "awaiting_publish" and entry.get("publish_hold") == "review":
+            # Held on purpose for a human review (publish=false); an operator
+            # publishes it with a publish=true dispatch. Never auto-recover.
+            continue
         elif status == "awaiting_publish":
             # Parked by the publish gate; flag it only if no publish-window run
             # picked it up within 90 minutes of the gate opening.
