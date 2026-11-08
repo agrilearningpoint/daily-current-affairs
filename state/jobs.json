@@ -1809,9 +1809,9 @@
       "start": "2026-11-02T00:00:00+05:30",
       "end": "2026-11-08T23:59:59.999999+05:30"
     },
-    "github_run_id": "42453235056",
-    "status": "awaiting_publish",
-    "updated_at": "2026-11-08T06:05:27.257710+00:00",
+    "github_run_id": "42453460527",
+    "status": "running",
+    "updated_at": "2026-11-08T06:08:13.534815+00:00",
     "started_at": "2026-11-08T06:04:53.679463+00:00",
     "artifacts": {
       "data/selected/weekly_2026-11-08.json": {
