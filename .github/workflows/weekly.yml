@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: false
+      publish:
+        description: 'Send to Telegram. false = build + QA the PDF and upload it as an artifact, send nothing (review hold); a later publish=true run sends the same PDF'
+        required: false
+        type: boolean
+        default: true
 
 # Own group: a weekly run never queues behind (or blocks) the daily edition.
 # Concurrent state commits are merged by scripts/sync_state.py.
@@ -140,6 +145,8 @@ jobs:
           ALP_MODEL_AUTO_DISCOVERY: "1"
           ALP_TRANSLATION_WAIT_BUDGET: "300"
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
+          # publish=false (manual dispatch only) parks the edition before 22_telegram_publisher.
+          ALP_HOLD_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'false' && '1' || '0' }}
           # Period editions reuse only verified, AI-reviewed daily items: no fallback, no re-polish.
           ALP_ALLOW_FALLBACK_TRANSLATION: "0"
           ALP_DISABLE_POLISH: "1"
