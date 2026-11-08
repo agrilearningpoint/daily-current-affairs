@@ -170,8 +170,10 @@ def test_period_pick_drops_bad_rekeys_wrong_and_fills_from_reserves():
     reserve_kiwi = q28("D")
     eds = [_ed([q24("C"), bad, reserve_kiwi])]
     out = pb.pick_mcqs(eds, set(verified), ["nhrc", "zsi"], 3, verified)
-    assert [m["event_id"] for m in out] == ["nhrc", "kiwi"]
+    assert [m["event_id"] for m in out][:2] == ["nhrc", "kiwi"]
     assert out[0]["correct"] == "A" and out[1]["correct"] == "D"
+    assert len(out) == 3 and out[2].get("reserve")      # shortfall filled from a reserve question
+    assert not any("Tomar" in str(m["options"]) for m in out)
 
 
 # 8. layout --------------------------------------------------------------------

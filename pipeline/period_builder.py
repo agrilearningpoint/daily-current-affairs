@@ -514,6 +514,36 @@ def _cross_check_text(editions: List[Dict[str, Any]], verified: Dict[str, Dict[s
     return {k: " | ".join(v) for k, v in out.items()}
 
 
+def _reserve_mcqs(verified: Dict[str, Dict[str, Any]], order: List[str], cross: Dict[str, str],
+                  want: int) -> List[Dict[str, Any]]:
+    """Validated, hardened template questions for verified stories (selected stories first)."""
+    from pipeline.content import _build_pools, _evidence_text, validate_mcqs
+    from pipeline.mcq_builder import candidates_for_item
+    from pipeline.mcq_quality import harden_mcq
+    items = list(verified.values())
+    ids = list(dict.fromkeys(list(order) + list(verified)))
+    try:
+        pools = _build_pools(items)
+    except Exception:
+        return []
+    out: List[Dict[str, Any]] = []
+    for eid in ids:
+        it = verified.get(eid)
+        if not it or len(out) >= want:
+            continue
+        try:
+            cands = candidates_for_item(it, _evidence_text(it), pools, items, None)
+        except Exception:
+            continue
+        for c in cands:
+            if not _mcq_ok(c) or not validate_mcqs([c], [it])[0]:
+                continue
+            h, _why = harden_mcq(c, _mcq_evidence(it), cross.get(eid, ""), it)
+            if h is not None:
+                out.append(dict(h, event_id=eid, reserve=True))
+    return out
+
+
 def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List[str],
               limit: int, verified: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """MCQs of verified events only: selected stories first (round-robin), then the rest."""
@@ -556,6 +586,13 @@ def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List
             if len(ms) > rnd and len(out) < limit:
                 take(ms[rnd])
         rnd += 1
+    # Shortfall after the hardening drops: reserve questions built fresh from the
+    # verified stories (concept / bilingual templates, same validator + gates).
+    if verified is not None and len(out) < limit:
+        for m in _reserve_mcqs(verified, order, cross, limit - len(out) + 10):
+            if len(out) >= limit:
+                break
+            take(m)
     # Last resort only (a thin period that would otherwise fail the MCQ minimum).
     for m in unconfirmed:
         if len(out) >= limit:

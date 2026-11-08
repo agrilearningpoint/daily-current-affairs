@@ -406,7 +406,7 @@ def _bilingualize(m: Dict[str, Any]) -> Dict[str, Any]:
 def first_valid(cands: List[Dict[str, Any]], ci: Dict[str, Any], seen_q: set) -> Tuple[Optional[Dict[str, Any]], List[str]]:
     """First candidate that passes the fail-closed validator and is not a repeated question."""
     from pipeline.content import _qkey, validate_mcqs
-    from pipeline.mcq_quality import answer_in_headline
+    from pipeline.mcq_quality import answer_in_headline, hindi_errors
     reasons: List[str] = []
     # Prefer questions the headline does not answer (static / body facts); stable order otherwise.
     # LLM (when the headline does not answer it) > concept > LLM > other templates.
@@ -424,6 +424,10 @@ def first_valid(cands: List[Dict[str, Any]], ci: Dict[str, Any], seen_q: set) ->
             continue
         ok, rej = validate_mcqs([c], [ci])
         if ok:
+            hi_errs = hindi_errors(ok[0])   # printed MCQs carry a Hindi stem and Hindi options
+            if hi_errs:
+                reasons.append(f"{c.get('type')}: {hi_errs[0]}")
+                continue
             return ok[0], reasons
         reasons.append(f"{c.get('type')}: {', '.join(rej[0].get('errors', [])[:3])}")
     return None, reasons

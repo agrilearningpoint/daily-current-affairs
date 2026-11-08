@@ -644,6 +644,7 @@ CITY_COUNTRY = {"oryol": "russia", "belgorod": "russia", "kursk": "russia", "bry
                 "kyiv": "ukraine", "kharkiv": "ukraine", "odesa": "ukraine", "lviv": "ukraine",
                 "tel aviv": "israel", "haifa": "israel", "tehran": "iran", "isfahan": "iran",
                 "lahore": "pakistan", "karachi": "pakistan", "islamabad": "pakistan", "dhaka": "bangladesh"}
+_UT_CITIES = {"delhi", "new delhi", "nct of delhi", "chandigarh", "puducherry", "pondicherry"}
 _SUBSTATE_ASK_RE = re.compile(r"\b(?:which|what)\s+(?:district|city|town|village|block|tehsil)\b", re.I)
 
 
@@ -651,8 +652,6 @@ def _tables() -> Tuple[Dict[str, str], Dict[str, str]]:
     from pipeline.mcq_builder import COUNTRIES, COUNTRY_ALIASES, INDIAN_STATES, STATE_ALIASES
     st = {k.lower(): k for k in INDIAN_STATES}
     st.update({k.lower(): v for k, v in STATE_ALIASES.items()})
-    for city in ("delhi", "new delhi", "nct of delhi", "chandigarh", "puducherry", "pondicherry"):
-        st.pop(city, None)   # also cities: never a type mismatch against other cities
     co = {k.lower(): k for k in COUNTRIES}
     co.update({k.lower(): v for k, v in COUNTRY_ALIASES.items()})
     return st, co
@@ -665,6 +664,8 @@ def option_type(o: str) -> str:
         return "num:" + (n[1] or ("money" if n[2] else ""))
     st, co = _tables()
     low = s.lower().strip()
+    if low in _UT_CITIES:
+        return "ut_city"   # a UT and a city: compatible with states and with cities
     if low in st:
         return "state"
     if low in co:
@@ -692,8 +693,10 @@ def type_errors(m: Dict[str, Any]) -> List[str]:
         return []
     q = _ws(m.get("question_en")).lower()
     types = [option_type(o) for o in opts]
-    ct, others = types[idx], [t for i, t in enumerate(types) if i != idx]
+    ct, others = types[idx], [t for i, t in enumerate(types) if i != idx and t != "ut_city"]
     errs: List[str] = []
+    if ct == "ut_city" or not others:
+        return errs
     if ct.startswith("num:"):
         nums = [option_number(o) for o in opts]
         if any(t != ct for t in others):
@@ -777,7 +780,9 @@ OPINION_STEM_RE = re.compile(r"\baccording to (?:the )?(?:experts|analysts|obser
 
 
 def hardening_errors(m: Dict[str, Any], evidence: str = "", cross: str = "") -> List[str]:
-    """All hardening gates (no re-key): used by the fail-closed daily validator."""
+    """Hardening gates (no re-key) run by the fail-closed validator.  The complete-Hindi
+    gate (hindi_errors) is applied where questions are chosen for print: stage 16
+    (mcq_builder.first_valid) and the weekly/monthly assembly (harden_mcq)."""
     errs: List[str] = []
     if OPINION_STEM_RE.search(str(m.get("question_en") or "")):
         errs.append("opinion question (no single verifiable answer)")
@@ -785,7 +790,7 @@ def hardening_errors(m: Dict[str, Any], evidence: str = "", cross: str = "") -> 
         action, new, why = key_check(m, evidence, cross)
         if action != "ok":
             errs.append(("wrong key: " if action == "rekey" else "") + why)
-    return errs + giveaway_errors(m) + hindi_errors(m)
+    return errs + giveaway_errors(m)
 
 
 def harden_mcq(m: Dict[str, Any], story: str, cross: str = "",
@@ -803,5 +808,5 @@ def harden_mcq(m: Dict[str, Any], story: str, cross: str = "",
         out["rekeyed"] = why
         if old.lower() in (str(m.get("explanation_en") or "") + " " + str(m.get("explanation_pairs") or "")).lower():
             out["explanation_en"], out["explanation_hi"], out["explanation_pairs"] = "", "", []
-    errs = [e for e in quality_errors(out, ci or {}, story) if not e.startswith("explanation only")]
+    errs = hindi_errors(out) + [e for e in quality_errors(out, ci or {}, story) if not e.startswith("explanation only")]
     return (None, errs) if errs else (out, [])
