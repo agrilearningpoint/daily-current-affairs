@@ -1,6 +1,25 @@
 {
-  "_doc": "Editor vetoes for weekly/monthly editions: events a daily edition carried that are stale or republished. Each pattern is a case-insensitive regex matched against the English headline.",
+  "_doc": "Editor vetoes for weekly/monthly editions: events a daily edition carried that are stale or republished. Each pattern is a case-insensitive regex matched against the English headline of stories, one-liners and Agriculture Corner lines.",
   "headline_patterns": [
-    {"pattern": "MSP for 14 Kharif crops for 2026-27", "reason": "stale: CCEA approved Kharif MSP 2026-27 on 13 May 2026 (PIB PRID 2260617); republished by DD News on 4 Nov 2026", "added": "2026-11-08"}
+    {
+      "pattern": "MSP for 14 Kharif crops for 2026-27",
+      "reason": "stale: CCEA approved Kharif MSP 2026-27 on 13 May 2026 (PIB PRID 2260617); republished by DD News on 4 Nov 2026",
+      "added": "2026-11-08"
+    },
+    {
+      "pattern": "NHRC.{0,40}suo motu.{0,240}Darbhanga",
+      "reason": "stale: NHRC notice on the Darbhanga school roof was issued about 8-9 Oct 2026; reprinted in the 2-8 Nov 2026 weekly",
+      "added": "2026-11-08"
+    },
+    {
+      "pattern": "What the BRICS carbon market partnership needs",
+      "reason": "opinion piece on the 12-13 Sep 2026 BRICS summit, printed in the 2-8 Nov 2026 weekly",
+      "added": "2026-11-08"
+    },
+    {
+      "pattern": "Northern Zone Youth Wing Conference",
+      "reason": "party event of 14 Dec 2025 glued into a DVAC item (Agri Corner, weekly 2026-11-08)",
+      "added": "2026-11-08"
+    }
   ]
 }

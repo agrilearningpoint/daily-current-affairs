@@ -1,6 +1,6 @@
 {
-  "_doc": "Verified current officeholders for Static GK. Every name was checked against source_url on verified_on. 'match'/'match_hi' are the post phrases the validator (agents/static_gk_validator.py) looks for; 'names' lists all valid holders for multi-holder posts. Refreshed weekly by scripts/refresh_current_facts.py (opens a PR). Never add a value that was not verified. 'stale_names'/'stale_names_hi' are earlier or commonly hallucinated holders (replaced when the post is named, dropped otherwise); 'portfolio'/'rank' let the validator reject a wrong ministry or rank for a tracked minister. 'orgs' holds verified founded year / HQ / ministry for organisations; a wrong value is corrected in a label–value row and the line dropped otherwise.",
-  "updated": "2026-11-05",
+  "_doc": "Verified current officeholders for Static GK. Every name was checked against source_url on verified_on. 'match'/'match_hi' are the post phrases the validator (agents/static_gk_validator.py) looks for; 'names' lists all valid holders for multi-holder posts. Refreshed weekly by scripts/refresh_current_facts.py (opens a PR). Never add a value that was not verified. 'stale_names'/'stale_names_hi' are earlier or commonly hallucinated holders (replaced when the post is named, dropped otherwise); 'portfolio'/'rank' let the validator reject a wrong ministry or rank for a tracked minister. 'orgs' holds verified founded year / HQ / ministry for organisations; a wrong value is corrected in a label–value row and the line dropped otherwise. Groupings may add 'members' (verified member countries; a wrong list is replaced), 'secretariat', 'no_secretariat' and 'no_hq' (lines claiming a secretariat/HQ the grouping does not have are dropped).",
+  "updated": "2026-11-08",
   "facts": [
     {
       "id": "president_india",
@@ -1140,6 +1140,185 @@
       "source_url": "https://icar.org.in/en/contact-us",
       "second_source": "https://icar.org.in/sites/default/files/Circulars/D%20O%20No.%20504%20%2810.09.2026%29001.pdf",
       "verified_on": "2026-11-05"
+    },
+    {
+      "id": "brics",
+      "name": "BRICS",
+      "match": [
+        "BRICS"
+      ],
+      "founded": [],
+      "hq": [],
+      "hq_hi": "",
+      "no_hq": true,
+      "no_secretariat": true,
+      "members": [
+        "Brazil",
+        "Russia",
+        "India",
+        "China",
+        "South Africa",
+        "Egypt",
+        "Ethiopia",
+        "Iran",
+        "United Arab Emirates",
+        "Indonesia"
+      ],
+      "members_hi": "ब्राज़ील, रूस, भारत, चीन, दक्षिण अफ्रीका, मिस्र, इथियोपिया, ईरान, संयुक्त अरब अमीरात, इंडोनेशिया",
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "note": "10 members (Indonesia joined 6 Jan 2025). Saudi Arabia was invited in 2023 but has not formally confirmed membership; the Brazilian chair's site still lists it, so it is not counted here (owner decision 2026-11-08). No founding treaty, no permanent secretariat or HQ; chair rotates yearly.",
+      "source_url": "https://brics.br/en/about-the-brics/frequently-asked-questions-about-the-brics",
+      "second_source": "https://www.ndtv.com/world-news/from-bric-to-brics-how-a-2001-economic-idea-became-a-global-power-bloc-12025190",
+      "verified_on": "2026-11-08"
+    },
+    {
+      "id": "ndb",
+      "name": "New Development Bank (NDB)",
+      "match": [
+        "NDB",
+        "New Development Bank"
+      ],
+      "founded": [
+        2014,
+        2015
+      ],
+      "hq": [
+        "Shanghai"
+      ],
+      "hq_hi": "शंघाई",
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "note": "Agreement signed at Fortaleza in July 2014; the bank says it was established in 2015. HQ: 1600 Guozhan Road, Pudong, Shanghai.",
+      "source_url": "https://www.ndb.int/contact/",
+      "second_source": "https://www.ndb.int/about-ndb/",
+      "verified_on": "2026-11-08"
+    },
+    {
+      "id": "sco",
+      "name": "Shanghai Cooperation Organisation (SCO)",
+      "match": [
+        "SCO",
+        "Shanghai Cooperation Organisation",
+        "Shanghai Cooperation Organization"
+      ],
+      "founded": [
+        2001
+      ],
+      "hq": [
+        "Beijing"
+      ],
+      "hq_hi": "बीजिंग",
+      "secretariat": [
+        "Beijing"
+      ],
+      "secretariat_hi": "बीजिंग",
+      "members": [
+        "Belarus",
+        "India",
+        "Iran",
+        "Kazakhstan",
+        "China",
+        "Kyrgyzstan",
+        "Pakistan",
+        "Russia",
+        "Tajikistan",
+        "Uzbekistan"
+      ],
+      "members_hi": "बेलारूस, भारत, ईरान, कज़ाखस्तान, चीन, किर्गिज़स्तान, पाकिस्तान, रूस, ताजिकिस्तान, उज़्बेकिस्तान",
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "note": "Founded 15 June 2001 in Shanghai; Secretariat in Beijing, RATS Executive Committee in Tashkent; India and Pakistan full members 2017, Belarus 2024.",
+      "source_url": "https://eng.sectsco.org/20170109/192193.html",
+      "verified_on": "2026-11-08"
+    },
+    {
+      "id": "g20",
+      "name": "Group of Twenty (G20)",
+      "match": [
+        "G20",
+        "G-20",
+        "Group of Twenty"
+      ],
+      "founded": [
+        1999
+      ],
+      "hq": [],
+      "hq_hi": "",
+      "no_hq": true,
+      "no_secretariat": true,
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "note": "Founded 1999 after the Asian financial crisis; leaders' level from 2008; no permanent secretariat (rotating presidency + troika).",
+      "source_url": "https://www.g20.in/en/docs/2022/G20_Background_Brief.pdf",
+      "second_source": "https://www.g20.in/en/about-g20/about-g20.html",
+      "verified_on": "2026-11-08"
+    },
+    {
+      "id": "asean",
+      "name": "Association of Southeast Asian Nations (ASEAN)",
+      "match": [
+        "ASEAN",
+        "Association of Southeast Asian Nations"
+      ],
+      "founded": [
+        1967
+      ],
+      "hq": [
+        "Jakarta"
+      ],
+      "hq_hi": "जकार्ता",
+      "secretariat": [
+        "Jakarta"
+      ],
+      "secretariat_hi": "जकार्ता",
+      "members": [
+        "Brunei Darussalam",
+        "Cambodia",
+        "Indonesia",
+        "Lao PDR",
+        "Malaysia",
+        "Myanmar",
+        "Philippines",
+        "Singapore",
+        "Thailand",
+        "Timor-Leste",
+        "Viet Nam"
+      ],
+      "members_hi": "ब्रुनेई दारुस्सलाम, कंबोडिया, इंडोनेशिया, लाओ पीडीआर, मलेशिया, म्यांमार, फिलीपींस, सिंगापुर, थाईलैंड, तिमोर-लेस्ते, वियतनाम",
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "note": "Established 8 August 1967 (Bangkok Declaration); Secretariat in Jakarta (set up 1976); Timor-Leste joined 26 Oct 2025 (11 members).",
+      "source_url": "https://asean.org/about-asean",
+      "second_source": "https://asean.org/",
+      "verified_on": "2026-11-08"
+    },
+    {
+      "id": "aiib",
+      "name": "Asian Infrastructure Investment Bank (AIIB)",
+      "match": [
+        "AIIB",
+        "Asian Infrastructure Investment Bank"
+      ],
+      "founded": [
+        2015,
+        2016
+      ],
+      "hq": [
+        "Beijing"
+      ],
+      "hq_hi": "बीजिंग",
+      "ministry": [],
+      "ministry_name": "",
+      "ministry_hi": "",
+      "note": "Began operations in Beijing in 2016 with 57 founding members (Articles of Agreement 2015).",
+      "source_url": "https://www.aiib.org/en/about-aiib/index.html",
+      "verified_on": "2026-11-08"
     }
   ]
 }

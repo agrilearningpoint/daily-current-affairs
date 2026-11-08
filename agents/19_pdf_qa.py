@@ -753,6 +753,34 @@ def check_photo_count(report: QAReport, items: Optional[List[Dict[str, Any]]]) -
         logger.warning("Photo count check skipped: %s", exc)
 
 
+def story_has_body(it: Dict[str, Any]) -> bool:
+    """A story prints at least one bullet besides its headline (period editions:
+    ``summary_pairs``; daily: key points / summary that is not the headline)."""
+    def norm(x: Any) -> str:
+        return re.sub(r"[^0-9a-z\u0900-\u097f]+", " ", str(x or "").lower()).strip()
+    if "summary_pairs" in it:
+        return any(isinstance(p, dict) and norm(p.get("en")) for p in it.get("summary_pairs") or [])
+    head = norm(it.get("headline_en"))
+    for k in list(it.get("key_points_en") or []) + [it.get("summary_en"), it.get("detailed_explanation_en")]:
+        n = norm(k)
+        if n and n != head and not head.startswith(n) and len(n.split()) >= 4:
+            return True
+    return False
+
+
+def check_story_bodies(report: QAReport, items: Optional[List[Dict[str, Any]]], job_type: str = "") -> None:
+    """Headline-only stories (weekly 2026-11-08 printed 10). Period editions FAIL
+    (error); a daily edition gets a warning (blocking only with PDF_QA_STRICT=1)."""
+    empty = [str(it.get("headline_en") or "")[:90] for it in items or []
+             if isinstance(it, dict) and not story_has_body(it)]
+    if not empty:
+        return
+    sev = "error" if job_type in ("weekly", "monthly") else "warning"
+    report.add(sev, "title_only_stories",
+               f"{len(empty)} headline-only stor{'y' if len(empty) == 1 else 'ies'} (no body/bullets), "
+               f"e.g. {empty[0]!r}", stories=empty[:20])
+
+
 def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
     """
     Detect text blocks that extend beyond page bounds.
@@ -952,6 +980,7 @@ def main() -> int:
                     item_count=len(edition_items), selected_items=edition_items,
                     job_type=str(getattr(ctx, "job_type", "") or ""))
     check_story_count(report, len(edition_items), len(selected_items))
+    check_story_bodies(report, edition_items, str(getattr(ctx, "job_type", "") or ""))
     check_photo_count(report, edition_items)
 
     # Save report
