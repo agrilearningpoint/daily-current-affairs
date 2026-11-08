@@ -651,6 +651,8 @@ def _tables() -> Tuple[Dict[str, str], Dict[str, str]]:
     from pipeline.mcq_builder import COUNTRIES, COUNTRY_ALIASES, INDIAN_STATES, STATE_ALIASES
     st = {k.lower(): k for k in INDIAN_STATES}
     st.update({k.lower(): v for k, v in STATE_ALIASES.items()})
+    for city in ("delhi", "new delhi", "nct of delhi", "chandigarh", "puducherry", "pondicherry"):
+        st.pop(city, None)   # also cities: never a type mismatch against other cities
     co = {k.lower(): k for k in COUNTRIES}
     co.update({k.lower(): v for k, v in COUNTRY_ALIASES.items()})
     return st, co
@@ -770,9 +772,15 @@ def hindi_errors(m: Dict[str, Any]) -> List[str]:
     return []
 
 
+OPINION_STEM_RE = re.compile(r"\baccording to (?:the )?(?:experts|analysts|observers|economists)\b|"
+                             r"\bstand(?:s)? to gain\b|\bin the opinion of\b", re.I)
+
+
 def hardening_errors(m: Dict[str, Any], evidence: str = "", cross: str = "") -> List[str]:
     """All hardening gates (no re-key): used by the fail-closed daily validator."""
     errs: List[str] = []
+    if OPINION_STEM_RE.search(str(m.get("question_en") or "")):
+        errs.append("opinion question (no single verifiable answer)")
     if evidence or cross:
         action, new, why = key_check(m, evidence, cross)
         if action != "ok":
