@@ -1843,5 +1843,19 @@
     "last_success_stage": "19_pdf_qa",
     "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-11-08 14:49:04 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-11-08 14:49:04 | INFO     | agent.22_telegram_publisher | [1/1] weekly_2026-11-08.pdf\n2026-11-08 14:49:04 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for weekly_2026-11-08; manual reconciliation required, refusing resend\n2026-11-08 14:49:04 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
     "failed_stage": "22_telegram_publisher"
+  },
+  "daily_2026-11-09": {
+    "run_attempts": 0,
+    "job_id": "daily_2026-11-09",
+    "job_type": "daily",
+    "job_date": "2026-11-09",
+    "dry_run": false,
+    "window": {
+      "start": "2026-11-08T05:21:37.988021+05:30",
+      "end": "2026-11-09T05:26:28.658316+05:30"
+    },
+    "github_run_id": "42537526749",
+    "status": "running",
+    "updated_at": "2026-11-08T23:56:28.659226+00:00"
   }
 }
