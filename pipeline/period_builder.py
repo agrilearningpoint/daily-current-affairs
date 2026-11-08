@@ -1752,7 +1752,9 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
     # What the reader sees (headline, summary, printed bullets): a GK box about an
     # organisation only mentioned in passing deep in the source text ("former ISRO
     # chairman" in an exam-reform story) is off-topic.
-    shown = " ".join([str(story.get("headline_en") or ""), str(story.get("summary_en") or "")]
+    src = story.get("source") if isinstance(story.get("source"), dict) else {}
+    shown = " ".join([str(story.get("headline_en") or ""), str(story.get("summary_en") or ""),
+                      str(src.get("name") or "")]
                      + [str(p.get("en") or "") for p in story.get("summary_pairs") or [] if isinstance(p, dict)])
     shown_orgs = gk_orgs(shown)
 
