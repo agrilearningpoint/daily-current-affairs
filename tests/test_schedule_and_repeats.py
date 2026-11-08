@@ -118,6 +118,31 @@ def test_review_hold_parks_before_publish_then_resumes(fake_pipeline, monkeypatc
     assert entry["status"] == "success" and "publish_hold" not in entry
 
 
+def test_revision_review_rebuilds_published_edition(fake_pipeline, monkeypatch):
+    monkeypatch.delenv("ALP_PUBLISH_NOT_BEFORE", raising=False)
+    assert main.execute_job("daily", "2026-10-07") == 0
+    assert main.load_jobs_state()["daily_2026-10-07"]["status"] == "success"
+    monkeypatch.setattr(main, "resume_after", lambda *a: "24_final_health_audit")
+    monkeypatch.setattr("pipeline.publication.publication_issues", lambda *a, **k: [])
+    monkeypatch.setenv("ALP_HOLD_PUBLISH", "1")
+    (main.ROOT / "output").mkdir(exist_ok=True)
+    (main.ROOT / "output" / "daily_2026-10-07.pdf").write_bytes(b"%PDF-1.4 x")
+    fake_pipeline.clear()                       # hold without revision approval: no rebuild
+    monkeypatch.setenv("ALP_ALLOW_EDITION_REVISION", "0")
+    main.execute_job("daily", "2026-10-07")
+    assert fake_pipeline == []
+    monkeypatch.setenv("ALP_ALLOW_EDITION_REVISION", "1")
+    assert main.execute_job("daily", "2026-10-07") == 0
+    assert fake_pipeline == ["10_final_news_selection", "19_pdf_qa"]
+    entry = main.load_jobs_state()["daily_2026-10-07"]
+    assert entry["status"] == "awaiting_publish" and entry["publish_hold"] == "review"
+    monkeypatch.setattr(main, "resume_after", lambda *a: "19_pdf_qa")
+    monkeypatch.setenv("ALP_HOLD_PUBLISH", "0")
+    fake_pipeline.clear()
+    assert main.execute_job("daily", "2026-10-07") == 0
+    assert fake_pipeline == ["22_telegram_publisher", "24_final_health_audit"]
+
+
 def main_ist():
     from zoneinfo import ZoneInfo
     return ZoneInfo("Asia/Kolkata")

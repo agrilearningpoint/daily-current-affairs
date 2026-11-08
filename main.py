@@ -497,7 +497,16 @@ def execute_job(job_type: str, date_str: str | None) -> int:
     previous = load_jobs_state().get(job_id, {})
     same_mode = previous.get("dry_run") == (os.getenv("DRY_RUN", "0") == "1")
     names = [name for name, _, _ in stages]
-    if previous.get("status") == "success" and same_mode and resume_after(ROOT, job_id, previous, names) == names[-1]:
+    # A corrected edition of an already-published job: a review run (publish=false)
+    # with explicit revision approval rebuilds from scratch and parks before the
+    # publisher; the later publish=true + allow_revision run sends that exact PDF.
+    revision_review = (previous.get("status") == "success" and not previous.get("dry_run")
+                       and os.getenv("ALP_HOLD_PUBLISH", "0") == "1"
+                       and os.getenv("ALP_ALLOW_EDITION_REVISION", "0") == "1")
+    if revision_review:
+        log(f"job '{job_id}' already published — revision review approved, rebuilding from the first stage")
+    if (not revision_review and previous.get("status") == "success" and same_mode
+            and resume_after(ROOT, job_id, previous, names) == names[-1]):
         if not previous.get("dry_run"):
             import hashlib
             from pipeline.publication import publication_issues
@@ -534,6 +543,8 @@ def execute_job(job_type: str, date_str: str | None) -> int:
         log_err(f"job '{job_id}' requires manual reconciliation; refusing automatic replay")
         return 1
     resume_from = resolve_resume_stage(job_id, stages)
+    if revision_review:
+        resume_from = None
     if os.getenv("ALP_HOLD_PUBLISH", "0") == "1" and previous.get("publish_hold") == "review":
         # Another review run of a held edition rebuilds from scratch so the
         # reviewer sees what the current code produces.
