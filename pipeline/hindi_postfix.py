@@ -37,6 +37,9 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from pipeline.text_normalize import (garbled_hi, hi_truncated_start, normalise_money, strip_source_tags,
+                                     tidy)
+
 logger = logging.getLogger("pipeline.hindi_postfix")
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -119,11 +122,32 @@ EN_TO_HI: Dict[str, str] = {
     # places
     "New Delhi": "नई दिल्ली", "Bengaluru": "बेंगलुरु", "Bangalore": "बेंगलुरु", "Mumbai": "मुंबई",
     "Kolkata": "कोलकाता", "Chennai": "चेन्नई", "Hyderabad": "हैदराबाद", "Varanasi": "वाराणसी",
-    "Lucknow": "लखनऊ", "Gangtok": "गंगटोक",
+    "Lucknow": "लखनऊ", "Gangtok": "गंगटोक", "Namakkal": "नामक्कल",
+    # names / titles / schemes seen left in English inside Hindi lines (weekly audit Nov 2026)
+    "US President": "अमेरिकी राष्ट्रपति", "U.S. President": "अमेरिकी राष्ट्रपति", "President": "राष्ट्रपति",
+    "Vice President": "उपराष्ट्रपति", "Prime Minister": "प्रधानमंत्री", "Donald Trump": "डोनाल्ड ट्रंप",
+    "Kisan Credit Card": "किसान क्रेडिट कार्ड", "PM Surya Ghar Excellence Award": "पीएम सूर्य घर उत्कृष्टता पुरस्कार",
+    "PM Surya Ghar": "पीएम सूर्य घर", "Excellence Award": "उत्कृष्टता पुरस्कार",
+    "Animal Taxonomy Summit": "पशु वर्गिकी शिखर सम्मेलन", "Reserve Bank": "रिज़र्व बैंक",
+    "Barclays Bank": "बार्कलेज़ बैंक", "Barclays": "बार्कलेज़", "Fairfax India": "फेयरफैक्स इंडिया",
+    "Ministry of Fisheries": "मत्स्यपालन मंत्रालय",
     # common words seen half-translated
     "protest": "विरोध", "protests": "विरोध", "economy": "अर्थव्यवस्था", "inflation": "मुद्रास्फीति",
     "survey": "सर्वेक्षण", "export": "निर्यात", "exports": "निर्यात",
 }
+
+# Lowercase English words left alone between Hindi words ("ऐसे सभी infiltrators को").
+LEFTOVER_WORD_HI: Dict[str, str] = {
+    "infiltrators": "घुसपैठियों", "infiltrator": "घुसपैठिया", "infiltration": "घुसपैठ",
+    "crore": "करोड़", "crores": "करोड़", "lakh": "लाख", "lakhs": "लाख", "fodder": "चारा",
+    "protest": "विरोध", "protests": "विरोध", "economy": "अर्थव्यवस्था", "inflation": "मुद्रास्फीति",
+    "survey": "सर्वेक्षण", "export": "निर्यात", "exports": "निर्यात", "summit": "शिखर सम्मेलन",
+    "mandate": "जनादेश", "farmers": "किसान", "scheme": "योजना", "award": "पुरस्कार",
+}
+# Proper-noun brand names that Hindi copy commonly keeps in Latin script.
+ALLOWED_BRANDS = {"google", "whatsapp", "youtube", "iphone", "android", "chatgpt", "openai", "microsoft",
+                  "instagram", "facebook", "nvidia", "starlink", "paytm", "phonepe", "bhim", "aadhaar",
+                  "digilocker", "umang", "swayam", "diksha", "meta", "apple", "amazon", "tesla"}
 
 # Wrong Hindi renderings -> correct ones.  (pattern, replacement, english condition or None)
 _HI_FIX_RULES: List[Tuple[str, str, Optional[str]]] = [
@@ -135,6 +159,21 @@ _HI_FIX_RULES: List[Tuple[str, str, Optional[str]]] = [
     (r"(?:अधीनस्थ|अभिभावक|माता|मातृ|पैरेंट|पेरेंट|जनक)\s+मंत्रालय", "मूल मंत्रालय", r"\bParent\b"),
     (r"(?:अधीनस्थ|अभिभावक|माता|मातृ|पैरेंट|पेरेंट|जनक|मूल)\s+मंत्रालय", "नोडल मंत्रालय", r"\bNodal\b"),
     (r"आंकड़े\s+(?:एवं|और)\s+कार्यक्रम\s+कार्यान्वयन", "सांख्यिकी एवं कार्यक्रम कार्यान्वयन", None),
+    (r"(?:अधीनस्थ|अभिभावक|माता|मातृ|पैरेंट|पेरेंट|जनक)\s+(निकाय|संगठन|संस्था|संस्थान|कंपनी|विभाग)", r"मूल \1",
+     r"\bparent\b"),
+    # English month names transliterated instead of translated
+    (r"ऑक्टोबर|अक्टोबर|ओक्टोबर", "अक्टूबर", None), (r"नोवेंबर|नवेम्बर|नोवेम्बर", "नवंबर", None),
+    (r"डिसेंबर|डिसेम्बर", "दिसंबर", None), (r"सेप्टेंबर|सेप्टेम्बर|सितम्बर", "सितंबर", None),
+    (r"ऑगस्ट|ऑगस्त", "अगस्त", None), (r"फेब्रुअरी|फ़ेब्रुअरी|फरवारी", "फरवरी", None), (r"जनुअरी|जैनुअरी", "जनवरी", None),
+    # English word order copied into Hindi ("Ministry of Defence" -> "मंत्रालय रक्षा")
+    (r"(^|[(–:,;।]\s*)मंत्रालय\s+(रक्षा|गृह|वित्त|विदेश|कृषि|शिक्षा|रेल|विद्युत|इस्पात|सहकारिता|पर्यटन|संस्कृति|खान|कोयला|"
+     r"श्रम|विधि|स्वास्थ्य|वाणिज्य|पर्यावरण|संचार|सूचना)(?=\s*(?:[–\-,।:)]|$))", r"\1\2 मंत्रालय", None),
+    (r"(^|[(–:,;।]\s*)विभाग\s+((?:[\u0900-\u097F]+\s+){1,3}?(?:का|के))(?=\s*(?:[–\-,।:)]|$))", r"\1\2 विभाग", None),
+    (r"(\d{4})\s+के\s+((?:[\u0900-\u097F]+\s+){0,3}?अधिनियम)(?![\u0900-\u097F])", r"\2, \1", None),
+    (r"(?<!जांच )(?<!जाँच )आयोग\s+अधिनियम", "जांच आयोग अधिनियम", r"Commissions?\s+of\s+Inquiry"),
+    (r"मछली\s+पालन,\s+पशुपालन\s+(?:एवं|और)\s+डेयरी\s+मंत्रालय", "मत्स्यपालन, पशुपालन और डेयरी मंत्रालय", None),
+    (r"संयुक्त\s+राज्य\s+अमेरिका\s+डॉलर", "अमेरिकी डॉलर", None),
+    (r"इंडिया-यूएस", "भारत-अमेरिका", None),
 ]
 _HI_FIX_RX = [(re.compile(p), r, re.compile(c, re.I) if c else None) for p, r, c in _HI_FIX_RULES]
 _BILL_HI_RE = re.compile(r"विधेयक")
@@ -195,7 +234,45 @@ def apply_glossary(en: str, hi: str) -> str:
             out = rx.sub(lambda m: m.group(0) if any(a <= m.start() < b for a, b in quoted) else rep, out)
             if quoted:
                 quoted = [m.span() for m in _PAREN_RE.finditer(out) if not m.group(0).startswith("(")]
+        out = normalise_money(out, True)
+        out = _replace_lone_words(out)
+        out = tidy(strip_source_tags(out))
     return out
+
+
+_LONE_WORD_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z]+)(?![A-Za-z0-9])")
+
+
+def _replace_lone_words(hi: str) -> str:
+    """Swap a lowercase English word that sits between Hindi words for its Hindi form."""
+    def rep(m: re.Match) -> str:
+        w = m.group(1)
+        h = LEFTOVER_WORD_HI.get(w.lower()) if w[:1].islower() else None
+        if not h:
+            return w
+        before = hi[max(0, m.start() - 12):m.start()]
+        after = hi[m.end():m.end() + 12]
+        prev_latin = re.search(r"[A-Za-z][\s,]*$", before)
+        next_latin = re.match(r"[\s,]*[A-Za-z]", after)
+        return w if (prev_latin or next_latin) else h
+    return _LONE_WORD_RE.sub(rep, hi)
+
+
+def repair_truncated_start(en: str, hi: str) -> str:
+    """'क्कल के किसानों ने' + 'Namakkal farmers …' -> 'नामक्कल के किसानों ने'. '' when unrepairable."""
+    if not hi_truncated_start(hi):
+        return hi
+    first = re.match(r"\s*([\u0900-\u097F]+)", hi)
+    if not first or not en:
+        return ""
+    frag = first.group(1)
+    for rx, full in _EN_TO_HI_RX:
+        m = rx.search(en)
+        if m and m.start() < 40:
+            for word in full.split():
+                if word.endswith(frag) and word != frag:
+                    return hi[:first.start(1)] + word + hi[first.end(1):]
+    return ""
 
 
 # --------------------------------------------------------------------------- #
@@ -276,7 +353,7 @@ def leftover_words(hi: str) -> List[str]:
         if len(w) < 3 or w.lower() in _UNITS:
             continue
         letters = re.sub(r"[^A-Za-z]", "", w)
-        if letters.isupper() or w.lower() in _ALLOWED_LATIN:   # acronym (RBI, NABARD, MSME)
+        if letters.isupper() or w.lower() in _ALLOWED_LATIN or w.lower() in ALLOWED_BRANDS:  # acronym (RBI)
             continue
         if re.fullmatch(r"[A-Z][a-z]?[A-Z][A-Za-z]*", w) and sum(c.isupper() for c in w) >= 2:
             continue                        # mixed-case acronyms (DoT, MoEFCC, IoT)
@@ -332,11 +409,54 @@ def _fix_mixed(en: str, hi: str, translator: Optional[Callable[[str], str]]) -> 
     return hi
 
 
+def _numbers(s: str) -> set:
+    return set(re.findall(r"\d+(?:[.,]\d+)*", (s or "").translate(_DEVA_DIGITS).replace(",", "")))
+
+
+def strict_problems(en: str, hi: str) -> List[str]:
+    """Why a Hindi line is not printable in a strict (period) edition; [] = fine."""
+    out: List[str] = []
+    if not hi or not DEVA_RE.search(hi):
+        return ["no hindi"]
+    if leftover_words(hi):
+        out.append("english: " + ", ".join(leftover_words(hi)[:3]))
+    if mixed_words(hi) or untranslated_run(hi):
+        out.append("mixed/untranslated")
+    if hi_truncated_start(hi):
+        out.append("truncated start")
+    if garbled_hi(hi):
+        out.append("garbled")
+    if en and not _numbers(en) <= _numbers(hi):
+        out.append("numbers differ")
+    return out
+
+
+def _retranslate(en: str, name_map: Optional[Dict[str, str]],
+                 line_translator: Optional[Callable[[str], str]]) -> str:
+    if line_translator is None or not en:
+        return ""
+    try:
+        cand = str(line_translator(en) or "")
+    except Exception:
+        return ""
+    if not cand or not DEVA_RE.search(cand):
+        return ""
+    cand = apply_glossary(en, cand)
+    if name_map:
+        cand = fix_names(en, cand, name_map)
+    return cand
+
+
 def fix_pair(en: str, hi: str, *, name_map: Optional[Dict[str, str]] = None,
              translator: Optional[Callable[[str], str]] = None,
              line_translator: Optional[Callable[[str], str]] = None,
-             stats: Optional[Dict[str, int]] = None) -> str:
-    """Repaired Hindi for one line ('' = blank, render English-only). Never raises."""
+             stats: Optional[Dict[str, int]] = None, strict: bool = False) -> str:
+    """Repaired Hindi for one line ('' = blank, render English-only). Never raises.
+
+    ``strict`` (period editions): any English word left (beyond acronyms, units and
+    allowed brand names), a truncated start, a garbled structure or a number that
+    differs from the English line makes the line be re-translated through
+    ``line_translator``; if that fails too the line is blanked (the caller drops it)."""
     st = stats if stats is not None else {}
     try:
         if not hi or not DEVA_RE.search(str(hi)):
@@ -345,6 +465,18 @@ def fix_pair(en: str, hi: str, *, name_map: Optional[Dict[str, str]] = None,
         out = apply_glossary(en, hi0)
         if name_map:
             out = fix_names(en, out, name_map)
+        if hi_truncated_start(out):
+            fixed = repair_truncated_start(en, out)
+            if not fixed:
+                new = _retranslate(en, name_map, line_translator)
+                if new and not strict_problems(en, new):
+                    st["retranslated"] = st.get("retranslated", 0) + 1
+                    return new
+                st["blank_truncated"] = st.get("blank_truncated", 0) + 1
+                logger.info("[hindi] truncated Hindi line blanked: %s", hi0[:80])
+                return ""
+            out = fixed
+            st["truncation_fixed"] = st.get("truncation_fixed", 0) + 1
         if mixed_words(out):
             fixed = _fix_mixed(en, out, translator)
             if fixed is None:
@@ -353,23 +485,24 @@ def fix_pair(en: str, hi: str, *, name_map: Optional[Dict[str, str]] = None,
                 return ""
             out = fixed
             st["mixed_fixed"] = st.get("mixed_fixed", 0) + 1
-        if _FALLBACK_RE.search(out):
+        if _FALLBACK_RE.search(out) and not strict:
             # content.translate_headline_deterministic's labelled English (offline/AI-down
             # fallback) is a deliberate format, not a broken translation: leave it.
             st["fallback_kept"] = st.get("fallback_kept", 0) + 1
             return out
         left = leftover_words(out)
         words = max(1, len(out.split()))
+        if strict and (strict_problems(en, out) or _FALLBACK_RE.search(out)):
+            new = _retranslate(en, name_map, line_translator)
+            if new and not strict_problems(en, new):
+                st["retranslated"] = st.get("retranslated", 0) + 1
+                return new
+            st["blank_strict"] = st.get("blank_strict", 0) + 1
+            logger.info("[hindi] strict: line dropped (%s): %s", "; ".join(strict_problems(en, out)), hi0[:80])
+            return ""
         if untranslated_run(out) or (len(left) >= 4 and len(left) / words >= 0.4):
-            new = ""
-            if line_translator is not None and en:
-                try:
-                    cand = apply_glossary(en, str(line_translator(en) or ""))
-                    if cand and DEVA_RE.search(cand) and not mixed_words(cand) and not untranslated_run(cand):
-                        new = cand
-                except Exception:
-                    new = ""
-            if new:
+            new = _retranslate(en, name_map, line_translator)
+            if new and not mixed_words(new) and not untranslated_run(new):
                 st["retranslated"] = st.get("retranslated", 0) + 1
                 return new
             st["blank_english"] = st.get("blank_english", 0) + 1
