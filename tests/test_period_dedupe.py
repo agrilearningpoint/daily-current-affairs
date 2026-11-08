@@ -175,7 +175,10 @@ def test_repeated_sentence_filler_and_gk_printed_at_most_once():
     eds = _editions({d: [_mea_story(i * 2 + j, d) for j in range(2)] for i, d in enumerate(days)})
     r = pb.build_period("weekly", "2026-11-04", eds, days)
     items = r["content"]["items"]
-    assert len(items) == 6
+    # Stories whose every sentence repeats an earlier story's template text would print
+    # headline-only: they are dropped (weekly 2026-11-08 printed 10 such stories).
+    assert 2 <= len(items) <= 6 and len(items) + r["stats"]["title_only_dropped"] == 6
+    assert all(_bullets(it) for it in items)
     lines = [b for it in items for b in _bullets(it)]
     gk = [p["en"] for it in items for p in it["static_gk_pairs"]]
     assert MEA_GK not in lines                       # filler shared by 6 stories: never a bullet
