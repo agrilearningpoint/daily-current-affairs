@@ -198,8 +198,10 @@ def test_relevance_demotes_soundbites_promotes_hard_news_and_keeps_official(tmp_
     rel.Agent("daily_2026-11-02", "daily", {}).run()
     kept = {i["event_id"]: i for i in state.read_json(state.data_path(tmp_path, "daily_2026-11-02"))["items"]}
     assert "pib_low" in kept and kept["pib_low"]["must_include"]          # official: never dropped
-    assert kept["iaf"]["student_relevance"] > kept["pol1"]["student_relevance"]
-    assert kept["gst"]["student_relevance"] > kept["pol2"]["student_relevance"]
+    # Party sound-bites are demoted below hard news, or (state politics, pipeline/exam_relevance.py) dropped.
+    assert "pol1" not in kept or kept["iaf"]["student_relevance"] > kept["pol1"]["student_relevance"]
+    assert "pol2" not in kept or kept["gst"]["student_relevance"] > kept["pol2"]["student_relevance"]
+    assert "iaf" in kept and "gst" in kept
     assert kept["pib_low"]["category"] != "aggregator"                     # category re-inferred
 
 

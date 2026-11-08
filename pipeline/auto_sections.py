@@ -252,6 +252,12 @@ def _bad_candidate(item: Dict[str, Any]) -> bool:
         return True
     if re.search(r"[\u0900-\u097F]", head):  # Hindi-only feed titles have no EN line
         return True
+    try:  # state party politics, listicles, opinion, crime (pipeline/exam_relevance.py)
+        from pipeline.exam_relevance import drop_reason
+        if drop_reason({"headline_en": head, "summary_en": item.get("summary_en") or item.get("raw_facts") or ""}):
+            return True
+    except Exception:
+        pass
     try:  # same demotions as stage 07 (sound-bites, ceremonies, market chatter)
         import importlib.util
         from pathlib import Path
@@ -272,6 +278,16 @@ def _bad_candidate(item: Dict[str, Any]) -> bool:
 
 
 _REL_MOD = None
+
+
+def _garbled_agri(en: Any) -> bool:
+    """Agri-corner line that is a scraper join / broken sentence ("... E.V. Velu. Velu for
+    the party's ... Conference held on December 14, 2025."). Fail-open."""
+    try:
+        from pipeline.period_builder import garbled
+        return garbled(en)
+    except Exception:
+        return False
 
 
 def _relevance(item: Dict[str, Any]) -> float:
@@ -528,7 +544,7 @@ def build_sections(content: Dict[str, Any], candidates: Sequence[Dict[str, Any]]
             agri_items.append({"en": en, "hi": hi, "event_id": it.get("event_id")})
         else:
             dropped += 1
-    agri_items = (agri_items + agri_unit_rows)[:AGRI_MAX]
+    agri_items = [a for a in agri_items + agri_unit_rows if not _garbled_agri(a.get("en"))][:AGRI_MAX]
 
     if bites:
         content["quick_bites"] = bites

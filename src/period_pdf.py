@@ -547,9 +547,14 @@ def _build_once(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path
     chips.append(("Join Us", "join"))
 
     stats = [f"{len(stories)} TOP STORIES", f"{len(mcq_blocks)} MCQs", f"{len(ols)} ONE-LINERS"]
+    # Cover TOP STORIES: the builder's boosted set (cover_rank) when it marked one, else by importance.
+    marked = any(s.get("cover_rank") for s in stories)
     highlights = [(_clean_text_for_display(s.get("headline_en")), f"s{i}")
-                  for i, s in enumerate(stories, 1)]
-    highlights.sort(key=lambda h: -float((stories[int(h[1][1:]) - 1].get("importance_score") or 0)))
+                  for i, s in enumerate(stories, 1) if not marked or s.get("cover_rank")]
+    if marked:
+        highlights.sort(key=lambda h: int(stories[int(h[1][1:]) - 1].get("cover_rank") or 0))
+    else:
+        highlights.sort(key=lambda h: -float((stories[int(h[1][1:]) - 1].get("importance_score") or 0)))
 
     story: List[Flowable] = [PeriodCover(kind, title, date_display, stats, highlights[:10]), PageBreak()]
     story += _index(kind, stories, sections, chips)

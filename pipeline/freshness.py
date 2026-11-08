@@ -192,7 +192,7 @@ def stale_reason(item: Dict[str, Any], jdate: Any = None, hours: Optional[float]
     head = str(item.get("headline_en") or item.get("title") or "")
     body = str(item.get("raw_facts") or item.get("summary") or "")
     # 3. a full event date in the headline / opening text that is months old
-    found = text_dates(f"{head} . {body[:600]}")
+    found = event_dates(f"{head} . {body[:600]}", jd)   # full, month-day and weekday dates
     if found:
         newest = max(found)
         if newest < jd - timedelta(days=_event_days()):
@@ -228,3 +228,113 @@ def filter_fresh(items: Iterable[Dict[str, Any]], jdate: Any = None,
         else:
             kept.append(it)
     return kept, dropped
+
+
+# --------------------------------------------------------------------------- #
+# Event dates (weekly / monthly path)
+# --------------------------------------------------------------------------- #
+# Audit of weekly_2026-11-08: the period builder printed every story under its
+# daily edition's date, so "on Thursday" stories filed a day late carried the
+# wrong date, and stale events (BRICS summit of 12 Sep, a 14 Dec 2025 party
+# conference, an Oct NHRC notice) passed because no date was checked at all.
+_WEEKDAYS = {d: i for i, d in enumerate(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+                                          "sunday"])}
+_WEEKDAY_RE = re.compile(r"\b(?:on|last|this|since|from|till|until|by)\s+"
+                         r"(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+                         r"(?:\s*\(\s*([^)]{4,30})\))?", re.I)
+_MD_NOYEAR_RE = re.compile(r"\b" + _MON + r"\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?!,?\s+20\d{2})(?!\s*(?:crore|lakh|per|%))", re.I)
+_DM_NOYEAR_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+" + _MON + r"\b(?!\.?,?\s+20\d{2})", re.I)
+_RELATIVE_DAY_RE = re.compile(r"\b(today|yesterday|tonight|this\s+morning|this\s+evening)\b", re.I)
+
+
+def _infer_year(month: int, day: int, ref: date) -> Optional[date]:
+    d = _safe_date(ref.year, month, day)
+    if d and d > ref + timedelta(days=31):
+        d = _safe_date(ref.year - 1, month, day)
+    return d
+
+
+def resolve_weekday(name: str, ref: date) -> date:
+    """Most recent *name* weekday on or before *ref* ("on Thursday" in a story filed *ref*)."""
+    back = (ref.weekday() - _WEEKDAYS[name.lower()]) % 7
+    return ref - timedelta(days=back)
+
+
+def event_dates(text: str, ref: date) -> List[date]:
+    """Event dates named in *text*, resolved against the publish day *ref*:
+    full dates, month-day without a year ("On September 12,"), and weekday
+    references ("on Thursday" -> the Thursday on/before *ref*)."""
+    text = text or ""
+    out = list(text_dates(text))
+    for m in _MD_NOYEAR_RE.finditer(text):
+        d = _infer_year(_MONTHS.get(m.group(1).lower().rstrip("."), 0) or 0, int(m.group(2)), ref) \
+            if _MONTHS.get(m.group(1).lower().rstrip(".")) and 1 <= int(m.group(2)) <= 31 else None
+        if d:
+            out.append(d)
+    for m in _DM_NOYEAR_RE.finditer(text):
+        mon = _MONTHS.get(m.group(2).lower().rstrip("."))
+        d = _infer_year(mon, int(m.group(1)), ref) if mon and 1 <= int(m.group(1)) <= 31 else None
+        if d:
+            out.append(d)
+    for m in _WEEKDAY_RE.finditer(text):
+        inner = text_dates(m.group(2) or "")
+        out.append(inner[0] if inner else resolve_weekday(m.group(1), ref))
+    if _RELATIVE_DAY_RE.search(text):
+        k = 1 if _RELATIVE_DAY_RE.search(text).group(1).lower() == "yesterday" else 0
+        out.append(ref - timedelta(days=k))
+    return out
+
+
+def _item_ref_date(item: Dict[str, Any], fallback: Optional[date]) -> Optional[date]:
+    src = item.get("source") if isinstance(item.get("source"), dict) else {}
+    for raw in [item.get(k) for k in ("published", "published_at", "pubDate", "publish_date", "date")] + \
+            [src.get("date")]:
+        dt = parse_published(raw)
+        if dt is not None:
+            return dt.date()
+    raw = str(item.get("edition_date") or "")
+    try:
+        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return fallback
+
+
+def lead_text(item: Dict[str, Any], chars: int = 500) -> str:
+    """Headline + opening text of a story / one-liner / Agri-corner item."""
+    head = str(item.get("headline_en") or item.get("title") or item.get("text_en") or item.get("en") or "")
+    body = " ".join(str(item.get(k) or "") for k in ("summary_en", "detailed_explanation_en", "raw_facts",
+                                                    "summary") if item.get(k))
+    return f"{head} . {body[:chars]}"
+
+
+def event_date(item: Dict[str, Any], fallback: Optional[date] = None) -> Optional[date]:
+    """The story's event day: the newest event date named in its headline / opening
+    text that is not after its publish day (future dates are deadlines, not events);
+    the publish day when nothing is named."""
+    ref = _item_ref_date(item, fallback)
+    if ref is None:
+        return None
+    found = [d for d in event_dates(lead_text(item), ref) if d <= ref]
+    return max(found) if found else ref
+
+
+def period_stale_reason(item: Dict[str, Any], start: Any, end: Any, grace_days: int = 3) -> str:
+    """Why *item* is too old for a weekly/monthly edition covering start..end ("" = keep).
+
+    Positive evidence only: the publish / URL / PRID checks of ``stale_reason``
+    (aged to the period), then event dates named in the headline / opening text:
+    when every date named there is older than the period start (minus *grace_days*)
+    the event happened before the period."""
+    if not isinstance(item, dict) or not _enabled():
+        return ""
+    s = start if isinstance(start, date) else job_date(start)
+    e = end if isinstance(end, date) else job_date(end)
+    span_h = ((e - s).days + 1 + grace_days) * 24
+    why = stale_reason(item, e + timedelta(days=1), hours=span_h)
+    if why and not why.startswith("annual day"):
+        return why
+    ref = _item_ref_date(item, e) or e
+    found = event_dates(lead_text(item), ref)   # a later date (deadline, range end) keeps it current
+    if found and max(found) < s - timedelta(days=grace_days):
+        return f"event date {max(found).isoformat()} before the period"
+    return why
