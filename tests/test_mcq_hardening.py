@@ -172,7 +172,9 @@ def test_period_pick_drops_bad_rekeys_wrong_and_fills_from_reserves():
     out = pb.pick_mcqs(eds, set(verified), ["nhrc", "zsi"], 3, verified)
     assert [m["event_id"] for m in out][:2] == ["nhrc", "kiwi"]
     assert out[0]["correct"] == "A" and out[1]["correct"] == "D"
-    assert len(out) == 3 and out[2].get("reserve")      # shortfall filled from a reserve question
+    # The only reserve candidate is the "centrally featured in <headline>" template, a
+    # give-away (weekly 2026-11-08 v2 review): the shortfall stays short, never junk.
+    assert len(out) == 2 and not any("centrally featured" in m["question_en"] for m in out)
     assert not any("Tomar" in str(m["options"]) for m in out)
 
 

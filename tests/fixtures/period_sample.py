@@ -119,8 +119,9 @@ def _mcqs(story: Dict[str, Any], i: int) -> List[Dict[str, Any]]:
          "correct": "A",
          "static_gk": [{"label_en": "Nodal body", "value_en": s_en, "label_hi": "नोडल निकाय", "value_hi": s_hi}]},
         {"event_id": story["event_id"],
-         "question_en": f"What financial support was announced for {o_en} by {s_en}?",
-         "question_hi": f"{s_hi} द्वारा {o_hi} के लिए कितनी वित्तीय सहायता घोषित की गई?",
+         # (does not name the body: that would give away the first question's answer)
+         "question_en": f"What financial support was announced for {o_en} {p_en}?",
+         "question_hi": f"{p_hi} {o_hi} के लिए कितनी वित्तीय सहायता घोषित की गई?",
          "options": [f"₹{base + d} crore" for d in (-20, -10, 0, 10, 20)],
          "options_hi": [f"₹{base + d} करोड़" for d in (-20, -10, 0, 10, 20)],
          "correct": "C"},

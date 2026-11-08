@@ -307,7 +307,7 @@ def _fmt(d: date, pub: date, hindi: bool) -> str:
 
 _EN_WD_RE = re.compile(r"\b(?:(on|last|this past|next|earlier on|late on)\s+)(" + "|".join(_WD_EN) + r")\b"
                        r"(?:\s+(morning|afternoon|evening|night))?(?![’']s)")
-_HI_WD_RE = re.compile(r"(?:(पिछले|बीते|अगले|आगामी)\s+)?(" + "|".join(_WD_HI) + r")(?![\u0900-\u097F])"
+_HI_WD_RE = re.compile(r"(?<!हर )(?<!हर\u00a0)(?<!प्रत्येक )(?:(पिछले|बीते|अगले|आगामी)\s+)?(" + "|".join(_WD_HI) + r")(?![\u0900-\u097F])"
                        r"(\s+को(?![\u0900-\u097F])|\s+(?:सुबह|शाम|रात|दोपहर)\s+को(?![\u0900-\u097F]))?")
 _HI_KEEP_RE = re.compile(r"\s+(?:की|के|का|से|तक)(?![\u0900-\u097F])")
 

@@ -64,9 +64,10 @@ CRIME_RE = re.compile(
 # Foreign conflict / commodity spot news with no India angle (one-liners #1, #10).
 FOREIGN_CONFLICT_RE = re.compile(
     r"\b(?:russian?|ukrain\w*|israel\w*|gaza|hamas|hezbollah|houthi|pakistan\w*|iran\w*|zaporizhzhia|kyiv|kharkiv)\b"
-    r".{0,80}\b(?:strikes?|attacks?|shell\w*|drones?|missiles?|killed|lng|cargo|blasts?|offensive|troops)\b",
+    r".{0,80}\b(?:strikes?|attacks?|shell\w*|drones?|missiles?|killed|lng|cargo|blasts?|offensive|troops)\b"
+    r"|\b(?:lng|cargo)\b.{0,40}\b(?:in|from|to)\s+(?:pakistan|iran|russia)\b",
     re.I)
-_INDIA_RE = re.compile(r"\b(?:india|indian|new\s+delhi|centre|union\s+cabinet)\b", re.I)
+_INDIA_RE = re.compile(r"\b(?:india|indian|new\s+delhi|union\s+cabinet)\b|(?:^|\bthe\s+)centre\b|\bcentre['’]s\b", re.I)
 # Official exceptions: the Cabinet / courts / commissions acting on crime or polls are exam news.
 _OFFICIAL_EXCEPTION_RE = re.compile(
     r"\b(?:cabinet|ccea|election\s+commission|supreme\s+court|high\s+court|fast[-\s]track\s+courts?|"

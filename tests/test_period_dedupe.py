@@ -162,7 +162,9 @@ def _mea_story(n: int, day: str) -> dict:
              "Inaugural India–Canada Migration and Mobility Dialogue",
              "EAM Jaishankar meets Kenyan counterpart on maritime security",
              "India and Chile sign MoU on critical minerals exploration"]
-    return _item(f"mea{n}", heads[n], text, day=day,
+    # MEA press releases (the real items carry the ministry as their source; a GK box
+    # must name an organisation the printed story or its source names).
+    return _item(f"mea{n}", heads[n], text, day=day, source={"name": "Ministry of External Affairs"},
                  static_gk_pairs=[{"en": MEA_GK, "hi": "विदेश मंत्रालय (MEA) भारत के विदेशी संबंधों के संचालन के लिए उत्तरदायी है।"},
                                   {"en": "MEA is headquartered at South Block, New Delhi.", "hi": ""}])
 
