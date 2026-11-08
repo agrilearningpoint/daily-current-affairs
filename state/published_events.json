@@ -373,6 +373,16 @@
       "file": "daily_2026-11-08.pdf",
       "published_at": "2026-11-08T00:49:48.700587+00:00",
       "status": "success"
+    },
+    "c919344ef41ec0e176275cfa": {
+      "job_id": "weekly_2026-11-08",
+      "chat_id": "-1004485392227",
+      "message_id": 205,
+      "file_hash": "0a785af0da31c038",
+      "file_sha256": "0a785af0da31c0386e89820eaf4548b44670b5d791726d94b17793d915b249f5",
+      "file": "weekly_2026-11-08.pdf",
+      "published_at": "2026-11-08T06:08:18.870334+00:00",
+      "status": "success"
     }
   }
 }

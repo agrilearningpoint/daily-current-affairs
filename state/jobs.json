@@ -1800,7 +1800,7 @@
     "checkpoint_run_id": "42431500110"
   },
   "weekly_2026-11-08": {
-    "run_attempts": 2,
+    "run_attempts": 3,
     "job_id": "weekly_2026-11-08",
     "job_type": "weekly",
     "job_date": "2026-11-08",
@@ -1810,8 +1810,8 @@
       "end": "2026-11-08T23:59:59.999999+05:30"
     },
     "github_run_id": "42453460527",
-    "status": "running",
-    "updated_at": "2026-11-08T06:08:13.534815+00:00",
+    "status": "success",
+    "updated_at": "2026-11-08T06:08:21.539644+00:00",
     "started_at": "2026-11-08T06:04:53.679463+00:00",
     "artifacts": {
       "data/selected/weekly_2026-11-08.json": {
@@ -1837,10 +1837,13 @@
       "logs/qa/weekly_2026-11-08_qa.json": {
         "stage": "19_pdf_qa",
         "sha256": "872324cf35ee2e81d09211371366159109fa6b0064dee3205530d836556c84d6"
+      },
+      "logs/qa/weekly_2026-11-08_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "b6bdc70dffe425dea7690b35411908735bb8deb0702dfb8d9fea88633f116515"
       }
     },
-    "publish_hold": "review",
-    "checkpoint_run_id": "42453235056",
-    "last_success_stage": "19_pdf_qa"
+    "checkpoint_run_id": "42453460527",
+    "last_success_stage": "24_final_health_audit"
   }
 }
