@@ -1203,7 +1203,11 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     period_hindi_qa(qa)
     for w in qa["warnings"]:
         print(f"[period-qa] WARNING {w}")
-    if not qa["passed"]:
+    if not qa["passed"] and os.getenv("DRY_RUN", "0") == "1":
+        # Offline dry runs have no translator (and fallback Hindi): report, don't block.
+        print(f"[period-qa] WARNING dry run: {qa['bullets_missing_hi']} of {qa['bullets_expected']} bullets "
+              f"lack clean Hindi (would fail a live edition)")
+    elif not qa["passed"]:
         raise ValueError(f"{job_type} {job_date}: {qa['bullets_missing_hi']} of {qa['bullets_expected']} story "
                          f"bullets have no clean Hindi ({qa['missing_ratio']:.0%} > allowed); edition not built")
     start, end = dates[0], dates[-1]

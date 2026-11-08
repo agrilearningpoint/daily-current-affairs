@@ -352,6 +352,8 @@ def _normalize_for_coverage(text: str) -> str:
     substitutions made by the glyph guard.
     """
     text = re.sub(r"<[^>]+>", " ", text or "")
+    # The display cleaner prints "Rs 5" / "INR 5" as "₹5": compare both spellings alike.
+    text = re.sub(r"(?i)\b(?:rs|inr)\b\.?\s*", " ₹", text).replace("₹", " rs ")
     text = re.sub(r"[^0-9A-Za-z\u0900-\u097F]+", " ", text)
     return re.sub(r"\s+", " ", text).lower().strip()
 

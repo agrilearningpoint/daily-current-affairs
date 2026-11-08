@@ -234,10 +234,22 @@ def apply_glossary(en: str, hi: str) -> str:
             out = rx.sub(lambda m: m.group(0) if any(a <= m.start() < b for a, b in quoted) else rep, out)
             if quoted:
                 quoted = [m.span() for m in _PAREN_RE.finditer(out) if not m.group(0).startswith("(")]
-        out = normalise_money(out, True)
-        out = _replace_lone_words(out)
+        out = _outside_quotes(out, lambda t: _replace_lone_words(normalise_money(t, True)))
         out = tidy(strip_source_tags(out))
     return out
+
+
+def _outside_quotes(text: str, fn: Callable[[str], str]) -> str:
+    """Apply *fn* to the parts of *text* outside quoted titles (kept verbatim)."""
+    spans = [m.span() for m in _PAREN_RE.finditer(text) if not m.group(0).startswith("(")]
+    if not spans:
+        return fn(text)
+    out, pos = [], 0
+    for a, b in spans:
+        out.append(fn(text[pos:a]) + text[a:b])
+        pos = b
+    out.append(fn(text[pos:]))
+    return "".join(out)
 
 
 _LONE_WORD_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z]+)(?![A-Za-z0-9])")

@@ -115,4 +115,4 @@ def test_static_gk_fallback_skips_underscore_keys():
 
     item = {"static_facts": {"Fact 1": "Rs 5000 Crore", "_static_gk_pairs": [("a", "b")]}}
     pairs = _extract_static_gk_pairs(item)
-    assert pairs == [("Fact 1 – Rs 5000 Crore", "")]
+    assert pairs == [("Fact 1 – ₹5000 crore", "")]  # Rs -> ₹ normalised for display
