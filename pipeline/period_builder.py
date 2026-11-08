@@ -181,6 +181,25 @@ def is_publishable(item: Any, require_verified: bool = True) -> bool:
     return True
 
 
+_BLOCKLIST_PATH = ROOT / "config" / "period_blocklist.json"
+
+
+def _blocklist() -> List[re.Pattern]:
+    """Editor vetoes for period editions (stale/republished events): headline regexes."""
+    try:
+        data = json.loads(_BLOCKLIST_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    out = []
+    for row in data.get("headline_patterns") or []:
+        pat = row.get("pattern") if isinstance(row, dict) else row
+        try:
+            out.append(re.compile(str(pat), re.I))
+        except re.error:
+            continue
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Loading
 # --------------------------------------------------------------------------- #
@@ -239,6 +258,7 @@ def collect_verified(editions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
              "duplicates_dropped": 0}
     pool: List[Dict[str, Any]] = []
     strict = os.getenv("DRY_RUN", "0") != "1"
+    blocked = _blocklist()
     for ed in editions:
         for raw in ed["content"].get("items") or []:
             stats["items_seen"] += 1
@@ -247,6 +267,9 @@ def collect_verified(editions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                 continue
             if not looks_like_news(raw.get("headline_en")):
                 stats["non_news_dropped"] = stats.get("non_news_dropped", 0) + 1
+                continue
+            if any(b.search(clean_headline(raw.get("headline_en"))) for b in blocked):
+                stats["blocklisted_dropped"] = stats.get("blocklisted_dropped", 0) + 1
                 continue
             pool.append(_story(raw, ed["date"]))
     return dedupe(pool, stats), stats
@@ -384,15 +407,69 @@ def pick_stories(ranked: List[Dict[str, Any]], total: int, per_section: int) -> 
 _LETTERS = "ABCDE"
 
 
+# Template fallback questions whose "answer" is a guess, not a fact from the story
+# (e.g. "Which organisation is associated with the news ..." -> ICAR for an MSP story).
+_TEMPLATE_Q_RE = re.compile(
+    r"(?i)^which organi[sz]ation is associated with the news"
+    r"|is related to which state\s*/\s*union territory"
+    r"|what is the key figure\s*/\s*financial outlay associated with"
+    r"|\bPIB (?:updates|release)\b.*\b(?:alongside|along with)\b"
+    r"|along with regulator guidelines"
+    r"|highlighted in the recent PIB release")
+
+
+def _opt_text(o: Any) -> str:
+    return clean_headline(o.get("en") if isinstance(o, dict) else o)
+
+
 def _mcq_ok(m: Dict[str, Any]) -> bool:
     q_en, q_hi = clean_headline(m.get("question_en")), clean_headline(m.get("question_hi"))
     if not q_en or _UNTITLED_RE.search(q_en) or not has_devanagari(q_hi):
         return False
+    if _TEMPLATE_Q_RE.search(q_en):
+        return False
     opts = m.get("options_bi") or m.get("options") or []
     if len(opts) < 4:
         return False
+    texts = [_norm(_opt_text(o)) for o in opts]
+    if len(set(texts)) < len(texts) or not all(texts):
+        return False
     correct = str(m.get("correct") or "").strip().upper()
-    return correct in _LETTERS[:len(opts)]
+    if correct not in _LETTERS[:len(opts)]:
+        return False
+    # Giveaway: the right option is far longer than every distractor.
+    idx = _LETTERS.index(correct)
+    right = len(_opt_text(opts[idx]).split(" / ")[0])
+    others = [len(_opt_text(o).split(" / ")[0]) for i, o in enumerate(opts) if i != idx]
+    return not (right > 25 and right > 1.8 * max(others))
+
+
+_LETTER_REF_RE = re.compile(r"\b[Oo]ption\s*[A-E]\b|\([A-E]\)|विकल्प\s*[A-E]")
+
+
+def balance_answers(mcqs: List[Dict[str, Any]], seed: str) -> None:
+    """Spread correct letters evenly (deterministic per edition) by swapping the
+    correct option into a target slot; every option list moves in parallel."""
+    import random
+    movable = [m for m in mcqs
+               if not _LETTER_REF_RE.search(f"{m.get('explanation_en', '')} {m.get('explanation_hi', '')}")]
+    if not movable:
+        return
+    n_opts = min(len(m.get("options_bi") or m.get("options") or []) for m in movable)
+    letters = _LETTERS[:max(4, min(5, n_opts))]
+    targets = [letters[i % len(letters)] for i in range(len(movable))]
+    random.Random(seed).shuffle(targets)
+    for m, tgt in zip(movable, targets):
+        cur = _LETTERS.index(str(m["correct"]).strip().upper())
+        new = _LETTERS.index(tgt)
+        lists = [k for k in ("options", "options_hi", "options_bi") if isinstance(m.get(k), list)]
+        if any(new >= len(m[k]) or cur >= len(m[k]) for k in lists if m[k]):
+            continue
+        for k in lists:
+            if m[k]:
+                m[k] = list(m[k])
+                m[k][cur], m[k][new] = m[k][new], m[k][cur]
+        m["correct"] = tgt
 
 
 def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List[str],
@@ -426,14 +503,37 @@ def pick_mcqs(editions: List[Dict[str, Any]], verified_ids: set, story_ids: List
     return out
 
 
+_KEY_TAG_RE = re.compile(r"\s*\(Key:[^)]*\)?\s*$")
+_SOURCE_TAIL_RE = re.compile(r"\s+[-–|]\s+(?:PM India|PIB(?: Delhi)?|DD News|AIR News|Akashvani News|"
+                             r"News On AIR|Mint|The Hindu|Business Standard|Report)\s*$", re.I)
+
+
+def clean_one_liner(text: Any) -> str:
+    """Drop the daily "(Key: ...)" tag and trailing source names from a revision line."""
+    t = clean_headline(text)
+    for _ in range(2):
+        t = _KEY_TAG_RE.sub("", t)
+        t = _SOURCE_TAIL_RE.sub("", t).strip()
+    return t
+
+
+def heading_only(en: str) -> bool:
+    """A backgrounder title ("UPI: Transforming India's Payment Landscape"), not a fact."""
+    if re.match(r"^[A-Z][\w\s'’&-]{2,80}\bAct,?\s+\d{4}$", en):      # a bare act name
+        return True
+    if re.match(r"(?i)^(?:the\s+)?new era of\b", en) and len(en.split()) <= 12:
+        return True
+    return bool(re.match(r"^[^:]{2,45}:\s", en)) and not re.search(r"\d", en) and len(en.split()) <= 12
+
+
 def pick_one_liners(editions, verified: Dict[str, Dict[str, Any]], story_ids: List[str], limit: int):
     out, seen = [], []
     for ed in editions:
         for ol in ed["content"].get("one_liners") or []:
             if not isinstance(ol, dict) or ol.get("event_id") not in verified:
                 continue
-            en, hi = clean_headline(ol.get("text_en")), clean_headline(ol.get("text_hi"))
-            if not en or _UNTITLED_RE.search(en) or not has_devanagari(hi):
+            en, hi = clean_one_liner(ol.get("text_en")), clean_one_liner(ol.get("text_hi"))
+            if not en or _UNTITLED_RE.search(en) or not has_devanagari(hi) or heading_only(en):
                 continue
             if any(is_similar(en, s) for s in seen):
                 continue
@@ -445,10 +545,11 @@ def pick_one_liners(editions, verified: Dict[str, Dict[str, Any]], story_ids: Li
     for eid in story_ids:
         if eid not in have and eid in verified:
             it = verified[eid]
-            if not any(is_similar(it["headline_en"], s) for s in seen):
-                out.append({"category": it["section"], "text_en": it["headline_en"],
-                            "text_hi": it["headline_hi"], "event_id": eid})
-                seen.append(it["headline_en"])
+            hen = clean_one_liner(it["headline_en"])
+            if hen and not heading_only(hen) and not any(is_similar(hen, s) for s in seen):
+                out.append({"category": it["section"], "text_en": hen,
+                            "text_hi": clean_one_liner(it["headline_hi"]), "event_id": eid})
+                seen.append(hen)
     # Events not already printed as full stories first (fresh revision lines), then
     # the stories' own one-liners, so the digest repeats as little as possible.
     rank = {e: i for i, e in enumerate(story_ids)}
@@ -877,6 +978,7 @@ def build_period(job_type: str, job_date: str, editions: List[Dict[str, Any]],
     stories = pick_stories(ranked, cfg["stories"], cfg["per_section"])
     story_ids = [s["event_id"] for s in stories]
     mcqs = pick_mcqs(editions, set(verified), story_ids, cfg["mcqs"])
+    balance_answers(mcqs, f"{job_type}_{job_date}")
     first_mcq = {}
     for m in mcqs:
         first_mcq.setdefault(m.get("event_id"), m)

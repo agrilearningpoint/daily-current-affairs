@@ -1,0 +1,6 @@
+{
+  "_doc": "Editor vetoes for weekly/monthly editions: events a daily edition carried that are stale or republished. Each pattern is a case-insensitive regex matched against the English headline.",
+  "headline_patterns": [
+    {"pattern": "MSP for 14 Kharif crops for 2026-27", "reason": "stale: CCEA approved Kharif MSP 2026-27 on 13 May 2026 (PIB PRID 2260617); republished by DD News on 4 Nov 2026", "added": "2026-11-08"}
+  ]
+}
