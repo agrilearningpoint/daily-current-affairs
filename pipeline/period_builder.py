@@ -988,7 +988,8 @@ def pick_agri_corner(editions, limit: int, gk_limit: int, period: Optional[Tuple
             if not isinstance(x, dict):
                 continue
             en, hi = clean_headline(x.get("en")), clean_headline(x.get("hi"))
-            if not en or _UNTITLED_RE.search(en) or not has_devanagari(hi) or any(is_similar(en, s) for s in seen):
+            if not en or _UNTITLED_RE.search(en) or not has_devanagari(hi) or hi_cut_start(hi) \
+                    or any(is_similar(en, s) for s in seen):
                 continue
             if not agri_terms(en) or not fact_line_ok(en) or _line_dropped(en, ed["date"], period, blocked):
                 dropped += 1
@@ -1198,6 +1199,15 @@ def complete_sentence(s: str) -> bool:
     if not re.match(r"[A-Z0-9\"“‘'(₹\u0900-\u097F]", s) or run_on(s):
         return False
     return bool(_TERMINAL_RE.search(s))
+
+
+_HI_CUT_START_RE = re.compile(r"^\W*(?:[\u093e-\u094d\u0962\u0963]|([\u0915-\u0939])\u094d\1)")
+
+
+def hi_cut_start(hi: Any) -> bool:
+    """Hindi line that begins mid-word ("क्कल के किसानों ने" for "Namakkal farmers"):
+    a vowel sign / virama first, or a doubled consonant cluster no word starts with."""
+    return bool(_HI_CUT_START_RE.search(str(hi or "")))
 
 
 def _hi_ok(hi: str) -> bool:

@@ -89,3 +89,9 @@ def test_hindi_recurring_weekday_and_union_minister():
     assert "6 नवंबर को" in resolve_weekdays("केंद्र ने शुक्रवार को आदेश दिया।", pub)
     assert pb._hi_glossary("Union Home Minister Amit Shah said.", "संयुक्त गृह मंत्री अमित शाह ने कहा, ।") \
         == "केंद्रीय गृह मंत्री अमित शाह ने कहा।"
+
+
+def test_hindi_cut_at_line_start():
+    assert pb.hi_cut_start("क्कल के किसानों ने प्रस्तावित परियोजना का विरोध किया।")
+    assert not pb.hi_cut_start("क्या किसानों ने विरोध किया?")
+    assert not pb.hi_cut_start("नामक्कल के किसानों ने विरोध किया।")
