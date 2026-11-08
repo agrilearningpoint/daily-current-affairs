@@ -352,6 +352,16 @@ def refine_category(category: str, text: str) -> str:
     if cat in ("Economy", "Banking & Finance", "Government Schemes") and _JUDICIARY_RE.search(text):
         return best if best_score and best not in ("Economy", "Banking & Finance", "Government Schemes") \
             else "National"
+    if cat == "Agriculture":
+        # Real agri terms, not just "farm"/"trade": the India-US trade deal and an NCSC
+        # order were filed as Agriculture by the desk (weekly 2026-11-08).
+        try:
+            from pipeline.exam_relevance import agri_terms
+            weak = agri_terms(text) == 0
+        except Exception:  # pragma: no cover
+            weak = False
+        if weak:
+            return best if best_score and best != "Agriculture" else "National"
     if cat in CATEGORY_KEYWORDS:
         own = category_scores(text).get(cat, 0)
         if own == 0 and best_score >= 2 and best != cat:
