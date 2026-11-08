@@ -1800,7 +1800,7 @@
     "checkpoint_run_id": "42431500110"
   },
   "weekly_2026-11-08": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "weekly_2026-11-08",
     "job_type": "weekly",
     "job_date": "2026-11-08",
@@ -1810,7 +1810,37 @@
       "end": "2026-11-08T23:59:59.999999+05:30"
     },
     "github_run_id": "42451812887",
-    "status": "running",
-    "updated_at": "2026-11-08T05:42:51.181790+00:00"
+    "status": "awaiting_publish",
+    "updated_at": "2026-11-08T05:43:44.948310+00:00",
+    "started_at": "2026-11-08T05:42:59.749450+00:00",
+    "artifacts": {
+      "data/selected/weekly_2026-11-08.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "770f0cd8409f8e343db7e2da8c80982274e2289a0f1b1739252052ec956b8aa9"
+      },
+      "data/scored/weekly_2026-11-08.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "e45c19caa97cd0921194db54ed32d687fc2300e40a7c67a68da5d3bf21c1f879"
+      },
+      "data/content/weekly_2026-11-08.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "a1098ec1796b9edbd4e9c6cc4b5507cb74a954bdea652955a0c4e7933f7b14fd"
+      },
+      "data/mcq/weekly_2026-11-08.json": {
+        "stage": "20_weekly_editor",
+        "sha256": "07712e099a21901def2cc6d7b5a179b270d905ea1e522da71bfab6d83980e461"
+      },
+      "output/weekly_2026-11-08.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "40d0c109f2e47e3dca8e97a314dbf860b7004300adeacca736a0e12a3768ba12"
+      },
+      "logs/qa/weekly_2026-11-08_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "bdd0e5a4e4e4052443eb8f4806cb9d2ff2029cf2252da871dbd798d15bee0278"
+      }
+    },
+    "last_success_stage": "19_pdf_qa",
+    "publish_hold": "review",
+    "checkpoint_run_id": "42451812887"
   }
 }
