@@ -247,7 +247,7 @@ def _clean_text_for_display(t: Any) -> str:
     s = re.sub(r'&gt;&gt;|&gt;|>>|>', '', s)
     s = re.sub(r'\s+', ' ', s).strip()
     # Typography + money + trailing outlet tags (EN and HI): "?." -> "?", "Rs 5" -> "₹5", "- पीएम इंडिया".
-    return tidy(normalise_money(strip_source_tags(s)))
+    return tidy(normalise_money(strip_source_tags(s), hindi=False))
 
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
