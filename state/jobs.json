@@ -1800,7 +1800,7 @@
     "checkpoint_run_id": "42431500110"
   },
   "weekly_2026-11-08": {
-    "run_attempts": 3,
+    "run_attempts": 4,
     "job_id": "weekly_2026-11-08",
     "job_type": "weekly",
     "job_date": "2026-11-08",
@@ -1809,41 +1809,38 @@
       "start": "2026-11-02T00:00:00+05:30",
       "end": "2026-11-08T23:59:59.999999+05:30"
     },
-    "github_run_id": "42453460527",
-    "status": "success",
-    "updated_at": "2026-11-08T06:08:21.539644+00:00",
-    "started_at": "2026-11-08T06:04:53.679463+00:00",
+    "github_run_id": "42459575137",
+    "status": "awaiting_publish",
+    "updated_at": "2026-11-08T07:40:34.802349+00:00",
+    "started_at": "2026-11-08T07:38:18.377343+00:00",
     "artifacts": {
       "data/selected/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "35e7e0e177ae9c62eab5e6826b48c797a268a0a266d24b4a66a90bba6d00f3f8"
+        "sha256": "eed395868b7c2490212adc9808add506f2c8eb83611381583c0471e016cc2b70"
       },
       "data/scored/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "1344b1fb94d7a18319930e28eb56797f3082a2c6be39bf7808d8103f6218618d"
+        "sha256": "c17e02dc883d49d0691dd747f74856d4d784c5ad4250df2de016a60e1f9c2778"
       },
       "data/content/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "f76294d58ea2b2b2c6804f1f5934454ac5f8c987332f9a8dc5213e29a7e83fcf"
+        "sha256": "db123fec0bdbded124145fce16ff23eea82786503181edba9e40270ec11f72d2"
       },
       "data/mcq/weekly_2026-11-08.json": {
         "stage": "20_weekly_editor",
-        "sha256": "c17d11b80d5c89ae291efc22b91bafd1eb85fb610c3a7cb01d0e9b90f3c23a0c"
+        "sha256": "e365faab48163d3b3782a60ecbedeb53752a2d1c8eba73116cb5f765db21800b"
       },
       "output/weekly_2026-11-08.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "0a785af0da31c0386e89820eaf4548b44670b5d791726d94b17793d915b249f5"
+        "sha256": "2d776b53ae70fb4fa27c005010b66be704bd62ed530715798fa134674df1b7e3"
       },
       "logs/qa/weekly_2026-11-08_qa.json": {
         "stage": "19_pdf_qa",
-        "sha256": "872324cf35ee2e81d09211371366159109fa6b0064dee3205530d836556c84d6"
-      },
-      "logs/qa/weekly_2026-11-08_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "b6bdc70dffe425dea7690b35411908735bb8deb0702dfb8d9fea88633f116515"
+        "sha256": "b9ac7db512b9d1c2a944e8f20aea66772d0d2e824e56cd8b4feac94170ca1fa7"
       }
     },
-    "checkpoint_run_id": "42453460527",
-    "last_success_stage": "24_final_health_audit"
+    "checkpoint_run_id": "42459575137",
+    "last_success_stage": "19_pdf_qa",
+    "publish_hold": "review"
   }
 }
