@@ -383,6 +383,14 @@
       "file": "weekly_2026-11-08.pdf",
       "published_at": "2026-11-08T06:08:18.870334+00:00",
       "status": "success"
+    },
+    "34bdbf7baadbc18c47d73866": {
+      "job_id": "weekly_2026-11-08",
+      "chat_id": "-1004485392227",
+      "file_hash": "75963e722096ef60",
+      "file_sha256": "75963e722096ef60de0ee5dba3580d21f242b5b37fc90595ba0329826edf30c0",
+      "status": "blocked_revision",
+      "published_at": "2026-11-08T09:18:49.428687+00:00"
     }
   }
 }
