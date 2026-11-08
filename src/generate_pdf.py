@@ -48,6 +48,11 @@ from reportlab.platypus import (
 
 from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
 
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
+from pipeline.text_normalize import clip_words, normalise_money, strip_source_tags, tidy  # noqa: E402
+
 # --- HARFBUZZ + FREETYPE CHECK ---
 try:
     import uharfbuzz as hb
@@ -240,7 +245,9 @@ def _clean_text_for_display(t: Any) -> str:
     s = re.sub(r'^(?:Ques|Question)\s*[:.-]*\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'\bWatch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'&gt;&gt;|&gt;|>>|>', '', s)
-    return re.sub(r'\s+', ' ', s).strip()
+    s = re.sub(r'\s+', ' ', s).strip()
+    # Typography + money + trailing outlet tags (EN and HI): "?." -> "?", "Rs 5" -> "₹5", "- पीएम इंडिया".
+    return tidy(normalise_money(strip_source_tags(s), hindi=False))
 
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
@@ -2407,7 +2414,7 @@ def _generate_pdf_once(
         first_in_unit = True
         # The anchor travels inside the unit's first KeepTogether block, so a link
         # never lands on the previous page when the block is pushed to a new page.
-        unit_anchor = Anchor(f"u{u_idx + 1}", f"Q{u_idx + 1}. {headline_en[:70]}", 1 if PDF_SHOW_TOC else 0)
+        unit_anchor = Anchor(f"u{u_idx + 1}", f"Q{u_idx + 1}. {clip_words(headline_en, 70)}", 1 if PDF_SHOW_TOC else 0)
 
         for m in unit_mcqs:
             q_en = _clean_text_for_display(m.get("question_en", ""))
@@ -2545,7 +2552,7 @@ def _generate_pdf_once(
             key_rows.append([
                 Paragraph(f"Q{q_idx}", STYLES["key_cell"]),
                 Paragraph(f"<b>Option {ans_l}</b>", STYLES["key_cell_bold"]),
-                Paragraph(_safe(_clean_text_for_display(it.get("headline_en", ""))[:85]), STYLES["index_cell"]),
+                Paragraph(_safe(clip_words(_clean_text_for_display(it.get("headline_en", "")), 85)), STYLES["index_cell"]),
                 Paragraph(_safe(str(it.get("category", "General")).upper()), STYLES["key_cell"]),
             ])
         key_table = Table(key_rows, colWidths=[36 * pt, 65 * pt, 320 * pt, 102 * pt], repeatRows=1)

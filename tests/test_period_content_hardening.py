@@ -23,6 +23,19 @@ from pipeline import period_builder as pb  # noqa: E402
 WEEK = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08"]
 
 
+def _fake_tr(en: str) -> str:
+    """Offline translator stand-in (Devanagari only, every number kept): these tests
+    exercise selection, not Hindi, and a live period edition fails without Hindi."""
+    import re as _re
+    nums = " ".join(_re.findall(r"\d+(?:[.,]\d+)*", en.replace(",", "")))
+    return _re.sub(r"\s+", " ", f"यह वाक्य {nums} का हिंदी अनुवाद है।")
+
+
+@pytest.fixture(autouse=True)
+def _offline_translator(monkeypatch):
+    monkeypatch.setattr(pb, "_period_translators", lambda: (None, _fake_tr))
+
+
 @pytest.fixture(autouse=True)
 def _live(monkeypatch):
     monkeypatch.delenv("DRY_RUN", raising=False)
