@@ -1,0 +1,51 @@
+name: Telegram admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "delete (unpin + delete) or unpin only"
+        required: true
+        type: choice
+        options:
+          - delete
+          - unpin
+      message_id:
+        description: "Telegram message_id in TELEGRAM_CHAT_ID"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-admin
+  cancel-in-progress: false
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Unpin / delete message
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ACTION: ${{ inputs.action }}
+          MESSAGE_ID: ${{ inputs.message_id }}
+        run: |
+          set -uo pipefail
+          if ! [[ "$MESSAGE_ID" =~ ^[0-9]+$ ]]; then echo "message_id must be a positive integer"; exit 1; fi
+          call() {
+            local method="$1"
+            local resp
+            resp=$(curl -sS -X POST "https://api.telegram.org/bot${TOKEN}/${method}" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "message_id=${MESSAGE_ID}" 2>/dev/null || echo '{"ok":false,"description":"curl failed"}')
+            echo "$resp" | jq -c --arg m "$method" '{method:$m, ok:.ok, description:(.description // null)}'
+            echo "$resp" | jq -e '.ok == true' >/dev/null
+          }
+          call unpinChatMessage || echo "unpin did not succeed (continuing)"
+          if [ "$ACTION" = "delete" ]; then
+            call deleteMessage || exit 1
+          fi
