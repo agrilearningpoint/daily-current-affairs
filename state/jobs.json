@@ -1845,7 +1845,7 @@
     "failed_stage": "22_telegram_publisher"
   },
   "daily_2026-11-09": {
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-11-09",
     "job_type": "daily",
     "job_date": "2026-11-09",
@@ -1855,8 +1855,8 @@
       "end": "2026-11-09T05:26:28.658316+05:30"
     },
     "github_run_id": "42540957179",
-    "status": "running",
-    "updated_at": "2026-11-09T00:35:30.037446+00:00",
+    "status": "success",
+    "updated_at": "2026-11-09T00:35:40.394006+00:00",
     "started_at": "2026-11-08T23:56:31.276558+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-09.json": {
@@ -1894,10 +1894,14 @@
       "logs/qa/daily_2026-11-09_qa.json": {
         "stage": "19_pdf_qa",
         "sha256": "2aa01d252e195d4b9f295819519b885d2e0c0d32bc77176eab8c316636853ba4"
+      },
+      "logs/qa/daily_2026-11-09_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "4c303c8335bd1fd906de42ded035920bcaffebc61d635077ff3f6ebb1834dd7e"
       }
     },
-    "last_success_stage": "19_pdf_qa",
+    "last_success_stage": "24_final_health_audit",
     "publish_not_before": "2026-11-09T06:00:00+05:30",
-    "checkpoint_run_id": "42537526749"
+    "checkpoint_run_id": "42540957179"
   }
 }
