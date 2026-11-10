@@ -18,12 +18,26 @@ Return contract (matches content.py expectations):
         "confidence": float,       # 0.0 - 1.0
         "provider": str,           # which provider succeeded
         "issues": list[str],       # validation failures (if any)
+        "repaired": list[str],     # acronyms appended by auto-repair (may be absent)
     }
+
+Acronym validation (2026-11-10, run 42789471273):
+    An ALL-CAPS source is a headline, not an acronym list — "PRESIDENT OF INDIA
+    INAUGURATES ... IN NEW DELHI" made the validator demand DELHI/INDIA/NEW back
+    in Latin, every provider was rejected for the same correct line, and the run
+    fell below the QA floor. So: ALL-CAPS sources only enforce the curated
+    _KNOWN_ACRONYMS list, Hindi renderings of caps words/place names count as
+    matched, and natural transliterations (ट्राई for TRAI) count as matched.
+    If a curated acronym is genuinely absent and it is the *only* problem, it is
+    appended as one trailing parenthetical and the line is re-validated; anything
+    else (missing numbers, no Devanagari, English left over) still fails closed.
 
 Env switches:
     ALP_TRANSLATION_STRICT=1     # fail-closed (no dictionary fallback)
     ALP_TRANSLATION_TIMEOUT=45   # per-provider timeout (seconds)
     ALP_TRANSLATION_MAX_RETRIES=2
+    ALP_TRANSLATION_AUTO_REPAIR=0        # disable the acronym repair (kill switch)
+    ALP_TRANSLATION_MAX_ACRONYM_REPAIRS=2  # acronyms appended per line (0 = off)
 """
 from __future__ import annotations
 
@@ -345,6 +359,41 @@ def _call_provider(provider: Dict[str, Any], system: str, user: str) -> str:
     return translated
 
 
+# Natural Hindi transliterations news copy actually uses. The letter-by-letter
+# map above only produces टीआरएआई; a correct line saying ट्राई must match too,
+# otherwise the line is rejected — or "repaired" with a token it already has.
+_ACRONYM_HI_VARIANTS = {
+    'TRAI': ('ट्राई', 'ट्राइ'),
+    'GIZ': ('जीआईजेड', 'जीआईज़ेड'),
+    'NITI': ('नीति', 'नीति आयोग'),
+    'HADR': ('हाद्र',),
+    'BRICS': ('ब्रिक्स',),
+    'SAARC': ('सार्क',),
+    'OPEC': ('ओपेक',),
+    'NATO': ('नाटो',),
+    'NAFED': ('नाफेद', 'नाफेड'),
+    'PACS': ('पैक्स',),
+    'IRDAI': ('इरदाई', 'इरडाई'),
+    'SIDBI': ('सिडबी',),
+    'ECI': ('चुनाव आयोग',),
+    'KCC': ('किसान क्रेडिट कार्ड',),
+    'PDS': ('सार्वजनिक वितरण प्रणाली',),
+    'RBI': ('आरबीआई',),
+    'MSP': ('समर्थन मूल्य', 'न्यूनतम समर्थन मूल्य'),
+    'FCI': ('खाद्य निगम',),
+    'CACP': ('कृषि लागत और मूल्य आयोग',),
+    'FSSAI': ('खाद्य सुरक्षा प्राधिकरण',),
+    'ISRO': ('अंतरिक्ष अनुसंधान संगठन',),
+    'NDRF': ('आपदा मोचन बल',),
+    'MGNREGA': ('मनरेगा',),
+    'UPSC': ('संघ लोक सेवा आयोग',),
+    'GST': ('वस्तु एवं सेवा कर',),
+    'UPI': ('यूपीआई',),
+    'UN': ('संयुक्त राष्ट्र',),
+    'WHO': ('विश्व स्वास्थ्य संगठन',),
+    'WTO': ('विश्व व्यापार संगठन',),
+}
+
 # --------------------------------------------------------------------------- #
 # Validation
 # --------------------------------------------------------------------------- #
@@ -392,14 +441,382 @@ _SPECIAL_ACRONYMS = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# Acronym auto-repair (added 2026-11-10)
+# --------------------------------------------------------------------------- #
+# Run 42789471273 lost 6 of 15 stories to "missing acronyms" although every one
+# of those translations was correct: the sources were ALL-CAPS headlines, so the
+# uppercase-token check flagged ordinary words (BATCH, CONDUCT, DELHI, INDIA,
+# NEW) and every provider was rejected for the same line.  Two conservative fixes:
+#
+# 1. matching is punctuation-tolerant (PTI also matches an answer written with
+#    dots between the letters) and accepts the Hindi rendering of an ALL-CAPS
+#    English word or place name (BATCH -> batch-word, CHENNAI -> the city name);
+#    nothing is rewritten in this step;
+# 2. a genuinely absent acronym is appended as one parenthetical and the line is
+#    re-validated.  Repairs are capped, and never bypass another gate:
+#    Devanagari, numbers, garbled text and length all still have to pass.
+#
+# Kill switch: ALP_TRANSLATION_AUTO_REPAIR=0 restores the old reject-only behaviour.
+AUTO_REPAIR = os.getenv("ALP_TRANSLATION_AUTO_REPAIR", "1") == "1"
+MAX_ACRONYM_REPAIRS = int(os.getenv("ALP_TRANSLATION_MAX_ACRONYM_REPAIRS", "2"))
+REPAIRED_CONFIDENCE_CAP = 0.9
+
+# ALL-CAPS English words / place names that reach the validator from
+# headline-style sources, with the Hindi renderings that prove the token was
+# translated rather than dropped.
+_CAPS_WORD_HI = {
+    "ACCIDENT": ("\u0926\u0941\u0930\u094d\u0918\u091f\u0928\u093e",),
+    "ACCIDENTS": ("\u0926\u0941\u0930\u094d\u0918\u091f\u0928\u093e\u090f\u0902",),
+    "AFGHANISTAN": ("\u0905\u092b\u0917\u093e\u0928\u093f\u0938\u094d\u0924\u093e\u0928",),
+    "AGARTALA": ("\u0905\u0917\u0930\u0924\u0932\u093e",),
+    "AGRA": ("\u0906\u0917\u0930\u093e",),
+    "AGREEMENT": ("\u0938\u092e\u091d\u094c\u0924\u093e", "\u0915\u0930\u093e\u0930",),
+    "AGRICULTURE": ("\u0915\u0943\u0937\u093f", "\u0916\u0947\u0924\u0940",),
+    "AHMEDABAD": ("\u0905\u0939\u092e\u0926\u093e\u092c\u093e\u0926",),
+    "AIRPORT": ("\u0939\u0935\u093e\u0908 \u0905\u0921\u094d\u0921\u093e",),
+    "AIZAWL": ("\u0906\u0907\u091c\u094b\u0932",),
+    "AMERICA": ("\u0905\u092e\u0947\u0930\u093f\u0915\u093e",),
+    "AMRITSAR": ("\u0905\u092e\u0943\u0924\u0938\u0930",),
+    "ANDAMAN": ("\u0905\u0902\u0921\u092e\u093e\u0928",),
+    "ANDHRA": ("\u0906\u0902\u0927\u094d\u0930",),
+    "ANNOUNCED": ("\u0918\u094b\u0937\u0923\u093e", "\u0918\u094b\u0937\u093f\u0924",),
+    "ANNOUNCEMENT": ("\u0918\u094b\u0937\u0923\u093e",),
+    "APPROVAL": ("\u0938\u094d\u0935\u0940\u0915\u0943\u0924\u093f", "\u092e\u0902\u091c\u0942\u0930\u0940",),
+    "APPROVED": ("\u0938\u094d\u0935\u0940\u0915\u0943\u0924", "\u092e\u0902\u091c\u0942\u0930", "\u0938\u094d\u0935\u0940\u0915\u0943\u0924\u093f",),
+    "ARMY": ("\u0938\u0947\u0928\u093e",),
+    "ASSAM": ("\u0905\u0938\u092e",),
+    "ASSEMBLY": ("\u0935\u093f\u0927\u093e\u0928\u0938\u092d\u093e",),
+    "AUTHORITY": ("\u092a\u094d\u0930\u093e\u0927\u093f\u0915\u0930\u0923",),
+    "AWARD": ("\u092a\u0941\u0930\u0938\u094d\u0915\u093e\u0930", "\u0938\u092e\u094d\u092e\u093e\u0928",),
+    "AWARDS": ("\u092a\u0941\u0930\u0938\u094d\u0915\u093e\u0930", "\u0938\u092e\u094d\u092e\u093e\u0928",),
+    "AYODHYA": ("\u0905\u092f\u094b\u0927\u094d\u092f\u093e",),
+    "BANGLADESH": ("\u092c\u093e\u0902\u0917\u094d\u0932\u093e\u0926\u0947\u0936",),
+    "BANK": ("\u092c\u0948\u0902\u0915",),
+    "BATCH": ("\u092c\u0948\u091a", "\u0916\u0947\u092a",),
+    "BEIJING": ("\u092c\u0940\u091c\u093f\u0902\u0917",),
+    "BENGALURU": ("\u092c\u0947\u0902\u0917\u0932\u0941\u0930\u0941",),
+    "BHOPAL": ("\u092d\u094b\u092a\u093e\u0932",),
+    "BHUBANESWAR": ("\u092d\u0941\u0935\u0928\u0947\u0936\u094d\u0935\u0930",),
+    "BHUTAN": ("\u092d\u0942\u091f\u093e\u0928",),
+    "BIHAR": ("\u092c\u093f\u0939\u093e\u0930",),
+    "BILLION": ("\u0905\u0930\u092c",),
+    "BOARD": ("\u092c\u094b\u0930\u094d\u0921",),
+    "BOMBAY": ("\u092e\u0941\u0902\u092c\u0908",),
+    "BROADCASTERS": ("\u092a\u094d\u0930\u0938\u093e\u0930\u0915",),
+    "CABINET": ("\u0915\u0948\u092c\u093f\u0928\u0947\u091f",),
+    "CALCUTTA": ("\u0915\u094b\u0932\u0915\u093e\u0924\u093e",),
+    "CENTER": ("\u0915\u0947\u0902\u0926\u094d\u0930",),
+    "CENTRE": ("\u0915\u0947\u0902\u0926\u094d\u0930",),
+    "CHAIRS": ("\u0905\u0927\u094d\u092f\u0915\u094d\u0937\u0924\u093e",),
+    "CHANDIGARH": ("\u091a\u0902\u0921\u0940\u0917\u0922\u093c",),
+    "CHENNAI": ("\u091a\u0947\u0928\u094d\u0928\u0908",),
+    "CHHATTISGARH": ("\u091b\u0924\u094d\u0924\u0940\u0938\u0917\u0922\u093c",),
+    "CHILKA": ("\u091a\u093f\u0932\u094d\u0915\u093e", "\u091a\u093f\u0932\u0915\u093e",),
+    "CHINA": ("\u091a\u0940\u0928",),
+    "CLIMATE": ("\u091c\u0932\u0935\u093e\u092f\u0941",),
+    "COIMBATORE": ("\u0915\u094b\u092f\u0902\u092c\u091f\u0942\u0930",),
+    "COMMISSION": ("\u0906\u092f\u094b\u0917",),
+    "COMMITTEE": ("\u0938\u092e\u093f\u0924\u093f",),
+    "COMPENSATION": ("\u092e\u0941\u0906\u0935\u091c\u093e",),
+    "CONDUCT": ("\u0938\u0902\u091a\u093e\u0932\u0928", "\u0906\u092f\u094b\u091c\u093f\u0924", "\u0906\u092f\u094b\u091c\u0928", "\u0915\u0930\u093e\u092f\u093e", "\u0915\u093f\u092f\u093e",),
+    "CONDUCTED": ("\u0938\u0902\u091a\u093e\u0932\u093f\u0924", "\u0906\u092f\u094b\u091c\u093f\u0924", "\u0915\u0930\u093e\u092f\u093e",),
+    "COOPERATIVE": ("\u0938\u0939\u0915\u093e\u0930\u0940",),
+    "COOPERATIVES": ("\u0938\u0939\u0915\u093e\u0930\u0940",),
+    "CORRIDOR": ("\u0915\u0949\u0930\u093f\u0921\u094b\u0930",),
+    "COUNTRY": ("\u0926\u0947\u0936",),
+    "CROP": ("\u092b\u0938\u0932",),
+    "CROPS": ("\u092b\u0938\u0932",),
+    "CRORE": ("\u0915\u0930\u094b\u0921\u093c",),
+    "CRORES": ("\u0915\u0930\u094b\u0921\u093c",),
+    "CUSTOMS": ("\u0938\u0940\u092e\u093e \u0936\u0941\u0932\u094d\u0915",),
+    "DAILY": ("\u0926\u0948\u0928\u093f\u0915",),
+    "DAMAN": ("\u0926\u092e\u0928",),
+    "DEFENCE": ("\u0930\u0915\u094d\u0937\u093e",),
+    "DEHRADUN": ("\u0926\u0947\u0939\u0930\u093e\u0926\u0942\u0928",),
+    "DELHI": ("\u0926\u093f\u0932\u094d\u0932\u0940",),
+    "DEPARTMENT": ("\u0935\u093f\u092d\u093e\u0917",),
+    "DISTRICT": ("\u091c\u093f\u0932\u093e",),
+    "DISTRICTS": ("\u091c\u093f\u0932\u093e",),
+    "DROUGHT": ("\u0938\u0942\u0916\u093e",),
+    "DUBAI": ("\u0926\u0941\u092c\u0908",),
+    "DUTY": ("\u0936\u0941\u0932\u094d\u0915",),
+    "EDUCATION": ("\u0936\u093f\u0915\u094d\u0937\u093e",),
+    "ELECTION": ("\u091a\u0941\u0928\u093e\u0935",),
+    "ELECTIONS": ("\u091a\u0941\u0928\u093e\u0935",),
+    "ENERGY": ("\u090a\u0930\u094d\u091c\u093e",),
+    "EUROPE": ("\u092f\u0942\u0930\u094b\u092a",),
+    "EXERCISE": ("\u0905\u092d\u094d\u092f\u093e\u0938",),
+    "EXPORT": ("\u0928\u093f\u0930\u094d\u092f\u093e\u0924",),
+    "EXPORTS": ("\u0928\u093f\u0930\u094d\u092f\u093e\u0924",),
+    "EXPRESSWAY": ("\u090f\u0915\u094d\u0938\u092a\u094d\u0930\u0947\u0938\u0935\u0947",),
+    "FARMER": ("\u0915\u093f\u0938\u093e\u0928",),
+    "FARMERS": ("\u0915\u093f\u0938\u093e\u0928",),
+    "FIRST": ("\u092a\u0939\u0932\u0940", "\u092a\u0939\u0932\u093e", "\u092a\u094d\u0930\u0925\u092e",),
+    "FISH": ("\u092e\u0924\u094d\u0938\u094d\u092f", "\u092e\u091b\u0932\u0940",),
+    "FISHERIES": ("\u092e\u0924\u094d\u0938\u094d\u092f", "\u092e\u091b\u0932\u0940",),
+    "FLIGHT": ("\u0909\u0921\u093c\u093e\u0928",),
+    "FLOOD": ("\u092c\u093e\u0922\u093c",),
+    "FLOODS": ("\u092c\u093e\u0922\u093c",),
+    "FOOD": ("\u0916\u093e\u0926\u094d\u092f", "\u092d\u094b\u091c\u0928",),
+    "FOREIGN": ("\u0935\u093f\u0926\u0947\u0936\u0940",),
+    "FUND": ("\u0915\u094b\u0937", "\u0928\u093f\u0927\u093f", "\u092b\u0902\u0921",),
+    "FUNDS": ("\u0915\u094b\u0937", "\u0928\u093f\u0927\u093f", "\u092b\u0902\u0921",),
+    "GANGTOK": ("\u0917\u0902\u0917\u091f\u094b\u0915",),
+    "GAZA": ("\u0917\u093e\u091c\u093e",),
+    "GLOBAL": ("\u0935\u0948\u0936\u094d\u0935\u093f\u0915",),
+    "GOA": ("\u0917\u094b\u0935\u093e",),
+    "GOVERNMENT": ("\u0938\u0930\u0915\u093e\u0930", "\u0936\u093e\u0938\u0928", "\u0938\u0930\u0915\u093e\u0930\u0940",),
+    "GUJARAT": ("\u0917\u0941\u091c\u0930\u093e\u0924",),
+    "GUWAHATI": ("\u0917\u0941\u0935\u093e\u0939\u093e\u091f\u0940",),
+    "HARYANA": ("\u0939\u0930\u093f\u092f\u093e\u0923\u093e",),
+    "HEALTH": ("\u0938\u094d\u0935\u093e\u0938\u094d\u0925\u094d\u092f",),
+    "HIGHEST": ("\u0909\u091a\u094d\u091a\u0924\u092e", "\u0938\u0930\u094d\u0935\u094b\u091a\u094d\u091a",),
+    "HIGHWAY": ("\u0930\u093e\u091c\u092e\u093e\u0930\u094d\u0917",),
+    "HIMACHAL": ("\u0939\u093f\u092e\u093e\u091a\u0932",),
+    "HOLDS": ("\u092c\u0948\u0920\u0915", "\u0906\u092f\u094b\u091c\u093f\u0924",),
+    "HYDERABAD": ("\u0939\u0948\u0926\u0930\u093e\u092c\u093e\u0926",),
+    "IMPHAL": ("\u0907\u092e\u094d\u092b\u093e\u0932",),
+    "IMPLEMENTATION": ("\u0915\u094d\u0930\u093f\u092f\u093e\u0928\u094d\u0935\u092f\u0928",),
+    "IMPORT": ("\u0906\u092f\u093e\u0924",),
+    "IMPORTS": ("\u0906\u092f\u093e\u0924",),
+    "INAUGURATED": ("\u0909\u0926\u094d\u0918\u093e\u091f\u0928",),
+    "INAUGURATES": ("\u0909\u0926\u094d\u0918\u093e\u091f\u0928",),
+    "INDIA": ("\u092d\u093e\u0930\u0924", "\u0939\u093f\u0902\u0926\u0941\u0938\u094d\u0924\u093e\u0928", "\u092d\u093e\u0930\u0924\u0940\u092f",),
+    "INDIAN": ("\u092d\u093e\u0930\u0924\u0940\u092f", "\u092d\u093e\u0930\u0924",),
+    "INDORE": ("\u0907\u0902\u0926\u094c\u0930",),
+    "INSTITUTE": ("\u0938\u0902\u0938\u094d\u0925\u093e\u0928",),
+    "INSURANCE": ("\u092c\u0940\u092e\u093e",),
+    "INTERNATIONAL": ("\u0905\u0902\u0924\u0930\u0930\u093e\u0937\u094d\u091f\u094d\u0930\u0940\u092f", "\u0905\u0928\u094d\u0924\u0930\u094d\u0930\u093e\u0937\u094d\u091f\u094d\u0930\u0940\u092f",),
+    "IRAN": ("\u0908\u0930\u093e\u0928",),
+    "IRAQ": ("\u0907\u0930\u093e\u0915",),
+    "ISRAEL": ("\u0907\u091c\u0930\u093e\u0907\u0932",),
+    "JAIPUR": ("\u091c\u092f\u092a\u0941\u0930",),
+    "JAMMU": ("\u091c\u092e\u094d\u092e\u0942",),
+    "JHARKHAND": ("\u091d\u093e\u0930\u0916\u0902\u0921",),
+    "JOBS": ("\u0930\u094b\u091c\u0917\u093e\u0930", "\u0928\u094c\u0915\u0930\u0940",),
+    "KANPUR": ("\u0915\u093e\u0928\u092a\u0941\u0930",),
+    "KARNATAKA": ("\u0915\u0930\u094d\u0928\u093e\u091f\u0915",),
+    "KASHMIR": ("\u0915\u0936\u094d\u092e\u0940\u0930",),
+    "KERALA": ("\u0915\u0947\u0930\u0932",),
+    "KOCHI": ("\u0915\u094b\u091a\u094d\u091a\u093f",),
+    "KOHIMA": ("\u0915\u094b\u0939\u093f\u092e\u093e",),
+    "KOLKATA": ("\u0915\u094b\u0932\u0915\u093e\u0924\u093e",),
+    "KYIV": ("\u0915\u0940\u0935",),
+    "LADAKH": ("\u0932\u0926\u094d\u0926\u093e\u0916",),
+    "LAKH": ("\u0932\u093e\u0916",),
+    "LAKHS": ("\u0932\u093e\u0916",),
+    "LAUNCH": ("\u0936\u0941\u0930\u0942", "\u0932\u0949\u0928\u094d\u091a", "\u0909\u0926\u094d\u0918\u093e\u091f\u0928", "\u0936\u0941\u092d\u093e\u0930\u0902\u092d",),
+    "LAUNCHED": ("\u0936\u0941\u0930\u0942", "\u0932\u0949\u0928\u094d\u091a", "\u0909\u0926\u094d\u0918\u093e\u091f\u0928", "\u0936\u0941\u092d\u093e\u0930\u0902\u092d",),
+    "LOAN": ("\u090b\u0923",),
+    "LOANS": ("\u090b\u0923",),
+    "LONDON": ("\u0932\u0902\u0926\u0928",),
+    "LUCKNOW": ("\u0932\u0916\u0928\u090a",),
+    "LUDHIANA": ("\u0932\u0941\u0927\u093f\u092f\u093e\u0928\u093e",),
+    "MADHYA": ("\u092e\u0927\u094d\u092f",),
+    "MAHARASHTRA": ("\u092e\u0939\u093e\u0930\u093e\u0937\u094d\u091f\u094d\u0930",),
+    "MANDI": ("\u092e\u0902\u0921\u0940",),
+    "MANIPUR": ("\u092e\u0923\u093f\u092a\u0941\u0930",),
+    "MARKET": ("\u092c\u093e\u091c\u093e\u0930",),
+    "MATHURA": ("\u092e\u0925\u0941\u0930\u093e",),
+    "MEERUT": ("\u092e\u0947\u0930\u0920",),
+    "MEETING": ("\u092c\u0948\u0920\u0915",),
+    "MEGHALAYA": ("\u092e\u0947\u0918\u093e\u0932\u092f",),
+    "MELA": ("\u092e\u0947\u0932\u093e",),
+    "MILK": ("\u0926\u0942\u0927",),
+    "MINIMUM": ("\u0928\u094d\u092f\u0942\u0928\u0924\u092e",),
+    "MINISTRY": ("\u092e\u0902\u0924\u094d\u0930\u093e\u0932\u092f",),
+    "MISSION": ("\u092e\u093f\u0936\u0928", "\u0905\u092d\u093f\u092f\u093e\u0928",),
+    "MIZORAM": ("\u092e\u093f\u091c\u094b\u0930\u092e",),
+    "MONTHLY": ("\u092e\u093e\u0938\u093f\u0915",),
+    "MORNING": ("\u0938\u0941\u092c\u0939",),
+    "MOSCOW": ("\u092e\u0949\u0938\u094d\u0915\u094b",),
+    "MUMBAI": ("\u092e\u0941\u0902\u092c\u0908",),
+    "MYANMAR": ("\u092e\u094d\u092f\u093e\u0902\u092e\u093e\u0930",),
+    "MYSURU": ("\u092e\u0948\u0938\u0942\u0930",),
+    "NAGALAND": ("\u0928\u0917\u093e\u0932\u0948\u0902\u0921",),
+    "NAGPUR": ("\u0928\u093e\u0917\u092a\u0941\u0930",),
+    "NASHIK": ("\u0928\u093e\u0936\u093f\u0915",),
+    "NATIONAL": ("\u0930\u093e\u0937\u094d\u091f\u094d\u0930\u0940\u092f",),
+    "NEPAL": ("\u0928\u0947\u092a\u093e\u0932",),
+    "NEW": ("\u0928\u0908", "\u0928\u092f\u093e", "\u0928\u092f\u0947", "\u0928\u090f", "\u0928\u0935",),
+    "NICOBAR": ("\u0928\u093f\u0915\u094b\u092c\u093e\u0930",),
+    "NOTIFIED": ("\u0905\u0927\u093f\u0938\u0942\u091a\u093f\u0924",),
+    "ODISHA": ("\u0913\u0921\u093f\u0936\u093e",),
+    "ORDER": ("\u0906\u0926\u0947\u0936",),
+    "ORGANIC": ("\u091c\u0948\u0935\u093f\u0915",),
+    "PAKISTAN": ("\u092a\u093e\u0915\u093f\u0938\u094d\u0924\u093e\u0928",),
+    "PANAJI": ("\u092a\u0923\u091c\u0940",),
+    "PANCHAYAT": ("\u092a\u0902\u091a\u093e\u092f\u0924",),
+    "PARIS": ("\u092a\u0947\u0930\u093f\u0938",),
+    "PARLIAMENT": ("\u0938\u0902\u0938\u0926",),
+    "PATNA": ("\u092a\u091f\u0928\u093e",),
+    "PERCENT": ("\u092a\u094d\u0930\u0924\u093f\u0936\u0924",),
+    "POLICY": ("\u0928\u0940\u0924\u093f",),
+    "PORT": ("\u092c\u0902\u0926\u0930\u0917\u093e\u0939",),
+    "POWER": ("\u092c\u093f\u091c\u0932\u0940", "\u090a\u0930\u094d\u091c\u093e", "\u0936\u0915\u094d\u0924\u093f",),
+    "PRADESH": ("\u092a\u094d\u0930\u0926\u0947\u0936",),
+    "PRAYAGRAJ": ("\u092a\u094d\u0930\u092f\u093e\u0917\u0930\u093e\u091c",),
+    "PRESIDENT": ("\u0930\u093e\u0937\u094d\u091f\u094d\u0930\u092a\u0924\u093f", "\u0905\u0927\u094d\u092f\u0915\u094d\u0937",),
+    "PRICE": ("\u092e\u0942\u0932\u094d\u092f", "\u0915\u0940\u092e\u0924", "\u0926\u093e\u092e",),
+    "PRICES": ("\u092e\u0942\u0932\u094d\u092f", "\u0915\u0940\u092e\u0924\u0947\u0902", "\u0926\u093e\u092e",),
+    "PRIME": ("\u092a\u094d\u0930\u0927\u093e\u0928",),
+    "PROGRAM": ("\u0915\u093e\u0930\u094d\u092f\u0915\u094d\u0930\u092e",),
+    "PROGRAMME": ("\u0915\u093e\u0930\u094d\u092f\u0915\u094d\u0930\u092e",),
+    "PROJECT": ("\u092a\u0930\u093f\u092f\u094b\u091c\u0928\u093e",),
+    "PROTEST": ("\u0935\u093f\u0930\u094b\u0927", "\u092a\u094d\u0930\u0926\u0930\u094d\u0936\u0928",),
+    "PROTESTS": ("\u0935\u093f\u0930\u094b\u0927", "\u092a\u094d\u0930\u0926\u0930\u094d\u0936\u0928",),
+    "PUNE": ("\u092a\u0941\u0923\u0947",),
+    "PUNJAB": ("\u092a\u0902\u091c\u093e\u092c",),
+    "RAIL": ("\u0930\u0947\u0932",),
+    "RAILWAY": ("\u0930\u0947\u0932\u0935\u0947", "\u0930\u0947\u0932",),
+    "RAILWAYS": ("\u0930\u0947\u0932\u0935\u0947", "\u0930\u0947\u0932",),
+    "RAIN": ("\u092c\u093e\u0930\u093f\u0936",),
+    "RAINS": ("\u092c\u093e\u0930\u093f\u0936",),
+    "RAIPUR": ("\u0930\u093e\u092f\u092a\u0941\u0930",),
+    "RAJASTHAN": ("\u0930\u093e\u091c\u0938\u094d\u0925\u093e\u0928",),
+    "RALLY": ("\u0930\u0948\u0932\u0940",),
+    "RANCHI": ("\u0930\u093e\u0902\u091a\u0940",),
+    "RECORD": ("\u0930\u093f\u0915\u0949\u0930\u094d\u0921",),
+    "RELEASE": ("\u091c\u093e\u0930\u0940",),
+    "RELEASED": ("\u091c\u093e\u0930\u0940", "\u0930\u093f\u0932\u0940\u091c",),
+    "REPORT": ("\u0930\u093f\u092a\u094b\u0930\u094d\u091f",),
+    "RESCUE": ("\u092c\u091a\u093e\u0935",),
+    "RESULT": ("\u092a\u0930\u093f\u0923\u093e\u092e", "\u0928\u0924\u0940\u091c\u093e",),
+    "RESULTS": ("\u092a\u0930\u093f\u0923\u093e\u092e", "\u0928\u0924\u0940\u091c\u0947",),
+    "REVENUE": ("\u0930\u093e\u091c\u0938\u094d\u0935",),
+    "REVIEW": ("\u0938\u092e\u0940\u0915\u094d\u0937\u093e",),
+    "RICE": ("\u091a\u093e\u0935\u0932", "\u0927\u093e\u0928",),
+    "ROAD": ("\u0938\u0921\u093c\u0915",),
+    "ROADS": ("\u0938\u0921\u093c\u0915",),
+    "RURAL": ("\u0917\u094d\u0930\u093e\u092e\u0940\u0923",),
+    "RUSSIA": ("\u0930\u0942\u0938",),
+    "SCHEME": ("\u092f\u094b\u091c\u0928\u093e",),
+    "SECURITY": ("\u0938\u0941\u0930\u0915\u094d\u0937\u093e",),
+    "SEED": ("\u092c\u0940\u091c",),
+    "SEEDS": ("\u092c\u0940\u091c",),
+    "SHILLONG": ("\u0936\u093f\u0932\u093e\u0902\u0917",),
+    "SHIMLA": ("\u0936\u093f\u092e\u0932\u093e",),
+    "SIGN": ("\u0939\u0938\u094d\u0924\u093e\u0915\u094d\u0937\u0930",),
+    "SIGNED": ("\u0939\u0938\u094d\u0924\u093e\u0915\u094d\u0937\u0930",),
+    "SIGNS": ("\u0939\u0938\u094d\u0924\u093e\u0915\u094d\u0937\u0930",),
+    "SIKKIM": ("\u0938\u093f\u0915\u094d\u0915\u093f\u092e",),
+    "SILIGURI": ("\u0938\u093f\u0932\u0940\u0917\u0941\u0921\u093c\u0940",),
+    "SOLAR": ("\u0938\u094c\u0930",),
+    "SRI": ("\u0936\u094d\u0930\u0940",),
+    "SRILANKA": ("\u0936\u094d\u0930\u0940\u0932\u0902\u0915\u093e",),
+    "SRINAGAR": ("\u0936\u094d\u0930\u0940\u0928\u0917\u0930",),
+    "STATE": ("\u0930\u093e\u091c\u094d\u092f",),
+    "STATEMENT": ("\u092c\u092f\u093e\u0928",),
+    "STUDENTS": ("\u091b\u093e\u0924\u094d\u0930", "\u0935\u093f\u0926\u094d\u092f\u093e\u0930\u094d\u0925\u0940",),
+    "SUBSIDIES": ("\u0938\u092c\u094d\u0938\u093f\u0921\u0940",),
+    "SUBSIDY": ("\u0938\u092c\u094d\u0938\u093f\u0921\u0940",),
+    "SUGAR": ("\u091a\u0940\u0928\u0940",),
+    "SUMMIT": ("\u0936\u093f\u0916\u0930 \u0938\u092e\u094d\u092e\u0947\u0932\u0928", "\u0938\u092e\u094d\u092e\u0947\u0932\u0928",),
+    "SUPPORT": ("\u0938\u092e\u0930\u094d\u0925\u0928", "\u0938\u0939\u093e\u092f\u0924\u093e",),
+    "SURAT": ("\u0938\u0942\u0930\u0924",),
+    "TARGET": ("\u0932\u0915\u094d\u0937\u094d\u092f",),
+    "TARIFF": ("\u091f\u0948\u0930\u093f\u092b", "\u0936\u0941\u0932\u094d\u0915",),
+    "TAX": ("\u0915\u0930",),
+    "TELANGANA": ("\u0924\u0947\u0932\u0902\u0917\u093e\u0928\u093e",),
+    "TENDER": ("\u091f\u0947\u0902\u0921\u0930",),
+    "THIRUVANANTHAPURAM": ("\u0924\u093f\u0930\u0941\u0935\u0928\u0902\u0924\u092a\u0941\u0930\u092e",),
+    "TODAY": ("\u0906\u091c",),
+    "TOKYO": ("\u091f\u094b\u0915\u094d\u092f\u094b",),
+    "TRADE": ("\u0935\u094d\u092f\u093e\u092a\u093e\u0930",),
+    "TRAIN": ("\u091f\u094d\u0930\u0947\u0928",),
+    "TRIPURA": ("\u0924\u094d\u0930\u093f\u092a\u0941\u0930\u093e",),
+    "UDAIPUR": ("\u0909\u0926\u092f\u092a\u0941\u0930",),
+    "UKRAINE": ("\u092f\u0942\u0915\u094d\u0930\u0947\u0928",),
+    "UNION": ("\u0938\u0902\u0918",),
+    "UNIVERSITY": ("\u0935\u093f\u0936\u094d\u0935\u0935\u093f\u0926\u094d\u092f\u093e\u0932\u092f",),
+    "USA": ("\u0905\u092e\u0947\u0930\u093f\u0915\u093e", "\u092f\u0942\u090f\u0938\u090f",),
+    "UTTAR": ("\u0909\u0924\u094d\u0924\u0930",),
+    "UTTARAKHAND": ("\u0909\u0924\u094d\u0924\u0930\u093e\u0916\u0902\u0921",),
+    "UTTRAKHAND": ("\u0909\u0924\u094d\u0924\u0930\u093e\u0916\u0902\u0921",),
+    "VARANASI": ("\u0935\u093e\u0930\u093e\u0923\u0938\u0940",),
+    "VIJAYAWADA": ("\u0935\u093f\u091c\u092f\u0935\u093e\u0921\u093c\u093e",),
+    "VISAKHAPATNAM": ("\u0935\u093f\u0936\u093e\u0916\u093e\u092a\u0924\u094d\u0924\u0928\u092e",),
+    "VISIT": ("\u0926\u094c\u0930\u093e", "\u0926\u094c\u0930\u0947",),
+    "WAREHOUSE": ("\u0917\u094b\u0926\u093e\u092e",),
+    "WASHINGTON": ("\u0935\u0949\u0936\u093f\u0902\u0917\u091f\u0928",),
+    "WATER": ("\u091c\u0932", "\u092a\u093e\u0928\u0940",),
+    "WEATHER": ("\u092e\u094c\u0938\u092e",),
+    "WEST": ("\u092a\u0936\u094d\u091a\u093f\u092e",),
+    "WHEAT": ("\u0917\u0947\u0939\u0942\u0902",),
+    "WOMEN": ("\u092e\u0939\u093f\u0932\u093e", "\u092e\u0939\u093f\u0932\u093e\u0913\u0902",),
+    "WORLD": ("\u0935\u093f\u0936\u094d\u0935", "\u0926\u0941\u0928\u093f\u092f\u093e",),
+    "YEAR": ("\u0935\u0930\u094d\u0937", "\u0938\u093e\u0932",),
+    "YEARS": ("\u0935\u0930\u094d\u0937", "\u0938\u093e\u0932",),
+    "YOUTH": ("\u092f\u0941\u0935\u093e",),
+}
+
+# Acronyms with exam value: these are enforced even when the whole source line is
+# uppercase (where every other uppercase token is an ordinary word).
+_KNOWN_ACRONYMS = frozenset({
+    "ADB", "AIIMS", "ANI", "APEDA", "BRICS", "BSF", "CACP", "CBSE", "CRPF",
+    "CSIR", "DRDO", "ECI", "EEPC", "FAO", "FCI", "FSSAI", "G20", "GST",
+    "IANS", "IBPS", "ICAR", "ICMR", "IIM", "IIT", "IMF", "IRDAI", "ISRO",
+    "JJM", "KCC", "MEA", "MGNREGA", "MHA", "MPC", "MPEDA", "MSP", "NABARD",
+    "NAFED", "NCDRC", "NDRF", "NFSA", "NHAI", "NITI", "NPCI", "PACS", "PDS",
+    "PMKSY", "PMO", "PTI", "RBI", "SEBI", "SFAC", "SIDBI", "TRAI", "UN",
+    "UNESCO", "UNICEF", "UPI", "UPSC", "WHO", "WTO",
+})
+
+
+def _norm_for_match(text: str) -> str:
+    """Punctuation/space-insensitive form, so a dotted transliteration still matches."""
+    return re.sub(r"[\s.\-\u2013\u2014\u00b7|/\\(),:;!?'\"\u2018\u2019\u201c\u201d\u0964]+",
+                  "", text or "")
+
+
+def _source_is_all_caps(english: str) -> bool:
+    """True for headline-style sources where every word looks like an acronym."""
+    letters = [c for c in (english or "") if c.isascii() and c.isalpha()]
+    if len(letters) < 12:
+        return False
+    return sum(1 for c in letters if c.isupper()) / len(letters) >= 0.75
+
+
+def _missing_acronyms(english: str, hindi: str) -> List[str]:
+    """Uppercase source tokens the Hindi text does not carry.
+
+    For an ALL-CAPS source only curated acronyms count: demanding the Latin form
+    of an ordinary word (BATCH, DELHI, NEW) rejects correct translations."""
+    tokens = set(re.findall(r"\b[A-Z]{2,8}\b", english or ""))
+    if _source_is_all_caps(english):
+        tokens = {t for t in tokens if t.upper() in _KNOWN_ACRONYMS}
+    return sorted(t for t in tokens if not _acronym_matched_in_hindi(t, hindi))
+
+
 def _acronym_matched_in_hindi(acr: str, hindi: str) -> bool:
-    """Check if an English acronym is preserved in Hindi (Latin, Devanagari, or known expansion)."""
+    """Check if an English acronym is preserved in Hindi (Latin, Devanagari, known expansion).
+
+    Punctuation is ignored on both sides, so a model that writes the acronym with
+    dots between letters passes instead of being rejected (run 42789471273)."""
+    if not acr:
+        return True
     if acr in hindi:
         return True
-    dev = "".join(_DEV_ACRONYM_MAP.get(c, "") for c in acr.upper())
-    if dev and dev in hindi:
+    up = acr.upper()
+    hi = _norm_for_match(hindi)
+    lat = _norm_for_match(acr)
+    if lat and lat in hi:
         return True
-    if acr in _SPECIAL_ACRONYMS and _SPECIAL_ACRONYMS[acr] in hindi:
+    dev = _norm_for_match("".join(_DEV_ACRONYM_MAP.get(c, "") for c in up))
+    if dev and dev in hi:
+        return True
+    special = _SPECIAL_ACRONYMS.get(up)
+    if special and _norm_for_match(special) in hi:
+        return True
+    # Natural transliterations (ट्राई for TRAI, ब्रिक्स for BRICS): the letter
+    # map above only produces the spelling-out form.
+    for variant in _ACRONYM_HI_VARIANTS.get(up, ()):
+        if _norm_for_match(variant) and _norm_for_match(variant) in hi:
+            return True
+    # An ALL-CAPS English word or place name rendered in Hindi was translated,
+    # not dropped — never demand the Latin spelling back.
+    if any(_norm_for_match(w) in hi for w in _CAPS_WORD_HI.get(up, ())):
         return True
     # Short 2-letter common abbreviations (PC, PM, CM, IT, AI, etc.) never block valid translations
     if len(acr) <= 2:
@@ -444,9 +861,9 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     if missing_nums:
         issues.append(f"missing numbers: {sorted(missing_nums)[:3]}")
 
-    # Acronym check (uppercase 2-8 chars)
-    en_acr = set(re.findall(r"\b[A-Z]{2,8}\b", english))
-    missing_acr = [a for a in sorted(en_acr) if not _acronym_matched_in_hindi(a, hindi)]
+    # Acronym check (uppercase 2-8 chars; an ALL-CAPS source only enforces
+    # curated acronyms, see _missing_acronyms)
+    missing_acr = _missing_acronyms(english, hindi)
     if missing_acr:
         issues.append(f"missing acronyms: {missing_acr[:3]}")
 
@@ -459,6 +876,37 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     # Confidence: start from 1.0, subtract per issue
     conf = max(0.0, 1.0 - 0.25 * len(issues))
     return passed, conf, issues
+
+
+def _repair_missing_acronyms(english: str, hindi: str,
+                             missing: List[str]) -> Tuple[str, List[str]]:
+    """Append genuinely-absent acronyms as one parenthetical; never rewrite prose.
+
+    Returns (text, injected).  An earlier draft inserted each acronym at its
+    relative position in the sentence, which produced unreadable hybrids inside a
+    compound noun; a single trailing parenthetical keeps the exam-relevant token
+    in the PDF without touching the Hindi.  Called only when the acronym check is
+    the *only* problem, and the result is re-validated, so a repair can never
+    smuggle in a line that fails another gate.
+    """
+    out = (hindi or "").strip()
+    if not out:
+        return hindi, []
+    # Ask the same matcher the validator uses: a line that already says ट्राई
+    # has not dropped TRAI, and injecting it again only adds noise.
+    add = [a for a in missing[:max(0, MAX_ACRONYM_REPAIRS)]
+           if a and not _acronym_matched_in_hindi(a, out)]
+    if not add:
+        return hindi, []
+    tag = " (%s)" % ", ".join(add)
+    if out.endswith("\u0964"):
+        out = f"{out[:-1].rstrip()}{tag}\u0964"
+    elif out.endswith((".", "!", "?")):
+        out = f"{out[:-1].rstrip()}{tag}{out[-1]}"
+    else:
+        out = f"{out}{tag}"
+    return out, add
+
 
 
 # --------------------------------------------------------------------------- #
@@ -588,8 +1036,26 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
             except Exception:
                 pass
             passed, conf, issues = _validate(text, hindi)
-            record_ai_usage(name, live.get("model", ""), f"translator:{task}", passed,
-                            "" if passed else "validation rejected")
+            repaired: List[str] = []
+            # Acronym auto-repair: an otherwise clean line rejected *only* for a
+            # missing acronym gets the token appended and is re-validated.
+            # Everything else (no Devanagari, missing numbers, garbled text, bad
+            # length) still fails closed exactly as before.
+            if (not passed and AUTO_REPAIR and issues
+                    and all(i.startswith("missing acronyms") for i in issues)):
+                fixed, injected = _repair_missing_acronyms(
+                    text, hindi, _missing_acronyms(text, hindi))
+                if injected:
+                    retry_passed, retry_conf, _retry_issues = _validate(text, fixed)
+                    if retry_passed:
+                        logger.info("[Translator] %s auto-repaired %s (was rejected: %s)",
+                                    name, injected, issues)
+                        hindi, passed = fixed, True
+                        conf = min(retry_conf, REPAIRED_CONFIDENCE_CAP)
+                        issues, repaired = [], injected
+            detail = ("acronym auto-repair: " + ",".join(repaired)) if repaired else (
+                "" if passed else "validation rejected")
+            record_ai_usage(name, live.get("model", ""), f"translator:{task}", passed, detail)
             if passed:
                 result = {
                     "translated_hi": hindi,
@@ -597,6 +1063,7 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
                     "confidence": round(conf, 3),
                     "provider": name,
                     "issues": [],
+                    "repaired": repaired,
                 }
                 _CACHE.put(key, result)
                 logger.debug("[Translator] ✔ %s (conf=%.2f) for task=%s",
