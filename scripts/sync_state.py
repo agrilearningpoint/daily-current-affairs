@@ -14,7 +14,7 @@ import time
 
 FILES = ["state/jobs.json", "state/importance_memory.json", "state/published_events.json",
          "state/published_jobs.json", "state/pin_verification.json", "state/source_health.json",
-         "state/ai_facts_cache.json", "recovery_plan.json"]
+         "state/ai_facts_cache.json", "state/mcq_history.json", "recovery_plan.json"]
 
 
 def timestamp(entry):
@@ -53,6 +53,14 @@ def merge_document(path, local, remote):
         return {"version": 1, "sources": union(local.get("sources", {}), remote.get("sources", {}))}
     if path == "state/importance_memory.json":
         return union(local.get("events", local), remote.get("events", remote))
+    if path == "state/mcq_history.json":
+        # Cross-edition MCQ memory: union per question fingerprint. Entries carry
+        # "last_seen", which timestamp() already understands, so the newer edition
+        # wins for a question both runs printed.
+        return {"version": max(int(local.get("version", 1) or 1), int(remote.get("version", 1) or 1)),
+                "updated": max(str(local.get("updated", "")), str(remote.get("updated", ""))),
+                "questions": union(local.get("questions", {}), remote.get("questions", {})),
+                "concepts": union(local.get("concepts", {}), remote.get("concepts", {}))}
     if path == "recovery_plan.json":
         return local if timestamp(local) >= timestamp(remote) else remote
     return union(local, remote)

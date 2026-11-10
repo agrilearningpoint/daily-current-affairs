@@ -64,54 +64,104 @@ class Agent:
         self.context["mcqs_llm_schema"] = len(llm_mcqs)
 
         pools = _build_pools(items + reserves)
-        final_items, mcqs, seen_q, dropped = [], [], set(), []
-        spare_cands = {}
+        reserves_all = list(reserves)
+        llm_one_cache = {}
 
-        def _assign(ci, llm_map):
-            cands = candidates_for_item(ci, _evidence_text(ci), pools, items + reserves,
-                                        llm_map.get(str(ci.get("event_id", ""))))
-            spare_cands[str(ci.get("event_id", ""))] = cands
-            m, reasons = first_valid(cands, ci, seen_q)
-            if m is None:
-                dropped.append({"event_id": ci.get("event_id"), "headline": ci.get("headline_en", "")[:90],
-                                "reasons": reasons[:6]})
-                logging.warning(f"[{self.name}] no valid MCQ for {ci.get('event_id')}: {reasons[:4]}")
-                return False
-            seen_q.add(_qkey(m.get("question_en")))
-            final_items.append(ci)
-            mcqs.append(m)
-            return True
+        def _llm_for_one(ci):
+            """Memoised single-story LLM pass — the relaxed rebuild below must not
+            pay for the same reserve story twice."""
+            eid = str(ci.get("event_id", ""))
+            if eid not in llm_one_cache:
+                llm_one_cache[eid] = _llm_for([ci])
+            return llm_one_cache[eid]
 
-        for ci in items:
-            _assign(ci, llm_mcqs)
+        def _build(seed_seen):
+            """Assign one validated MCQ per story.
 
-        promoted = 0
-        while len(final_items) < target and reserves:
-            ci = reserves.pop(0)
-            if _assign(ci, _llm_for([ci])):
-                promoted += 1
-        if promoted:
-            logging.info(f"[{self.name}] promoted {promoted} reserve stor(y/ies) to keep {len(final_items)}/{target}")
+            ``seed_seen`` holds fingerprints of questions a *previous* edition
+            printed, so they are skipped here exactly like an in-run duplicate;
+            pass an empty set for the pre-history behaviour.
+            """
+            final_items, mcqs, seen_q, dropped = [], [], set(seed_seen or ()), []
+            spare_cands = {}
+            work_reserves = list(reserves_all)
 
-        # Sparse editions: PDF QA expects min(10, 2 x stories) questions, so give
-        # stories a second validated question (different template) round-robin.
-        want = min(10, 2 * len(final_items))
-        if len(mcqs) < want:
-            extra = []
-            for ci in final_items:
-                if len(mcqs) + len(extra) >= want:
-                    break
-                used = {_qkey(m.get("question_en")) for m in mcqs if m.get("event_id") == ci.get("event_id")}
-                rest = [c for c in spare_cands.get(str(ci.get("event_id", "")), [])
-                        if _qkey(c.get("question_en")) not in used]
-                m2, _ = first_valid(rest, ci, seen_q)
-                if m2 is not None:
-                    seen_q.add(_qkey(m2.get("question_en")))
-                    extra.append(m2)
-            if extra:
-                order = {str(i.get("event_id")): n for n, i in enumerate(final_items)}
-                mcqs = sorted(mcqs + extra, key=lambda m: order.get(str(m.get("event_id")), 10 ** 6))
-                logging.info(f"[{self.name}] sparse edition: added {len(extra)} second question(s)")
+            def _assign(ci, llm_map):
+                cands = candidates_for_item(ci, _evidence_text(ci), pools, items + reserves_all,
+                                            llm_map.get(str(ci.get("event_id", ""))))
+                spare_cands[str(ci.get("event_id", ""))] = cands
+                m, reasons = first_valid(cands, ci, seen_q)
+                if m is None:
+                    dropped.append({"event_id": ci.get("event_id"), "headline": ci.get("headline_en", "")[:90],
+                                    "reasons": reasons[:6]})
+                    logging.warning(f"[{self.name}] no valid MCQ for {ci.get('event_id')}: {reasons[:4]}")
+                    return False
+                seen_q.add(_qkey(m.get("question_en")))
+                final_items.append(ci)
+                mcqs.append(m)
+                return True
+
+            for ci in items:
+                _assign(ci, llm_mcqs)
+
+            promoted = 0
+            while len(final_items) < target and work_reserves:
+                ci = work_reserves.pop(0)
+                if _assign(ci, _llm_for_one(ci)):
+                    promoted += 1
+            if promoted:
+                logging.info(f"[{self.name}] promoted {promoted} reserve stor(y/ies) to keep {len(final_items)}/{target}")
+
+            # Sparse editions: PDF QA expects min(10, 2 x stories) questions, so give
+            # stories a second validated question (different template) round-robin.
+            want = min(10, 2 * len(final_items))
+            if len(mcqs) < want:
+                extra = []
+                for ci in final_items:
+                    if len(mcqs) + len(extra) >= want:
+                        break
+                    used = {_qkey(m.get("question_en")) for m in mcqs if m.get("event_id") == ci.get("event_id")}
+                    rest = [c for c in spare_cands.get(str(ci.get("event_id", "")), [])
+                            if _qkey(c.get("question_en")) not in used]
+                    m2, _ = first_valid(rest, ci, seen_q)
+                    if m2 is not None:
+                        seen_q.add(_qkey(m2.get("question_en")))
+                        extra.append(m2)
+                if extra:
+                    order = {str(i.get("event_id")): n for n, i in enumerate(final_items)}
+                    mcqs = sorted(mcqs + extra, key=lambda m: order.get(str(m.get("event_id")), 10 ** 6))
+                    logging.info(f"[{self.name}] sparse edition: added {len(extra)} second question(s)")
+
+            return {"final_items": final_items, "mcqs": mcqs, "seen_q": seen_q, "dropped": dropped,
+                    "promoted": promoted, "reserves_left": work_reserves, "spare_cands": spare_cands}
+
+        # ── Cross-edition memory: prefer a question no recent edition printed ──
+        # Measured over 18 published editions: the MSP concept question reprinted
+        # in 3 of the last 4. History only ever *prefers* — when skipping recent
+        # questions would leave the edition below its target the whole assignment
+        # is rebuilt without the filter, so a sparse news day cannot fail a run.
+        from pipeline import mcq_history
+        from pipeline.mcq_quality import job_date_of
+        job_date = job_date_of(self.job_id, content)
+        hist = mcq_history.load()
+        recent = mcq_history.recent_qkeys(hist, job_date)
+        built = _build(recent)
+        if mcq_history.should_relax(recent, len(built["final_items"]), target, len(built["mcqs"])):
+            logging.warning(
+                f"[{self.name}] MCQ history skipped {len(recent)} recent question(s) and left "
+                f"{len(built['final_items'])}/{target} stories with {len(built['mcqs'])} MCQ(s) — "
+                f"rebuilding without the history filter")
+            built = _build(set())
+            self.context["mcq_history_relaxed"] = True
+        final_items = built["final_items"]
+        mcqs = built["mcqs"]
+        seen_q = built["seen_q"]
+        dropped = built["dropped"]
+        promoted = built["promoted"]
+        reserves = built["reserves_left"]
+        self.context["mcq_history_recent"] = len(recent)
+        if recent:
+            logging.info(f"[{self.name}] MCQ history: {len(recent)} question(s) from earlier editions skipped")
 
         by_type = {}
         for m in mcqs:
@@ -147,10 +197,20 @@ class Agent:
         renumber_mcqs(valid_mcqs)
         # Spread the keyed answer over A-E (generators tend to put it first);
         # seeded by job date + question index so re-runs are identical.
-        from pipeline.mcq_quality import balance_answer_positions, job_date_of, letter_spread
+        from pipeline.mcq_quality import balance_answer_positions, letter_spread
         balance_answer_positions(valid_mcqs, job_date_of(self.job_id, content))
         logging.info(f"[{self.name}] answer-key spread: {letter_spread(valid_mcqs)}")
         write_json_atomic(data_path(MCQ_DIR, self.job_id), valid_mcqs)
+
+        # Remember what this edition printed so the next one can avoid repeating
+        # it. Fail-open: history is a variety aid, never a correctness gate.
+        try:
+            added = mcq_history.record(hist, valid_mcqs, job_date)
+            if mcq_history.save(hist):
+                logging.info(f"[{self.name}] MCQ history: recorded {added} question(s) for {job_date} "
+                             f"({mcq_history.stats(hist, job_date)})")
+        except Exception as exc:
+            logging.warning(f"[{self.name}] MCQ history not updated: {exc}")
 
         # Content now lists exactly the stories that have a question unit.
         content["items"] = final_items
