@@ -1905,39 +1905,47 @@
     "checkpoint_run_id": "42540957179"
   },
   "daily_2026-11-10": {
-    "started_at": "2026-11-10T09:18:16.490224+00:00",
+    "started_at": "2026-11-10T09:42:23.474381+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-10.json": {
         "stage": "01_source_fetch",
-        "sha256": "5f720e7224bc97c22707330bd0f12e66f4e0caedc141700c67a6b32a279b21a4"
+        "sha256": "bed0019a016f972e1a9ad655d402fac2992e16ed7e7541714767c00dece5973b"
       },
       "data/verified/daily_2026-11-10.json": {
         "stage": "04_fact_verification",
-        "sha256": "19c6628d1ae02765539f25d9b2731d925bb5c5e6c5db85a832dc95bb2319cbc6"
+        "sha256": "84545e09cfef2796b31628f639e2003de000985f4413f2962f73ecd790bc00c8"
       },
       "data/dedup/daily_2026-11-10.json": {
         "stage": "05_deduplication",
-        "sha256": "2aa677080b014f093ba174a7a1ea4eec3610c671f955f89a47d1058e9401f165"
+        "sha256": "06118967fe57f0580333a367c8fa9c5d74e34fd721e94e510bb7ce1d6dab1d17"
       },
       "data/scored/daily_2026-11-10.json": {
         "stage": "06_news_importance",
-        "sha256": "c044a2b27260ff070345ebf865be91b31f87abfe902c94df7b3307b532eb17a9"
+        "sha256": "05081543cb0dc35507e5a6008b7b351a80bba0a2f12450504f9ab71e4af0509a"
       },
       "data/selected/daily_2026-11-10.json": {
         "stage": "10_final_news_selection",
-        "sha256": "cc1dcfb0f742fb63f0b4107b6c3977074949cb328835f0f720773174e5eedb74"
+        "sha256": "b43077749bc3c224fc8eb519a66eaef83f4c65dd3367f80b48247e2d8531d5fd"
       },
       "data/content/daily_2026-11-10.json": {
         "stage": "12_content_editor",
-        "sha256": "5b492b5522678c56e81276e6fa82052f97e44fc549586b96c06f10fc8636e02c"
+        "sha256": "05c40164e7d16e40ba884f8fed887362e603b76b12bc597001c31789e5c821c4"
       },
       "data/mcq/daily_2026-11-10.json": {
         "stage": "16_mcq_generator",
-        "sha256": "6ccded32f8d9e80ead1621b261d2932cd0699ce7f972ae1e01ef54439385c67d"
+        "sha256": "df3db7e270c172917b1d43f68d5c248c76a45af735a3e20e09f3a97949877002"
       },
       "output/daily_2026-11-10.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "26672f09a1f56353d8421de0964bda77971dd84c0b8340d348d7c5a3378b46ce"
+        "sha256": "010006aabfbc6570aa71c1cf9bd80bb580fbcb839a22f42f8a4fb04896b0b597"
+      },
+      "logs/qa/daily_2026-11-10_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "69c908dc7ae0466579903401bb507603465e1b696a0fb7cf315a736f7f6d0a66"
+      },
+      "logs/qa/daily_2026-11-10_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "c1ba54b700e230d7c277dd4d6950be61a94e8ad639d410cfff318d04b7761230"
       }
     },
     "run_attempts": 1,
@@ -1950,11 +1958,9 @@
       "end": "2026-11-10T06:00:00+05:30"
     },
     "github_run_id": "42792859553",
-    "status": "running",
-    "updated_at": "2026-11-10T09:42:20.682399+00:00",
-    "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): 8.3%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            10\nAnswer markers:  10\nDuplicate Qs:    0\nURLs:            0\nImages:          180\nBlank pages:     none\nSubstantive pgs: 17 (min page chars 909)\nNear-empty pgs:  none\n\n--- Issues ---\n  [ERROR] [edition_story_shortfall] Edition has 9 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [WARN] [title_only_stories] 1 headline-only story (no body/bullets), e.g. '>> Union Minister of Minority Affairs & Parliamentary Affairs, Shri Kiren Rijiju visits Ki'\n  [INFO] [few_photos] 2 real news photos (target 10)\n========================================================================\n\n2026-11-10 09:37:58 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
-    "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "42789471273"
+    "status": "success",
+    "updated_at": "2026-11-10T09:56:39.509478+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "42792859553"
   }
 }
