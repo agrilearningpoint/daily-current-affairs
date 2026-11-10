@@ -75,7 +75,7 @@ class Agent:
                 llm_one_cache[eid] = _llm_for([ci])
             return llm_one_cache[eid]
 
-        def _build(seed_seen):
+        def _build(seed_seen, variant_ctx=None):
             """Assign one validated MCQ per story.
 
             ``seed_seen`` holds fingerprints of questions a *previous* edition
@@ -88,7 +88,7 @@ class Agent:
 
             def _assign(ci, llm_map):
                 cands = candidates_for_item(ci, _evidence_text(ci), pools, items + reserves_all,
-                                            llm_map.get(str(ci.get("event_id", ""))))
+                                            llm_map.get(str(ci.get("event_id", ""))), variant_ctx)
                 spare_cands[str(ci.get("event_id", ""))] = cands
                 m, reasons = first_valid(cands, ci, seen_q)
                 if m is None:
@@ -145,13 +145,15 @@ class Agent:
         job_date = job_date_of(self.job_id, content)
         hist = mcq_history.load()
         recent = mcq_history.recent_qkeys(hist, job_date)
-        built = _build(recent)
+        # Rotation context: which concept phrasings earlier editions already used.
+        variant_ctx = {"edition_date": job_date, "history": hist}
+        built = _build(recent, variant_ctx)
         if mcq_history.should_relax(recent, len(built["final_items"]), target, len(built["mcqs"])):
             logging.warning(
                 f"[{self.name}] MCQ history skipped {len(recent)} recent question(s) and left "
                 f"{len(built['final_items'])}/{target} stories with {len(built['mcqs'])} MCQ(s) — "
                 f"rebuilding without the history filter")
-            built = _build(set())
+            built = _build(set(), variant_ctx)
             self.context["mcq_history_relaxed"] = True
         final_items = built["final_items"]
         mcqs = built["mcqs"]

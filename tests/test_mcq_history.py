@@ -290,7 +290,7 @@ def stage16(tmp_path, monkeypatch):
 
     monkeypatch.setattr(mcq_builder, "first_valid", fake_first_valid)
     monkeypatch.setattr(mcq_builder, "candidates_for_item",
-                        lambda ci, ev, pools, all_items, llm=None: ci["_candidates"])
+                        lambda ci, ev, pools, all_items, llm=None, variant_ctx=None: ci["_candidates"])
 
     mod = _load_stage16()
     return mod, seen_seeds

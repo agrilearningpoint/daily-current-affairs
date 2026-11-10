@@ -159,11 +159,81 @@ def mapping_for(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+# --------------------------------------------------------------------------- #
+# Concept phrasing variants (pipeline/mcq_concept_variants.py)
+# --------------------------------------------------------------------------- #
+def _variant_list(mp: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The entry's own question as ``v0`` plus its phrasing variants.
+
+    The bank is attached here, on first use of the entry, because both the answer
+    guards and ``concept_mcqs`` go through this function; attaching it only in one
+    of them left the rotation silently seeing a single phrasing.
+    """
+    if "variants" not in mp:
+        from pipeline.mcq_concept_variants import CONCEPT_VARIANTS
+        mp["variants"] = CONCEPT_VARIANTS.get(mp["id"], [])
+    v0 = {"vid": "v0", "guard": mp["trigger"], "accept": mp["accept"], "q": mp["q"],
+          "answer": mp["answer"], "expl": mp["expl"], "distractors": mp["distractors"]}
+    return [v0] + list(mp.get("variants") or [])
+
+
+def _mapping_pairs() -> List[Tuple[str, str, str, str, bool]]:
+    """Every ``(guard, accept, id, answer, strict)`` the answer guards know about.
+
+    A variant carries its own phrasing-specific guard so that widening the bank
+    never widens the entry's guard: an LLM question that matches the *entry*
+    trigger must still be keyed to the entry's verified answer, or
+    ``mapping_conflict`` reports it.
+    """
+    pairs: List[Tuple[str, str, str, str, bool]] = []
+    for mp in KNOWN_MAPPINGS:
+        strict = mp.get("strict", True) is not False
+        for v in _variant_list(mp):
+            pairs.append((v.get("guard") or mp["trigger"], v["accept"], mp["id"],
+                          v["answer"][0], strict))
+    return pairs
+
+
+def _pick_variant(mp: Dict[str, Any], eligible: List[Tuple[Dict[str, Any], List[Any]]],
+                  ctx: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Any], List[Any]]:
+    """Choose one phrasing for this concept: fresh ones first, then a stable hash.
+
+    Without a context (weekly/monthly assembly, existing callers, tests) the
+    entry's own question wins, exactly as before.  With the edition date the
+    choice is deterministic for that date, and variants a previous edition
+    already printed within the concept window are preferred against.
+    """
+    if len(eligible) == 1 or not ctx or not ctx.get("edition_date"):
+        return eligible[0]
+    from pipeline import mcq_history
+    hist = ctx.get("history") or {}
+    date = ctx.get("edition_date")
+    seed = f"{date}|{mp['id']}"
+
+    def _hash(vid: str) -> str:
+        return hashlib.sha1((seed + "|" + vid).encode()).hexdigest()
+
+    fresh = [(v, ds) for v, ds in eligible
+             if not mcq_history.variant_used_within(hist, mp["id"], v["vid"], date)]
+    if fresh:
+        return sorted(fresh, key=lambda p: _hash(p[0]["vid"]))[0]
+    # Every phrasing was printed inside the concept window — a topic that stays in
+    # the news outruns the bank. Rotate least-recently-used instead of a plain
+    # hash, which can land on the same phrasing twice in a row.
+    uses = mcq_history.concept_uses(hist, mp["id"])
+
+    def _age(p) -> tuple:
+        entry = uses.get(str(p[0]["vid"])) or {}
+        return (str(entry.get("last_seen") or ""), int(entry.get("count") or 0), _hash(p[0]["vid"]))
+
+    return sorted(eligible, key=_age)[0]
+
+
 def known_mapping_supports(question: str, answer: str) -> bool:
     """True when ``answer`` is the verified key for the topic the question asks about."""
     q = question or ""
-    for mp in KNOWN_MAPPINGS:
-        if re.search(mp["trigger"], q, re.I) and re.search(mp["accept"], answer or "", re.I):
+    for guard, accept, _cid, _ans, _strict in _mapping_pairs():
+        if re.search(guard, q, re.I) and re.search(accept, answer or "", re.I):
             return True
     return False
 
@@ -173,30 +243,52 @@ def mapping_conflict(question: str, answer: str) -> str:
     q = question or ""
     if not ORG_ASK_RE.search(q):
         return ""
-    for mp in KNOWN_MAPPINGS:
-        if mp.get("strict", True) is False:
-            continue
-        if re.search(mp["trigger"], q, re.I) and not re.search(mp["accept"], answer or "", re.I):
-            return f"wrong key: a {mp['id'].upper()} question must be keyed to {mp['answer'][0]}"
+    matched: List[Tuple[str, str, bool]] = []
+    for guard, accept, cid, ans, strict in _mapping_pairs():
+        if re.search(guard, q, re.I):
+            if re.search(accept, answer or "", re.I):
+                return ""            # a known phrasing with its own verified key
+            matched.append((cid, ans, strict))
+    strict_hits = [m for m in matched if m[2]]
+    if strict_hits:
+        cid, ans, _ = strict_hits[0]
+        return f"wrong key: a {cid.upper()} question must be keyed to {ans}"
     return ""
 
 
-def concept_mcqs(ci: Dict[str, Any], evidence: str) -> List[Dict[str, Any]]:
-    """Static/conceptual MCQs for the known topics the story mentions (exam value beyond the headline)."""
+def concept_mcqs(ci: Dict[str, Any], evidence: str,
+                 ctx: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Static/conceptual MCQs for the known topics the story mentions (exam value beyond the headline).
+
+    One question per matched topic, but the *phrasing* rotates: ``ctx`` carries
+    ``{"edition_date": "YYYY-MM-DD", "history": <mcq_history dict>}`` so a topic
+    that stays in the news does not reprint the identical stem every day.  Each
+    candidate phrasing must still have four distractors absent from the story,
+    otherwise it is not eligible.
+    """
     from pipeline.mcq_builder import _make
     out = []
     low = (evidence or "").lower()
     for mp in KNOWN_MAPPINGS:
         if not re.search(mp["trigger"], evidence or "", re.I):
             continue
-        ds = [d for d in mp["distractors"]
-              if d[0].lower() not in low and not any(p.lower() in low for p in re.findall(r"\(([A-Z]{2,8})\)", d[0]))]
-        ds = sorted(ds, key=lambda d: hashlib.sha1((str(ci.get("event_id")) + d[0]).encode()).hexdigest())
-        if len(ds) < 4:
+        eligible: List[Tuple[Dict[str, Any], List[Any]]] = []
+        for v in _variant_list(mp):
+            ds = [d for d in v["distractors"]
+                  if d[0].lower() not in low
+                  and not any(p.lower() in low for p in re.findall(r"\(([A-Z]{2,8})\)", d[0]))]
+            if len(ds) < 4:
+                continue
+            ds = sorted(ds, key=lambda d: hashlib.sha1((str(ci.get("event_id")) + d[0]).encode()).hexdigest())
+            eligible.append((v, ds))
+        if not eligible:
             continue
-        m = _make(ci, "concept", mp["q"][0], mp["q"][1], mp["answer"], ds[:4], mp["expl"][0], mp["expl"][1])
+        v, ds = _pick_variant(mp, eligible, ctx)
+        m = _make(ci, "concept", v["q"][0], v["q"][1], tuple(v["answer"]), [tuple(d) for d in ds[:4]],
+                  v["expl"][0], v["expl"][1])
         if m:
             m["concept_id"] = mp["id"]
+            m["concept_variant"] = v["vid"]
             out.append(m)
     return out
 
@@ -238,7 +330,9 @@ def stale_title_error(option: str) -> str:
             if len(phrase) < 4 or not re.search(r"\b" + re.escape(phrase) + r"\b", o, re.I):
                 continue
             rest = re.sub(re.escape(phrase), " ", o, flags=re.I)
-            rest = re.sub(r"\b(?:Union|the|of|India|Shri|Smt|Dr|Mr|Ms)\b\.?", " ", rest)
+            # Case-insensitive like the phrase match above: "The Prime Minister of
+            # India" is a post with no name attached, not a stale officeholder.
+            rest = re.sub(r"\b(?:Union|the|of|India|Shri|Smt|Dr|Mr|Ms)\b\.?", " ", rest, flags=re.I)
             name = _ws(re.sub(r"[,()\-–]", " ", rest))
             if not re.search(r"[A-Z][a-z]+", name):
                 continue

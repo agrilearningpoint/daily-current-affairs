@@ -274,7 +274,8 @@ BILINGUAL_TEMPLATES: List[Callable[[Dict[str, Any], str], Optional[Dict[str, Any
 
 
 def candidates_for_item(ci: Dict[str, Any], evidence: str, pools: Dict[str, Any],
-                        all_items: List[Dict[str, Any]], llm_mcq: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                        all_items: List[Dict[str, Any]], llm_mcq: Optional[Dict[str, Any]] = None,
+                        variant_ctx: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """All MCQ candidates for one story, best first (LLM, bilingual templates, legacy templates)."""
     from pipeline.content import _build_item_candidates
     from pipeline.mcq_quality import concept_mcqs
@@ -282,7 +283,7 @@ def candidates_for_item(ci: Dict[str, Any], evidence: str, pools: Dict[str, Any]
     if llm_mcq:
         out.append(llm_mcq)
     try:
-        out.extend(concept_mcqs(ci, evidence))
+        out.extend(concept_mcqs(ci, evidence, variant_ctx))
     except Exception:
         logger.exception("[MCQ builder] concept candidates failed for %s", ci.get("event_id"))
     for fn in BILINGUAL_TEMPLATES:
