@@ -24,6 +24,8 @@ Env:
   PDF_QA_MIN_MCQ_COUNT   (default 10; sparse editions require 2 per story)
   PDF_QA_STRICT          (1 = fail on warnings; 0 = warnings OK)
   PDF_QA_RENDER_CHECK    (1 = render pages to image for blank detection)
+  PDF_QA_MCQ_VARIETY     (1 = warn on monotonous / repeated MCQs; default 1)
+  PDF_QA_STEM_SHARE_WARN (one stem may cover this share of questions; default 0.25)
 
 Exit codes:
   0 — QA passed
@@ -175,6 +177,16 @@ NEAR_EMPTY_CHARS = int(os.getenv("PDF_QA_NEAR_EMPTY_CHARS", "260"))
 # not rejected merely because those designed pages are not text-dense.
 MIN_SUBSTANTIVE_PAGES = int(os.getenv("PDF_QA_MIN_SUBSTANTIVE_PAGES", "2"))
 
+# --- MCQ variety (warnings only) ---
+# Measured over 18 published editions: 283 questions used just 71 distinct
+# six-word stems, and three templates accounted for ~72% of all questions.
+# Nothing in QA noticed, because the gate only counts questions and duplicates
+# inside one edition.
+VARIETY_CHECK = os.getenv("PDF_QA_MCQ_VARIETY", "1") == "1"
+STEM_WORDS = int(os.getenv("PDF_QA_STEM_WORDS", "6"))
+STEM_SHARE_WARN = float(os.getenv("PDF_QA_STEM_SHARE_WARN", "0.25"))
+STEM_MIN_QUESTIONS = int(os.getenv("PDF_QA_STEM_MIN_QUESTIONS", "8"))
+
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 URL_RE = re.compile(r"https?://[^\s\)\]\"']+")
 MCQ_Q_RE = re.compile(
@@ -210,6 +222,8 @@ class QAReport:
     mcq_count: int = 0
     answers_found: int = 0
     duplicate_questions: int = 0
+    mcq_distinct_stems: int = 0
+    mcq_repeats: int = 0
     urls_found: int = 0
     blank_pages: List[int] = field(default_factory=list)
     near_empty_pages: List[int] = field(default_factory=list)
@@ -246,6 +260,8 @@ class QAReport:
             "mcq_count": self.mcq_count,
             "answers_found": self.answers_found,
             "duplicate_questions": self.duplicate_questions,
+            "mcq_distinct_stems": self.mcq_distinct_stems,
+            "mcq_repeats": self.mcq_repeats,
             "urls_found": self.urls_found,
             "blank_pages": self.blank_pages,
             "near_empty_pages": self.near_empty_pages,
@@ -642,6 +658,79 @@ def check_mcqs(report: QAReport, text: str, min_mcq_count: int = MIN_MCQ_COUNT) 
                    count=dup_count)
 
 
+def stem_of(question: str, words: int = STEM_WORDS) -> str:
+    """First ``words`` words of a question, lowercased and unpunctuated.
+
+    The template a question came from shows up in its opening words ("which
+    institution or entity is centrally ..."), which is how the monotony in
+    published editions was measured.
+    """
+    tokens = re.findall(r"[a-z0-9]+", str(question or "").lower())
+    return " ".join(tokens[:words])
+
+
+def stem_shares(mcqs: List[Dict[str, Any]], words: int = STEM_WORDS) -> List[Tuple[str, int]]:
+    counts: Dict[str, int] = {}
+    for m in mcqs or []:
+        if not isinstance(m, dict):
+            continue
+        stem = stem_of(m.get("question_en"), words)
+        if stem:
+            counts[stem] = counts.get(stem, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def check_mcq_variety(report: QAReport, mcqs: List[Dict[str, Any]],
+                      edition_date: Optional[str] = None,
+                      history: Optional[Dict[str, Any]] = None) -> None:
+    """Warn about a monotonous question set and about repeats of earlier editions.
+
+    Warnings only: variety is an editorial quality signal, not a reason to block
+    a correct edition (PDF_QA_STRICT=1 still escalates it, as with every warning).
+    """
+    if not VARIETY_CHECK:
+        return
+    mcqs = [m for m in (mcqs or []) if isinstance(m, dict) and m.get("question_en")]
+    if not mcqs:
+        return
+
+    # 1. one stem template dominating the edition
+    if len(mcqs) >= STEM_MIN_QUESTIONS:
+        shares = stem_shares(mcqs)
+        top, top_n = shares[0]
+        share = top_n / len(mcqs)
+        report.mcq_distinct_stems = len(shares)
+        if share > STEM_SHARE_WARN:
+            others = ", ".join(f"{s!r} x{n}" for s, n in shares[1:3])
+            report.add("warning", "mcq_stem_monotony",
+                       f"{top_n} of {len(mcqs)} questions ({share:.0%}) share the stem "
+                       f"{top!r}; {len(shares)} distinct {STEM_WORDS}-word stems"
+                       + (f"; next: {others}" if others else ""),
+                       stem=top, count=top_n, total=len(mcqs), share=round(share, 3),
+                       distinct_stems=len(shares), threshold=STEM_SHARE_WARN)
+
+    # 2. questions an earlier edition already printed
+    try:
+        from pipeline import mcq_history
+        if history is None:
+            # Stage 16 has already recorded *this* edition, which is fine:
+            # recent_qkeys ignores entries dated today, so only earlier editions
+            # are compared against.
+            history = mcq_history.load()
+        repeats = mcq_history.repeats_against(history, mcqs, edition_date, limit=5)
+    except Exception as exc:                     # never fail QA over the memory file
+        logger.warning("MCQ repeat check skipped: %s", exc)
+        return
+    report.mcq_repeats = len(repeats)
+    if repeats:
+        sample = repeats[0]["q"][:70]
+        report.add("warning", "mcq_repeat_from_earlier_edition",
+                   f"{len(repeats)} question(s) were printed by an earlier edition within their "
+                   f"window (e.g. {sample!r}, last seen {repeats[0].get('last_seen')}) — the "
+                   f"history filter was relaxed or the bank ran out of phrasings",
+                   count=len(repeats), samples=[r["q"][:90] for r in repeats],
+                   last_seen=[r.get("last_seen") for r in repeats])
+
 HTML_TAG_RE = re.compile(r"<(?:span|div|time|p|br|table|tr|td|b|i|font)\b[^>]*>", re.IGNORECASE)
 
 # Glyph-integrity checks: characters that indicate a missing/unmappable glyph
@@ -918,6 +1007,10 @@ def print_summary(report: QAReport) -> None:
     print(f"MCQs:            {report.mcq_count}")
     print(f"Answer markers:  {report.answers_found}")
     print(f"Duplicate Qs:    {report.duplicate_questions}")
+    if report.mcq_distinct_stems:
+        print(f"Distinct stems:  {report.mcq_distinct_stems} ({STEM_WORDS}-word prefixes)")
+    if report.mcq_repeats:
+        print(f"Repeat Qs:       {report.mcq_repeats} (printed by an earlier edition)")
     print(f"URLs:            {report.urls_found}")
     print(f"Images:          {report.image_xobjects}")
     print(f"Blank pages:     {report.blank_pages if report.blank_pages else 'none'}")
@@ -982,6 +1075,21 @@ def main() -> int:
     check_story_count(report, len(edition_items), len(selected_items))
     check_story_bodies(report, edition_items, str(getattr(ctx, "job_type", "") or ""))
     check_photo_count(report, edition_items)
+
+    # Variety is checked against the MCQ artifact, not the PDF text: the artifact
+    # carries question type and concept id, and it is what stage 16 validated.
+    mcq_path = ctx.find_input("mcq")
+    if mcq_path is not None:
+        try:
+            mcq_data = json.loads(mcq_path.read_text(encoding="utf-8"))
+            mcq_list = mcq_data.get("mcqs") if isinstance(mcq_data, dict) else mcq_data
+            check_mcq_variety(report, mcq_list if isinstance(mcq_list, list) else [],
+                              edition_date=re.search(r"\d{4}-\d{2}-\d{2}", str(ctx.job_id or ""))
+                              .group(0) if re.search(r"\d{4}-\d{2}-\d{2}", str(ctx.job_id or "")) else None)
+        except (OSError, json.JSONDecodeError, AttributeError) as exc:
+            logger.warning("MCQ variety check skipped, artifact unreadable: %s", exc)
+    else:
+        logger.warning("MCQ variety check skipped: no MCQ artifact for %s", ctx.job_id)
 
     # Save report
     report_file = ctx.qa_report_path()
