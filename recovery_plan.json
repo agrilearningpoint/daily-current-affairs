@@ -1,20 +1,20 @@
 {
-  "generated_at": "2026-11-04T22:47:50.925772+00:00",
+  "generated_at": "2026-11-10T07:20:43.511782+00:00",
   "stuck_running": [],
   "recent_failed_final": [
-    "daily_2026-11-01",
-    "monthly_2026-11-01"
+    "daily_2026-11-10",
+    "weekly_2026-11-08"
   ],
-  "actions": [],
-  "manual_attention": [
+  "actions": [
     {
-      "job_id": "monthly_2026-11-01",
-      "reason": "recovery budget exhausted"
+      "job_id": "daily_2026-11-10",
+      "action": "retry"
     }
   ],
+  "manual_attention": [],
   "resolved": [
     {
-      "job_id": "daily_2026-11-01",
+      "job_id": "weekly_2026-11-08",
       "reason": "already_published (later revision refused)"
     }
   ]
