@@ -12,7 +12,9 @@ Responsibilities:
 - Export available providers for downstream agents
 
 Env:
-  GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY
+  GEMINI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY, OPENROUTER_API_KEY,
+  COHERE_API_KEY, LL7_API_KEY, HUGGINGFACE_API_KEY, NVIDIA_API_KEY,
+  POLLINATIONS_API_KEY, SILICONFLOW_API_KEY
   ORCHESTRATOR_SKIP_HEALTHCHECK  (1 = skip live test calls)
 """
 from __future__ import annotations
@@ -70,15 +72,15 @@ def load_keys() -> List[Dict[str, Any]]:
     env_names = {
         "gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
         "groq": "GROQ_API_KEY",
-        "openai": "OPENAI_API_KEY",
         "mistral": "MISTRAL_API_KEY",
         "generic-openai": "LLM_API_KEY",
         "openrouter": "OPENROUTER_API_KEY",
         "nvidia": "NVIDIA_API_KEY",
-        "ollama": "OLLAMA_API_KEY" if os.getenv("OLLAMA_API_KEY") else "OLLAMA_BASE_URL",
         "cohere": "COHERE_API_KEY",
         "llm7": "LL7_API_KEY" if os.getenv("LL7_API_KEY") else "LLM7_API_KEY",
         "huggingface": "HUGGINGFACE_API_KEY" if os.getenv("HUGGINGFACE_API_KEY") else "HF_TOKEN",
+        "pollinations": "POLLINATIONS_API_KEY",
+        "siliconflow": "SILICONFLOW_API_KEY",
     }
     return [{"name": provider.name, "url": provider.url, "key": provider.key,
              "model": provider.model, "priority": provider.priority,
@@ -154,7 +156,7 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 text = (body.get("choices") or [{}])[0].get("message", {}).get("content")
             if not isinstance(text, str) or not text.strip():
-                # Reasoning models (gpt-oss on Groq/Ollama) spend a 5-token budget on
+                # Reasoning models (gpt-oss on Groq) spend a 5-token budget on
                 # reasoning and return empty content: reachable, not down.
                 return {"status": "malformed", "detail": "provider returned no text (reachable)"}
             return {"status": "ok", "detail": "live"}

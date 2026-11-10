@@ -51,22 +51,25 @@ Required secrets:
 | `TELEGRAM_CHAT_ID` | publishing target |
 | `ADMIN_ID` | watchdog + failed-run alert recipient (Telegram DM) |
 
-Optional: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_API_KEY`,
-`OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `NVIDIA_API_KEY`, `COHERE_API_KEY`,
-`LL7_API_KEY`, `HUGGINGFACE_API_KEY`, `OPENAI_API_KEY`
-(real `sk-` keys only; an OpenRouter `sk-or-` key there is skipped),
+Optional: `GROQ_API_KEY` (+ `GROQ_API_KEY_1/_2`), `GEMINI_API_KEY`
+(+ `GEMINI_API_KEY_1…7`), `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`,
+`NVIDIA_API_KEY`, `COHERE_API_KEY`, `LL7_API_KEY`, `HUGGINGFACE_API_KEY`,
+`POLLINATIONS_API_KEY`, `SILICONFLOW_API_KEY`,
 `NEWSDATA_API_KEY`, `GNEWS_API_KEY`, `SERPER_API_KEY`, `JINA_API_KEY`.
 With none set the pipeline runs heuristic-only; production translation is
 fail-closed, so a run with no reachable provider fails and alerts `ADMIN_ID`
 instead of publishing untranslated Hindi.
 
 Provider order (pipeline/ai_router.py), first model with `*_MODEL=auto`:
-Groq (`openai/gpt-oss-120b`) → Gemini (`gemini-3.5-flash-lite`) → Ollama
-(`gpt-oss:120b`) → LLM7 (`default`, ≤60 calls/run, 45 s timeout) → Mistral
-(`mistral-small-latest`) → OpenRouter (`:free` models only) → Cohere
-(`command-r7b-12-2024`, ≤30) → HuggingFace (≤15) → NVIDIA
-(`meta/llama-3.2-90b-vision-instruct` only, 40 s timeout) → OpenAI
-(`gpt-4o-mini`, ≤20).
+Groq (`openai/gpt-oss-120b`) → Gemini (`gemini-3.5-flash-lite`) → LLM7
+(`default`, ≤60 calls/run, 45 s timeout) → Mistral (`mistral-small-latest`) →
+OpenRouter (`:free` models only) → Cohere (`command-r7b-12-2024`, ≤30) →
+Pollinations (`openai`, ≤40 calls/run — the token answers as `user_tier:
+anonymous`, so the IP limit of 1 reply / 45 s applies and HTTP 402 `FREE_LIMIT`
+takes the provider out for the run) → HuggingFace (≤15) → NVIDIA
+(`meta/llama-3.2-90b-vision-instruct` only, 40 s timeout) → generic
+`LLM_API_URL` → SiliconFlow (`Qwen/Qwen3.5-9B`, paid per token; the key
+authenticates but the account balance is 0, so it answers 402 until topped up).
 A 404/410 retires that model for the run (discovery never picks a known EOL
 model) and rotates to the next; Gemini calls time out after 25 s and a hung
 Gemini model is parked so the next call uses the next model.

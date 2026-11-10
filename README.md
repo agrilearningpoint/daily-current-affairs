@@ -169,7 +169,7 @@ what weekly/monthly run.
 - pip **23+**
 - Git
 - Telegram Bot (created via [@BotFather](https://t.me/BotFather))
-- (Optional) LLM API keys — Gemini / Groq / OpenAI / Mistral
+- (Optional) LLM API keys — Gemini / Groq / Mistral / Pollinations / SiliconFlow
 
 ### Steps
 
@@ -603,7 +603,7 @@ for jid, j in sorted(s.jobs.items(), reverse=True)[:7]:
 
 2. **Hindi rendering in PDF** requires specific fonts (`src/fonts/Mukta-*.ttf`). Missing fonts → empty PDF.
 
-3. **AI provider availability and quotas** — the router tries each configured provider in priority order, including Gemini, Groq, OpenAI-compatible endpoints, OpenRouter, Mistral, and NVIDIA NIM. Each provider still needs a valid key, accessible model, and available quota. Configure keys locally in `.env` and in GitHub Actions repository secrets; never commit credentials.
+3. **AI provider availability and quotas** — the router tries each configured provider in priority order, including Gemini, Groq, OpenRouter, Mistral, Pollinations, NVIDIA NIM and any generic OpenAI-compatible endpoint (SiliconFlow, `LLM_API_URL`). Each provider still needs a valid key, accessible model, and available quota. Configure keys locally in `.env` and in GitHub Actions repository secrets; never commit credentials.
 
 4. **Telegram message limit** — 4096 chars. Publisher auto-chunks long summaries.
 

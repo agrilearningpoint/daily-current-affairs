@@ -38,9 +38,9 @@ if str(ROOT) not in sys.path:
 
 # Every secret the workflows pass, in report order.
 SECRETS = (
-    "GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY",
+    "GROQ_API_KEY", "GEMINI_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY",
     "OPENROUTER_API_KEY", "COHERE_API_KEY", "HUGGINGFACE_API_KEY", "NVIDIA_API_KEY",
-    "OPENAI_API_KEY",
+    "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY",
     "NEWSDATA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "JINA_API_KEY",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_CHANNEL_ID", "ADMIN_ID",
 )
@@ -170,9 +170,68 @@ def guarded_gemini() -> Result:
     return "FAIL", None, "; ".join(notes) or "no model answered"
 
 
-def check_ollama() -> Result:
-    base = (env("OLLAMA_BASE_URL") or "https://ollama.com").rstrip("/")
-    return chat(f"{base}/v1/chat/completions", env("OLLAMA_API_KEY"), preferred("ollama") or ("gpt-oss:20b",))
+def check_pollinations() -> Result:
+    """Chat probe; the tier in the reply tells whether the token was accepted.
+
+    Verified 2026-11-10: this endpoint answers "user_tier": "anonymous" for the
+    configured token exactly as it does for a bogus key, so a 200 alone is not
+    proof the key works — the tier is. Anonymous = 1 reply per 45s per IP."""
+    key = env("POLLINATIONS_API_KEY")
+    base = (env("POLLINATIONS_BASE_URL") or "https://text.pollinations.ai/openai").rstrip("/")
+    try:
+        r = requests.post(f"{base}/chat/completions", timeout=TIMEOUT * 2,
+                          headers={"Authorization": f"Bearer {key}",
+                                   "Content-Type": "application/json"},
+                          json={"model": "openai",
+                                "messages": [{"role": "user", "content": "Say OK"}],
+                                "max_tokens": 5})
+    except requests.RequestException as exc:
+        return "FAIL", None, type(exc).__name__
+    if r.status_code == 200:
+        try:
+            tier = r.json().get("user_tier", "?")
+        except ValueError:
+            tier = "?"
+        if tier == "anonymous":
+            return ("WARN", 200, "answered, but user_tier=anonymous — the token is NOT "
+                                 "recognised (IP free limit: 1 reply / 45s)")
+        return "OK", 200, f"chat ok (user_tier={tier})"
+    return classify(r)
+
+
+def check_siliconflow() -> Result:
+    """Catalogue first (cheap), then one chat call to expose a zero balance.
+
+    Verified 2026-11-10: the key authenticates on api.siliconflow.com (the .cn
+    endpoint rejects it) but every chat answers 402 "balance is insufficient"."""
+    key = env("SILICONFLOW_API_KEY")
+    base = (env("SILICONFLOW_BASE_URL") or "https://api.siliconflow.com/v1").rstrip("/")
+    headers = {"Authorization": f"Bearer {key}"}
+    try:
+        r = requests.get(f"{base}/models", timeout=TIMEOUT, headers=headers)
+    except requests.RequestException as exc:
+        return "FAIL", None, type(exc).__name__
+    if r.status_code != 200:
+        return classify(r, "key rejected by the catalogue")
+    try:
+        n = len(r.json().get("data") or [])
+    except ValueError:
+        n = 0
+    model = (preferred("siliconflow") or ("Qwen/Qwen3.5-9B",))[0]
+    try:
+        c = requests.post(f"{base}/chat/completions", timeout=TIMEOUT * 2,
+                          headers={**headers, "Content-Type": "application/json"},
+                          json={"model": model,
+                                "messages": [{"role": "user", "content": "Say OK"}],
+                                "max_tokens": 5})
+    except requests.RequestException as exc:
+        return "WARN", 200, f"catalogue ok ({n} models); chat probe {type(exc).__name__}"
+    if c.status_code == 200:
+        return "OK", 200, f"catalogue {n} models + chat ok ({model})"
+    if c.status_code == 402:
+        return ("WARN", 402, f"key valid, catalogue {n} models, but account balance is 0 — "
+                             "top up on siliconflow to use it")
+    return classify(c, f"catalogue {n} models; chat on {model}")
 
 
 def check_mistral() -> Result:
@@ -215,15 +274,6 @@ def check_huggingface() -> Result:
     r = requests.get("https://huggingface.co/api/whoami-v2", timeout=TIMEOUT,
                      headers={"Authorization": f"Bearer {env('HUGGINGFACE_API_KEY')}"})
     return classify(r, "token valid (whoami)")
-
-
-def check_openai() -> Result:
-    key = env("OPENAI_API_KEY")
-    if key.startswith("sk-or-"):
-        return "FAIL", None, "holds an OpenRouter key (sk-or-…), not an OpenAI key — router skips it"
-    r = requests.get("https://api.openai.com/v1/models", timeout=TIMEOUT,
-                     headers={"Authorization": f"Bearer {key}"})
-    return classify(r, "key valid (models list)")
 
 
 def check_newsdata() -> Result:
@@ -303,14 +353,14 @@ def check_telegram_chat(name: str) -> Callable[[], Result]:
 CHECKS: Dict[str, Callable[[], Result]] = {
     "GROQ_API_KEY": check_groq,
     "GEMINI_API_KEY": guarded_gemini,
-    "OLLAMA_API_KEY": check_ollama,
+    "NVIDIA_API_KEY": check_nvidia,
+    "POLLINATIONS_API_KEY": check_pollinations,
+    "SILICONFLOW_API_KEY": check_siliconflow,
     "LL7_API_KEY": check_llm7,
     "MISTRAL_API_KEY": check_mistral,
     "OPENROUTER_API_KEY": check_openrouter,
     "COHERE_API_KEY": check_cohere,
     "HUGGINGFACE_API_KEY": check_huggingface,
-    "NVIDIA_API_KEY": check_nvidia,
-    "OPENAI_API_KEY": check_openai,
     "NEWSDATA_API_KEY": check_newsdata,
     "GNEWS_API_KEY": check_gnews,
     "SERPER_API_KEY": check_serper,

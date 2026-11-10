@@ -4,11 +4,12 @@ AI Router — Multi-Provider with Fallback
 =========================================
 Routes AI tasks across multiple providers, cheapest and most reliable free
 tiers first:
-  Groq → Gemini → Ollama Cloud → LLM7 → Mistral → OpenRouter → Cohere →
-  HuggingFace → NVIDIA → (generic) → OpenAI
+  Groq → Gemini → LLM7 → Mistral → OpenRouter → Cohere → Pollinations →
+  HuggingFace → NVIDIA → (generic) → SiliconFlow
 with automatic fallback, rate-limit tracking, and failure classification.
 Every provider is OFF when its secret is missing; the low-priority ones carry
-small per-run caps (LLM7 ≈ 60, Cohere trial ≈ 30, HuggingFace ≈ 15, OpenAI ≈ 20).
+small per-run caps (LLM7 ≈ 60, Pollinations ≈ 40, Cohere trial ≈ 30,
+HuggingFace ≈ 15).
 
 Features:
 - Multi-provider fallback chain (configurable priority)
@@ -36,10 +37,10 @@ Features:
 - Never raises to caller unless fail_on_all=True
 
 Env:
-  GEMINI_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY,
-  OPENROUTER_API_KEY, NVIDIA_API_KEY, OLLAMA_API_KEY/OLLAMA_BASE_URL,
-  COHERE_API_KEY, LL7_API_KEY (or LLM7_API_KEY), HUGGINGFACE_API_KEY (or HF_TOKEN),
-  OPENAI_API_KEY (real sk- keys only; an OpenRouter sk-or- key is skipped)
+  GEMINI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY, OPENROUTER_API_KEY,
+  NVIDIA_API_KEY, COHERE_API_KEY, LL7_API_KEY (or LLM7_API_KEY),
+  HUGGINGFACE_API_KEY (or HF_TOKEN), POLLINATIONS_API_KEY, SILICONFLOW_API_KEY,
+  LLM_API_URL/LLM_API_KEY (generic OpenAI-compatible endpoint)
   AI_ROUTER_RPD_<NAME> / AI_ROUTER_RPM_<NAME> override any provider's caps
   AI_ROUTER_TIMEOUT_GEMINI (default 25s per Gemini call)
   AI_ROUTER_TIMEOUT_LLM7 (default 45s per LLM7 call)
@@ -487,8 +488,6 @@ _PREFERRED_MODELS = {
     # console.groq.com/docs/models: production text models (free plan, limits per model).
     # openai/gpt-oss-120b verified 200 on 2026-11-03.
     "groq": ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"),
-    # Real OpenAI key (models list 200 on 2026-11-03): cheapest model, last resort.
-    "openai": ("gpt-4o-mini",),
     "generic-openai": ("gpt-4o-mini",),
     # openrouter.ai/api/v1/models: zero-price ":free" variants only.
     "openrouter": ("google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -500,8 +499,16 @@ _PREFERRED_MODELS = {
     # (2026-11-03, ~10s). openai/gpt-oss-20b hangs, the others answer 404/410.
     # NVIDIA is preferred-only, so discovery never picks anything else.
     "nvidia": ("meta/llama-3.2-90b-vision-instruct",),
-    # ollama.com/api/tags (Ollama Cloud). gpt-oss:120b verified 200 on 2026-11-03.
-    "ollama": ("gpt-oss:120b", "gemma4:31b", "gpt-oss:20b"),
+    # text.pollinations.ai/openai/models advertises only "openai-fast", while the
+    # chat endpoint also serves "openai" (verified 200 on 2026-11-10, Hindi output
+    # was correct). The catalogue is therefore not trusted for discovery.
+    "pollinations": ("openai", "openai-fast"),
+    # api.siliconflow.com/v1/models (79 ids, 2026-11-10). Small/fast first — this
+    # provider bills per token, so cheap models only. Every id below exists in the
+    # catalogue (402 "balance is insufficient", not 400 "model does not exist").
+    "siliconflow": ("Qwen/Qwen3.5-9B", "zai-org/GLM-5.3-Flash",
+                    "MiniMaxAI/MiniMax-M3.1-Flash", "stepfun-ai/Step-3.5-Flash",
+                    "Qwen/Qwen3.6-27B", "google/gemma-4-26B-A4B-it"),
     # docs.cohere.com/docs/compatibility-api (OpenAI-compatible); command-r7b
     # live-verified on the trial key 2026-11-03 (trial: 20 RPM, 1,000 calls/month).
     "cohere": ("command-r7b-12-2024", "command-a-03-2025"),
@@ -522,12 +529,14 @@ _RETIRED_MODELS = {
 }
 # Providers whose catalogue lists many paid / retired models: pick only from the
 # reviewed preference list, never the alphabetical "any text model" fallback.
-_PREFERRED_ONLY = {"nvidia", "huggingface", "llm7", "cohere"}
+_PREFERRED_ONLY = {"nvidia", "huggingface", "llm7", "cohere", "pollinations", "siliconflow"}
 # Free-only providers: never select a model that bills per token.
 _FREE_ONLY = {"openrouter"}
 # Providers whose /models listing is not usable for discovery (non-OpenAI shape,
 # or paid prices listed for free-tier models): keep the preference list.
-_NO_DISCOVERY = {"llm7", "cohere"}
+# pollinations: the catalogue advertises "openai-fast" only, which this key
+# answers 402 FREE_LIMIT for, while "openai" works (2026-11-10).
+_NO_DISCOVERY = {"llm7", "cohere", "pollinations"}
 _NON_TEXT_MODEL = re.compile(
     r"(?:embed|rerank|guard|safety|moderation|vision|-vl|audio|image|tts|transcribe|"
     r"whisper|live|lyria|veo|robotics|omni|parse|reward|ocr|clip|orpheus|detector)",
@@ -652,20 +661,17 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-def openai_key_problem(key: Optional[str] = None) -> Optional[str]:
-    """Why OPENAI_API_KEY cannot be used against OpenAI (None when it looks usable).
+def key_shape_problem(env_var: str, pattern: str, hint: str) -> Optional[str]:
+    """Log a note when a configured key cannot possibly work for its provider.
 
-    The secret was seen holding an OpenRouter key (sk-or-...), which OpenAI answers
-    with 401 on every call; such a key is skipped instead of failing per call."""
-    key = (os.getenv("OPENAI_API_KEY") if key is None else key) or ""
-    key = key.strip()
+    A wrong-shaped key answers 401 on every call and burns a slot in the chain,
+    so the router says why instead of failing silently per request."""
+    key = (os.getenv(env_var) or "").strip()
     if not key:
         return None
-    base = os.getenv("OPENAI_BASE_URL", "")
-    if key.startswith("sk-or-") and "openrouter.ai" not in base:
-        return ("openai: OPENAI_API_KEY holds an OpenRouter key (sk-or-...), not an OpenAI key — "
-                "provider OFF; put it in OPENROUTER_API_KEY or replace it with a real sk- key")
-    return None
+    if re.match(pattern, key):
+        return None
+    return f"{env_var} does not look like a {hint} key — provider may answer 401 on every call"
 
 
 def llm7_key() -> str:
@@ -679,9 +685,15 @@ def huggingface_key() -> str:
 def unconfigured_notes() -> List[str]:
     """Human-readable reasons a known provider is off although part of it is configured."""
     notes = []
-    problem = openai_key_problem()
-    if problem:
-        notes.append(problem)
+    for note in (
+        # SiliconFlow international keys are "sk-…"; api.siliconflow.cn keys are
+        # rejected by api.siliconflow.com and vice versa (2026-11-10).
+        key_shape_problem("SILICONFLOW_API_KEY", r"sk-[A-Za-z0-9]{16,}", "SiliconFlow"),
+        # Pollinations tokens are "<32 hex>.<secret>" (2026-11-10).
+        key_shape_problem("POLLINATIONS_API_KEY", r"[0-9a-f]{32}\.[A-Za-z0-9]{8,}", "Pollinations"),
+    ):
+        if note:
+            notes.append(note)
     return notes
 
 
@@ -751,8 +763,8 @@ def _clear_provider_quota_state(name: str) -> None:
 def _build_default_providers() -> List[Provider]:
     """Build provider list from env vars, in priority order.
 
-    Groq → Gemini → Ollama → LLM7 → Mistral → OpenRouter → Cohere →
-    HuggingFace → NVIDIA → (generic) → OpenAI. Trial / tiny-credit / paid
+    Groq → Gemini → LLM7 → Mistral → OpenRouter → Cohere → Pollinations →
+    HuggingFace → NVIDIA → (generic) → SiliconFlow. Trial / tiny-credit / paid
     providers carry low per-run caps.
     """
     providers: List[Provider] = []
@@ -791,17 +803,18 @@ def _build_default_providers() -> List[Provider]:
                      key=gem_key, model=_env_model("GEMINI_MODEL", "gemini"),
                      priority=15, rpm_limit=60, rpd_limit=1500, per_model_quota=True))
 
-    # Ollama: OLLAMA_API_KEY alone means Ollama Cloud (https://ollama.com).
-    ollama_key = os.getenv("OLLAMA_API_KEY")
-    ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or (
-        "https://ollama.com" if ollama_key else "")
-    if ollama_url:
-        endpoint = ollama_url.rstrip("/")
-        if not endpoint.endswith("/chat/completions"):
-            endpoint = f"{endpoint}/v1/chat/completions" if not endpoint.endswith("/v1") else f"{endpoint}/chat/completions"
-        add(Provider(name="ollama", url=endpoint, key=ollama_key or "ollama",
-                     model=_env_model("OLLAMA_MODEL", "ollama"),
-                     priority=20, rpm_limit=30, rpd_limit=5000))
+    # Pollinations (text.pollinations.ai, OpenAI-compatible). Verified 2026-11-10:
+    # the endpoint answers with "user_tier": "anonymous" for this token (a bogus
+    # key behaves identically), so the anonymous IP limit applies — 1 reply every
+    # 45s per IP, then HTTP 402 FREE_LIMIT → AUTH_ERROR → provider out for the
+    # run. Kept with a small cap so it costs at most a couple of calls; raise
+    # AI_ROUTER_RPD_POLLINATIONS once the key is activated on enter.pollinations.ai.
+    poll_key = os.getenv("POLLINATIONS_API_KEY", "").strip()
+    if poll_key:
+        base = os.getenv("POLLINATIONS_BASE_URL", "https://text.pollinations.ai/openai").rstrip("/")
+        add(Provider(name="pollinations", url=f"{base}/chat/completions", key=poll_key,
+                     model=_env_model("POLLINATIONS_MODEL", "pollinations"),
+                     priority=55, rpm_limit=3, rpd_limit=40, min_interval=2.0))
 
     l7_key = llm7_key()
     if l7_key:
@@ -854,13 +867,18 @@ def _build_default_providers() -> List[Provider]:
                      model=_env_model("LLM_MODEL", "generic-openai"),
                      priority=75, rpm_limit=60, rpd_limit=5000))
 
-    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
-    # Real OpenAI key (billed per token): last in the order, low per-run cap.
-    if openai_key and not openai_key_problem(openai_key):
-        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        add(Provider(name="openai", url=f"{base}/chat/completions", key=openai_key,
-                     model=_env_model("ALP_LLM", "openai"),
-                     priority=80, rpm_limit=10, rpd_limit=20))
+    # SiliconFlow (api.siliconflow.com — the international endpoint; the same key
+    # is rejected with 401 "Token is invalid" on api.siliconflow.cn). Verified
+    # 2026-11-10: key authenticates (HTTP 200 model catalogue) but the account
+    # balance is 0 → every chat answers 402 "balance is insufficient" → AUTH_ERROR
+    # → out for the run. It starts working the moment the account is topped up;
+    # no code change needed. Paid per token, so it sits near the end.
+    sf_key = os.getenv("SILICONFLOW_API_KEY", "").strip()
+    if sf_key:
+        base = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.com/v1").rstrip("/")
+        add(Provider(name="siliconflow", url=f"{base}/chat/completions", key=sf_key,
+                     model=_env_model("SILICONFLOW_MODEL", "siliconflow"),
+                     priority=78, rpm_limit=30, rpd_limit=2000, min_interval=1.0))
 
     for note in unconfigured_notes():
         logger.info("[Router] %s", note)

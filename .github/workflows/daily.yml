@@ -208,7 +208,6 @@ jobs:
           RESET_REQUEST: ${{ github.event.inputs.reset }}
           MIN_CONFIDENCE_THRESHOLD: "0.3"
           MIN_VERIFIED_COUNT: "1"
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
@@ -221,8 +220,8 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEY_1: ${{ secrets.GROQ_API_KEY_1 }}
           GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
-          # Use the configured OpenAI model when the saved key has capacity.
-          ALP_LLM: ${{ vars.OPENAI_MODEL || 'auto' }}
+          # Model for the generic-compatible provider / translator fallback.
+          ALP_LLM: ${{ vars.LLM_MODEL || 'auto' }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # --- discovery + aux AI keys (added 2026-11-03; all live-verified) ---
@@ -235,9 +234,10 @@ jobs:
           LL7_API_KEY: ${{ secrets.LL7_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           # Free-tier extras (each stays off unless its secret exists).
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL || vars.OLLAMA_BASE_URL || 'https://ollama.com' }}
-          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'auto' }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          POLLINATIONS_MODEL: ${{ vars.POLLINATIONS_MODEL || 'auto' }}
+          SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+          SILICONFLOW_MODEL: ${{ vars.SILICONFLOW_MODEL || 'auto' }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'auto' }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL || 'auto' }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'auto' }}

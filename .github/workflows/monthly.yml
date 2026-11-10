@@ -133,13 +133,13 @@ jobs:
           LLM_API_URL: ${{ secrets.LLM_API_URL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           # Free-tier extras (each stays off unless its secret exists).
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL || vars.OLLAMA_BASE_URL || 'https://ollama.com' }}
-          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'auto' }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          POLLINATIONS_MODEL: ${{ vars.POLLINATIONS_MODEL || 'auto' }}
+          SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+          SILICONFLOW_MODEL: ${{ vars.SILICONFLOW_MODEL || 'auto' }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'auto' }}
           GROQ_MODEL: ${{ vars.GROQ_MODEL || 'auto' }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'auto' }}

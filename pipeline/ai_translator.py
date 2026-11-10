@@ -210,15 +210,20 @@ def _discover_providers() -> List[Dict[str, Any]]:
     except Exception as exc:
         logger.debug("[Translator] router discovery failed: %s", exc)
 
-    # Fallback: env-based single provider (OpenAI-compatible)
+    # Fallback: env-based single provider (generic OpenAI-compatible endpoint).
+    # Only used when the router yields nothing at all; LLM_API_URL/LLM_API_KEY are
+    # the same vars the router's "generic-openai" provider reads.
     if not providers:
-        url = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
-        key = os.getenv("OPENAI_API_KEY")
-        model = os.getenv("ALP_LLM", "gpt-4o-mini")
-        if key:
+        url = os.getenv("LLM_API_URL")
+        key = os.getenv("LLM_API_KEY")
+        model = os.getenv("ALP_LLM") or os.getenv("LLM_MODEL") or "auto"
+        if url and key:
+            endpoint = url.rstrip("/")
+            if not endpoint.endswith("/chat/completions"):
+                endpoint = f"{endpoint}/chat/completions"
             providers.append({
-                "name": "openai-fallback",
-                "url": url.rstrip("/") + "/chat/completions",
+                "name": "generic-fallback",
+                "url": endpoint,
                 "key": key,
                 "model": model,
             })

@@ -25,12 +25,16 @@ _PROVIDER_ENV = (
     "OPENAI_BASE_URL", "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY",
     "NVIDIA_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL",
     "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY", "HUGGINGFACE_API_KEY", "HF_TOKEN",
+    "POLLINATIONS_API_KEY", "POLLINATIONS_BASE_URL", "POLLINATIONS_MODEL",
+    "SILICONFLOW_API_KEY", "SILICONFLOW_BASE_URL", "SILICONFLOW_MODEL",
 )
 _AUX_ENV = ("SERPER_API_KEY", "GNEWS_API_KEY", "NEWSDATA_API_KEY", "JINA_API_KEY")
 
 # Not real credentials; short enough that CI's secret scan never matches them.
 OPENROUTER_STYLE = "sk-or-v1-fake"
 OPENAI_STYLE = "sk-proj-fake"
+POLLINATIONS_STYLE = "0" * 32 + ".fakesecret"
+SILICONFLOW_STYLE = "sk-fakesiliconflowkey"
 
 
 @pytest.fixture(autouse=True)
@@ -81,29 +85,36 @@ def test_new_providers_are_off_without_their_secrets():
 
 
 def test_full_provider_order_cheapest_and_most_reliable_first(monkeypatch):
-    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "MISTRAL_API_KEY",
+    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "MISTRAL_API_KEY",
                 "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "COHERE_API_KEY", "LL7_API_KEY",
-                "HUGGINGFACE_API_KEY"):
+                "HUGGINGFACE_API_KEY", "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY"):
         monkeypatch.setenv(var, "k")
-    monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
     names = [p.name for p in ai_router._build_default_providers()]
-    assert names == ["groq", "gemini", "ollama", "llm7", "mistral", "openrouter",
-                     "cohere", "huggingface", "nvidia", "openai"]
+    assert names == ["groq", "gemini", "llm7", "mistral", "openrouter",
+                     "cohere", "pollinations", "huggingface", "nvidia", "siliconflow"]
 
 
 def test_new_provider_endpoints_and_low_caps(monkeypatch):
     monkeypatch.setenv("COHERE_API_KEY", "c")
     monkeypatch.setenv("LL7_API_KEY", "l")
     monkeypatch.setenv("HUGGINGFACE_API_KEY", "h")
-    monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
+    monkeypatch.setenv("NVIDIA_API_KEY", "n")
+    monkeypatch.setenv("POLLINATIONS_API_KEY", POLLINATIONS_STYLE)
+    monkeypatch.setenv("SILICONFLOW_API_KEY", SILICONFLOW_STYLE)
     by = {p.name: p for p in ai_router._build_default_providers()}
     assert by["cohere"].url == "https://api.cohere.ai/compatibility/v1/chat/completions"
     assert by["cohere"].model == "command-r7b-12-2024" and by["cohere"].rpd_limit == 30
     assert by["llm7"].url == "https://api.llm7.io/v1/chat/completions" and by["llm7"].model == "default"
     assert by["huggingface"].url == "https://router.huggingface.co/v1/chat/completions"
     assert by["huggingface"].rpd_limit <= 20
-    assert by["openai"].url == "https://api.openai.com/v1/chat/completions"
-    assert by["openai"].model == "gpt-4o-mini" and by["openai"].rpd_limit <= 20
+    # Pollinations: anonymous tier is 1 reply / 45 s per IP, so the cap is small —
+    # a 402 FREE_LIMIT takes the provider out for the run anyway.
+    assert by["pollinations"].url == "https://text.pollinations.ai/openai/chat/completions"
+    assert by["pollinations"].model == "openai" and by["pollinations"].rpd_limit <= 40
+    # SiliconFlow: paid per token → after NVIDIA / the generic endpoint.
+    assert by["siliconflow"].url == "https://api.siliconflow.com/v1/chat/completions"
+    assert by["siliconflow"].model == "Qwen/Qwen3.5-9B"
+    assert by["siliconflow"].priority > by["nvidia"].priority
 
 
 def test_daily_cap_takes_cohere_out_after_30_calls(monkeypatch):
@@ -114,15 +125,22 @@ def test_daily_cap_takes_cohere_out_after_30_calls(monkeypatch):
     assert not cohere.is_available()
 
 
-def test_openrouter_key_in_openai_secret_is_detected_and_skipped(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", OPENROUTER_STYLE)
-    assert ai_router._build_default_providers() == []
+def test_wrong_shaped_keys_are_reported_without_leaking_the_value(monkeypatch):
+    """A key that cannot possibly authenticate is named in unconfigured_notes()."""
+    monkeypatch.setenv("SILICONFLOW_API_KEY", "not-a-siliconflow-key")
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "not-a-pollinations-token")
     notes = ai_router.unconfigured_notes()
-    assert any("sk-or-" in n and "OPENROUTER_API_KEY" in n for n in notes)
-    assert OPENROUTER_STYLE not in " ".join(notes)  # never the value itself
-    monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
-    assert [p.name for p in ai_router._build_default_providers()] == ["openai"]
-    assert ai_router.openai_key_problem() is None
+    assert any("SILICONFLOW_API_KEY" in n for n in notes)
+    assert any("POLLINATIONS_API_KEY" in n for n in notes)
+    joined = " ".join(notes)
+    assert "not-a-siliconflow-key" not in joined and "not-a-pollinations-token" not in joined
+
+    # Correctly shaped keys are silent (shape check only — no network).
+    monkeypatch.setenv("SILICONFLOW_API_KEY", SILICONFLOW_STYLE)
+    monkeypatch.setenv("POLLINATIONS_API_KEY", POLLINATIONS_STYLE)
+    assert ai_router.unconfigured_notes() == []
+    names = [p.name for p in ai_router._build_default_providers()]
+    assert names == ["pollinations", "siliconflow"]
 
 
 # --------------------------------------------------------------------------- #
@@ -130,8 +148,8 @@ def test_openrouter_key_in_openai_secret_is_detected_and_skipped(monkeypatch):
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("code", [401, 402])
 def test_401_and_402_take_a_provider_out_for_the_run(monkeypatch, code):
-    paid = ai_router.Provider(name="openai", url="https://api.openai.com/v1/chat/completions",
-                              key="k", model="gpt-4o-mini", priority=1)
+    paid = ai_router.Provider(name="siliconflow", url="https://api.siliconflow.com/v1/chat/completions",
+                              key="k", model="Qwen/Qwen3.5-9B", priority=1)
     backup = ai_router.Provider(name="llm7", url="https://api.llm7.io/v1/chat/completions",
                                 key="k", model="default", priority=2)
     _use(monkeypatch, [paid, backup])
@@ -139,15 +157,15 @@ def test_401_and_402_take_a_provider_out_for_the_run(monkeypatch, code):
 
     def fake(provider, *a, **k):
         calls.append(provider.name)
-        if provider.name == "openai":
+        if provider.name == "siliconflow":
             return None, ai_router._classify_error(code, "payment_required")
         return "ok", None
 
     monkeypatch.setattr(ai_router, "_call_provider", fake)
     assert ai_router.route("one") == "ok"
     assert ai_router.route("two") == "ok"
-    assert calls == ["openai", "llm7", "llm7"]
-    assert ai_router.blocked_until("openai") - time.time() > 3600
+    assert calls == ["siliconflow", "llm7", "llm7"]
+    assert ai_router.blocked_until("siliconflow") - time.time() > 3600
 
 
 def test_429_rotates_groq_to_its_next_model_in_the_same_call(monkeypatch):
@@ -408,23 +426,57 @@ def test_stage04_uses_serper_only_for_items_without_provenance(monkeypatch):
 # --------------------------------------------------------------------------- #
 # scripts/verify_keys.py
 # --------------------------------------------------------------------------- #
-def test_verify_keys_masks_values_reports_missing_and_detects_sk_or(monkeypatch, capsys):
+def test_verify_keys_masks_values_and_reports_missing(monkeypatch, capsys):
     vk = _load("scripts/verify_keys.py", "verify_keys_t")
     for name in vk.SECRETS:
         monkeypatch.delenv(name, raising=False)
     secret = "cohere-test-secret-9876"
     monkeypatch.setenv("COHERE_API_KEY", secret)
-    monkeypatch.setenv("OPENAI_API_KEY", OPENROUTER_STYLE)
     monkeypatch.setattr(vk.requests, "post", lambda *a, **k: Resp(
         402, {"message": f"payment_required for key {secret}"}))
     monkeypatch.setattr(vk.requests, "get", _no_network)
-    assert vk.main(["--only", "COHERE_API_KEY,OPENAI_API_KEY,GNEWS_API_KEY"]) == 0
+    assert vk.main(["--only", "COHERE_API_KEY,GNEWS_API_KEY"]) == 0
     out = capsys.readouterr().out
-    assert secret not in out and OPENROUTER_STYLE not in out
+    assert secret not in out
     assert re.search(r"COHERE_API_KEY\s*\| FAIL\s*\| 402", out)
-    assert "OpenRouter key" in out
     assert re.search(r"GNEWS_API_KEY\s*\| MISSING", out) and "Missing: GNEWS_API_KEY" in out
     assert vk.main(["--only", "COHERE_API_KEY", "--strict"]) == 1
+
+
+def test_verify_keys_flags_an_anonymous_pollinations_token(monkeypatch, capsys):
+    """A 200 is not proof: the reply's user_tier says whether the token counts."""
+    vk = _load("scripts/verify_keys.py", "verify_keys_t")
+    for name in vk.SECRETS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "0" * 32 + ".faketoken")
+    monkeypatch.setattr(vk.requests, "post", lambda *a, **k: Resp(
+        200, {"user_tier": "anonymous", "choices": [{"message": {"content": "OK"}}]}))
+    monkeypatch.setattr(vk.requests, "get", _no_network)
+    assert vk.main(["--only", "POLLINATIONS_API_KEY"]) == 0
+    out = capsys.readouterr().out
+    assert re.search(r"POLLINATIONS_API_KEY\s*\| WARN\s*\| 200", out)
+    assert "anonymous" in out
+
+
+def test_verify_keys_flags_a_zero_balance_siliconflow_account(monkeypatch, capsys):
+    """Catalogue 200 + chat 402 = valid key, empty wallet."""
+    vk = _load("scripts/verify_keys.py", "verify_keys_t")
+    for name in vk.SECRETS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-fakesiliconflowkey")
+
+    def fake_get(url, **k):
+        return Resp(200, {"data": [{"id": "Qwen/Qwen3.5-9B"}] * 79})
+
+    def fake_post(url, **k):
+        return Resp(402, {"code": 30001, "message": "Sorry, your account balance is insufficient"})
+
+    monkeypatch.setattr(vk.requests, "get", fake_get)
+    monkeypatch.setattr(vk.requests, "post", fake_post)
+    assert vk.main(["--only", "SILICONFLOW_API_KEY"]) == 0
+    out = capsys.readouterr().out
+    assert re.search(r"SILICONFLOW_API_KEY\s*\| WARN\s*\| 402", out)
+    assert "balance is 0" in out
 
 
 def test_verify_keys_workflow_is_manual_read_only_and_explicit():
@@ -445,7 +497,8 @@ def test_verify_keys_workflow_is_manual_read_only_and_explicit():
 def test_pipeline_workflows_pass_every_key():
     keys = ("NEWSDATA_API_KEY", "JINA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "COHERE_API_KEY",
             "LL7_API_KEY", "HUGGINGFACE_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
-            "OLLAMA_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
+            "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY",
+            "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY",
             "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "ADMIN_ID")
     for wf in ("daily", "weekly", "monthly"):
         text = (ROOT / f".github/workflows/{wf}.yml").read_text()
@@ -453,23 +506,42 @@ def test_pipeline_workflows_pass_every_key():
             assert "%s: ${{ secrets.%s }}" % (key, key) in text, (wf, key)
 
 
-# Removed on 2026-11-03 (no free access on these keys). This guard is the only
-# place in the repo that may still name them.
-_REMOVED_PROVIDERS = re.compile(r"cerebras|sambanova|cloudflare|deepseek", re.I)
+# Removed on 2026-11-03 (cerebras/sambanova/cloudflare/deepseek — no free access
+# on those keys) and on 2026-11-10 (ollama/openai — dead keys: 402 no balance on
+# both, removed at the owner's request). This guard is the only place in the repo
+# that may still name them. "openai" cannot be part of the regex: Groq serves
+# `openai/gpt-oss-*` model ids and the generic provider is called
+# "generic-openai", so the OpenAI *secret* names are asserted separately below.
+_REMOVED_PROVIDERS = re.compile(r"cerebras|sambanova|cloudflare|deepseek|ollama", re.I)
+_REMOVED_SECRETS = re.compile(r"OPENAI_API_KEY|OPENAI_BASE_URL|DEEPSEEK_API_KEY|OLLAMA_API_KEY", re.I)
 
 
 def test_removed_providers_are_gone_everywhere():
-    assert not {"cerebras", "sambanova", "cloudflare", "deepseek"} & set(ai_router._PREFERRED_MODELS)
+    removed = {"cerebras", "sambanova", "cloudflare", "deepseek", "ollama", "openai"}
+    assert not removed & set(ai_router._PREFERRED_MODELS)
+    assert not removed & set(ai_router._KEY_POOL_VARS)
     this = Path(__file__).resolve()
     hits = []
     for sub in ("pipeline", "agents", "scripts", "tests", "docs", ".github"):
         for path in (ROOT / sub).rglob("*"):
             if path.is_file() and path.suffix in {".py", ".yml", ".yaml", ".md"} and path.resolve() != this:
-                if _REMOVED_PROVIDERS.search(path.read_text(encoding="utf-8", errors="ignore")):
+                text = path.read_text(encoding="utf-8", errors="ignore")
+                if _REMOVED_PROVIDERS.search(text) or _REMOVED_SECRETS.search(text):
                     hits.append(str(path.relative_to(ROOT)))
-    if _REMOVED_PROVIDERS.search((ROOT / ".env.example").read_text()):
+    env_example = (ROOT / ".env.example").read_text()
+    if _REMOVED_PROVIDERS.search(env_example) or _REMOVED_SECRETS.search(env_example):
         hits.append(".env.example")
     assert not hits, hits
+
+
+def test_removed_provider_env_vars_no_longer_build_a_provider(monkeypatch):
+    """Even with the dead secrets present in the environment, no provider appears."""
+    monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("OLLAMA_API_KEY", "fake-local-key")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://ollama.com")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-fake-deepseek")
+    assert ai_router._build_default_providers() == []
 
 
 # --------------------------------------------------------------------------- #

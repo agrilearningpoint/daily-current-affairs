@@ -18,8 +18,9 @@ def orchestrator():
 
 
 def test_setup_and_translation_use_the_same_provider_registry(monkeypatch):
-    names = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY", "MISTRAL_API_KEY",
-             "LLM_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL"]
+    names = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY",
+             "LLM_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY",
+             "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY"]
     for name in names:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("LLM_API_URL", "https://provider.example/chat/completions")
@@ -61,26 +62,40 @@ def test_nvidia_default_endpoint_and_model(monkeypatch):
     assert nvidia.models == ["meta/llama-3.2-90b-vision-instruct"]
 
 
-def test_ollama_configured_endpoint_and_model(monkeypatch):
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://remote-ollama.internal:11434")
-    monkeypatch.setenv("OLLAMA_API_KEY", "diagnostic-ollama-not-a-credential")
-    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+def test_pollinations_configured_endpoint_and_model(monkeypatch):
+    monkeypatch.setenv("POLLINATIONS_BASE_URL", "https://pollinations.example/openai")
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "diagnostic-pollinations-not-a-credential")
+    monkeypatch.delenv("POLLINATIONS_MODEL", raising=False)
 
-    ollama = next(provider for provider in ai_router._build_default_providers()
-                  if provider.name == "ollama")
+    pollinations = next(provider for provider in ai_router._build_default_providers()
+                        if provider.name == "pollinations")
 
-    assert ollama.url == "http://remote-ollama.internal:11434/v1/chat/completions"
-    assert ollama.model == "gpt-oss:120b"  # "auto" default
+    assert pollinations.url == "https://pollinations.example/openai/chat/completions"
+    assert pollinations.model == "openai"  # "auto" default
 
 
-def test_openai_and_generic_openai_keys_both_join_fallback_registry(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "diagnostic-openai-not-a-credential")
+def test_siliconflow_configured_endpoint_and_model(monkeypatch):
+    monkeypatch.setenv("SILICONFLOW_API_KEY", "diagnostic-siliconflow-not-a-credential")
+    monkeypatch.delenv("SILICONFLOW_MODEL", raising=False)
+    monkeypatch.delenv("SILICONFLOW_BASE_URL", raising=False)
+
+    siliconflow = next(provider for provider in ai_router._build_default_providers()
+                       if provider.name == "siliconflow")
+
+    # International endpoint: api.siliconflow.cn answers 401 for this key class.
+    assert siliconflow.url == "https://api.siliconflow.com/v1/chat/completions"
+    assert siliconflow.model == "Qwen/Qwen3.5-9B"  # "auto" default
+
+
+def test_generic_endpoint_joins_the_registry_after_the_free_tiers(monkeypatch):
     monkeypatch.setenv("LLM_API_URL", "https://generic.example/v1/chat/completions")
     monkeypatch.setenv("LLM_API_KEY", "diagnostic-generic-not-a-credential")
+    monkeypatch.setenv("SILICONFLOW_API_KEY", "diagnostic-siliconflow-not-a-credential")
 
     providers = ai_router._build_default_providers()
 
-    assert [provider.name for provider in providers] == ["generic-openai", "openai"]  # OpenAI is last-resort
+    # The paid per-token provider stays behind the generic endpoint.
+    assert [provider.name for provider in providers] == ["generic-openai", "siliconflow"]
 
 
 def test_router_falls_back_to_nvidia_and_preserves_json_mode(monkeypatch):

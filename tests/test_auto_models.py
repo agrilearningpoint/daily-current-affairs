@@ -7,34 +7,46 @@ from pipeline import ai_router, ai_translator
 def _clear_keys(monkeypatch):
     for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY",
                 "HUGGINGFACE_API_KEY", "HF_TOKEN",
-                "OPENAI_API_KEY", "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY",
-                "MISTRAL_API_KEY", "NVIDIA_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL",
-                "OLLAMA_API_URL"):
+                "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY",
+                "MISTRAL_API_KEY", "NVIDIA_API_KEY",
+                "POLLINATIONS_API_KEY", "POLLINATIONS_BASE_URL", "POLLINATIONS_MODEL",
+                "SILICONFLOW_API_KEY", "SILICONFLOW_BASE_URL", "SILICONFLOW_MODEL"):
         monkeypatch.delenv(var, raising=False)
 
 
 def test_auto_resolves_to_first_preference_without_discovery(monkeypatch):
     _clear_keys(monkeypatch)
     monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
-    for name in ("GEMINI", "GROQ", "NVIDIA", "MISTRAL", "OPENROUTER", "OLLAMA", "COHERE", "HUGGINGFACE"):
+    for name in ("GEMINI", "GROQ", "NVIDIA", "MISTRAL", "OPENROUTER", "COHERE", "HUGGINGFACE",
+                 "POLLINATIONS", "SILICONFLOW"):
         monkeypatch.setenv(f"{name}_API_KEY", "k")
         monkeypatch.setenv(f"{name}_MODEL", "auto")
     providers = {p.name: p for p in ai_router._build_default_providers()}
     for name, provider in providers.items():
         assert provider.model == ai_router._PREFERRED_MODELS[name][0]
     monkeypatch.setenv("LL7_API_KEY", "k")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-real")
     order = [p.name for p in ai_router._build_default_providers()]
-    assert order == ["groq", "gemini", "ollama", "llm7", "mistral", "openrouter",
-                     "cohere", "huggingface", "nvidia", "openai"]
+    assert order == ["groq", "gemini", "llm7", "mistral", "openrouter",
+                     "cohere", "pollinations", "huggingface", "nvidia", "siliconflow"]
 
 
-def test_ollama_key_alone_uses_ollama_cloud(monkeypatch):
+def test_pollinations_key_alone_uses_the_hosted_endpoint(monkeypatch):
     _clear_keys(monkeypatch)
     monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
-    monkeypatch.setenv("OLLAMA_API_KEY", "k")
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "k")
     (provider,) = ai_router._build_default_providers()
-    assert provider.url == "https://ollama.com/v1/chat/completions"
+    assert provider.url == "https://text.pollinations.ai/openai/chat/completions"
+    assert provider.model == "openai"
+
+
+def test_siliconflow_base_url_override_is_honoured(monkeypatch):
+    """A self-hosted / mirror endpoint must be usable without a code change."""
+    _clear_keys(monkeypatch)
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
+    monkeypatch.setenv("SILICONFLOW_API_KEY", "k")
+    monkeypatch.setenv("SILICONFLOW_BASE_URL", "https://mirror.internal/siliconflow/v1")
+    (provider,) = ai_router._build_default_providers()
+    assert provider.url == "https://mirror.internal/siliconflow/v1/chat/completions"
 
 
 def test_auto_picks_live_preferred_model_and_skips_retired(monkeypatch):

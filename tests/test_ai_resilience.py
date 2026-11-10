@@ -20,11 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 FT = ai_router.FailureType
 
 _ALL_PROVIDER_ENV = (
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY",
     "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "NVIDIA_API_KEY",
-    "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL",
     "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY", "HUGGINGFACE_API_KEY", "HF_TOKEN",
-    "OPENAI_BASE_URL",
+    "POLLINATIONS_API_KEY", "POLLINATIONS_BASE_URL", "POLLINATIONS_MODEL",
+    "SILICONFLOW_API_KEY", "SILICONFLOW_BASE_URL", "SILICONFLOW_MODEL",
 )
 
 
@@ -229,14 +229,14 @@ def test_nvidia_auto_is_the_vision_model_only_and_never_discovers_others(monkeyp
     assert ai_router.request_timeout("nvidia") == 40
 
 
-def test_llm7_is_fourth_with_45s_timeout_and_60_call_cap(monkeypatch):
+def test_llm7_is_third_with_45s_timeout_and_60_call_cap(monkeypatch):
     _clear_env(monkeypatch)
     monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
-    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "OLLAMA_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY"):
+    for var in ("GROQ_API_KEY", "GEMINI_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY"):
         monkeypatch.setenv(var, "k")
     providers = ai_router._build_default_providers()
-    assert [p.name for p in providers] == ["groq", "gemini", "ollama", "llm7", "mistral"]
-    llm7 = providers[3]
+    assert [p.name for p in providers] == ["groq", "gemini", "llm7", "mistral"]
+    llm7 = providers[2]
     assert llm7.model == "default" and llm7.models == ["default", "fast"] and llm7.rpd_limit == 60
     assert ai_router.request_timeout("llm7") == 45
 
@@ -245,19 +245,35 @@ def test_first_models_are_the_verified_ones(monkeypatch):
     pm = ai_router._PREFERRED_MODELS
     assert pm["groq"] == ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b")
     assert pm["gemini"][0] == "gemini-3.5-flash-lite" and "gemini-2.5-flash-lite" not in pm["gemini"]
-    assert pm["ollama"][0] == "gpt-oss:120b"
     assert pm["cohere"][0] == "command-r7b-12-2024"
-    assert pm["openai"] == ("gpt-4o-mini",)
+    # Verified 2026-11-10: pollinations serves "openai" on this token (its
+    # catalogue advertises only "openai-fast"), siliconflow ids all exist.
+    assert pm["pollinations"][0] == "openai"
+    assert pm["siliconflow"][0] == "Qwen/Qwen3.5-9B"
 
 
-def test_openai_is_last_with_a_low_cap(monkeypatch):
+def test_siliconflow_is_last_because_it_bills_per_token(monkeypatch):
     _clear_env(monkeypatch)
     monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-fake")
+    monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-fakesiliconflow")
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     providers = ai_router._build_default_providers()
-    assert [p.name for p in providers] == ["nvidia", "openai"]
-    assert providers[-1].model == "gpt-4o-mini" and providers[-1].rpd_limit <= 20
+    assert [p.name for p in providers] == ["nvidia", "siliconflow"]
+    assert providers[-1].model == "Qwen/Qwen3.5-9B"
+    assert providers[-1].url == "https://api.siliconflow.com/v1/chat/completions"
+
+
+def test_pollinations_is_capped_because_the_token_answers_anonymous(monkeypatch):
+    """Anonymous tier = 1 reply / 45 s per IP → keep the per-run cap small."""
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "0" * 32 + ".fakesecret")
+    provider = ai_router._build_default_providers()[0]
+    assert provider.name == "pollinations"
+    assert provider.rpd_limit <= 40 and provider.min_interval >= 1.0
+    # Catalogue discovery is off: it advertises a model this token cannot use.
+    assert "pollinations" in ai_router._NO_DISCOVERY
+    assert "pollinations" in ai_router._PREFERRED_ONLY
 
 
 # --------------------------------------------------------------------------- #
@@ -279,16 +295,16 @@ def test_stage00_all_failed_is_not_fatal_and_seeds_cooldowns(monkeypatch, tmp_pa
     setup = _load("agents/00_model_orchestrator.py", "orch_all_failed")
     monkeypatch.setattr(setup, "STATUS_FILE", tmp_path / "model_status.json")
     monkeypatch.setattr(setup, "load_keys", lambda: [
-        {"name": "openai", "url": "u", "key": "k", "model": "m", "priority": 80, "env_used": "O"},
+        {"name": "siliconflow", "url": "u", "key": "k", "model": "m", "priority": 78, "env_used": "S"},
         {"name": "nvidia", "url": "u", "key": "k", "model": "m", "priority": 25, "env_used": "N"},
     ])
-    statuses = {"openai": {"status": "credit_error", "detail": "402"},
+    statuses = {"siliconflow": {"status": "credit_error", "detail": "402"},
                 "nvidia": {"status": "timeout", "detail": "15s"}}
     monkeypatch.setattr(setup, "health_check", lambda p: statuses[p["name"]])
     assert setup.main() == 0
     report = json.loads((tmp_path / "model_status.json").read_text())
     assert report["status"] == "all_failed"
-    assert ai_router.is_blocked("openai") and ai_router.is_blocked("nvidia")
+    assert ai_router.is_blocked("siliconflow") and ai_router.is_blocked("nvidia")
 
 
 def test_stage00_empty_reasoning_reply_counts_as_reachable(monkeypatch, tmp_path):
