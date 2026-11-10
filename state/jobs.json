@@ -1905,7 +1905,7 @@
     "checkpoint_run_id": "42540957179"
   },
   "daily_2026-11-10": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "daily_2026-11-10",
     "job_type": "daily",
     "job_date": "2026-11-10",
@@ -1915,7 +1915,46 @@
       "end": "2026-11-10T06:00:00+05:30"
     },
     "github_run_id": "42745681673",
-    "status": "running",
-    "updated_at": "2026-11-10T02:52:55.645016+00:00"
+    "status": "failed",
+    "updated_at": "2026-11-10T03:03:40.084633+00:00",
+    "started_at": "2026-11-10T02:52:58.373418+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-10.json": {
+        "stage": "01_source_fetch",
+        "sha256": "1f39cf64bc24d0fdfca660d736ed17aa2b5848786978d858b6ad35edec79572d"
+      },
+      "data/verified/daily_2026-11-10.json": {
+        "stage": "04_fact_verification",
+        "sha256": "1fac52fd71bfadf1b84007c49ce5403eba3c48d40119047f62ee317e4cf1da8e"
+      },
+      "data/dedup/daily_2026-11-10.json": {
+        "stage": "05_deduplication",
+        "sha256": "51124f1cfd18e4eb1cc4c49103b29750b4517bd578f075bf95855fa77316c7a1"
+      },
+      "data/scored/daily_2026-11-10.json": {
+        "stage": "06_news_importance",
+        "sha256": "362e4bf13972300c295fff99a57ab618dfd8da420c4cb153de64816c1279b282"
+      },
+      "data/selected/daily_2026-11-10.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "1c92cf6d16cc082b66df22b384142e1beaca2b4a9a0134c934054f636cce20a9"
+      },
+      "data/content/daily_2026-11-10.json": {
+        "stage": "12_content_editor",
+        "sha256": "8d56842f53670716507b9601a898245c708aa7c56e81b55214abc8560d0c6822"
+      },
+      "data/mcq/daily_2026-11-10.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "b9927c149fcca19ea8144038dfacfb304daae2633bb2b22611d269b6abcc8aff"
+      },
+      "output/daily_2026-11-10.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "e94e592225110502979c1e725d16017f0410dd75124ef0eda109c3181edbe262"
+      }
+    },
+    "last_success_stage": "18_pdf_design",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): work/daily-current-affairs/daily-current-affairs/output/daily_2026-11-10.pdf\nSize:            1431 KB\nPages:           20\nChars:           27502\nDevanagari:      7730 (28.1%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            10\nAnswer markers:  10\nDuplicate Qs:    0\nURLs:            0\nImages:          201\nBlank pages:     none\nSubstantive pgs: 20 (min page chars 815)\nNear-empty pgs:  none\n\n--- Issues ---\n  [ERROR] [edition_story_shortfall] Edition has 9 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 6 real news photos (target 10)\n========================================================================\n\n2026-11-10 03:03:35 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "failed_stage": "19_pdf_qa",
+    "checkpoint_run_id": "42745681673"
   }
 }
