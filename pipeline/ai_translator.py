@@ -531,6 +531,11 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
             live = dict(provider)
             if router is not None:
                 live["model"] = router.current_model(name) or provider.get("model", "")
+                _cur_key = getattr(router, "current_key", None)
+                if callable(_cur_key):
+                    # Key-rotation aware: after a 429/402 the router may have
+                    # switched this provider to its next verified API key.
+                    live["key"] = _cur_key(name) or provider.get("key", "")
                 router.note_call(name)
             try:
                 hindi = _call_provider(live, system, user)

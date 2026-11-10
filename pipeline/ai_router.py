@@ -188,7 +188,7 @@ def clip_timeout(timeout: float) -> float:
 # Shared provider health (cross-stage, cross-module)
 # --------------------------------------------------------------------------- #
 _HEALTH_LOCK = threading.RLock()
-_HEALTH: Dict[str, Any] = {"blocks": {}, "calls": {}, "strikes": {}}
+_HEALTH: Dict[str, Any] = {"blocks": {}, "calls": {}, "strikes": {}, "keyidx": {}}
 _HEALTH_LOADED = [None]  # path the in-memory copy was loaded from
 
 
@@ -208,7 +208,7 @@ def _health_load() -> None:
     if _HEALTH_LOADED[0] == key:
         return
     _HEALTH_LOADED[0] = key
-    _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"] = {}, {}, {}
+    _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"], _HEALTH["keyidx"] = {}, {}, {}, {}
     if not path or not path.is_file():
         return
     try:
@@ -218,6 +218,7 @@ def _health_load() -> None:
                              if isinstance(v, dict) and float(v.get("until", 0)) > now}
         _HEALTH["calls"] = {k: int(v) for k, v in (data.get("calls") or {}).items()}
         _HEALTH["strikes"] = {k: int(v) for k, v in (data.get("strikes") or {}).items()}
+        _HEALTH["keyidx"] = {k: int(v) for k, v in (data.get("keyidx") or {}).items()}
     except (OSError, ValueError, TypeError, AttributeError) as exc:
         logger.info("[Router] provider health file unreadable (%s); starting fresh", type(exc).__name__)
 
@@ -238,7 +239,7 @@ def _health_save() -> None:
 def _reset_health() -> None:
     """Tests: forget every cooldown and counter held in memory."""
     with _HEALTH_LOCK:
-        _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"] = {}, {}, {}
+        _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"], _HEALTH["keyidx"] = {}, {}, {}, {}
         _HEALTH_LOADED[0] = None
     _DEADLINE_LOGGED[0] = False
 
@@ -356,9 +357,13 @@ class Provider:
     last_call: float = 0.0
     call_times: deque = field(default_factory=lambda: deque(maxlen=5000))
     model_calls: Dict[str, deque] = field(default_factory=dict)
+    key_pool: List[str] = field(default_factory=list)   # verified keys; rotate on 429/402
+    key_idx: int = 0                                    # active key in key_pool
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
+        if not self.key_pool:
+            self.key_pool = [self.key] if self.key else []
         if not self.models:
             self.models = [self.model] if self.model else []
         elif self.model and self.model not in self.models:
@@ -411,6 +416,29 @@ class Provider:
                 self.model = candidate
                 return True
         return False
+
+    def rotate_key(self) -> bool:
+        """Switch to the next verified API key (a fresh key = a fresh quota).
+
+        Used when every model of the current key is rate-limited (429) or the
+        key itself is out of credit (401/402). Clears this provider's blocks,
+        strikes and today's call counters, and persists the index in the shared
+        health file so every later stage of the run uses the same key."""
+        with self._lock:
+            if self.key_idx + 1 >= len(self.key_pool):
+                return False
+            self.key_idx += 1
+            self.key = self.key_pool[self.key_idx]
+            self.disabled_until = 0.0
+            self.consecutive_transient = 0
+            self.call_times.clear()
+            self.model_calls.clear()
+            idx, name, total = self.key_idx, self.name, len(self.key_pool)
+        _clear_provider_quota_state(name)
+        _save_key_index(name, idx)
+        logger.info("[Router] %s switched to API key %d/%d (previous key exhausted)",
+                    name, idx + 1, total)
+        return True
 
     def throttle(self) -> None:
         """Client-side spacing (e.g. Mistral free tier ≈ 1 request/second)."""
@@ -658,6 +686,66 @@ def unconfigured_notes() -> List[str]:
 
 
 # --------------------------------------------------------------------------- #
+# API key pools (added 2026-11-10)
+# --------------------------------------------------------------------------- #
+# Several verified keys per provider multiply the free-tier quota. When the
+# active key is exhausted (429 on every model, or 401/402), Provider.rotate_key()
+# switches to the next key of the same provider instead of losing it for the run.
+# Names are explicit literals so the .env.example guard test can verify them.
+_KEY_POOL_VARS: Dict[str, Tuple[str, ...]] = {
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY",
+               "GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3",
+               "GEMINI_API_KEY_4", "GEMINI_API_KEY_5", "GEMINI_API_KEY_6",
+               "GEMINI_API_KEY_7"),
+    "groq": ("GROQ_API_KEY", "GROQ_API_KEY_1", "GROQ_API_KEY_2"),
+}
+
+
+def _key_pool(name: str, primary: str) -> List[str]:
+    """All configured keys for a provider, primary first, deduplicated."""
+    pool = [primary] if primary else []
+    for var in _KEY_POOL_VARS.get(name, ()):
+        value = (os.getenv(var) or "").strip()
+        if value and value not in pool:
+            pool.append(value)
+    return pool
+
+
+def _saved_key_index(name: str) -> int:
+    with _HEALTH_LOCK:
+        _health_load()
+        try:
+            return max(0, int(_HEALTH["keyidx"].get(name, 0)))
+        except (TypeError, ValueError):
+            return 0
+
+
+def _save_key_index(name: str, idx: int) -> None:
+    with _HEALTH_LOCK:
+        _health_load()
+        _HEALTH["keyidx"][name] = int(idx)
+        _health_save()
+
+
+def _clear_provider_quota_state(name: str) -> None:
+    """Forget blocks, strikes and today's counters for a provider and its models
+    (a rotated-in key has a fresh quota; stale local counters would keep the
+    provider unusable)."""
+    day = _day()
+    with _HEALTH_LOCK:
+        _health_load()
+        for store, pred in (
+            ("blocks", lambda k: k == name or k.startswith(name + "::")),
+            ("calls", lambda k: k == f"{name}@{day}" or k.startswith(f"{name}::")),
+            ("strikes", lambda k: k == name or k.startswith(name + ":")),
+        ):
+            data = _HEALTH[store]
+            for k in [k for k in data if pred(k)]:
+                del data[k]
+        _health_save()
+
+
+# --------------------------------------------------------------------------- #
 # Provider discovery
 # --------------------------------------------------------------------------- #
 def _build_default_providers() -> List[Provider]:
@@ -678,6 +766,13 @@ def _build_default_providers() -> List[Provider]:
         # Every provider keeps a rotation list: per-model quotas rotate on 429,
         # and any provider rotates past a model retired (404/410) or hung this run.
         provider.models = _rotation_order(provider, live)
+        # Key pool: continue the run on the last key this job rotated to (the
+        # index lives in the shared health file), so every stage agrees.
+        provider.key_pool = _key_pool(provider.name, provider.key)
+        idx = _saved_key_index(provider.name)
+        if provider.key_pool:
+            provider.key_idx = idx if idx < len(provider.key_pool) else 0
+            provider.key = provider.key_pool[provider.key_idx]
         providers.append(provider)
 
     # Priorities: lower runs first. Free and reliable first, trial / tiny-credit
@@ -812,6 +907,12 @@ def find_provider(name: str) -> Optional[Provider]:
     return None
 
 
+def current_key(name: str) -> Optional[str]:
+    """The API key the provider would use right now (after any rotation)."""
+    provider = find_provider(name)
+    return provider.key if provider else None
+
+
 def provider_ready(name: str) -> bool:
     """Shared health check used by the translator: not cooled down, has quota."""
     provider = find_provider(name)
@@ -862,17 +963,25 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
             block(key, cooldown, "rate limited (model quota)")
             if provider.rotate_model():
                 return True
+            # Every model of this key is out: a fresh key means a fresh quota.
+            if provider.rotate_key():
+                return True
             # Every model is out: the provider is unavailable until the first returns.
             until = min(blocked_until(f"{name}::{m}") or (time.time() + 1) for m in provider.models)
             block(name, max(1.0, until - time.time()), "rate limited (all models)")
             return False
         if provider is not None:
+            if provider.rotate_key():
+                return True
             provider.mark_disabled("rate limited", int(cooldown))
         else:
             block(name, cooldown, "rate limited")
         return False
     if failure == FailureType.AUTH_ERROR:
-        # 401/403 bad key, 402 no balance / payment required: out for the run.
+        # 401/403 bad key, 402 no balance / payment required: try the next key
+        # of the pool first (a spare may have credit); else out for the run.
+        if provider is not None and provider.rotate_key():
+            return True
         if provider is not None:
             provider.mark_disabled("auth/credit error", AUTH_COOLDOWN)
         else:
