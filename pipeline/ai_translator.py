@@ -62,9 +62,20 @@ MAX_RETRIES = int(os.getenv("ALP_TRANSLATION_MAX_RETRIES", "2"))
 CACHE_MAX_SIZE = int(os.getenv("ALP_TRANSLATION_CACHE_SIZE", "2000"))
 
 # Regexes for validation (mirrors content.py to stay consistent)
+# Two silent holes closed (2026-11-10, measured against 512 real EN/HI pairs from
+# published editions - zero new rejections):
+#   1. \d{1,3} never matched an ungrouped 4+ digit figure, so "5000 crore",
+#      "12500 crore" and "3500 tonnes" were not required in the Hindi at all.
+#      Comma-grouped figures ("Rs. 5,000 crore") were, so the gate depended on how
+#      the source happened to be punctuated.
+#   2. The trailing \b could never match after "%", a non-word character followed by
+#      a space - so no percentage was ever demanded. Word units are unaffected, and
+#      mcq_quality.py:_NUM_RE already uses a lookahead for the same reason.
+#      %(?![0-9A-Fa-f]{2}) keeps percent-encoded URL escapes ("%281945") out.
 _NUM_RE = re.compile(
-    r"(?:(?:Rs\.?|INR|USD|₹|US\$|\$)\s?\d{1,3}(?:,\d{2,3})*(?:\.\d+)?(?:\s?(?:crore|lakh|billion|million|trillion|thousand|Cr|bn|mn)\b)?)"
-    r"|(?:\b\d{1,3}(?:,\d{2,3})*(?:\.\d+)?\s?(?:%|percent|per cent|bps|days?|years?|months?|weeks?|tonnes?|hectares?|bn|billion|million|trillion|crore|lakh)\b)",
+    r"(?:(?:Rs\.?|INR|USD|₹|US\$|\$)\s?\d+(?:,\d{2,3})*(?:\.\d+)?(?:\s?(?:crore|lakh|billion|million|trillion|thousand|Cr|bn|mn)\b)?)"
+    r"|(?:\b\d+(?:,\d{2,3})*(?:\.\d+)?\s?"
+    r"(?:%(?![0-9A-Fa-f]{2})|\b(?:percent|per cent|bps|days?|years?|months?|weeks?|tonnes?|hectares?|bn|billion|million|trillion|crore|lakh)\b))",
     re.I,
 )
 _CAP_RE = re.compile(r"\b[A-Z][A-Za-z&]{2,}(?:\s+[A-Z][A-Za-z&]+)*\b")
