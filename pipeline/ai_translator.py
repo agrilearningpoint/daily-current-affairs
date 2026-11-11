@@ -289,7 +289,9 @@ def _build_prompt(text: str, task: str) -> Tuple[str, str]:
     if hint:
         system += "\n6. Use these official Hindi names exactly:\n" + hint
     system += ("\n7. Never mix scripts inside a word; translate 'Act' as अधिनियम (विधेयक only for a Bill) "
-               "and 'Parent Ministry' as मूल मंत्रालय.")
+               "and 'Parent Ministry' as मूल मंत्रालय."
+               "\n8. Preserve direction/polarity exactly: hike is not cut, approve is not reject, "
+               "rise is not fall; render 'hot CPI/inflation' as उच्च मुद्रास्फीति, never word-for-word.")
     if task == "headline":
         user = "Translate this news headline to Hindi:\n\n" + text
     elif task == "key_points":
@@ -835,6 +837,100 @@ def _acronym_matched_in_hindi(acr: str, hindi: str) -> bool:
     return False
 
 
+# Direction/polarity guard.  On 2026-11-11 the headline "…December rate hike
+# after hot CPI" was printed as "…दर कटौती के द्वार खोले" while the same story's
+# summary correctly said "बढ़ोतरी" - the PDF contradicted itself on its cover.
+# Each entry: (english window, forbidden hindi window, deterministic swaps).
+# Windows keep the check collocated ("दर … कटौती") so an unrelated "कमी"
+# elsewhere in the paragraph cannot trip it.  Pairs with empty swaps only
+# reject (and retry on another provider); they are never auto-rewritten.
+_POLARITY_PAIRS = [
+    (r"\b(?:rate|rates)\b[^.!?\u0964]{0,40}?\b(?:hike|hikes|increase|increases|rise|rises|raise|raises)\b",
+     r"(?:दर|रेट|ब्याज)[^.!?\u0964]{0,40}?(?:कटौती|कमी|घटा)",
+     (("कटौती", "बढ़ोतरी"), ("कमी", "बढ़ोतरी"))),
+    (r"\b(?:rate|rates)\b[^.!?\u0964]{0,40}?\b(?:cut|cuts|reduction|decrease|decreases|lower|lowers)\b",
+     r"(?:दर|रेट|ब्याज)[^.!?\u0964]{0,40}?(?:बढ़ोतरी|वृद्धि)",
+     (("बढ़ोतरी", "कटौती"), ("वृद्धि", "कटौती"))),
+    (r"\b(?:inflation|CPI|prices|price)\b[^.!?\u0964]{0,40}?\b(?:rose|rise|rises|climbed|jumped|surged|increased|higher|hot)\b",
+     r"(?:महंगाई|मुद्रास्फीति|कीमत|सीपीआई)[^.!?\u0964]{0,40}?(?:गिरावट|कमी|घटा)",
+     (("गिरावट", "वृद्धि"), ("कमी", "वृद्धि"))),
+    (r"\b(?:inflation|CPI|prices|price)\b[^.!?\u0964]{0,40}?\b(?:fell|fall|falls|dropped|declined|decelerated|cooled|lower)\b",
+     r"(?:महंगाई|मुद्रास्फीति|कीमत|सीपीआई)[^.!?\u0964]{0,40}?(?:बढ़ोतरी|वृद्धि)",
+     (("बढ़ोतरी", "गिरावट"), ("वृद्धि", "गिरावट"))),
+    (r"\b(?:cabinet|government|ministry|authority|regulator|committee)\b[^.!?\u0964]{0,60}?\b(?:approves|approved|approval|clearance|clears|nod)\b",
+     r"(?:मंत्रिमंडल|सरकार|मंत्रालय|प्राधिकरण|समित)[^.!?\u0964]{0,60}?(?:खारिज|अस्वीकार|इनकार)",
+     ()),
+    (r"\b(?:cabinet|government|ministry|authority|regulator|committee)\b[^.!?\u0964]{0,60}?\b(?:rejects|rejected|rejection|turns down|refuses)\b",
+     r"(?:मंत्रिमंडल|सरकार|मंत्रालय|प्राधिकरण|समित)[^.!?\u0964]{0,60}?(?:मंजूरी|स्वीकृति|अनुमोदन)",
+     ()),
+]
+
+# Literal calques that read wrong in exam Hindi; the replacement keeps any
+# acronym the validator expects ("गर्म सीपीआई" -> "उच्च सीपीआई").
+_CALQUE_FIXES = {
+    "गर्म सीपीआई": "उच्च सीपीआई",
+    "गर्म मुद्रास्फीति": "उच्च मुद्रास्फीति",
+    "गर्म महंगाई": "उच्च महंगाई",
+}
+
+# Legitimate Hindi reduplication the stutter-collapse must keep.
+_HI_STUTTER_ALLOW = {"धीरे", "जोर", "बार", "दिन", "रात", "समय", "जगह", "बात", "पल"}
+_HI_STUTTER_RE = re.compile(r"\b([\u0900-\u097F]{3,})\s+\1\b")
+
+
+def polarity_conflicts(english: str, hindi: str) -> List[str]:
+    """Direction words that disagree between the two sides (empty = OK)."""
+    out: List[str] = []
+    for en_re, hi_re, _swaps in _POLARITY_PAIRS:
+        me = re.search(en_re, english or "", re.I)
+        mh = re.search(hi_re, hindi or "")
+        if me and mh:
+            out.append("polarity conflict: '%s' vs '%s'"
+                       % (me.group(0).strip()[:40], mh.group(0).strip()[:30]))
+    return out
+
+
+def _repair_polarity(english: str, hindi: str) -> Tuple[str, List[str]]:
+    """Swap the Hindi direction noun inside the conflicting window only.
+
+    Called only when polarity is the *sole* problem and the pair carries a
+    safe noun swap; the result is re-validated by the caller.
+    """
+    out = (hindi or "").strip()
+    swapped: List[str] = []
+    for en_re, hi_re, fixes in _POLARITY_PAIRS:
+        if not fixes or not re.search(en_re, english or "", re.I):
+            continue
+        m = re.search(hi_re, out)
+        if not m:
+            continue
+        win, new = m.group(0), m.group(0)
+        for wrong, right in fixes:
+            if wrong in new:
+                new = new.replace(wrong, right, 1)
+                swapped.append(f"{wrong}->{right}")
+                break
+        if new != win:
+            out = out[:m.start()] + new + out[m.end():]
+    return out, swapped
+
+
+def _polish_hindi(hi: str) -> str:
+    """Deterministic cleanups applied to every accepted translation:
+    collapse an accidental repeated word ("प्रमुख प्रमुख योजनाओं") and fix
+    word-for-word calques ("गर्म सीपीआई")."""
+    if not hi:
+        return hi
+
+    def _sub(m: "re.Match[str]") -> str:
+        return m.group(0) if m.group(1) in _HI_STUTTER_ALLOW else m.group(1)
+
+    hi = _HI_STUTTER_RE.sub(_sub, hi)
+    for wrong, right in _CALQUE_FIXES.items():
+        hi = hi.replace(wrong, right)
+    return hi
+
+
 def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     """
     Quality gate:
@@ -877,6 +973,9 @@ def _validate(english: str, hindi: str) -> Tuple[bool, float, List[str]]:
     missing_acr = _missing_acronyms(english, hindi)
     if missing_acr:
         issues.append(f"missing acronyms: {missing_acr[:3]}")
+
+    # Direction/polarity (hike vs कटौती ...) - see _POLARITY_PAIRS
+    issues.extend(polarity_conflicts(english, hindi))
 
     # Length sanity (Hindi usually 0.7x - 1.6x of English by char count)
     ratio = len(hindi) / max(len(english), 1)
@@ -1046,6 +1145,7 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
                 hindi = apply_glossary(text, hindi)
             except Exception:
                 pass
+            hindi = _polish_hindi(hindi)
             passed, conf, issues = _validate(text, hindi)
             repaired: List[str] = []
             # Acronym auto-repair: an otherwise clean line rejected *only* for a
@@ -1064,6 +1164,19 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
                         hindi, passed = fixed, True
                         conf = min(retry_conf, REPAIRED_CONFIDENCE_CAP)
                         issues, repaired = [], injected
+            # Polarity auto-repair: same fail-closed shape - only when the
+            # direction conflict is the sole problem and a safe noun swap exists.
+            if (not passed and AUTO_REPAIR and issues
+                    and all(i.startswith("polarity conflict") for i in issues)):
+                fixed, swapped = _repair_polarity(text, hindi)
+                if swapped:
+                    retry_passed, retry_conf, _retry_issues = _validate(text, fixed)
+                    if retry_passed:
+                        logger.info("[Translator] %s polarity-repaired %s (was rejected: %s)",
+                                    name, swapped, issues)
+                        hindi, passed = fixed, True
+                        conf = min(retry_conf, REPAIRED_CONFIDENCE_CAP)
+                        issues, repaired = [], swapped
             detail = ("acronym auto-repair: " + ",".join(repaired)) if repaired else (
                 "" if passed else "validation rejected")
             record_ai_usage(name, live.get("model", ""), f"translator:{task}", passed, detail)
