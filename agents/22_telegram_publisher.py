@@ -629,6 +629,7 @@ def main() -> int:
         logger.error("Publication ledger unreadable; manual reconciliation required, refusing send")
         return 1
     success = failed = skipped = 0
+    published_stems: List[str] = []
 
     for idx, pdf in enumerate(pdfs[: TELEGRAM_MAX_PER_RUN], 1):
         try:
@@ -637,6 +638,7 @@ def main() -> int:
             ok = publish_pdf(pdf, ledger)
             if ok:
                 success += 1
+                published_stems.append(pdf.stem)
             else:
                 failed += 1
             if not DRY_RUN and idx < len(pdfs):
@@ -649,6 +651,22 @@ def main() -> int:
         "Publishing complete: success=%d failed=%d skipped=%d total=%d",
         success, failed, skipped, min(len(pdfs), TELEGRAM_MAX_PER_RUN),
     )
+
+    # Students have now seen these questions: flag them published so a
+    # same-date re-run (reset=true) rotates MCQs instead of reprinting them.
+    if published_stems and not DRY_RUN:
+        try:
+            from pipeline import mcq_history
+            hist = mcq_history.load()
+            marked = 0
+            for stem in published_stems:
+                m = re.search(r"(\d{4}-\d{2}-\d{2})", stem)
+                if m:
+                    marked += mcq_history.mark_published(hist, m.group(1))
+            if marked and mcq_history.save(hist):
+                logger.info("[MCQ history] marked %d entr(y/ies) published", marked)
+        except Exception as exc:
+            logger.warning("[MCQ history] could not mark published: %s", exc)
 
     # Exit 0 if at least one succeeded (or nothing to do)
     return 0 if success > 0 and failed == 0 else 1

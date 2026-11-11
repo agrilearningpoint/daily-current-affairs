@@ -366,3 +366,40 @@ def test_history_recording_survives_a_broken_state_file(stage16, monkeypatch):
               "_candidates": [_candidate(1, "Which body recommends the MSP?")]}]
     ctx, mcqs = _run_stage(mod, "daily_2026-11-07", items)
     assert mcqs and ctx.get("stage_failed") is None
+
+
+# --------------------------------------------------------------------------- #
+# 8. published flag - same-date re-runs must not reprint what students saw
+# --------------------------------------------------------------------------- #
+def test_same_day_unpublished_entries_are_still_ignored():
+    hist = {"version": 1, "questions": {"k": {"count": 1, "last_seen": TODAY, "type": "llm-schema"}},
+            "concepts": {}}
+    assert mcq_history.recent_qkeys(hist, TODAY) == set()
+    assert mcq_history.recent_qkeys(hist, TODAY, include_today=True) == {"k"}
+
+
+def test_mark_published_makes_same_day_questions_recent():
+    hist = {"version": 1,
+            "questions": {"k": {"count": 1, "last_seen": TODAY, "type": "llm-schema"},
+                          "old": {"count": 1,
+                                  "last_seen": (date.fromisoformat(TODAY) - timedelta(days=3)).isoformat(),
+                                  "type": "concept"}},
+            "concepts": {"msp": {"v0": {"count": 1, "last_seen": TODAY}}}}
+    assert mcq_history.mark_published(hist, TODAY) == 2
+    assert hist["questions"]["k"]["published"] is True
+    assert hist["concepts"]["msp"]["v0"]["published"] is True
+    assert "k" in mcq_history.recent_qkeys(hist, TODAY)
+    assert mcq_history.variant_used_within(hist, "msp", "v0", TODAY) is True
+    # idempotent
+    assert mcq_history.mark_published(hist, TODAY) == 0
+    # other dates untouched
+    assert hist["questions"]["old"].get("published") is None
+
+
+def test_record_resets_published_for_new_drafts():
+    hist = {"version": 1, "questions": {}, "concepts": {}}
+    mcq_history.record(hist, [{"question_en": "Which body recommends the Minimum Support Price (MSP)?"}],
+                       edition_date=TODAY)
+    entry = next(iter(hist["questions"].values()))
+    assert entry["published"] is False
+    assert mcq_history.recent_qkeys(hist, TODAY) == set()

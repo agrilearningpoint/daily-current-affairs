@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-11T08:48:34.671579+05:30",
+  "updated": "2026-11-11T10:01:20.293441+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -523,7 +523,8 @@
       "last_seen": "2026-11-11",
       "type": "concept",
       "concept_id": "msp",
-      "q": "Which body recommends the Minimum Support Price (MSP) of notified crops to the Government of India?"
+      "q": "Which body recommends the Minimum Support Price (MSP) of notified crops to the Government of India?",
+      "published": true
     },
     "alongwithroadsandhealthwhichothersectoriscoveredunderthenewl": {
       "count": 1,
@@ -740,92 +741,107 @@
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "By what percentage did US core inflation rise in October, according to the recent report?"
+      "q": "By what percentage did US core inflation rise in October, according to the recent report?",
+      "published": true
     },
     "thenewssaleofriceunderopenmarketsaleschemedomesticbyfciregio": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "place-state",
-      "q": "The news \"Sale of Rice under Open Market Sale Scheme (Domestic) by FCI, Regional Office\" is related to which S"
+      "q": "The news \"Sale of Rice under Open Market Sale Scheme (Domestic) by FCI, Regional Office\" is related to which S",
+      "published": true
     },
     "whichauthorityinodishaisresponsibleforapprovinglargescalepow": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which authority in Odisha is responsible for approving large‑scale power projects?"
+      "q": "Which authority in Odisha is responsible for approving large‑scale power projects?",
+      "published": true
     },
     "whichministryinindiaconductstheforeignofficeconsultationswit": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which ministry in India conducts the foreign office consultations with Ecuador?"
+      "q": "Which ministry in India conducts the foreign office consultations with Ecuador?",
+      "published": true
     },
     "thenewschartsanationalroadmapformilletledagriculturaltransfo": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "place-state",
-      "q": "The news \"charts a National Roadmap for Millet led Agricultural Transformation\" is related to which State / Un"
+      "q": "The news \"charts a National Roadmap for Millet led Agricultural Transformation\" is related to which State / Un",
+      "published": true
     },
     "howmanyapplicationswerereceivedfromntpclimitedduringtheconcl": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "How many applications were received from NTPC Limited during the conclusion of Round 2 of the Scheme for Promo"
+      "q": "How many applications were received from NTPC Limited during the conclusion of Round 2 of the Scheme for Promo",
+      "published": true
     },
     "whichentityhasbeeninvitedbyluxembourgtoshareindiasolympicedu": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which entity has been invited by Luxembourg to share India's Olympic education experience for its national pro"
+      "q": "Which entity has been invited by Luxembourg to share India's Olympic education experience for its national pro",
+      "published": true
     },
     "whichorganisationisassociatedwiththenewsmaharashtrafarmersse": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "org-pool",
-      "q": "Which organisation is associated with the news \"Maharashtra farmers seek uniform sugarcane price, ₹2 lakh loan"
+      "q": "Which organisation is associated with the news \"Maharashtra farmers seek uniform sugarcane price, ₹2 lakh loan",
+      "published": true
     },
     "whichofthefollowingisassociatedwiththeschemeforwhichfreshapp": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which of the following is associated with the scheme for which fresh applications have been invited as per rec"
+      "q": "Which of the following is associated with the scheme for which fresh applications have been invited as per rec",
+      "published": true
     },
     "accordingtotherecentreporthowmanydistrictsacrossvariousstate": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "According to the recent report, how many districts across various states have been identified by the governmen"
+      "q": "According to the recent report, how many districts across various states have been identified by the governmen",
+      "published": true
     },
     "whichofthefollowingdetailsareassociatedwiththepmedrivescheme": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which of the following details are associated with the PM E-DRIVE Scheme as per the official release?"
+      "q": "Which of the following details are associated with the PM E-DRIVE Scheme as per the official release?",
+      "published": true
     },
     "whichstateexperiencedsignificantagriculturaldamageacross461l": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which state experienced significant agricultural damage across 4.61 lakh hectares due to severe cyclonic distu"
+      "q": "Which state experienced significant agricultural damage across 4.61 lakh hectares due to severe cyclonic distu",
+      "published": true
     },
     "underwhichnationwideinitiativearecitizensinvitedtoregisteras": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Under which nationwide initiative are citizens invited to register as Vayo SAATHI Volunteers?"
+      "q": "Under which nationwide initiative are citizens invited to register as Vayo SAATHI Volunteers?",
+      "published": true
     },
     "whichindianagencyhascompletedthekeysystemsandinfrastructuref": {
       "count": 1,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which Indian agency has completed the key systems and infrastructure for the Gaganyaan mission as reported?"
+      "q": "Which Indian agency has completed the key systems and infrastructure for the Gaganyaan mission as reported?",
+      "published": true
     }
   },
   "concepts": {
     "msp": {
       "v0": {
         "count": 1,
-        "last_seen": "2026-11-11"
+        "last_seen": "2026-11-11",
+        "published": true
       }
     }
   }

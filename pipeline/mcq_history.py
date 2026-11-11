@@ -147,7 +147,10 @@ def recent_qkeys(history: Dict[str, Any], edition_date: Optional[str] = None,
 
     Entries dated *today* are skipped unless ``include_today``: a re-run of the
     same date (dispatch with reset=true, watchdog retry) must reproduce the
-    edition it already built instead of skipping its own questions.
+    edition it already built instead of skipping its own questions.  Once the
+    edition has actually been published (stage 22 marks it), its questions are
+    no longer "our own draft" - students have seen them - so a same-date
+    re-run avoids them like any other recent repeat.
     """
     if not ENABLED or not isinstance(history, dict):
         return set()
@@ -159,7 +162,7 @@ def recent_qkeys(history: Dict[str, Any], edition_date: Optional[str] = None,
         seen = _parse(entry.get("last_seen"))
         if seen is None:
             continue
-        if not include_today and seen >= today:
+        if not include_today and seen >= today and not entry.get("published"):
             continue
         age = (today - seen).days
         if 0 <= age < days_for(entry):
@@ -200,6 +203,8 @@ def variant_used_within(history: Dict[str, Any], concept_id: str, variant_id: st
     seen = _parse(entry.get("last_seen"))
     if seen is None:
         return False
+    if seen >= today and not entry.get("published"):
+        return False  # this run's own draft, not something students saw
     return 0 <= (today - seen).days < DAYS_CONCEPT
 
 
@@ -230,6 +235,7 @@ def record(history: Dict[str, Any], mcqs: Iterable[Dict[str, Any]],
         else:
             entry.pop("concept_id", None)
         entry["q"] = str(m.get("question_en") or "")[:110]
+        entry["published"] = False  # stage 22 flips this once students see it
         questions[key] = entry
         cid = str(m.get("concept_id") or "")
         vid = m.get("concept_variant")
@@ -238,9 +244,36 @@ def record(history: Dict[str, Any], mcqs: Iterable[Dict[str, Any]],
             ventry = per.get(str(vid)) if isinstance(per.get(str(vid)), dict) else {"count": 0}
             ventry["last_seen"] = day
             ventry["count"] = int(ventry.get("count") or 0) + 1
+            ventry["published"] = False
             per[str(vid)] = ventry
         touched += 1
     prune(history, day)
+    return touched
+
+
+def mark_published(history: Dict[str, Any], edition_date: Optional[str] = None) -> int:
+    """Flag everything an edition printed as seen-by-students.
+
+    Called by stage 22 after a successful Telegram publish.  Without it a
+    same-date re-run (reset=true) would treat the published questions as its
+    own draft and reprint them - on 2026-11-11 that meant the MSP concept
+    question surviving its own correction run.
+    """
+    if not ENABLED or not isinstance(history, dict):
+        return 0
+    day = _today(edition_date).isoformat()
+    touched = 0
+    for entry in (history.get("questions") or {}).values():
+        if isinstance(entry, dict) and entry.get("last_seen") == day and not entry.get("published"):
+            entry["published"] = True
+            touched += 1
+    for variants in (history.get("concepts") or {}).values():
+        if not isinstance(variants, dict):
+            continue
+        for ventry in variants.values():
+            if isinstance(ventry, dict) and ventry.get("last_seen") == day and not ventry.get("published"):
+                ventry["published"] = True
+                touched += 1
     return touched
 
 
