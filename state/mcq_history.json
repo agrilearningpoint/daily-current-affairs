@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-11T10:30:08.031110+05:30",
+  "updated": "2026-11-11T10:36:11.452919+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -770,7 +770,7 @@
       "last_seen": "2026-11-11",
       "type": "place-state",
       "q": "The news \"charts a National Roadmap for Millet led Agricultural Transformation\" is related to which State / Un",
-      "published": false
+      "published": true
     },
     "howmanyapplicationswerereceivedfromntpclimitedduringtheconcl": {
       "count": 1,
