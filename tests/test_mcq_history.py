@@ -232,10 +232,24 @@ def test_state_sync_unions_histories_keeping_the_newer_entry():
     assert merged["updated"] == "2026-11-11T01:00:00+05:30"
 
 
-def test_the_committed_history_file_is_a_valid_empty_history():
+def test_the_committed_history_file_is_a_valid_seeded_history():
+    """state/mcq_history.json ships pre-seeded from published editions via
+    scripts/backfill_mcq_history.py (an empty memory let the MSP question
+    reprint on 2026-11-11).  Pin the schema load() relies on, not emptiness."""
+    import re as _re
     path = ROOT / "state" / "mcq_history.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data == {"version": 1, "updated": "", "questions": {}, "concepts": {}}
+    assert data["version"] == 1
+    assert isinstance(data.get("questions"), dict)
+    assert isinstance(data.get("concepts"), dict)
+    for key, entry in data["questions"].items():
+        assert isinstance(entry, dict) and int(entry.get("count", 0)) >= 1
+        assert _re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(entry.get("last_seen", ""))), key
+    for cid, variants in data["concepts"].items():
+        assert isinstance(variants, dict)
+        for vid, entry in variants.items():
+            assert _re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(entry.get("last_seen", ""))), (cid, vid)
+    assert mcq_history.load(path)["version"] == 1
 
 
 # --------------------------------------------------------------------------- #

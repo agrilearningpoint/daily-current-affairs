@@ -1,13 +1,740 @@
 {
   "version": 1,
-  "updated": "2026-11-11T06:30:34.449633+05:30",
+  "updated": "2026-11-11T08:48:34.671579+05:30",
   "questions": {
-    "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
+    "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Module-III Training Programme for Assistants (Batch-1) c"
+    },
+    "whatisthekeyfiguremetricassociatedwithindianewzealandftacome": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "static-number",
+      "q": "What is the key figure / metric associated with: \"India-New Zealand FTA comes into force, new visa categories "
+    },
+    "whichministryorganisationisresponsibleforimplementingvisitof": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Visit of the Prime Minister of Poland to India "
+    },
+    "whichministryorganisationisresponsibleforimplementingdstscie": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"DST - Scientific Programmes - Department of Sci"
+    },
+    "whichministryorganisationisresponsibleforimplementingsportsa": {
+      "count": 2,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"- Sports Authority of India\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinjaishankarholds": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Jaishankar holds talks with UAE’s Foreign Minister in Mu"
+    },
+    "whichministryorganisationisresponsibleforimplementingdepartm": {
+      "count": 2,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"- Department of Science and Technology (DST)\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedin2026economicsno": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"2026 Economics Nobel Prize: Putting the humanity in macr"
+    },
+    "whichministryorganisationisresponsibleforimplementingstateme": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Statement on anti-India references at the Organ"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinharyanasbpsgove": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Haryana’s BPS Government Medical College becomes first I"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincalcuttahcsaysi": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Calcutta HC says inquiry commission headed by retired ju"
+    },
+    "whichministryorganisationisresponsibleforimplementingraksham": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Raksha Mantri Shri Rajnath Singh to represent I"
+    },
+    "whichministryorganisationisresponsibleforimplementinguppanch": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"U.P. Panchayat poll: Is BJP looking to bypass t"
+    },
+    "whichministryorganisationisresponsibleforimplementingbengalu": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Bengaluru–Mumbai Vande Bharat sleeper train lik"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnehaboratheperm": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Neha Bora | The permanence of agitation\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinrumpsaysmigrant": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"rump says migrants, jihadists and communists are ‘destro"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinamitshahmeetsfa": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Amit Shah meets family of Bikramjit Singh, killed after "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnsuiworkerassau": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"NSUI worker assault: Congress’ overnight protest at Jaip"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedindivisionofenvir": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"DIVISION OF ENVIRONMENTAL SCIENCES ICAR-INDIAN AGRICULTU"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnorthkoreaskimy": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"North Korea's Kim Yo Jong warns South Korea, says border"
+    },
+    "whichministryorganisationisresponsibleforimplementingofficia": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Official visit of H.E. Mr. Donald Tusk, Prime M"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincorrigendumeoie": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Corrigendum - EOI - Empanelment of Support Provider and "
+    },
+    "whichministryorganisationisresponsibleforimplementingministr": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"- Ministry of Environment, Forest and Climate C"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinuntitledicarind": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Untitled - ICAR-indian agricultural research institute\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinjamiaformscommi": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Jamia forms committee to draft students' union constitut"
+    },
+    "whichministryorganisationisresponsibleforimplementingshrichi": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Shri Chinmoy Naik concurrently accredited as th"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincorrigendumagri": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"CORRIGENDUM AGRIM Unit, ICAR PUSA, NEW DELHI – 110012 Wi"
+    },
+    "withreferencetokukizogroupsdemandreimpositionofpresidentsrul": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "statement",
+      "q": "With reference to \"Kuki-Zo groups demand reimposition of President’s Rule in Manipur\", which of the following "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinacgscopyawardpr": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"‘ACG-SCOPY Award’ presented to MedIndia Hospitals\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinonsongindialook": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"On-song India look to beat travel fatigue in T20 series-"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinaapallegescorru": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"AAP alleges corruption in DJB on spraying of anti-frothi"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedindphcontinuesden": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"DPH continues dengue surveillance, school environments i"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinribalheldforpos": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"ribal held for possession of country-made gun, explosive"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinbjdslamsbjpforp": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"BJD slams BJP for personal attack on Naveen over his dem"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinharyanacongress": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Haryana Congress flays BJP government over its failure t"
+    },
+    "withreferencetosaudiauthoritiessaytwokilledbyfallingdebrisat": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "statement",
+      "q": "With reference to \"Saudi authorities say two killed by falling debris at oil facility\", which of the following"
+    },
+    "whichministryorganisationisresponsibleforimplementingdivisio": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Division of Vegetable Science ICAR-lndian Agric"
+    },
+    "whichministryorganisationisresponsibleforimplementinginaugur": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Inaugural India–Canada Migration and Mobility D"
+    },
+    "whichministryorganisationisresponsibleforimplementingtendern": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Tender No. 02-08030(01)/4/2025-JNS(HO)(II) date"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedineverymonththere": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Every month there is anew tragedy and audit, says ; BJP "
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithgovernmentofi": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Government of India Provides US to Sri Lanka\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinamidallegedliqu": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Amid alleged liquor deaths in ’s Dewas, police nab 10 fo"
+    },
+    "whichministryorganisationisresponsibleforimplementingmeavisi": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"MEA | Visits | Incoming Visit | Visit Detail\"?"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithfiftyyearsago": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Fifty years ago | Foreign bank accounts: 400 cases"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithareadysolutio": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"A ready solution to tackle anaemia\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinmaharashtrawill": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Maharashtra will prioritise its own interest on Telangan"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinkhargesremarkso": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Kharge’s remarks on reflects desperation: BJP\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinveryseverecyclo": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Very severe cyclone ‘Arnab’ to make landfall along Andhr"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedininspectsyamunac": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"inspects Yamuna cruise trial run ahead of Nov. launch\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinsfenceacybersec": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"’s fence, a cybersecurity challenge\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinmorningdigestpl": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Morning Digest: places next-generation navigation satell"
+    },
+    "whichministryorganisationisresponsibleforimplementing12throu": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"12th round of India-Armenia Foreign Office Cons"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithbeyondgullibi": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Beyond gullibility: On digital arrest scams\"?"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithjapansomronhe": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Japan’s Omron Healthcare opens first India manufac"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedin03launchedsucce": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"03 launched successfully; satellite placed in intended o"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinkarnatakahighco": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Karnataka High Court to nominate new head for to probe K"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithheavypollingi": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Heavy polling in second phase panchayat elections "
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithdelhiblostore": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Delhi BLOs to record reasons for removing names of"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincallsforprotect": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"calls for protecting Vembanad lake system\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedindamagesroadswas": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"damages roads, washes away bridge in Bhutan\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedin17issue15dayult": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"17 issue 15-day ultimatum to address ‘coterie culture’, "
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithelectorsdelet": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"electors deleted in Kolkata; West Bengal Congress "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinhighcourtdirect": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"High Court directs to collect charges from autonomous co"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinmansetshouseabl": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Man sets house ablaze; firefighter injured in cylinder b"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithsevenpackaged": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Seven packaged drinking water units closed for vio"
+    },
+    "whichlocationhasbeennotifiedasindiasfirstorganicfisheriesclu": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which location has been notified as India's first Organic Fisheries Cluster under the Pradhan Mantri Matsya Sa"
+    },
+    "whichorganisationisassociatedwiththenewsipofundraisingrises3": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"IPO fundraising rises 30% to record ₹84,400 crore in H1FY27: R"
+    },
+    "whichcitywasselectedfortheestablishmentoftheskillindiaintern": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which city was selected for the establishment of the Skill India International Centre following an MoU signed "
+    },
+    "howmanynextgenerationcorvettesfortheindiannavyaretobeprocure": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "How many Next Generation Corvettes for the Indian Navy are to be procured under the contracts worth Rs 53,866."
+    },
+    "whohasbeenappointedasthenextambassadorofindiatotherepublicof": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Who has been appointed as the next Ambassador of India to the Republic of Senegal?"
+    },
+    "whichorganisationisassociatedwiththenewsmodinksrs4106croreco": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"MoD inks Rs 4,106 crore contracts for GSAT-7C communication sa"
+    },
+    "whichorganisationisassociatedwiththenewsncscinterventionresu": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"NCSC Intervention Results in Mandatory Reporting of SC Benefic"
+    },
+    "inwhichdistrictofbihardidthenhrcrecentlytakesuomotucognizanc": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "In which district of Bihar did the NHRC recently take suo motu cognizance of a dilapidated Government Primary "
+    },
+    "whichauthorityhasbeenapprovedbythecabinetforsettingupaccordi": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which authority has been approved by the Cabinet for setting up according to recent government updates?"
+    },
+    "accordingtotheofficialbulletinfromtheindiameteorologicaldepa": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "According to the official bulletin from the India Meteorological Department, near which place did the landfall"
+    },
+    "wherewasthebharatrenewableenergysummitexpoinauguratedwhereth": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Where was the Bharat Renewable Energy Summit & Expo inaugurated, where the Prime Minister delivered an address"
+    },
+    "whicheventrecentlycalledforhigherproductivityinnovativebreed": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which event recently called for higher productivity, innovative breeding and farmer-centric research?"
+    },
+    "inwhichvillageofthesouthernzaporizhzhiaregiondidtherussianst": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "In which village of the southern Zaporizhzhia region did the Russian strikes on an aid centre and shelter occu"
+    },
+    "thenewsamitshahbackssiralleges3croreillegalinfiltratorsident": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "place-state",
+      "q": "The news \"Amit Shah backs SIR, alleges 3 crore ‘illegal infiltrators’ identified in 13 crore deleted voters\" i"
+    },
+    "whichsummitwasinauguratedbytheprimeministerin2026": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which summit was inaugurated by the Prime Minister in 2026?"
+    },
+    "whichresearchinstitutescultivarsarefeaturedonthekisansarathi": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which research institute's cultivars are featured on the Kisan Sarathi Platform?"
+    },
+    "whichindianregulatorisresponsibleforsettingtheprioritysector": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which Indian regulator is responsible for setting the Priority Sector Lending (PSL) quotas for banks?"
+    },
+    "whatisthebudgetallocationannouncedforthevetrilaptopschemeint": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "What is the budget allocation announced for the Vetri Laptop Scheme in the 2026-27 Tamil Nadu budget?"
+    },
+    "whichsubsidiariesareincludedalongsidetheparentfirmintheborro": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which subsidiaries are included alongside the parent firm in the borrowings intended to be repaid using the pr"
+    },
+    "whichofthefollowingdetailsarementionedaspartofthestrategyfor": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which of the following details are mentioned as part of the strategy for achieving self-reliance in protein cr"
+    },
+    "whichofthefollowingcategoriesincludesthelegislativemeasurere": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which of the following categories includes the legislative measure recently discussed in official government u"
+    },
+    "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
+      "count": 4,
       "last_seen": "2026-11-11",
       "type": "concept",
       "concept_id": "msp",
       "q": "Which body recommends the Minimum Support Price (MSP) of notified crops to the Government of India?"
+    },
+    "alongwithroadsandhealthwhichothersectoriscoveredunderthenewl": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Along with roads and health, which other sector is covered under the newly announced credit line for Guyana me"
+    },
+    "whichinstitutionbasedinmumbairecentlyoperationalisedthecbdtc": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which institution based in Mumbai recently operationalised the CBDT-CAG Memorandum of Understanding through a "
+    },
+    "whichcentralschemewasmentionedbythejanasenapartypresidentasb": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which central scheme was mentioned by the Jana Sena Party president as being utilized to supply drinking water"
+    },
+    "whichmultilateralresearchandinnovationframeworkprogrammehasr": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which multilateral research and innovation framework programme has recently concluded negotiations for India t"
+    },
+    "withwhichunitednationsorgandoesthesustainabledevelopmentcoun": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "With which United Nations organ does the Sustainable Development Council hold Special Consultative Status?"
+    },
+    "whichunionterritorysgovernmentannounceda5annualincrementfore": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which Union Territory's government announced a 5% annual increment for eligible contractual employees under th"
+    },
+    "whicheventwasrecentlyorganizedtorecognizethecontributionsofm": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which event was recently organized to recognize the contributions of medical professionals in Jammu?"
+    },
+    "whichphraseismentionedinthepibreleaseconcerningthe2026legisl": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which phrase is mentioned in the PIB release concerning the 2026 legislation on bankers' records?"
+    },
+    "whichcommitteeofthereservebankofindiahasbeendirectedtoconcen": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which committee of the Reserve Bank of India has been directed to concentrate on critical policy and operation"
+    },
+    "whichcountrysfreetradeagreementwascitedashelpingindiaachieve": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which country's free trade agreement was cited as helping India achieve a record export value in FY26?"
+    },
+    "whichauthoritygavetheapprovalforthepmdharaschemeforgreenener": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which authority gave the approval for the PM‑DHARA scheme for green energy transmission?"
+    },
+    "whichindividualdidpresidentdonaldtrumpappointashischiefofsta": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which individual did President Donald Trump appoint as his chief of staff on November 6, 2026?"
+    },
+    "whichorganizationiscreditedwiththecultivarshighlightedinthep": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which organization is credited with the cultivars highlighted in the PIB’s “New Era of Indian Agriculture and "
+    },
+    "duringthediwalicelebrationinbastarprimeministernarendramodid": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "During the Diwali celebration in Bastar, Prime Minister Narendra Modi distributed sweets at the camp of which "
+    },
+    "inwhichindianstatedidthefisheriessecretaryengagetilapiafarme": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "In which Indian state did the Fisheries Secretary engage tilapia farmers to chart an export‑oriented cluster d"
+    },
+    "thenewsestablishestinkeringlabtakingsupportfromindiasatalinn": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "place-country",
+      "q": "The news \"establishes Tinkering Lab taking support from India’s Atal Innovation Mission\" involves which countr"
+    },
+    "whowasgiventhefirstopportunitybypresidentisaacherzogtoformth": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Who was given the first opportunity by President Isaac Herzog to form the next Israeli government after the No"
+    },
+    "inwhichtexascitydidstatebankofindiacaliforniaopenitsfirstbra": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "In which Texas city did State Bank of India (California) open its first branch outside California?"
+    },
+    "accordingtothearticleinvestorsarecloselytrackinginflationdat": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "According to the article, investors are closely tracking inflation data from which of the following countries?"
+    },
+    "duringthediwaliseasontheprimeministermetwhichconstitutionalo": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "During the Diwali season, the Prime Minister met which constitutional office‑holder to convey greetings?"
+    },
+    "whichorganisationisassociatedwiththenewsindiahandmadeadigita": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Indiahandmade: A Digital Platform for India's Craft Heritage\"?"
+    },
+    "whichorganisationisassociatedwiththenewsmybharatwheredigital": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"MY Bharat – Where Digital India Meets Young India\"?"
+    },
+    "whichorganisationdevelopedandoperatestheunifiedpaymentsinter": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "concept",
+      "concept_id": "upi",
+      "q": "Which organisation developed and operates the Unified Payments Interface (UPI)?"
+    },
+    "whichofthefollowingisaprimarycomponentassociatedwiththeimple": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following is a primary component associated with the implementation of the newly announced agricu"
+    },
+    "whichgovernmentbodyisresponsibleforconductingdiplomaticdialo": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which government body is responsible for conducting diplomatic dialogues and managing bilateral relations with"
+    },
+    "whichofthefollowingisafunctionofthereservebankofindiaasmenti": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following is a function of the Reserve Bank of India, as mentioned in recent news regarding retai"
+    },
+    "whichofthefollowingbodiesreplacedtheplanningcommissionofindi": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following bodies replaced the Planning Commission of India?"
+    },
+    "atwhichindiannavyestablishmentwillthepassingoutparadeofthela": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "At which Indian Navy establishment will the passing out parade of the largest batch of Agniveers be conducted?"
+    },
+    "whichindianministryissuedthejointpressreleaseforthe7thindiae": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which Indian ministry issued the joint press release for the 7th India‑EU Strategic Partnership Review Meeting"
+    },
+    "theincentiveschemeforpromotionofdomesticpngconnectionsaddres": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "The Incentive Scheme for Promotion of Domestic PNG Connections addresses which key aspects?"
+    },
+    "whichofthefollowingaspectswashighlightedinthenewsregardingth": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following aspects was highlighted in the news regarding the launch of the ‘Nasha Mukt Yuva for Vi"
+    },
+    "whatisthedailydatalimitprovidedtostudentsunderthenewlyapprov": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "What is the daily data limit provided to students under the newly approved educational digital initiative in O"
+    },
+    "whichukrainianheadofstatedidindiasheadofgovernmentspeakwitha": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which Ukrainian head of state did India's head of government speak with, as reported in the PIB release?"
+    },
+    "inwhichindianstateisthecityofjagdalpurlocatedwherearecentpub": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "In which Indian state is the city of Jagdalpur located, where a recent public programme was attended by the Pr"
+    },
+    "whichorganisationisassociatedwiththenewsdikshapoweringindias": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"DIKSHA: Powering India's Digital Learning Ecosystem\"?"
     },
     "bywhatpercentagediduscoreinflationriseinoctoberaccordingtoth": {
       "count": 1,
