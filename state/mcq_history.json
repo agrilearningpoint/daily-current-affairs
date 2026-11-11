@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-11T10:36:11.452919+05:30",
+  "updated": "2026-11-11T10:52:42.007491+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -836,7 +836,7 @@
       "published": true
     },
     "whoannouncestheminimumsupportpricemspfornotifiedcropsinindia": {
-      "count": 1,
+      "count": 2,
       "last_seen": "2026-11-11",
       "type": "concept",
       "concept_id": "msp",
@@ -844,10 +844,10 @@
       "published": false
     },
     "whichstatescabinetrecentlyapprovedaproposalforapumpedstorage": {
-      "count": 1,
+      "count": 2,
       "last_seen": "2026-11-11",
       "type": "llm-schema",
-      "q": "Which state's cabinet recently approved a proposal for a pumped storage power project valued at Rs 4,708-crore",
+      "q": "Which state's cabinet recently approved a proposal for a pumped storage power project worth Rs 4,708-crore?",
       "published": false
     },
     "whichresearchcouncilscultivarsarehighlightedinthediscussiono": {
@@ -906,6 +906,97 @@
       "concept_id": "jjm",
       "q": "The Jal Jeevan Mission aims to provide which of the following to every rural household?",
       "published": false
+    },
+    "whichinstitutionscultivarsandkeycropstatisticswerefeaturedal": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which institution's cultivars and key crop statistics were featured alongside central agricultural schemes dur",
+      "published": false
+    },
+    "whichregionalofficeofthefoodcorporationofindiaisassociatedwi": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which regional office of the Food Corporation of India is associated with the domestic sale of rice under the ",
+      "published": false
+    },
+    "whichdistinguishednationalinstitutionisresponsibleforpresent": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which distinguished national institution is responsible for presenting the prestigious fellowships and honors ",
+      "published": false
+    },
+    "whichcountryhasinvitedbcoretoshareitsolympiceducationexperie": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which country has invited BCORE to share its Olympic education experience from India for its national programm",
+      "published": false
+    },
+    "whichschemehasrecentlyinvitedfreshapplicationsaccordingtothe": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which scheme has recently invited fresh applications according to the Press Information Bureau release?",
+      "published": false
+    },
+    "whichinitiativesdetailsregardingimplementingministriesfinanc": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which initiative's details regarding implementing ministries, financial outlays, target demographics, and flag",
+      "published": false
+    },
+    "whichinitiativehasinvitedcitizenstoregisterasvolunteerstosup": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which initiative has invited citizens to register as volunteers to support senior citizens under the recently ",
+      "published": false
+    },
+    "whichorganizationisresponsibleforimplementingthegaganyaanpro": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which organization is responsible for implementing the Gaganyaan project mentioned in the news?",
+      "published": false
+    },
+    "whatisthenumericaldesignationassignedtotherefreshednutrition": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "What is the numerical designation assigned to the refreshed nutrition delivery initiative mentioned in the new",
+      "published": false
+    },
+    "whichairlinecollaboratedwithindiaposttoexecutethedigitaldeto": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which airline collaborated with India Post to execute the Digital Detox initiative across selected flights?",
+      "published": false
+    },
+    "accordingtotherecentreportreleasedbymoodysratingswhichfactor": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "According to the recent report released by Moody's Ratings, which factor alongside higher financing costs is e",
+      "published": false
+    },
+    "whichnationalspaceagencyofindiaestablishedin1969andheadquart": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which national space agency of India, established in 1969 and headquartered in Bengaluru, operates under the D",
+      "published": false
+    },
+    "whichunionministryisthenodalagencyresponsibleforimplementing": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which Union Ministry is the nodal agency responsible for implementing the Jal Jeevan Mission in India?",
+      "published": false
     }
   },
   "concepts": {
@@ -916,7 +1007,7 @@
         "published": true
       },
       "v1": {
-        "count": 1,
+        "count": 2,
         "last_seen": "2026-11-11",
         "published": false
       }

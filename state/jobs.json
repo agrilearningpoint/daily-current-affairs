@@ -1964,39 +1964,43 @@
     "checkpoint_run_id": "42792859553"
   },
   "daily_2026-11-11": {
-    "started_at": "2026-11-11T04:41:01.344386+00:00",
+    "started_at": "2026-11-11T05:11:01.374624+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-11.json": {
         "stage": "01_source_fetch",
-        "sha256": "2e41c1d902fe218740e20f794fef937ea4ec3271171a38fb434d273856c23d87"
+        "sha256": "60af4aabbcd214119fb7f0dd0110883121789c76c61a2a149012c14a402f6c86"
       },
       "data/verified/daily_2026-11-11.json": {
         "stage": "04_fact_verification",
-        "sha256": "da711c574a005f394dea5f89d011b38087d4412ceac69c7994ea3314ea61575b"
+        "sha256": "c0f3ff64d78ea306824247c8f85a83560858258988c1c2ca64e100e891fe730b"
       },
       "data/dedup/daily_2026-11-11.json": {
         "stage": "05_deduplication",
-        "sha256": "e964aa12f8d69e4b79cf7bd2c9838e9a27372961705500fe8a7c4e473560c959"
+        "sha256": "8a37453c4191ac3f2143d6fe256af3eec599237aed6344bdaa7725f1ddbba095"
       },
       "data/scored/daily_2026-11-11.json": {
         "stage": "06_news_importance",
-        "sha256": "bdeaa4ea892aa1cfb8c603ae0478232865243bd06830f17fb2eff36107ab16ba"
+        "sha256": "1c3d5b1bcf007bf0d1fdaff665f0430b61838cda1c97b1f308878420d503bb6b"
       },
       "data/selected/daily_2026-11-11.json": {
         "stage": "10_final_news_selection",
-        "sha256": "968d5fb64968a229cb14a8a3aed83ade30fc581d7e377945ba1907877fe7f5aa"
+        "sha256": "0a6bf9d37fd6aee2f6ef704806d0e7d63834fedfc2d363f37d220971d60aa0c5"
       },
       "data/content/daily_2026-11-11.json": {
         "stage": "12_content_editor",
-        "sha256": "69a04a65386731f8b4b228b30484dc46f9493dae73aec6f08b303a14e69921c2"
+        "sha256": "f9d97d1722e23fe2b5bdf0f97e618ccbe89df45d93f81746ec872991b34e3ffd"
       },
       "data/mcq/daily_2026-11-11.json": {
         "stage": "16_mcq_generator",
-        "sha256": "3ea74a55cc796d2cc98c5034be84b35d7f538003612e72417a11dc0f6b3e98f5"
+        "sha256": "850a6be180049bbad200ff0178403fb7553106ba4f0cab2c6e38538ba3b800f1"
       },
       "output/daily_2026-11-11.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "7d6f48878e507e9b0665e3830617bb00cd5476a31d950d3e1fabebc0b1049c07"
+        "sha256": "98f41b60e43f3c0e86905451179db5bdba97c99e7e7de4f6fa4422fd3a83b922"
+      },
+      "logs/qa/daily_2026-11-11_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "89fcdbb0f84a82bb3f842b2b091d27d1c12daba76c1981a408e17f44ddfc37cb"
       }
     },
     "run_attempts": 1,
@@ -2009,11 +2013,11 @@
       "end": "2026-11-11T06:00:00+05:30"
     },
     "github_run_id": "42963964476",
-    "status": "running",
-    "updated_at": "2026-11-11T05:10:58.452233+00:00",
-    "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s):            27\nChars:           41366\nDevanagari:      12843 (31.0%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            11\nAnswer markers:  12\nDuplicate Qs:    0\nDistinct stems:  11 (6-word prefixes)\nURLs:            0\nImages:          292\nBlank pages:     none\nSubstantive pgs: 26 (min page chars 515)\nNear-empty pgs:  [16]\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [16]\n  [ERROR] [edition_story_shortfall] Edition has 11 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 4 real news photos (target 10)\n========================================================================\n\n2026-11-11 05:01:18 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
-    "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "42960751548"
+    "status": "failed",
+    "updated_at": "2026-11-11T05:24:12.145344+00:00",
+    "last_success_stage": "19_pdf_qa",
+    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-11-11 05:24:08 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-11-11 05:24:08 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-11-11.pdf\n2026-11-11 05:24:08 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-11-11; manual reconciliation required, refusing resend\n2026-11-11 05:24:08 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
+    "failed_stage": "22_telegram_publisher",
+    "checkpoint_run_id": "42963964476"
   }
 }
