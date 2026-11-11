@@ -54,7 +54,11 @@ def test_icar_dg_and_apeda_chair_corrected(facts):
 
 def test_unverifiable_names_are_dropped(facts):
     assert v.check_line("Chairman of Coir Board – Vipul Goyal", "", facts).action == "drop"
-    assert v.check_line("Prime Minister – Manmohan Singh", "", facts).action == "drop"
+    # The 2026-11-11 facts refresh added former holders, so a stale officeholder
+    # line is now rewritten to the verified current holder (validator design,
+    # agents/static_gk_validator.py: "former holder for <id>") instead of dropped.
+    pm = v.check_line("Prime Minister – Manmohan Singh", "", facts)
+    assert pm.action == "replace" and "Narendra Modi" in pm.en
     # Multi-holder post with an unknown name is dropped, not "corrected".
     assert v.check_line("Deputy Governor of RBI – Michael Debabrata Patra", "", facts).action == "drop"
     assert v.check_line("RBI Deputy Governor – Poonam Gupta", "", facts).action == "keep"

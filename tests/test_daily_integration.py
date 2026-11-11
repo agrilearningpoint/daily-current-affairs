@@ -173,7 +173,12 @@ def test_daily_pipeline_end_to_end_without_external_services(tmp_path, interrupt
                PYTHONIOENCODING="utf-8", PYTHONUTF8="1",
                # This fixture has eight synthetic stories; it verifies recovery
                # mechanics rather than the production booklet-length policy.
-               PDF_QA_MIN_PAGES="2", PDF_QA_MAX_PAGES="45")
+               # Eight stories cannot guarantee the production floor of ten
+               # validated MCQs once template firing shifts (2026-11-11: the
+               # org-pool grounding guard replaced one template's output), so
+               # the fixture pins a floor of one MCQ per story instead.
+               PDF_QA_MIN_PAGES="2", PDF_QA_MAX_PAGES="45",
+               PDF_QA_MIN_MCQ_COUNT="8")
     if sys.platform == "win32":
         env.setdefault("ALP_ALLOW_UNSHAPED_DEV_PDF", os.environ.get("ALP_ALLOW_UNSHAPED_DEV_PDF", "1"))
     try:
