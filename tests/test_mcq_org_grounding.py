@@ -124,3 +124,29 @@ def test_news_text_excludes_exam_fact():
     ci = _ci(exam_fact_en=EXAM_FACT_ICAR)
     assert "ICAR" not in mb._news_text(ci)
     assert "sugarcane" in mb._news_text(ci)
+
+
+def test_explanation_is_not_the_headline_when_headline_names_the_org():
+    """2026-11-11 CI: picking the headline as the grounding sentence made the
+    explanation repeat the headline and the validator dropped the MCQ."""
+    ci = _ci(
+        headline_en="ICAR Develops Drought Resistant Seed for Farmers",
+        headline_hi="ICAR ने किसानों के लिए सूखा प्रतिरोधी बीज विकसित किया",
+        key_points_en=["ICAR reported a drought resistant crop variety for farmers.",
+                       "ICAR field trials covered 40 districts across Rajasthan."],
+        key_points_hi=["ICAR ने किसानों के लिए सूखा प्रतिरोधी फसल किस्म की रिपोर्ट दी।",
+                       "ICAR के क्षेत्र परीक्षण राजस्थान के 40 जिलों में हुए।"],
+        summary_en="ICAR reported a drought resistant crop variety for farmers. "
+                   "ICAR field trials covered 40 districts across Rajasthan.",
+        summary_hi="ICAR ने किसानों के लिए सूखा प्रतिरोधी फसल किस्म की रिपोर्ट दी। "
+                   "ICAR के क्षेत्र परीक्षण राजस्थान के 40 जिलों में हुए।",
+        detailed_explanation_en="ICAR reported a drought resistant crop variety for farmers. "
+                                "ICAR field trials covered 40 districts across Rajasthan.",
+        detailed_explanation_hi="ICAR ने किसानों के लिए सूखा प्रतिरोधी फसल किस्म की रिपोर्ट दी।",
+    )
+    m = mb.org_pool_mcq(ci, mb._news_text(ci))
+    assert m is not None
+    assert "Drought Resistant" not in m["explanation_en"] or "field trials" in m["explanation_en"]
+    assert "field trials" in m["explanation_en"].lower() or "drought resistant crop variety" in m["explanation_en"].lower()
+    got, reasons = mb.first_valid([m], ci, set())
+    assert got is not None, reasons

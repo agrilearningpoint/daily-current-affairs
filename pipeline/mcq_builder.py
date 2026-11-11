@@ -297,14 +297,21 @@ def org_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
             # Prefer the news sentence that actually names the org, so the
             # explanation shows WHY it is the answer instead of an unrelated
             # first bullet followed by an unsupported "associated with" claim.
+            from pipeline.mcq_quality import explanation_is_headline_only
             for s in _sentences(news):
-                if hit.lower() in s.lower() or (full and full.lower() in s.lower()):
+                # skip the headline itself: an explanation that only repeats it
+                # is rejected by the validator ("explanation only repeats headline")
+                if (hit.lower() in s.lower() or (full and full.lower() in s.lower())) \
+                        and not explanation_is_headline_only(s, headline, ""):
                     e_en = s.rstrip(".")
                     break
             hi_label = hi.split("(")[0].strip().lower()
+            head_hi = _plain(ci.get("headline_hi"))
             for h in ([_ws(x) for x in (ci.get("key_points_hi") or [])]
                       + _sentences(ci.get("summary_hi"))
                       + _sentences(ci.get("detailed_explanation_hi"))):
+                if _ws(h) == head_hi:
+                    continue
                 if DEVANAGARI_RE.search(h) and (
                         (hi_label and hi_label in h.lower())
                         or (short and re.search(r"(?<![A-Za-z])" + re.escape(short) + r"(?![A-Za-z])", h))):
