@@ -69,11 +69,15 @@ class Agent:
 
         def _llm_for_one(ci):
             """Memoised single-story LLM pass — the relaxed rebuild below must not
-            pay for the same reserve story twice."""
+            pay for the same reserve story twice.  Empty results are NOT cached:
+            a rate-limited single request must stay retryable on the next pass."""
             eid = str(ci.get("event_id", ""))
-            if eid not in llm_one_cache:
-                llm_one_cache[eid] = _llm_for([ci])
-            return llm_one_cache[eid]
+            got = llm_one_cache.get(eid)
+            if got is None:
+                got = _llm_for([ci])
+                if got.get(eid):
+                    llm_one_cache[eid] = got
+            return got or {}
 
         def _build(seed_seen, variant_ctx=None):
             """Assign one validated MCQ per story.
@@ -87,8 +91,16 @@ class Agent:
             work_reserves = list(reserves_all)
 
             def _assign(ci, llm_map):
+                eid = str(ci.get("event_id", ""))
+                llm = (llm_map or {}).get(eid)
+                if llm is None and use_llm:
+                    # The batch pass can lose individual stories to a mid-batch
+                    # rate limit (2026-11-11 re-run: seven stories ended with
+                    # zero candidates and the edition fell below its QA floor).
+                    # Give every missed story one dedicated request, memoised.
+                    llm = (_llm_for_one(ci) or {}).get(eid)
                 cands = candidates_for_item(ci, _evidence_text(ci), pools, items + reserves_all,
-                                            llm_map.get(str(ci.get("event_id", ""))), variant_ctx)
+                                            llm, variant_ctx)
                 spare_cands[str(ci.get("event_id", ""))] = cands
                 m, reasons = first_valid(cands, ci, seen_q)
                 if m is None:
