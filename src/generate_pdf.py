@@ -833,7 +833,9 @@ class ExamGeniusCanvas(canvas.Canvas):
         x = left_m
         self.setFont(FONT_SEMI, fs)
         for i, (label, url) in enumerate(items):
-            prefix = "▶ " if i == 0 else ("Telegram: " if i == 1 else "  |  ")
+            # "▶ " looked like a play icon but the glyph is missing from the
+            # embedded font subsets and extracted as U+0000 on every page.
+            prefix = "" if i == 0 else ("Telegram: " if i == 1 else "  |  ")
             self.setFillColor(COLORS["white"])
             self.drawString(x, footer_y, prefix)
             x += self.stringWidth(prefix, FONT_SEMI, fs)
@@ -1615,40 +1617,11 @@ def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowab
             ("LEFTPADDING", (0, 0), (0, 0), 2), ("LEFTPADDING", (1, 0), (1, 0), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ], min_h=MIN_TAP_PT)
         out.append(LinkTo(row, f"u{i}", full_width=True))
-    out.append(Spacer(PRINT_W, 10 * pt))
-    # Section chips
-    chips: List[Tuple[str, str, str]] = []
-    if PDF_PHOTO_GALLERY and sum(1 for it, _m in units if _real_photo_path(it)) >= PDF_GALLERY_MIN:
-        chips.append(("News in Pictures", "चित्रों में खबरें", "pics"))
-    if (content.get("agri_corner") or {}).get("items"):
-        chips.append(("Agriculture Corner", "कृषि कॉर्नर", "agri"))
-    if _quick_bite_categories(content):
-        chips.append(("Quick Bites", "क्विक बाइट्स", "qb"))
-    chips.append(("One-Liners (English)", "वन-लाइनर (अंग्रेज़ी)", "ol_en"))
-    chips.append(("One-Liners (Hindi)", "वन-लाइनर (हिन्दी)", "ol_hi"))
-    chip_st = ParagraphStyle("TocChip", parent=STYLES["toc_en"], textColor=HexColor("#0B57D0"))
-    ncol = 3
-    col_w = (PRINT_W - 3 * (ncol - 1) * pt) / ncol
-    TOC_LINK_KEYS.update(k for _e, _h, k in chips)
+    # The cover's INSIDE strip already links every section anchor (pics / agri /
+    # qb / ol_en), so a second chip grid here only duplicated navigation - and
+    # when the contents list filled its page the grid overflowed onto a page
+    # that was ~85% empty (2026-11-11 QA: near_empty_pages [3]).
     TOC_LINK_KEYS.update(f"u{i}" for i in range(1, len(units) + 1))
-    out.append(text_flowable("More Sections | अन्य खंड", STYLES["block_head"]))
-    out.append(Spacer(PRINT_W, 4 * pt))
-    chip_cells = []
-    for e, _h, k in chips:
-        chip = _row_table([Paragraph(f"<u>{_safe(e)}</u>", chip_st)], [col_w], [
-            ("BACKGROUND", (0, 0), (-1, -1), HexColor("#EEF5FF")),
-            ("BOX", (0, 0), (-1, -1), 0.6, HEADLINE_BOX_BORDER),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ])
-        chip_cells.append(LinkTo(chip, k))
-    while len(chip_cells) % ncol:
-        chip_cells.append(Spacer(1, 1))
-    grid = Table([chip_cells[i:i + ncol] for i in range(0, len(chip_cells), ncol)],
-                 colWidths=[col_w + 3] * (ncol - 1) + [col_w])
-    grid.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-                              ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
-    out.append(grid)
     out.append(PageBreak())
     return out
 
