@@ -92,6 +92,9 @@ class Agent:
                 spare_cands[str(ci.get("event_id", ""))] = cands
                 m, reasons = first_valid(cands, ci, seen_q)
                 if m is None:
+                    # 2026-11-11: one dropped story carried reasons=[] which told
+                    # us nothing; always say why the generators declined.
+                    reasons = reasons or ["no MCQ candidate could be grounded in the story (every generator declined)"]
                     dropped.append({"event_id": ci.get("event_id"), "headline": ci.get("headline_en", "")[:90],
                                     "reasons": reasons[:6]})
                     logging.warning(f"[{self.name}] no valid MCQ for {ci.get('event_id')}: {reasons[:4]}")

@@ -136,11 +136,44 @@ def _expl_lines(ci: Dict[str, Any]) -> Tuple[str, str]:
     return en, hi
 
 
+def _news_text(ci: Dict[str, Any]) -> str:
+    """The story's NEWS text only: headline, summary, key points, explanation.
+
+    ``exam_fact`` and the Static GK pairs are deliberately excluded.  They are
+    generic exam background ("Key crop statistics, ICAR cultivars, MSP
+    notifications..."), and on 2026-11-11 an organisation named only there (ICAR)
+    was printed as "the organisation associated with" a sugarcane-price story it
+    had nothing to do with.  An MCQ key must be grounded in the news itself.
+    """
+    parts = [_ws(ci.get("headline_en") or "")]
+    for key in ("summary_en", "detailed_explanation_en"):
+        val = _ws(ci.get(key) or "")
+        if val:
+            parts.append(val)
+    for kp in (ci.get("key_points_en") or []):
+        val = _ws(kp)
+        if val:
+            parts.append(val)
+    return " | ".join(x for x in parts if x)
+
+
+def _dedupe_option_acronym(pair: Tuple[str, str]) -> Tuple[str, str]:
+    """Drop a trailing "(ACRONYM)" from the Hindi half when the English half is
+    already exactly that acronym ("NABARD / राष्ट्रीय कृषि और ग्रामीण विकास बैंक
+    (NABARD)" printed the acronym twice on one option line)."""
+    e, h = pair
+    m = re.search(r"\s*\(([A-Z][A-Za-z0-9&.\-]{1,12})\)\s*$", h or "")
+    if m and (e or "").strip().upper() == m.group(1).upper():
+        h = (h or "")[:m.start()].rstrip()
+    return e, h
+
+
 def _make(ci: Dict[str, Any], mtype: str, q_en: str, q_hi: str, correct: Tuple[str, str],
           distractors: List[Tuple[str, str]], expl_en: str, expl_hi: str) -> Optional[Dict[str, Any]]:
     if len(distractors) < 4:
         return None
-    opts = [correct] + distractors[:4]
+    correct = _dedupe_option_acronym(correct)
+    opts = [correct] + [_dedupe_option_acronym(d) for d in distractors[:4]]
     salt = str(ci.get("event_id", "")) + mtype
     k = int(hashlib.sha1((salt + "|" + correct[0]).encode("utf-8")).hexdigest(), 16) % len(opts)
     opts = opts[k:] + opts[:k]
@@ -226,6 +259,10 @@ def org_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
     if not DEVANAGARI_RE.search(headline_hi):
         return None
     low_ev = evidence.lower()
+    # The CORRECT org must appear in the news text itself; a mention confined to
+    # the generic exam_fact / Static GK line is not an association (ICAR, 2026-11-11).
+    news = _news_text(ci)
+    low_news = news.lower()
     for pool_name in ("financial_regulators", "agri_orgs", "defence_tech", "global_orgs", "ministries", "research_institutes"):
         pool = SEMANTIC_OPTION_POOLS.get(pool_name) or []
         for en, hi in pool:
@@ -233,9 +270,9 @@ def org_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
             short = acr.group(1) if acr else ""
             full = re.sub(r"\s*\([^)]*\)", "", en).split(",")[0].strip()
             hit = ""
-            if short and re.search(r"(?<![A-Za-z])" + re.escape(short) + r"(?![A-Za-z])", evidence):
+            if short and re.search(r"(?<![A-Za-z])" + re.escape(short) + r"(?![A-Za-z])", news):
                 hit = short
-            elif full and full.lower() in low_ev:
+            elif full and full.lower() in low_news:
                 hit = full
             if not hit:
                 continue
@@ -257,6 +294,22 @@ def org_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
             others = [o for o in others if o[0] and o[0].lower() != hit.lower()]
             others = sorted(others, key=lambda o: hashlib.sha1((str(ci.get("event_id")) + o[0]).encode()).hexdigest())
             e_en, e_hi = _expl_lines(ci)
+            # Prefer the news sentence that actually names the org, so the
+            # explanation shows WHY it is the answer instead of an unrelated
+            # first bullet followed by an unsupported "associated with" claim.
+            for s in _sentences(news):
+                if hit.lower() in s.lower() or (full and full.lower() in s.lower()):
+                    e_en = s.rstrip(".")
+                    break
+            hi_label = hi.split("(")[0].strip().lower()
+            for h in ([_ws(x) for x in (ci.get("key_points_hi") or [])]
+                      + _sentences(ci.get("summary_hi"))
+                      + _sentences(ci.get("detailed_explanation_hi"))):
+                if DEVANAGARI_RE.search(h) and (
+                        (hi_label and hi_label in h.lower())
+                        or (short and re.search(r"(?<![A-Za-z])" + re.escape(short) + r"(?![A-Za-z])", h))):
+                    e_hi = h.rstrip("।. ")
+                    break
             m = _make(ci, "org-pool",
                       'Which organisation is associated with the news "%s"?' % _clip(stem_en, 110),
                       '"%s" — यह समाचार किस संगठन से संबंधित है?' % _clip(stem_hi, 110),
@@ -404,6 +457,24 @@ def _bilingualize(m: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _org_grounded(m: Dict[str, Any], ci: Dict[str, Any]) -> bool:
+    """Backstop for org-pool keys: the option marked correct must name an
+    organisation the NEWS text mentions (not just the exam_fact/Static GK line)."""
+    letter = str(m.get("correct", ""))
+    if letter not in "ABCDE":
+        return False
+    opts = m.get("options") or []
+    idx = "ABCDE".index(letter)
+    if idx >= len(opts):
+        return False
+    en_lab = str(opts[idx]).split(" / ")[0].strip()
+    acr = re.search(r"\(([A-Z][A-Za-z0-9&.\-]{1,12})\)$", en_lab)
+    tokens = [acr.group(1)] if acr else []
+    tokens.append(re.sub(r"\s*\([^)]*\)", "", en_lab).split(",")[0].strip())
+    news = _news_text(ci).lower()
+    return any(t and t.lower() in news for t in tokens)
+
+
 def first_valid(cands: List[Dict[str, Any]], ci: Dict[str, Any], seen_q: set) -> Tuple[Optional[Dict[str, Any]], List[str]]:
     """First candidate that passes the fail-closed validator and is not a repeated question."""
     from pipeline.content import _qkey, validate_mcqs
@@ -428,6 +499,9 @@ def first_valid(cands: List[Dict[str, Any]], ci: Dict[str, Any], seen_q: set) ->
             hi_errs = hindi_errors(ok[0])   # printed MCQs carry a Hindi stem and Hindi options
             if hi_errs:
                 reasons.append(f"{c.get('type')}: {hi_errs[0]}")
+                continue
+            if c.get("type") == "org-pool" and not _org_grounded(ok[0], ci):
+                reasons.append(f"{c.get('type')}: correct organisation not grounded in the story news text")
                 continue
             return ok[0], reasons
         reasons.append(f"{c.get('type')}: {', '.join(rej[0].get('errors', [])[:3])}")
