@@ -49,6 +49,7 @@ import os
 import re
 from difflib import SequenceMatcher
 from pipeline.static_gk_db import lookup_static_gk, lookup_recent_headlines_box
+from pipeline.content_sanitizer import is_shallow, sanitize_lines, sanitize_raw_facts
 from pathlib import Path
 try:
     from pipeline.static_gk_db import SEMANTIC_OPTION_POOLS
@@ -801,13 +802,15 @@ def _build_entry(it, stats):
     work = dict(it)
     work["headline_en"] = title
     work["event_id"] = event_id
-    raw_facts = _strip_publisher_ui(it.get("raw_facts") or "")
+    # 2026-11-11: paywall boilerplate ("This is a Mint Premium article gifted to
+    # you") and bare source credits reached the PDF via summary/key points.
+    raw_facts = sanitize_raw_facts(_strip_publisher_ui(it.get("raw_facts") or ""))
     work["raw_facts"] = raw_facts
     if UNUSABLE_EVIDENCE_RE.search(title) or UNUSABLE_EVIDENCE_RE.search(raw_facts):
         logger.warning("[Content Builder] skipped paywall/boilerplate evidence: %s", event_id)
         return None
 
-    kps = extract_key_points(work)
+    kps = sanitize_lines(extract_key_points(work), title, it.get("source_name", ""))
     sf = extract_static_facts(work)
     ef = exam_fact(work)
 
@@ -858,6 +861,8 @@ def _build_entry(it, stats):
         "image_url": it.get("image_url", ""),
         # Hindi that is not AI-validated (strict: English left in place; dev: dictionary).
         "translation_incomplete": any(f in ("untranslated", "deterministic_fallback") for f in flags),
+        # Source too thin to support a story (scored down at stage 10 already).
+        "shallow_source": is_shallow(work),
         "needs_review": bool(flags) or not (it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live"),
         "verification_passed": it.get("is_verified") is True and it.get("provenance_verified") is True and it.get("verification_mode") == "live",
     }

@@ -387,8 +387,19 @@ def score_item(item, source_score_map=None):
     # Cluster size bonus: events reported by many sources are more important nationally (max +5)
     cluster_bonus = min(5, max(0, item.get("event_cluster_size",1)-1))
     total = min(100, total + cluster_bonus)
+    # Thin-source penalty: a stub whose body is a dozen words cannot support a
+    # story (2026-11-11: an 11-word PIB stub printed pure boilerplate).  When
+    # stronger candidates exist it should lose its slot at selection.
+    try:
+        from pipeline.content_sanitizer import is_shallow
+        shallow = is_shallow(item)
+    except Exception:
+        shallow = False
+    if shallow:
+        total = int(round(total * 0.6))
     return {"factors": factors, "raw_total": raw_total, "source_type": src_type,
-            "source_reliability": round(rel * 100), "importance_score": min(100, total)}
+            "source_reliability": round(rel * 100), "importance_score": min(100, total),
+            "shallow_source": shallow}
 
 
 def score_all(items):
