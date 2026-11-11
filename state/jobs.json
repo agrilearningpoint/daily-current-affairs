@@ -1964,6 +1964,41 @@
     "checkpoint_run_id": "42792859553"
   },
   "daily_2026-11-11": {
+    "started_at": "2026-11-11T04:41:01.344386+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-11.json": {
+        "stage": "01_source_fetch",
+        "sha256": "2e41c1d902fe218740e20f794fef937ea4ec3271171a38fb434d273856c23d87"
+      },
+      "data/verified/daily_2026-11-11.json": {
+        "stage": "04_fact_verification",
+        "sha256": "da711c574a005f394dea5f89d011b38087d4412ceac69c7994ea3314ea61575b"
+      },
+      "data/dedup/daily_2026-11-11.json": {
+        "stage": "05_deduplication",
+        "sha256": "e964aa12f8d69e4b79cf7bd2c9838e9a27372961705500fe8a7c4e473560c959"
+      },
+      "data/scored/daily_2026-11-11.json": {
+        "stage": "06_news_importance",
+        "sha256": "bdeaa4ea892aa1cfb8c603ae0478232865243bd06830f17fb2eff36107ab16ba"
+      },
+      "data/selected/daily_2026-11-11.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "968d5fb64968a229cb14a8a3aed83ade30fc581d7e377945ba1907877fe7f5aa"
+      },
+      "data/content/daily_2026-11-11.json": {
+        "stage": "12_content_editor",
+        "sha256": "69a04a65386731f8b4b228b30484dc46f9493dae73aec6f08b303a14e69921c2"
+      },
+      "data/mcq/daily_2026-11-11.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "3ea74a55cc796d2cc98c5034be84b35d7f538003612e72417a11dc0f6b3e98f5"
+      },
+      "output/daily_2026-11-11.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "7d6f48878e507e9b0665e3830617bb00cd5476a31d950d3e1fabebc0b1049c07"
+      }
+    },
     "run_attempts": 1,
     "job_id": "daily_2026-11-11",
     "job_type": "daily",
@@ -1973,53 +2008,12 @@
       "start": "2026-11-10T06:00:00+05:30",
       "end": "2026-11-11T06:00:00+05:30"
     },
-    "github_run_id": "42934295055",
-    "status": "success",
-    "updated_at": "2026-11-11T01:02:00.073427+00:00",
-    "started_at": "2026-11-11T00:49:32.262961+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-11-11.json": {
-        "stage": "01_source_fetch",
-        "sha256": "aea7edd662be3db98237d470f4a1b19d911f60d7e211ac11d772a5f03dc7ceb0"
-      },
-      "data/verified/daily_2026-11-11.json": {
-        "stage": "04_fact_verification",
-        "sha256": "19448010e91d9702d0fcdb68edd8ea8dd6ad54e4c625960a78ba765f676cd423"
-      },
-      "data/dedup/daily_2026-11-11.json": {
-        "stage": "05_deduplication",
-        "sha256": "e9842b86bf3d389b833021838055199505f2949b2c75048f16589823e32686c6"
-      },
-      "data/scored/daily_2026-11-11.json": {
-        "stage": "06_news_importance",
-        "sha256": "f73b979782391e9d13dd29d8742a726c6ccf3bee7d655bb5f5704191ead64628"
-      },
-      "data/selected/daily_2026-11-11.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "c6b0aeef7430d45883b04c360b4d5b65c66508cbe84415eac8ccb9381ff617b4"
-      },
-      "data/content/daily_2026-11-11.json": {
-        "stage": "12_content_editor",
-        "sha256": "a36992a53a801e67876b653dd8ead1490bccc5843622b25c5b314c9f02ce3ecc"
-      },
-      "data/mcq/daily_2026-11-11.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "dca620dfd80ea7c504ec817054669293d3c8b07128ddb7b9ee68b43c07e3f58f"
-      },
-      "output/daily_2026-11-11.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "8e038604180295f1eb44cb68122d9a63c65b86aa47406d86599037af85bd5eec"
-      },
-      "logs/qa/daily_2026-11-11_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "a13efeff3b8885dfb4e31f8906bc8b1953146b707dffd43efb6c223079453ece"
-      },
-      "logs/qa/daily_2026-11-11_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "52852b18ca07975dc187b1eeca1b81525df90c552f4dba907371e230446c7766"
-      }
-    },
-    "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "42934295055"
+    "github_run_id": "42960751548",
+    "status": "failed",
+    "updated_at": "2026-11-11T05:01:22.786169+00:00",
+    "last_success_stage": "18_pdf_design",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s):            27\nChars:           41366\nDevanagari:      12843 (31.0%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            11\nAnswer markers:  12\nDuplicate Qs:    0\nDistinct stems:  11 (6-word prefixes)\nURLs:            0\nImages:          292\nBlank pages:     none\nSubstantive pgs: 26 (min page chars 515)\nNear-empty pgs:  [16]\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [16]\n  [ERROR] [edition_story_shortfall] Edition has 11 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 4 real news photos (target 10)\n========================================================================\n\n2026-11-11 05:01:18 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "failed_stage": "19_pdf_qa",
+    "checkpoint_run_id": "42960751548"
   }
 }

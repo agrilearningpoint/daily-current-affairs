@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-11T10:01:20.293441+05:30",
+  "updated": "2026-11-11T10:30:08.031110+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -766,11 +766,11 @@
       "published": true
     },
     "thenewschartsanationalroadmapformilletledagriculturaltransfo": {
-      "count": 1,
+      "count": 2,
       "last_seen": "2026-11-11",
       "type": "place-state",
       "q": "The news \"charts a National Roadmap for Millet led Agricultural Transformation\" is related to which State / Un",
-      "published": true
+      "published": false
     },
     "howmanyapplicationswerereceivedfromntpclimitedduringtheconcl": {
       "count": 1,
@@ -834,6 +834,78 @@
       "type": "llm-schema",
       "q": "Which Indian agency has completed the key systems and infrastructure for the Gaganyaan mission as reported?",
       "published": true
+    },
+    "whoannouncestheminimumsupportpricemspfornotifiedcropsinindia": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "concept",
+      "concept_id": "msp",
+      "q": "Who announces the Minimum Support Price (MSP) for notified crops in India?",
+      "published": false
+    },
+    "whichstatescabinetrecentlyapprovedaproposalforapumpedstorage": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which state's cabinet recently approved a proposal for a pumped storage power project valued at Rs 4,708-crore",
+      "published": false
+    },
+    "whichresearchcouncilscultivarsarehighlightedinthediscussiono": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which research council's cultivars are highlighted in the discussion on region‑specific farm strategy?",
+      "published": false
+    },
+    "whichindianorganizationwasinvitedbyluxembourgtoshareitsolymp": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which Indian organization was invited by Luxembourg to share its Olympic education experience for the Luxembou",
+      "published": false
+    },
+    "whichorganisationisassociatedwiththenewsgaganyaanmissionreac": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Gaganyaan mission reaches advanced stage as completes key syst",
+      "published": false
+    },
+    "whichairlinepartneredwithindiapostforthedigitaldetox20initia": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which airline partnered with India Post for the Digital Detox 2.0 initiative?",
+      "published": false
+    },
+    "underthebiharkibetistartupchallengeschemehowmanyfemalestuden": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Under the Bihar Ki Beti Startup Challenge Scheme, how many female students are slated to receive benefits star",
+      "published": false
+    },
+    "whichorganizationwasspecificallymentionedalongsidedrdobreakt": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which organization was specifically mentioned alongside DRDO breakthroughs regarding defense procurements and ",
+      "published": false
+    },
+    "whatwasthetotalamountpaidincommissionsbyindias10largestasset": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "What was the total amount paid in commissions by India's 10 largest asset management houses during the financi",
+      "published": false
+    },
+    "thejaljeevanmissionaimstoprovidewhichofthefollowingtoeveryru": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "concept",
+      "concept_id": "jjm",
+      "q": "The Jal Jeevan Mission aims to provide which of the following to every rural household?",
+      "published": false
     }
   },
   "concepts": {
@@ -842,6 +914,18 @@
         "count": 1,
         "last_seen": "2026-11-11",
         "published": true
+      },
+      "v1": {
+        "count": 1,
+        "last_seen": "2026-11-11",
+        "published": false
+      }
+    },
+    "jjm": {
+      "v1": {
+        "count": 1,
+        "last_seen": "2026-11-11",
+        "published": false
       }
     }
   }
