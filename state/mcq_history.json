@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-11T10:56:49.268587+05:30",
+  "updated": "2026-11-12T07:45:22.815948+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -997,6 +997,98 @@
       "type": "llm-schema",
       "q": "Which Union Ministry is the nodal agency responsible for implementing the Jal Jeevan Mission in India?",
       "published": true
+    },
+    "whichbodyisresponsibleforrecommendingtheminimumsupportpricem": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which body is responsible for recommending the Minimum Support Price (MSP) for agricultural crops in India?",
+      "published": true
+    },
+    "whichspecificarchitecturalstructuresinthenationalcapitalareb": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which specific architectural structures in the national capital are being repurposed for the establishment of ",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsfarmfireincidentsfal": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Farm-fire incidents fall 11.5% across six northern states to 9",
+      "published": true
+    },
+    "whichorganizationalongsideamulrecentlyannouncedanincreaseint": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which organization, alongside Amul, recently announced an increase in the retail cost of fresh milk pouches?",
+      "published": true
+    },
+    "underthefiveyearextensionapprovedbytheunioncabinetforfinanci": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Under the five-year extension approved by the Union Cabinet for financial support to SC, ST, and women entrepr",
+      "published": true
+    },
+    "whichorganizationhasjurisdictionoverthegreattrigonometricals": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which organization has jurisdiction over the Great Trigonometrical Survey stations in Tamil Nadu?",
+      "published": true
+    },
+    "thecommissionforagriculturalcostsandpricescacpworksunderwhic": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "concept",
+      "concept_id": "msp",
+      "q": "The Commission for Agricultural Costs and Prices (CACP) works under which Union Ministry?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsinflationseenhitting": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Inflation seen hitting 6% ceiling in October, putting rate pol",
+      "published": true
+    },
+    "whichbodyismandatedtorecommendtheminimumsupportpricesmspfora": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which body is mandated to recommend the Minimum Support Prices (MSP) for agricultural crops in India?",
+      "published": true
+    },
+    "thenewsmanwins15crorelotteryadayafterdaughterbarkatsbirthwew": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "place-state",
+      "q": "The news \"man wins ₹1.5 crore lottery a day after daughter Barkat's birth: ‘We wanted a boy\" is related to whi",
+      "published": true
+    },
+    "by2030whattargethasindiasetforitsnonfossilpowergenerationcap": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "By 2030, what target has India set for its non-fossil power generation capacity?",
+      "published": true
+    },
+    "whatistheindicativeissuepricepersharethatbajajfinancesetfori": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "What is the indicative issue price per share that Bajaj Finance set for its Qualified Institutional Placement ",
+      "published": true
+    },
+    "whichinstitutionsmonetarypolicyreviewswerementionedinthenews": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which institution’s monetary policy reviews were mentioned in the news article?",
+      "published": true
     }
   },
   "concepts": {
@@ -1009,6 +1101,11 @@
       "v1": {
         "count": 2,
         "last_seen": "2026-11-11",
+        "published": true
+      },
+      "v2": {
+        "count": 1,
+        "last_seen": "2026-11-12",
         "published": true
       }
     },
