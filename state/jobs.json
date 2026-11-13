@@ -2082,39 +2082,31 @@
     "checkpoint_run_id": "43138186723"
   },
   "daily_2026-11-13": {
-    "started_at": "2026-11-13T11:50:41.431654+00:00",
+    "started_at": "2026-11-13T13:17:57.949859+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-13.json": {
         "stage": "01_source_fetch",
-        "sha256": "5e7c33094e0bf691f415db21d86e74b280e5de5f4210db79391c15c997050421"
+        "sha256": "11fb19a19b68320d5092c22ca78e2d726d93e0fc0ebddbbdb6eb9ecbc081aa8e"
       },
       "data/verified/daily_2026-11-13.json": {
         "stage": "04_fact_verification",
-        "sha256": "b7c4b50199e9e14fbb8501ff7a4186ec507d5136bfd8b17ca32e228728c1c0b9"
+        "sha256": "fdaba875d820552da67c8bd37af49b3cff53bcdc59df9f4c6294999b4d6912ce"
       },
       "data/dedup/daily_2026-11-13.json": {
         "stage": "05_deduplication",
-        "sha256": "097c5e70fc831e3e524f211617504d03174eb2517e56e8570e6ff7c27cbfd847"
+        "sha256": "3e26695070fa3312100315068c6894b3de33795d72018600bdb92851853023ba"
       },
       "data/scored/daily_2026-11-13.json": {
         "stage": "06_news_importance",
-        "sha256": "76cedf6ed10841438ab7ba6927834e26f7e9700a3c5349f22a36d767e0086e4b"
+        "sha256": "9e000b5865107143598289ad940e4f13349e35315f40683abb06be71a218b963"
       },
       "data/selected/daily_2026-11-13.json": {
         "stage": "10_final_news_selection",
-        "sha256": "564fac39ecaae0c5197af5e4dd835056241a992b127176214bb75440b44ccc88"
+        "sha256": "a336439d0b00547ef7393625eb2f1036ea6132eabc3fe133c2ccd7dee2aa10ed"
       },
       "data/content/daily_2026-11-13.json": {
         "stage": "12_content_editor",
-        "sha256": "6716bbd105423972d8397a8e75d62f7fe166284ae21c898beac9bb0ad545613c"
-      },
-      "data/mcq/daily_2026-11-13.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "95979d5beb0d878bcc85efba6bd8bf8f9c8b7b244d98a9e010864e3bb1b98b69"
-      },
-      "output/daily_2026-11-13.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "16f013092d47c98de3d2ff78e10db5e214f844fa6b62d7d41f6484b58d072266"
+        "sha256": "5d7bc994fe3f686f65ff356a46ebb5479f9077e5638e6b54538a81ac3c1dec68"
       }
     },
     "run_attempts": 1,
@@ -2127,11 +2119,11 @@
       "end": "2026-11-13T06:00:00+05:30"
     },
     "github_run_id": "43432337507",
-    "status": "running",
-    "updated_at": "2026-11-13T13:17:54.567293+00:00",
-    "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): lar, AAAAAA+Poppins-Bold...)\nMCQs:            3\nAnswer markers:  3\nDuplicate Qs:    0\nURLs:            0\nImages:          123\nBlank pages:     none\nSubstantive pgs: 13 (min page chars 607)\nNear-empty pgs:  none\n\n--- Issues ---\n  [ERROR] [too_few_pages] PDF has only 13 pages (min 15)\n  [ERROR] [insufficient_mcqs] Only 3 MCQs found (min 4)\n  [WARN] [below_page_target] 13 substantive page(s) is below the 15-page daily target (verified news volume may be low)\n  [ERROR] [edition_story_shortfall] Edition has 2 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 0 real news photos (target 10)\n========================================================================\n\n2026-11-13 11:58:24 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
-    "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "43420198399"
+    "status": "failed",
+    "updated_at": "2026-11-13T13:33:35.593389+00:00",
+    "last_success_stage": "12_content_editor",
+    "last_error": "16_mcq_generator: failed after 3 attempt(s): 'concept': 1}\nINFO:pipeline.content:[MCQ Validation] 6/6 MCQs passed (0 rejected)\nERROR:root:[MCQ GENERATOR AGENT v5 (FAIL-CLOSED)] only 6 valid MCQs for 9 news (need >=8). Validation is working correctly - rejecting low quality.\nTraceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/16_mcq_generator.py\", line 296, in <module>\n    run_agent(Agent)\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/artifacts.py\", line 57, in run_agent\n    agent.run()\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/16_mcq_generator.py\", line 251, in run\n    raise RuntimeError(error_msg)\nRuntimeError: only 6 valid MCQs for 9 news (need >=8). Validation is working correctly - rejecting low quality.",
+    "failed_stage": "16_mcq_generator",
+    "checkpoint_run_id": "43432337507"
   }
 }
