@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-12T07:45:22.815948+05:30",
+  "updated": "2026-11-13T07:07:47.071606+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -519,12 +519,12 @@
       "q": "Which of the following categories includes the legislative measure recently discussed in official government u"
     },
     "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
-      "count": 4,
-      "last_seen": "2026-11-11",
+      "count": 5,
+      "last_seen": "2026-11-13",
       "type": "concept",
       "concept_id": "msp",
       "q": "Which body recommends the Minimum Support Price (MSP) of notified crops to the Government of India?",
-      "published": true
+      "published": false
     },
     "alongwithroadsandhealthwhichothersectoriscoveredunderthenewl": {
       "count": 1,
@@ -1089,14 +1089,77 @@
       "type": "llm-schema",
       "q": "Which institution’s monetary policy reviews were mentioned in the news article?",
       "published": true
+    },
+    "whichorganisationisassociatedwiththenewsretailinflationat609": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Retail inflation at 6.09% in October, breaches upper band afte",
+      "published": false
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinretailinflation": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Retail inflation at 6.09% in October, breaches 's upper ",
+      "published": false
+    },
+    "whichfundisfinancingthedigitalparkconstructionworkthattheker": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which fund is financing the digital park construction work that the Kerala government is set to inaugurate?",
+      "published": false
+    },
+    "whichindianagencyconductedthenaseemalbahrseabreezeexercisewi": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which Indian agency conducted the 'Naseem Al Bahr (Sea Breeze)' exercise with Oman?",
+      "published": false
+    },
+    "thenewsindiastbdeathsfall38since2015outpacingglobaldeclinewh": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"India’s TB deaths fall 38% since 2015, outpacing global decline: WHO report\" is related to which Sta",
+      "published": false
+    },
+    "thenewshowtoinvestabroadthroughgiftcityastepbystepguideisrel": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"How to invest abroad through GIFT City: A step-by-step guide\" is related to which State / Union Terr",
+      "published": false
+    },
+    "asofthelatestupdatewhichroundofnegotiationshasbeenconductedb": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "As of the latest update, which round of negotiations has been conducted between India and Canada for the Compr",
+      "published": false
+    },
+    "whichofthefollowingaspectswasspecificallyhighlightedintherep": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which of the following aspects was specifically highlighted in the report on the PLI schemes released recently",
+      "published": false
+    },
+    "thenewscabinetapprovesyugeyugeenbharatmuseumpmmodisaysitwill": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"Cabinet approves Yuge Yugeen Bharat Museum; PM Modi says it will transform into global centre of cul",
+      "published": false
     }
   },
   "concepts": {
     "msp": {
       "v0": {
-        "count": 1,
-        "last_seen": "2026-11-11",
-        "published": true
+        "count": 2,
+        "last_seen": "2026-11-13",
+        "published": false
       },
       "v1": {
         "count": 2,
