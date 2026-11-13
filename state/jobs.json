@@ -2118,9 +2118,9 @@
       "start": "2026-11-12T06:00:00+05:30",
       "end": "2026-11-13T06:00:00+05:30"
     },
-    "github_run_id": "43432337507",
-    "status": "failed",
-    "updated_at": "2026-11-13T13:33:35.593389+00:00",
+    "github_run_id": "43438939697",
+    "status": "running",
+    "updated_at": "2026-11-13T14:02:46.555964+00:00",
     "last_success_stage": "12_content_editor",
     "last_error": "16_mcq_generator: failed after 3 attempt(s): 'concept': 1}\nINFO:pipeline.content:[MCQ Validation] 6/6 MCQs passed (0 rejected)\nERROR:root:[MCQ GENERATOR AGENT v5 (FAIL-CLOSED)] only 6 valid MCQs for 9 news (need >=8). Validation is working correctly - rejecting low quality.\nTraceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/16_mcq_generator.py\", line 296, in <module>\n    run_agent(Agent)\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/artifacts.py\", line 57, in run_agent\n    agent.run()\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/16_mcq_generator.py\", line 251, in run\n    raise RuntimeError(error_msg)\nRuntimeError: only 6 valid MCQs for 9 news (need >=8). Validation is working correctly - rejecting low quality.",
     "failed_stage": "16_mcq_generator",
