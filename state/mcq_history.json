@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-13T17:27:34.276447+05:30",
+  "updated": "2026-11-13T19:45:19.217385+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -519,12 +519,12 @@
       "q": "Which of the following categories includes the legislative measure recently discussed in official government u"
     },
     "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
-      "count": 7,
+      "count": 8,
       "last_seen": "2026-11-13",
       "type": "concept",
       "concept_id": "msp",
       "q": "Which body recommends the Minimum Support Price (MSP) of notified crops to the Government of India?",
-      "published": false
+      "published": true
     },
     "alongwithroadsandhealthwhichothersectoriscoveredunderthenewl": {
       "count": 1,
@@ -1095,134 +1095,225 @@
       "last_seen": "2026-11-13",
       "type": "org-pool",
       "q": "Which organisation is associated with the news \"Retail inflation at 6.09% in October, breaches upper band afte",
-      "published": false
+      "published": true
     },
     "whichinstitutionorentityiscentrallyfeaturedinretailinflation": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "who-org",
       "q": "Which institution or entity is centrally featured in \"Retail inflation at 6.09% in October, breaches 's upper ",
-      "published": false
+      "published": true
     },
     "whichfundisfinancingthedigitalparkconstructionworkthattheker": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which fund is financing the digital park construction work that the Kerala government is set to inaugurate?",
-      "published": false
+      "published": true
     },
     "whichindianagencyconductedthenaseemalbahrseabreezeexercisewi": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which Indian agency conducted the 'Naseem Al Bahr (Sea Breeze)' exercise with Oman?",
-      "published": false
+      "published": true
     },
     "thenewsindiastbdeathsfall38since2015outpacingglobaldeclinewh": {
       "count": 2,
       "last_seen": "2026-11-13",
       "type": "place-state",
       "q": "The news \"India’s TB deaths fall 38% since 2015, outpacing global decline: WHO report\" is related to which Sta",
-      "published": false
+      "published": true
     },
     "thenewshowtoinvestabroadthroughgiftcityastepbystepguideisrel": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "place-state",
       "q": "The news \"How to invest abroad through GIFT City: A step-by-step guide\" is related to which State / Union Terr",
-      "published": false
+      "published": true
     },
     "asofthelatestupdatewhichroundofnegotiationshasbeenconductedb": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "As of the latest update, which round of negotiations has been conducted between India and Canada for the Compr",
-      "published": false
+      "published": true
     },
     "whichofthefollowingaspectswasspecificallyhighlightedintherep": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which of the following aspects was specifically highlighted in the report on the PLI schemes released recently",
-      "published": false
+      "published": true
     },
     "thenewscabinetapprovesyugeyugeenbharatmuseumpmmodisaysitwill": {
       "count": 2,
       "last_seen": "2026-11-13",
       "type": "place-state",
       "q": "The news \"Cabinet approves Yuge Yugeen Bharat Museum; PM Modi says it will transform into global centre of cul",
-      "published": false
+      "published": true
     },
     "whichinstitutionsuppertolerancelimitwasbreachedbyindiasretai": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which institution's upper tolerance limit was breached by India's retail inflation in October 2026?",
-      "published": false
+      "published": true
     },
     "whichorganisationisassociatedwiththenewsviewindiasoctoberret": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "org-pool",
       "q": "Which organisation is associated with the news \"VIEW India's October retail inflation at 6.09% on-year\"?",
-      "published": false
+      "published": true
     },
     "whichcountrywasspecificallymentionedinthereportashavingitstr": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which country was specifically mentioned in the report as having its trade with India boosted by recent FTAs i",
-      "published": false
+      "published": true
     },
     "whatisthetotalfinancialoutlayapprovedbythecabinetforthenewof": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "What is the total financial outlay approved by the Cabinet for the new offshore oil and gas exploration initia",
-      "published": false
+      "published": true
     },
     "whichorganisationisassociatedwiththenewsindiastbdeathsfall38": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "org-pool",
       "q": "Which organisation is associated with the news \"India’s TB deaths fall 38% since 2015, outpacing global declin",
-      "published": false
+      "published": true
     },
     "thenewsinculminationof10yearsofdedicatedeffortsunionenvironm": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "place-state",
       "q": "The news \"In culmination of 10 years of dedicated efforts, Union Environment Minister and CM () initiate the p",
-      "published": false
+      "published": true
     },
     "whichbodyreleasedthereporttitledimpactassessmentofplischemes": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which body released the report titled \"Impact Assessment of PLI Schemes\"?",
-      "published": false
+      "published": true
     },
     "whichbodyisresponsibleforissuingtheminimumsupportpricemspnot": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which body is responsible for issuing the Minimum Support Price (MSP) notifications mentioned in the Kisan Tak",
-      "published": false
+      "published": true
     },
     "whichinstitutionisresponsibleforreviewingmonetarypolicyandse": {
       "count": 1,
       "last_seen": "2026-11-13",
       "type": "llm-schema",
       "q": "Which institution is responsible for reviewing monetary policy and setting the 6% inflation ceiling in India?",
-      "published": false
+      "published": true
+    },
+    "whichofthefollowingmacroeconomicindicatorsandmetricswerehigh": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which of the following macroeconomic indicators and metrics were highlighted alongside the external trade perf",
+      "published": true
+    },
+    "whichinitiativehasbeenapprovedbythecabinetwithafinancialoutl": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which initiative has been approved by the Cabinet with a financial outlay of Rs 84,084 crore to boost offshore",
+      "published": true
+    },
+    "whichculturalinstitutionprojecthasbeenrecentlyapprovedbytheu": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which cultural institution project has been recently approved by the Union Cabinet, as announced via News On A",
+      "published": true
+    },
+    "whatpercentageofindiastbprogrammefundingrequirementsismetthr": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "What percentage of India's TB programme funding requirements is met through domestic resources, as reported in",
+      "published": true
+    },
+    "inwhichprotectedareaofrajasthanwastheprocessforthereleaseofc": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "In which protected area of Rajasthan was the process for the release of captive-bred Great Indian Bustards int",
+      "published": true
+    },
+    "whichorganizationscultivarswerehighlightedduringthekisantakb": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which organization's cultivars were highlighted during the Kisan Tak Bharat Agriculture Conference 2026?",
+      "published": true
+    },
+    "whatisthepercentageceilingsetbythereservebankofindiaforconsu": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "What is the percentage ceiling set by the Reserve Bank of India for consumer price growth that was reported as",
+      "published": true
+    },
+    "whowasappointedasnvidiasinterimchiefexecutiveafterjensenhuan": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Who was appointed as Nvidia's interim chief executive after Jensen Huang stepped down?",
+      "published": true
+    },
+    "whichorganizationrecentlylaunchedthereporttitledimpactassess": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which organization recently launched the report titled “Impact Assessment of PLI Schemes”?",
+      "published": true
+    },
+    "whichnewlyhighlightedcropstrainsarereportedtodemonstrateprom": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which newly highlighted crop strains are reported to demonstrate promising yield potential of 20 quintals per ",
+      "published": true
+    },
+    "whichofthefollowingisfeaturedonthenewlylauncheddigitalinitia": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which of the following is featured on the newly launched digital initiative mentioned in the news?",
+      "published": true
+    },
+    "whichinitiativewashighlightedregardingimplementingministries": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which initiative was highlighted regarding implementing ministries, financial outlays, target demographics, an",
+      "published": true
+    },
+    "whichinitiativehasbeenlaunchedbythegovernmentwithafinancialo": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which initiative has been launched by the government with a financial outlay of Rs 200 crore to support new en",
+      "published": true
     }
   },
   "concepts": {
     "msp": {
       "v0": {
-        "count": 4,
+        "count": 5,
         "last_seen": "2026-11-13",
-        "published": false
+        "published": true
       },
       "v1": {
         "count": 2,

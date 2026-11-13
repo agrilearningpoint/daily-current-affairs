@@ -2082,31 +2082,47 @@
     "checkpoint_run_id": "43138186723"
   },
   "daily_2026-11-13": {
-    "started_at": "2026-11-13T13:17:57.949859+00:00",
+    "started_at": "2026-11-13T14:02:49.668626+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-13.json": {
         "stage": "01_source_fetch",
-        "sha256": "11fb19a19b68320d5092c22ca78e2d726d93e0fc0ebddbbdb6eb9ecbc081aa8e"
+        "sha256": "71da039441fcc2e741b31cc6c9c719037ab944593958f5d700bed8188f3bb201"
       },
       "data/verified/daily_2026-11-13.json": {
         "stage": "04_fact_verification",
-        "sha256": "fdaba875d820552da67c8bd37af49b3cff53bcdc59df9f4c6294999b4d6912ce"
+        "sha256": "b4f68a55aba9c72870c675e92049d8a49ff757c66c1420ebb5fb92a8d5ac4888"
       },
       "data/dedup/daily_2026-11-13.json": {
         "stage": "05_deduplication",
-        "sha256": "3e26695070fa3312100315068c6894b3de33795d72018600bdb92851853023ba"
+        "sha256": "4af1d98b3072c206cb1c1f6b4d350b9e175fc24fda27fbf8ef76a19097155873"
       },
       "data/scored/daily_2026-11-13.json": {
         "stage": "06_news_importance",
-        "sha256": "9e000b5865107143598289ad940e4f13349e35315f40683abb06be71a218b963"
+        "sha256": "ec3ef96cd4e9d5635ec783247e7cf1dfba71f50a1c2d620e37062a3c971e22ba"
       },
       "data/selected/daily_2026-11-13.json": {
         "stage": "10_final_news_selection",
-        "sha256": "a336439d0b00547ef7393625eb2f1036ea6132eabc3fe133c2ccd7dee2aa10ed"
+        "sha256": "cdbf2a290effb34c31555d107f9063b26d9ccaf8f9589719e0ddc5035cb672ac"
       },
       "data/content/daily_2026-11-13.json": {
         "stage": "12_content_editor",
-        "sha256": "5d7bc994fe3f686f65ff356a46ebb5479f9077e5638e6b54538a81ac3c1dec68"
+        "sha256": "b6852caa8a6845c50c2f5201f64a49422264fcd4da6753e0aaf1a231818cb062"
+      },
+      "data/mcq/daily_2026-11-13.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "442b807ccd95d3dcbaa935941e4ca2abe3bf360dfb922b2d15bf6f2b4700ea05"
+      },
+      "output/daily_2026-11-13.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "fc28d6379212e763384d6c942c7d5457d8b5339866b368310bc6f9231f451c6b"
+      },
+      "logs/qa/daily_2026-11-13_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "af2998a64879ad2b9faa81c78bd414c3b9c8e206afa57ca36f29e5edbae9228c"
+      },
+      "logs/qa/daily_2026-11-13_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "f8f074c0de325d29fc3df299bd25ae3aebdb7991d3576b2b98e6080019f22fed"
       }
     },
     "run_attempts": 1,
@@ -2119,11 +2135,9 @@
       "end": "2026-11-13T06:00:00+05:30"
     },
     "github_run_id": "43438939697",
-    "status": "running",
-    "updated_at": "2026-11-13T14:02:46.555964+00:00",
-    "last_success_stage": "12_content_editor",
-    "last_error": "16_mcq_generator: failed after 3 attempt(s): 'concept': 1}\nINFO:pipeline.content:[MCQ Validation] 6/6 MCQs passed (0 rejected)\nERROR:root:[MCQ GENERATOR AGENT v5 (FAIL-CLOSED)] only 6 valid MCQs for 9 news (need >=8). Validation is working correctly - rejecting low quality.\nTraceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/16_mcq_generator.py\", line 296, in <module>\n    run_agent(Agent)\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/artifacts.py\", line 57, in run_agent\n    agent.run()\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/16_mcq_generator.py\", line 251, in run\n    raise RuntimeError(error_msg)\nRuntimeError: only 6 valid MCQs for 9 news (need >=8). Validation is working correctly - rejecting low quality.",
-    "failed_stage": "16_mcq_generator",
-    "checkpoint_run_id": "43432337507"
+    "status": "success",
+    "updated_at": "2026-11-13T14:15:23.944574+00:00",
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "43438939697"
   }
 }
