@@ -483,3 +483,34 @@ def test_mcq_llm_pass_does_not_retry_when_no_provider_answers():
     out = generate_llm_mcqs([{"event_id": "e1", "headline_en": "x"}], lambda i: "src",
                             route=lambda *a, **k: calls.append(1), attempts=3)
     assert out == {} and calls == [1]
+
+
+# --------------------------------------------------------------------------- #
+# 2026-11-13: all-provider cooldown must name itself and offer a recovery wait
+# --------------------------------------------------------------------------- #
+def test_all_cooled_down_error_names_the_cooldowns(monkeypatch, caplog):
+    """Eight failed runs logged "Last error: None" — the reason must survive."""
+    p = ai_router.Provider(name="onlyco", url="https://o/chat/completions", key="k", model="m")
+    _use(monkeypatch, [p])
+    p.mark_disabled("rate limited", 300)
+    with caplog.at_level(logging.ERROR, logger="pipeline.ai_router"):
+        assert ai_router.route("x") is None
+    assert "all providers cooled down" in caplog.text
+    assert "onlyco" in caplog.text and "rate limited" in caplog.text
+    assert "Last error: None" not in caplog.text
+
+
+def test_recovery_wait_is_none_while_a_provider_can_serve(monkeypatch):
+    ok = ai_router.Provider(name="okco", url="https://o", key="k", model="m")
+    _use(monkeypatch, [ok])
+    assert ai_router.all_providers_recovery_wait() is None
+
+
+def test_recovery_wait_reports_the_soonest_expiry(monkeypatch):
+    far = ai_router.Provider(name="farco", url="https://f", key="k", model="m")
+    near = ai_router.Provider(name="nearco", url="https://n", key="k", model="m")
+    _use(monkeypatch, [far, near])
+    far.mark_disabled("repeated timeouts", 1800)
+    near.mark_disabled("rate limited", 90)
+    wait = ai_router.all_providers_recovery_wait()
+    assert wait is not None and 60 < wait <= 90

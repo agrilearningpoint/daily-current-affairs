@@ -170,6 +170,45 @@ class Agent:
                 f"rebuilding without the history filter")
             built = _build(set(), variant_ctx)
             self.context["mcq_history_relaxed"] = True
+
+        # ── Provider-recovery retry (2026-11-13) ────────────────────────────
+        # A free-tier 429/timeout storm can park every provider mid-stage; the
+        # stories then die with "every generator declined" and the edition
+        # sinks at the QA floor even though the cooldowns expire in ~2 minutes.
+        # Wait once for the soonest provider and rebuild; empty single-pass
+        # results are not cached, so the retry really re-asks.
+        floor = max(0, target - 2)
+        if len(built["final_items"]) < floor:
+            try:
+                from pipeline import ai_router
+                import time as _time
+                wait_s = ai_router.all_providers_recovery_wait()
+                left = ai_router.ai_time_left()
+                cap = float(os.getenv("ALP_MCQ_RECOVERY_WAIT", "300") or 300)
+                if wait_s is not None and 2.0 <= wait_s <= cap \
+                        and (left is None or wait_s + 60.0 <= left):
+                    logging.warning(
+                        f"[{self.name}] all AI providers cooled down; waiting {wait_s:.0f}s "
+                        f"for recovery, then retrying {floor - len(built['final_items']) + 1}+ missing stor(y/ies)")
+                    _time.sleep(wait_s)
+                    retry_ctx = dict(variant_ctx or {})
+                    retry_ctx.setdefault("edition_date", job_date)
+                    retry_ctx.setdefault("history", hist)
+                    rebuilt = _build(set(), retry_ctx)
+                    if len(rebuilt["final_items"]) > len(built["final_items"]):
+                        logging.info(
+                            f"[{self.name}] recovery retry lifted the edition "
+                            f"{len(built['final_items'])} -> {len(rebuilt['final_items'])} stories")
+                        built = rebuilt
+                        self.context["mcq_provider_recovery"] = True
+                elif wait_s is not None:
+                    budget_txt = "n/a" if left is None else f"{left:.0f}s"
+                    logging.warning(
+                        f"[{self.name}] providers cooled down for {wait_s:.0f}s (stage budget "
+                        f"left: {budget_txt}) — not waiting")
+            except Exception as exc:  # recovery is a salvage aid, never fatal
+                logging.warning(f"[{self.name}] provider-recovery retry failed: {exc}")
+
         final_items = built["final_items"]
         mcqs = built["mcqs"]
         seen_q = built["seen_q"]

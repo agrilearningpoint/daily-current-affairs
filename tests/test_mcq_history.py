@@ -403,3 +403,54 @@ def test_record_resets_published_for_new_drafts():
     entry = next(iter(hist["questions"].values()))
     assert entry["published"] is False
     assert mcq_history.recent_qkeys(hist, TODAY) == set()
+
+
+# --------------------------------------------------------------------------- #
+# 9. Provider-recovery retry (2026-11-13: eight runs died on a 120s 429 storm)
+# --------------------------------------------------------------------------- #
+def test_stage16_waits_out_a_full_cooldown_and_retries(monkeypatch, stage16):
+    """The 2026-11-13 storm: every provider parked mid-stage, edition 8/15.
+
+    The stage must wait out the soonest cooldown (once) and rebuild; here the
+    "providers" recover between passes, so every story gets its MCQ."""
+    from pipeline import ai_router, mcq_schema
+    import time as _time
+
+    mod, _seen = stage16
+    slept = []
+    monkeypatch.setattr(_time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(ai_router, "all_providers_recovery_wait", lambda: 60.0)
+    monkeypatch.setattr(ai_router, "ai_time_left", lambda: 600.0)
+
+    def fake_llm(items, _fn, **kw):          # provider health probe per pass
+        if slept:                            # providers recovered during the wait
+            for it in items:
+                it["_candidates"] = [_candidate(it["event_id"], f"Recovered question {it['event_id']}?")]
+        return {}                            # outage pass: no generator answers
+
+    monkeypatch.setattr(mcq_schema, "llm_mode_enabled", lambda: True)
+    monkeypatch.setattr(mcq_schema, "generate_llm_mcqs", fake_llm)
+
+    items = [{"event_id": i, "headline_en": f"story {i}", "_candidates": []} for i in (1, 2, 3)]
+    ctx, mcqs = _run_stage(mod, "daily_2026-11-13", items)
+    assert slept == [60.0]                   # waited out the cooldown exactly once
+    assert ctx.get("mcq_provider_recovery") is True
+    assert len(mcqs) == 3                    # every story recovered an MCQ
+
+
+def test_stage16_does_not_wait_past_the_stage_budget(monkeypatch, stage16):
+    """Recovery is a salvage aid: never burn more stage budget than is left."""
+    from pipeline import ai_router, mcq_schema
+    import time as _time
+
+    mod, _seen = stage16
+    slept = []
+    monkeypatch.setattr(_time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(ai_router, "all_providers_recovery_wait", lambda: 500.0)
+    monkeypatch.setattr(ai_router, "ai_time_left", lambda: 120.0)   # not enough left
+    monkeypatch.setattr(mcq_schema, "llm_mode_enabled", lambda: False)
+
+    items = [{"event_id": i, "headline_en": f"story {i}", "_candidates": []} for i in (1, 2, 3)]
+    with pytest.raises(RuntimeError):        # nothing to salvage -> fail closed
+        _run_stage(mod, "daily_2026-11-13", items)
+    assert not slept                         # refused to wait

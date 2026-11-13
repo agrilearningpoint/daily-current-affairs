@@ -276,6 +276,37 @@ def is_blocked(key: str) -> bool:
     return blocked_until(key) > 0
 
 
+def block_reason(key: str) -> str:
+    with _HEALTH_LOCK:
+        _health_load()
+        entry = _HEALTH["blocks"].get(key)
+        return str(entry.get("reason", "blocked")) if entry else ""
+
+
+def all_providers_recovery_wait() -> Optional[float]:
+    """Seconds until the soonest configured provider can serve again.
+
+    None when at least one provider is available right now (or none are
+    configured).  Callers in a shrinking stage use this to decide whether a
+    single wait-and-retry pass is affordable — on 2026-11-13 a groq 120s
+    quota storm parked every provider mid-stage and 7 of 15 stories died
+    instead of waiting out the cooldown.
+    """
+    providers = _get_providers()
+    if not providers:
+        return None
+    soonest: Optional[float] = None
+    for provider in providers:
+        if provider.is_available():
+            return None
+        until = max(blocked_until(provider.name), provider.disabled_until)
+        if until > time.time():
+            soonest = until if soonest is None else min(soonest, until)
+    if soonest is None:
+        return None
+    return max(0.0, soonest - time.time())
+
+
 def _strike(key: str, reset: bool = False) -> int:
     with _HEALTH_LOCK:
         _health_load()
@@ -1287,40 +1318,59 @@ def route(
 
     last_error: Optional[str] = None
 
-    for provider in providers:
-        rotations = 0
-        while True:
-            if _deadline_passed():
+    while True:
+        soonest: Optional[float] = None
+        skip_notes: list[str] = []
+
+        for provider in providers:
+            rotations = 0
+            while True:
+                if _deadline_passed():
+                    break
+                if not provider.is_available():
+                    # 2026-11-13: every provider cooled at once used to surface as
+                    # "All providers failed. Last error: None" — the loop never ran
+                    # a call, so the reason was lost and the story died with it.
+                    until = max(blocked_until(provider.name), provider.disabled_until)
+                    why = block_reason(provider.name) or provider.last_error or "unavailable"
+                    skip_notes.append(f"{provider.name} ({why})")
+                    if until > time.time():
+                        soonest = until if soonest is None else min(soonest, until)
+                    logger.debug("[Router] %s skipped (unavailable)", provider.name)
+                    break
+
+                logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
+                provider.throttle()
+                provider.record_call()
+
+                content, failure = _call_provider(
+                    provider, prompt, task, needs_hindi, response_format, system_prompt
+                )
+
+                if content is not None:
+                    report_success(provider.name, provider)
+                    _CACHE.put(ck, content)
+                    logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
+                                provider.name, task, provider.model, len(content))
+                    record_ai_usage(provider.name, provider.model, task, True)
+                    return content
+
+                # Failure handling
+                last_error = f"{provider.name}: {failure}"
+                record_ai_usage(provider.name, provider.model, task, False, str(failure))
+                retry_after = getattr(_LAST, "retry_after", None)
+                if report_failure(provider.name, failure, retry_after, provider) and rotations < len(provider.models):
+                    rotations += 1
+                    continue  # same provider, next model (per-model quota / retired model)
                 break
-            if not provider.is_available():
-                logger.debug("[Router] %s skipped (unavailable)", provider.name)
-                break
+            # TIMEOUT / TRANSIENT / MALFORMED / BAD_REQUEST → next provider
 
-            logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
-            provider.throttle()
-            provider.record_call()
+        if last_error is None and skip_notes:
+            last_error = "all providers cooled down: " + "; ".join(skip_notes[:6])
 
-            content, failure = _call_provider(
-                provider, prompt, task, needs_hindi, response_format, system_prompt
-            )
+        break
 
-            if content is not None:
-                report_success(provider.name, provider)
-                _CACHE.put(ck, content)
-                logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
-                            provider.name, task, provider.model, len(content))
-                record_ai_usage(provider.name, provider.model, task, True)
-                return content
-
-            # Failure handling
-            last_error = f"{provider.name}: {failure}"
-            record_ai_usage(provider.name, provider.model, task, False, str(failure))
-            retry_after = getattr(_LAST, "retry_after", None)
-            if report_failure(provider.name, failure, retry_after, provider) and rotations < len(provider.models):
-                rotations += 1
-                continue  # same provider, next model (per-model quota / retired model)
-            break
-        # TIMEOUT / TRANSIENT / MALFORMED / BAD_REQUEST → next provider
+        break
 
     logger.error("[Router] All providers failed. Last error: %s", last_error)
     if fail_on_all:
