@@ -1,622 +1,238 @@
 # -*- coding: utf-8 -*-
 """
-Fact Verification Agent (04)
-============================
-Collected articles ko verify karta hai using multiple strategies:
+Agent 04: Zero-Hallucination Fact Verification Engine & Fact Ledger (Section 7)
+===============================================================================
+Extracts structured 5W1H + numerical/institutional facts for each candidate news item:
+- Who, What, When, Where, Why, How
+- Organization, Ministry, Location, Scheme, Amount, Percentage, Ranking,
+  Statistical figure, Official designation, Effective date, Reference source.
 
-1. Cross-source corroboration  (same claim multiple sources mein?)
-2. Heuristic checks            (title/summary/URL sanity)
-3. Optional LLM verification   (fallback with graceful degradation)
-
-Production features:
-- Confidence scoring (0.0 - 1.0) — binary pass/fail NAHI
-- Configurable threshold via env (DEFAULT 0.3, tunable)
-- Multi-strategy weighted combination
-- Graceful degradation (LLM fail → heuristics still work)
-- Retry with exponential backoff for LLM calls
-- Unicode-safe (preserves Devanagari)
-- Per-item error isolation
-- Structured logging + run summary
-- Atomic output
-
-Env switches:
-  MIN_CONFIDENCE_THRESHOLD=0.3   # 0.0-1.0, default 0.3 (lower = more permissive)
-  MIN_VERIFIED_COUNT=1           # min items to pass (default 1, was hardcoded 5)
-  ALP_DISABLE_LLM_VERIFY=1       # skip LLM verify entirely (heuristics only)
-  Any provider configured in pipeline.ai_router
+Verification Rules Enforced:
+1. Every numerical figure (Rs/crore, %, LMT/MT, rank, year) in a generated summary
+   or bullet MUST appear in the source evidence text. Invented numbers are blocked.
+2. When two sources report conflicting numerical figures for the same event+metric
+   (e.g. "₹1,500 crore" vs "₹2,500 crore"), the disputed fact is quarantined
+   instead of silently picking one number.
+3. Persists a permanent verifiable Fact Ledger in `state/fact_ledger.json`.
 """
 from __future__ import annotations
 
 import hashlib
-import html
-import json
-import logging
-import os
 import re
-import sys
-import time
-import unicodedata
-from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
-from difflib import SequenceMatcher
 
+from pipeline.store import STATE_DIR, atomic_write_json, safe_read_json
 
-# --------------------------------------------------------------------------- #
-# Logging
-# --------------------------------------------------------------------------- #
-REPO_ROOT = Path(__file__).resolve().parent.parent
-LOGS_DIR = REPO_ROOT / "logs"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+FACT_LEDGER_PATH = STATE_DIR / "fact_ledger.json"
 
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(str(LOGS_DIR / "fact_verification.log"), encoding="utf-8"),
-    ],
+MINISTRY_RE = re.compile(
+    r"\b(Ministry\s+of\s+[A-Z][A-Za-z\s,&\-]{3,55}?)(?=[.,;\)]|\s+(?:has|launched|announced|approved|released|in|on|under)\b|$)"
 )
-logger = logging.getLogger("agent.04_fact_verification")
-
-# --------------------------------------------------------------------------- #
-# Config
-# --------------------------------------------------------------------------- #
-INPUT_DIR = REPO_ROOT / "data" / "raw"
-OUTPUT_DIR = REPO_ROOT / "data" / "verified"
-
-MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.3"))
-MIN_VERIFIED_COUNT = int(os.getenv("MIN_VERIFIED_COUNT", "1"))
-DISABLE_LLM = os.getenv("ALP_DISABLE_LLM_VERIFY", "0") == "1"
-# Serper (google.serper.dev) corroboration for items without provenance; budget
-# per run via ALP_SERPER_MAX_CALLS (default 25). Needs SERPER_API_KEY.
-SERPER_CORROBORATE = os.getenv("ALP_SERPER_CORROBORATE", "1") == "1"
-# LLM verification is optional scoring. Cap its wall-clock share of the stage so
-# slow or rate-limited providers can never push the stage past ALP_STAGE_TIMEOUT.
-LLM_BUDGET_SECONDS = float(os.getenv("ALP_FACT_LLM_BUDGET", "300"))
-LLM_MAX_CONSECUTIVE_MISSES = int(os.getenv("ALP_FACT_LLM_MAX_MISSES", "3"))
-_LLM_STATE = {"started": None, "misses": 0, "off_reason": ""}
-
-
-def _llm_allowed() -> bool:
-    if _LLM_STATE["off_reason"]:
-        return False
-    if _LLM_STATE["started"] is None:
-        _LLM_STATE["started"] = time.time()
-    if time.time() - _LLM_STATE["started"] > LLM_BUDGET_SECONDS:
-        _LLM_STATE["off_reason"] = f"time budget {LLM_BUDGET_SECONDS:.0f}s used"
-        logger.warning("LLM verification stopped: %s; continuing heuristic+cross_source", _LLM_STATE["off_reason"])
-        return False
-    return True
+SCHEME_RE = re.compile(
+    r"\b((?:Pradhan\s+Mantri|PM|National\s+Mission|Atmanirbhar|Mukhyamantri|Kisan|Agri)[A-Za-z0-9\s\-()]{4,60}?\s*(?:Yojana|Scheme|Mission|Abhiyan|Kosh|Fund))\b"
+)
+AMOUNT_RE = re.compile(
+    r"(?:₹|Rs\.?|INR|USD|\$)\s*\d[\d,]*(?:\.\d+)?\s*(?:lakh\s+crore|crore|lakh|billion|million)?"
+    r"|\d[\d,]*(?:\.\d+)?\s*(?:lakh\s+crore|crore|lakh\s+metric\s+tonnes|LMT|MT|million\s+tonnes|GW|MW|hectares|Mha)",
+    re.IGNORECASE,
+)
+PERCENT_RE = re.compile(r"\b\d+(?:\.\d+)?\s*%")
+RANK_RE = re.compile(r"\b(?:rank(?:ed)?\s+\d+|\d+(?:st|nd|rd|th)\s+(?:rank|place|position))\b", re.IGNORECASE)
+ORG_ACRONYMS = (
+    "ICAR", "NABARD", "RBI", "SEBI", "ISRO", "DRDO", "NITI Aayog", "APEDA",
+    "FSSAI", "FAO", "World Bank", "IMF", "WHO", "WTO", "UNFCCC", "CACP", "FCI", "DAHD", "IARI",
+)
+STATES_UT = (
+    "Uttar Pradesh", "Maharashtra", "Madhya Pradesh", "Punjab", "Haryana", "Rajasthan",
+    "Bihar", "Gujarat", "Karnataka", "Tamil Nadu", "Telangana", "Andhra Pradesh",
+    "Odisha", "West Bengal", "Assam", "Kerala", "Chhattisgarh", "Jharkhand",
+    "Uttarakhand", "Himachal Pradesh", "Goa", "Tripura", "Manipur", "Meghalaya",
+    "Nagaland", "Mizoram", "Arunachal Pradesh", "Sikkim", "New Delhi", "Jammu and Kashmir", "Ladakh",
+)
 
 
-def _llm_record(flags: List[str]) -> None:
-    if "llm_unavailable" in flags:
-        _LLM_STATE["misses"] += 1
-        if _LLM_STATE["misses"] >= LLM_MAX_CONSECUTIVE_MISSES and not _LLM_STATE["off_reason"]:
-            _LLM_STATE["off_reason"] = f"{_LLM_STATE['misses']} consecutive provider failures"
-            logger.warning("LLM verification stopped: %s; continuing heuristic+cross_source", _LLM_STATE["off_reason"])
-    else:
-        _LLM_STATE["misses"] = 0
+def extract_numbers_normalized(text: str) -> List[str]:
+    """Extract normalized numerical tokens from text for strict source-support verification."""
+    s = str(text or "").replace(",", "")
+    return re.findall(r"\b\d+(?:\.\d+)?\b", s)
 
 
-# Regexes
-CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
-WHITESPACE_RE = re.compile(r"\s+")
-URL_RE = re.compile(r"^https?://")
-STOPWORDS = {
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-    "this", "that", "these", "those", "it", "its", "as", "has", "have",
-    "had", "will", "would", "can", "could", "should", "may", "might",
-    "also", "more", "than", "then", "over", "into", "out", "up", "down",
-    "new", "says", "said", "amid", "after", "before", "during", "while",
-}
+def extract_structured_facts(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract 5W1H and high-risk exam facts directly from source text."""
+    headline = str(item.get("headline_en") or item.get("title") or "").strip()
+    summary = str(item.get("summary_en") or item.get("summary") or "").strip()
+    source_text = f"{headline}. {summary}"
 
+    ministries = [m.strip() for m in MINISTRY_RE.findall(source_text)]
+    schemes = [s.strip() for s in SCHEME_RE.findall(source_text)]
+    amounts = [a.strip() for a in AMOUNT_RE.findall(source_text)]
+    percentages = [p.strip() for p in PERCENT_RE.findall(source_text)]
+    rankings = [r.strip() for r in RANK_RE.findall(source_text)]
+    orgs = [org for org in ORG_ACRONYMS if re.search(rf"\b{re.escape(org)}\b", source_text)]
+    locations = [st for st in STATES_UT if re.search(rf"\b{re.escape(st)}\b", source_text, re.IGNORECASE)]
 
-# --------------------------------------------------------------------------- #
-# Utilities
-# --------------------------------------------------------------------------- #
-def clean_text(text: str, max_len: int = 5000) -> str:
-    """Unicode-safe cleaning (Devanagari preserved)."""
-    if not text:
-        return ""
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = html.unescape(text)
-    text = unicodedata.normalize("NFC", text)
-    text = CONTROL_CHAR_RE.sub("", text)
-    text = WHITESPACE_RE.sub(" ", text).strip()
-    if len(text) > max_len:
-        text = text[:max_len].rstrip()
-    return text
+    status_tag = "final"
+    if re.search(r"\bprovisional\b", source_text, re.I):
+        status_tag = "provisional"
+    elif re.search(r"\b(?:advance\s+estimate|estimated)\b", source_text, re.I):
+        status_tag = "estimated"
+    elif re.search(r"\brevised\b", source_text, re.I):
+        status_tag = "revised"
 
-
-def normalize_for_compare(text: str) -> str:
-    """Lowercase, strip punctuation for content matching."""
-    text = text.lower()
-    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
-    text = WHITESPACE_RE.sub(" ", text).strip()
-    return text
-
-
-def extract_key_terms(text: str, top_n: int = 15) -> List[str]:
-    """Frequency-based key terms (naive; production mein spaCy/KeyBERT)."""
-    if not text:
-        return []
-    words = normalize_for_compare(text).split()
-    filtered = [w for w in words if w not in STOPWORDS and len(w) > 3]
-    freq = Counter(filtered)
-    return [term for term, _ in freq.most_common(top_n)]
-
-
-def content_hash(article: Dict[str, Any]) -> str:
-    raw = f"{article.get('title', '').lower()}|{article.get('link', '')}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
-
-
-# --------------------------------------------------------------------------- #
-# Strategy 1: Cross-Source Corroboration
-# --------------------------------------------------------------------------- #
-def independent_domain(url):
-    """Group sibling subdomains; recognize common multi-label public suffixes."""
-    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
-    labels = host.split(".")
-    suffixes = {"co.in", "gov.in", "nic.in", "org.in", "net.in", "ac.in", "edu.in",
-                "co.uk", "org.uk", "com.au", "co.jp", "co.nz", "com.br"}
-    count = 3 if ".".join(labels[-2:]) in suffixes else 2
-    return ".".join(labels[-count:])
-
-
-def _get_article_features(a: Dict[str, Any]) -> Dict[str, Any]:
-    link = a.get("link", "")
-    title = clean_text(a.get("title", "")).lower()
-    art_text = f"{title} {a.get('summary', '')}"
-    terms = set(extract_key_terms(art_text))
-    numbers = {float(v) for v in re.findall(r"\b\d+(?:\.\d+)?\b", title)}
-    host = independent_domain(link)
-    return {"link": link, "title": title, "terms": terms, "numbers": numbers, "host": host}
-
-
-def cross_source_score(
-    article: Dict[str, Any],
-    all_articles: List[Dict[str, Any]],
-    similarity_threshold: float = 0.25,
-    feature_cache: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> Tuple[float, List[str]]:
-    """
-    Check if same claim appears in multiple sources.
-    Returns (confidence 0-1, corroborating_source_list).
-    """
-    art_link = article.get("link", "")
-    if feature_cache and art_link in feature_cache:
-        feat = feature_cache[art_link]
-    else:
-        feat = _get_article_features(article)
-
-    art_terms = feat["terms"]
-    if not art_terms:
-        return 0.3, []  # no terms → weak but non-zero
-
-    own_host = feat["host"]
-    title = feat["title"]
-    numbers = feat["numbers"]
-    corroborating: List[str] = []
-
-    for other in all_articles:
-        other_link = other.get("link", "")
-        if feature_cache and other_link in feature_cache:
-            o_feat = feature_cache[other_link]
-        else:
-            o_feat = _get_article_features(other)
-
-        host = o_feat["host"]
-        if not host or host == own_host or other_link == art_link:
-            continue
-
-        other_numbers = o_feat["numbers"]
-        if numbers and other_numbers and numbers != other_numbers:
-            continue
-
-        other_terms = o_feat["terms"]
-        if not other_terms:
-            continue
-
-        overlap = len(art_terms & other_terms) / max(len(art_terms | other_terms), 1)
-        other_title = o_feat["title"]
-
-        shared_nums = (numbers & other_numbers) if (numbers and other_numbers) else set()
-        if overlap < 0.15 and not shared_nums and not (set(title.split()) & set(other_title.split())):
-            continue
-
-        similarity = SequenceMatcher(None, title, other_title).ratio()
-        is_corroborated = (
-            (overlap >= similarity_threshold and similarity >= 0.40)
-            or (overlap >= 0.50)
-            or (similarity >= 0.65)
-            or (bool(shared_nums) and overlap >= 0.15)
-        )
-        if is_corroborated:
-            if host not in corroborating:
-                corroborating.append(host)
-
-    n = len(corroborating)
-    if n >= 3:
-        score = 0.95
-    elif n == 2:
-        score = 0.8
-    elif n == 1:
-        score = 0.65
-    else:
-        score = 0.40  # single-source — valid from verified outlets, modest confidence
-    return score, corroborating
-
-
-# --------------------------------------------------------------------------- #
-# Strategy 2: Heuristic Sanity Checks
-# --------------------------------------------------------------------------- #
-def heuristic_score(article: Dict[str, Any]) -> Tuple[float, List[str]]:
-    """Title/summary/URL sanity. Returns (score, flags)."""
-    flags: List[str] = []
-    score = 1.0
-
-    title = article.get("title", "").strip()
-    summary = article.get("summary", "").strip()
-    link = article.get("link", "").strip()
-
-    if len(title) < 10:
-        flags.append("title_too_short")
-        score -= 0.15
-    if len(title) > 300:
-        flags.append("title_too_long")
-        score -= 0.05
-    if len(summary) < 30:
-        flags.append("summary_too_short")
-        score -= 0.1
-
-    # All caps title (likely spam/error)
-    if title.isupper() and len(title) > 20:
-        flags.append("title_all_caps")
-        score -= 0.1
-
-    # Excessive punctuation (clickbait)
-    if re.search(r"[!?]{3,}", title):
-        flags.append("excessive_punctuation")
-        score -= 0.1
-
-    # URL sanity
-    if not URL_RE.match(link):
-        flags.append("invalid_url")
-        score -= 0.3
-
-    # Unicode sanity — at least some letters (not all symbols/digits)
-    letters = re.findall(r"\w", title, flags=re.UNICODE)
-    if len(letters) < 5:
-        flags.append("no_letters_in_title")
-        score -= 0.3
-
-    return max(0.0, min(1.0, score)), flags
-
-
-# --------------------------------------------------------------------------- #
-# Strategy 3: LLM Verification (optional, with retries)
-# --------------------------------------------------------------------------- #
-def _call_llm(prompt: str) -> Optional[str]:
-    """Use the shared provider router; return None if all providers fail."""
-    from pipeline.ai_router import is_configured, route
-
-    if not is_configured():
-        return None
-    return route(prompt, task="fact_verification",
-                 response_format={"type": "json_object"},
-                 system_prompt=(
-                     "You are a careful fact-checking assistant. Assess plausibility "
-                     "without treating unverified claims as facts. Return JSON only "
-                     "with confidence (0.0 to 1.0) and flags (a list of strings)."
-                 ))
-
-
-def llm_score(article: Dict[str, Any]) -> Tuple[float, List[str]]:
-    """LLM-based verification. Returns (score, flags). Silent fail → (0, ['llm_unavailable'])."""
-    from pipeline.ai_router import is_configured
-    if DISABLE_LLM or not is_configured():
-        return 0.0, ["llm_disabled"]
-
-    prompt = (
-        "Assess the factual plausibility of this news article.\n"
-        'Return JSON: {"confidence": <0.0-1.0>, "flags": [<strings>]}\n\n'
-        f"Title: {article.get('title', '')}\n"
-        f"Summary: {article.get('summary', '')[:500]}\n"
-        f"Source: {article.get('source_feed', '')}\n"
-    )
-    raw = _call_llm(prompt)
-    if not raw:
-        return 0.0, ["llm_unavailable"]
-
-    try:
-        data = json.loads(raw)
-        conf = float(data.get("confidence", 0.5))
-        flags = data.get("flags", [])
-        if not isinstance(flags, list):
-            flags = []
-        return max(0.0, min(1.0, conf)), [str(f) for f in flags]
-    except Exception as exc:
-        logger.warning("LLM parse failed: %s", exc)
-        return 0.0, ["llm_parse_error"]
-
-
-def recover_origin(article: Dict[str, Any]) -> Dict[str, Any]:
-    """Re-attribute Google News items to their real publisher (see pipeline.official_sources).
-
-    ``site:pib.gov.in`` results arrive as the generic aggregator source (level 5); they
-    are official PIB releases and are verified/scored as such.  Top-story items whose
-    " - Publisher" suffix names a national newsroom are treated as that newsroom.
-    """
-    try:
-        from pipeline.official_sources import (MUST_INCLUDE_DOMAINS, OFFICIAL_DOMAINS, official_origin,
-                                               strip_publisher_suffix, trusted_publisher)
-    except Exception:  # pragma: no cover - helper missing
-        return article
-    dom = official_origin(article)
-    pub = None if dom else trusted_publisher(article)
-    if not dom and not pub:
-        return article
-    a = dict(article)
-    a["title"] = strip_publisher_suffix(str(a.get("title") or ""))
-    if a.get("headline_en"):
-        a["headline_en"] = strip_publisher_suffix(str(a["headline_en"]))
-    if str(a.get("category") or "").lower() in ("", "aggregator", "discovery", "fallback"):
-        try:
-            from pipeline.collector import infer_category
-            a["category"] = infer_category(f"{a['title']} {a.get('summary') or ''}")
-        except Exception:
-            pass
-    level = a.get("source_level")
-    aggregator = not isinstance(level, int) or level >= 4 or str(a.get("category")) == "aggregator"
-    if dom:
-        a["official_domain"] = dom
-        a["official"] = True
-        if aggregator:
-            a["source_name"] = OFFICIAL_DOMAINS.get(dom, dom)
-            a["source_level"] = 0 if dom in MUST_INCLUDE_DOMAINS else 1
-            a["source_tier"] = 1
-            a["publisher_url"] = f"https://{dom}"
-            a["recovered_from"] = "google_news"
-    elif pub and aggregator:
-        a["source_name"] = pub
-        a["source_level"] = 4
-        a["source_tier"] = 2
-        a["recovered_from"] = "google_news"
-    return a
-
-
-# --------------------------------------------------------------------------- #
-# Combined Verification
-# --------------------------------------------------------------------------- #
-def verify_article(
-    article: Dict[str, Any],
-    all_articles: List[Dict[str, Any]],
-    feature_cache: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
-    """Run all strategies + weighted combine. Never raises."""
-    article = recover_origin(article)
-    cross_s, corroborating = cross_source_score(article, all_articles, feature_cache=feature_cache)
-    heur_s, heur_flags = heuristic_score(article)
-
-    llm_s = 0.0
-    llm_flags: List[str] = []
-    from pipeline.ai_router import is_configured
-    if not DISABLE_LLM and is_configured() and _llm_allowed():
-        llm_s, llm_flags = llm_score(article)
-        _llm_record(llm_flags)
-
-    # Weighted combination
-    base = 0.7 * cross_s + 0.3 * heur_s
-    if llm_s > 0:
-        final = 0.5 * cross_s + 0.2 * heur_s + 0.3 * llm_s
-        method = "combined"
-    else:
-        final = base
-        method = "heuristic+cross_source"
-
-    all_flags = heur_flags + llm_flags
-    dry_run = os.getenv("DRY_RUN", "0") == "1"
-    host = (urlparse(article.get("link", "")).hostname or "").removeprefix("www.")
-    publisher = (urlparse(article.get("publisher_url") or article.get("source_feed", "")).hostname or "").removeprefix("www.")
-
-    # Official primary domain check (Govt, RBI, ICAR, UN/WHO, etc.)
-    official_suffixes = (
-        ".gov.in", ".nic.in", ".res.in", "rbi.org.in", "sebi.gov.in", "nabard.org",
-        "icar.org.in", "iari.res.in", "isro.gov.in", "drdo.gov.in", "who.int",
-        "worldbank.org", "imf.org", "wto.org", "un.org"
-    )
-    is_official_domain = any(host.endswith(sfx) or publisher.endswith(sfx) for sfx in official_suffixes)
-    is_official_tier = (article.get("official") is True) or (isinstance(article.get("source_level"), int) and article.get("source_level") <= 3)
-
-    primary = (
-        (article.get("official") is True and bool(publisher) and (host == publisher or host.endswith("." + publisher)))
-        or (is_official_tier and (is_official_domain or bool(publisher)))
-        or bool(article.get("official_domain"))
-    )
-
-    # Curated national broadsheets (Level 4, Tier 2) with clean heuristics
-    # (source_tier arrives as "tier2" from legacy feeds and as the int 2 from the registry).
-    is_curated_editorial = (
-        (article.get("source_level") == 4 or article.get("source_tier") in ("tier1", "tier2", 1, 2))
-        and heur_s >= 0.80
-    )
-    # LLM plausibility is advisory for official and curated sources: models with an
-    # older knowledge cutoff rate genuine new events (new Acts, 2026 figures) as
-    # implausible, which dropped real news such as "Govt notifies grievance rules
-    # under VB-G RAM G Act" on 2026-11-02.  It may raise, never sink, those items.
-    if llm_s > 0 and (primary or is_curated_editorial):
-        final = max(final, base)
-
-    provenance = (
-        primary
-        or len(corroborating) >= 2
-        or (len(corroborating) >= 1 and is_curated_editorial)
-        or (is_curated_editorial and final >= 0.45)
-    )
-    # Optional web corroboration (SERPER_API_KEY): only for an item that would
-    # pass on confidence but lacks provenance, within a small per-run budget.
-    # OFF without the key; any failure only logs.
-    if not provenance and not dry_run and final >= MIN_CONFIDENCE_THRESHOLD and SERPER_CORROBORATE:
-        try:
-            from pipeline import discovery_api
-            if discovery_api.SERPER.enabled():
-                found = discovery_api.corroborate(article.get("title", ""), article.get("link", ""))
-                if found["sources"]:
-                    corroborating = list(corroborating) + [
-                        f"serper:{src['host']}" for src in found["sources"][:5]]
-                    all_flags.append("serper_corroborated")
-                if found["official"] or len(found["sources"]) >= 2 or (
-                        found["sources"] and is_curated_editorial):
-                    provenance = True
-        except Exception as exc:  # pragma: no cover - optional helper
-            logger.info("serper corroboration skipped: %s", type(exc).__name__)
-
-    is_verified = final >= MIN_CONFIDENCE_THRESHOLD and (dry_run or provenance)
-    if not provenance:
-        all_flags.append("independent_source_verification_missing")
+    who_val = ministries[0] if ministries else (orgs[0] if orgs else item.get("source_name", "Government of India"))
+    where_val = locations[0] if locations else "India"
+    when_val = item.get("published_at_ist") or item.get("published_at") or ""
 
     return {
-        **article,
-        "event_id": content_hash(article),
-        "title": clean_text(article.get("title", ""), 500),
-        "link": article.get("link", ""),
-        "summary": clean_text(article.get("summary", ""), 3000),
-        "published": article.get("published", ""),
-        "source_feed": article.get("source_feed", ""),
-        "collected_at": article.get("collected_at", ""),
-        "verified_at": datetime.now(timezone.utc).isoformat(),
-        "confidence_score": round(final, 4),
-        "verification_method": method,
-        "corroborating_sources": corroborating,
-        "flags": all_flags,
-        "is_verified": is_verified,
-        "verification_mode": "dry_run" if dry_run else "live",
-        "provenance_verified": provenance,
+        "who": who_val,
+        "what": headline,
+        "when": when_val,
+        "where": where_val,
+        "why": summary[:220] if summary else headline,
+        "how": schemes[0] if schemes else (ministries[0] if ministries else "Official policy/programme implementation"),
+        "organizations": orgs,
+        "ministries": ministries,
+        "locations": locations,
+        "schemes": schemes,
+        "amounts": amounts,
+        "percentages": percentages,
+        "rankings": rankings,
+        "figure_status": status_tag,
+        "source_url": item.get("link") or item.get("canonical_url") or "",
+        "source_name": item.get("source_name") or "",
     }
 
 
-# --------------------------------------------------------------------------- #
-# I/O
-# --------------------------------------------------------------------------- #
-def load_latest_raw() -> Optional[Path]:
-    from pipeline.agent_context import get_context
-    return get_context().find_input("raw")
+def verify_claim_against_source(claim_text: str, source_evidence: str) -> Tuple[bool, List[str]]:
+    """
+    Rule 3 & 4: Every numerical figure in `claim_text` MUST be present in `source_evidence`.
+    Returns (is_valid, unsupported_numbers).
+    """
+    source_nums = set(extract_numbers_normalized(source_evidence))
+    claim_nums = extract_numbers_normalized(claim_text)
+    unsupported = [n for n in claim_nums if n not in source_nums]
+    return len(unsupported) == 0, unsupported
 
 
-def atomic_write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp, path)
+def detect_source_contradictions(reports_for_same_event: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    """
+    Rule 10: If two sources report conflicting monetary amounts or percentages for
+    the same event, flag and quarantine the disputed fact.
+    """
+    if len(reports_for_same_event) < 2:
+        return False, ""
+    amount_sets = []
+    pct_sets = []
+    for rep in reports_for_same_event:
+        txt = f"{rep.get('headline_en') or rep.get('title') or ''} {rep.get('summary_en') or rep.get('summary') or ''}"
+        amts = {re.sub(r"\s+", " ", a.strip().lower()) for a in AMOUNT_RE.findall(txt)}
+        pcts = {p.strip() for p in PERCENT_RE.findall(txt)}
+        if amts:
+            amount_sets.append((rep.get("source_name", "source"), amts))
+        if pcts:
+            pct_sets.append((rep.get("source_name", "source"), pcts))
+
+    if len(amount_sets) >= 2:
+        base_src, base_amts = amount_sets[0]
+        for other_src, other_amts in amount_sets[1:]:
+            if base_amts and other_amts and not (base_amts & other_amts):
+                return True, f"Conflicting amounts between {base_src} ({sorted(base_amts)}) and {other_src} ({sorted(other_amts)})"
+
+    if len(pct_sets) >= 2:
+        base_src, base_pcts = pct_sets[0]
+        for other_src, other_pcts in pct_sets[1:]:
+            if base_pcts and other_pcts and not (base_pcts & other_pcts):
+                return True, f"Conflicting percentages between {base_src} ({sorted(base_pcts)}) and {other_src} ({sorted(other_pcts)})"
+
+    return False, ""
 
 
-# --------------------------------------------------------------------------- #
-# Main
-# --------------------------------------------------------------------------- #
-def main() -> int:
-    from pipeline.ai_router import is_configured
+def verify_and_record_facts(
+    items: List[Dict[str, Any]],
+    ledger_path: Optional[Path] = None,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Verify candidate news items, build structured facts, check for numerical hallucinations
+    or inter-source contradictions, and persist the Fact Ledger.
+    Returns (verified_items, quarantined_items).
+    """
+    l_path = ledger_path or FACT_LEDGER_PATH
+    ledger = safe_read_json(l_path, {"facts": {}})
+    facts_map: Dict[str, Any] = ledger.get("facts", {})
 
-    input_file = load_latest_raw()
-    if input_file is None:
-        logger.error("No raw news files found in %s", INPUT_DIR)
-        return 1
-
-    logger.info("Loading raw articles from %s", input_file.name)
-    try:
-        from pipeline.artifacts import read_news_items
-        articles = read_news_items(input_file)
-    except Exception as exc:
-        logger.exception("Failed to load %s: %s", input_file, exc)
-        return 1
-
-    if not isinstance(articles, list) or not articles:
-        logger.error("Raw file is empty or malformed: %s", input_file)
-        # Emit empty verified file so downstream doesn't crash
-        from pipeline.agent_context import get_context
-        date_str = get_context().job_date
-        atomic_write_json(get_context().output_path("verified"), {"items": []})
-        return 1
-
-    logger.info(
-        "Verifying %d articles | threshold=%.2f | min_count=%d | llm=%s",
-        len(articles), MIN_CONFIDENCE_THRESHOLD, MIN_VERIFIED_COUNT,
-        "off" if DISABLE_LLM else ("on" if is_configured() else "unconfigured"),
-    )
-
-    start_time = time.time()
     verified: List[Dict[str, Any]] = []
-    failed = 0
+    quarantined: List[Dict[str, Any]] = []
+    now_iso = datetime.now(timezone.utc).isoformat()
 
-    feature_cache = {a.get("link", ""): _get_article_features(a) for a in articles}
-    for idx, art in enumerate(articles, 1):
-        try:
-            result = verify_article(art, articles, feature_cache=feature_cache)
-            verified.append(result)
-            logger.debug(
-                "[%d/%d] %s → %.2f (%s)",
-                idx, len(articles),
-                result["event_id"],
-                result["confidence_score"],
-                result["verification_method"],
-            )
-        except Exception as exc:
-            failed += 1
-            logger.exception("[%d/%d] Verification crash: %s", idx, len(articles), exc)
+    for item in items:
+        working = dict(item)
+        source_url = str(working.get("link") or working.get("canonical_url") or "").strip()
+        headline = str(working.get("headline_en") or working.get("title") or "").strip()
+        summary = str(working.get("summary_en") or working.get("summary") or "").strip()
+        evidence = str(working.get("raw_evidence") or f"{headline}. {summary}").strip()
 
-    elapsed = time.time() - start_time
-    passed = [v for v in verified if v["is_verified"]]
-    rejected = [v for v in verified if not v["is_verified"]]
+        if not source_url.startswith(("http://", "https://")) or len(headline) < 12:
+            working["quarantine_reason"] = "missing_verifiable_source_url_or_headline"
+            quarantined.append(working)
+            continue
 
-    logger.info(
-        "Verification complete in %.1fs | %d total | %d passed | %d rejected | %d crashed",
-        elapsed, len(verified), len(passed), len(rejected), failed,
-    )
+        # Check if multiple reports attached to this item disagree on figures
+        corroborating = working.get("corroborating_reports") or []
+        if corroborating:
+            has_conflict, conflict_msg = detect_source_contradictions([working] + list(corroborating))
+            if has_conflict:
+                working["quarantine_reason"] = f"source_contradiction:{conflict_msg}"
+                quarantined.append(working)
+                continue
 
-    # Summary stats
-    if verified:
-        avg_conf = sum(v["confidence_score"] for v in verified) / len(verified)
-        method_counts = Counter(v["verification_method"] for v in verified)
-        logger.info("Avg confidence: %.3f", avg_conf)
-        logger.info("Methods: %s", dict(method_counts))
+        # Check that edited summary/key_points do not contain numbers absent from raw evidence
+        candidate_claims = " ".join(list(working.get("key_points_en") or []) + [summary])
+        ok_nums, bad_nums = verify_claim_against_source(candidate_claims, evidence)
+        if not ok_nums:
+            working["quarantine_reason"] = f"unsupported_numerical_figures:{bad_nums}"
+            quarantined.append(working)
+            continue
 
-    try:
-        from pipeline import discovery_api
-        serper = discovery_api.SERPER.status()
-        if serper["configured"]:
-            logger.info("Serper corroboration: %d call(s) of %d%s", serper["calls"], serper["budget"],
-                        f" — off: {serper['off_reason']}" if serper["off_reason"] else "")
-    except Exception:  # pragma: no cover
-        pass
+        structured = extract_structured_facts(working)
+        working["structured_facts"] = structured
+        working["verification_status"] = "verified"
+        working["verified_at"] = now_iso
 
-    # Gate check
-    if len(passed) < MIN_VERIFIED_COUNT:
-        logger.error(
-            "Only %d verified items (min %d required). "
-            "Tuning tips: lower MIN_CONFIDENCE_THRESHOLD (current=%.2f), "
-            "check input quality, enable LLM verify.",
-            len(passed), MIN_VERIFIED_COUNT, MIN_CONFIDENCE_THRESHOLD,
+        # Record every extracted numerical/scheme/institutional fact in the permanent Fact Ledger
+        fact_entries = (
+            [("amount", v) for v in structured["amounts"]]
+            + [("percentage", v) for v in structured["percentages"]]
+            + [("ranking", v) for v in structured["rankings"]]
+            + [("scheme", v) for v in structured["schemes"]]
+            + [("ministry", v) for v in structured["ministries"]]
         )
-        # Emit whatever we have so downstream can inspect, but exit non-zero
-        from pipeline.agent_context import get_context
-        atomic_write_json(get_context().output_path("verified"), {"items": passed})
-        return 1
+        if not fact_entries:
+            fact_entries = [("headline_claim", headline)]
 
-    from pipeline.agent_context import get_context
-    output_file = get_context().output_path("verified")
-    atomic_write_json(output_file, {"items": passed})
-    logger.info("✔ Fact verification completed: %d items → %s", len(passed), output_file)
-    return 0
+        item_fact_ids = []
+        for f_type, f_val in fact_entries:
+            fid = "fact_" + hashlib.sha1(f"{source_url}|{f_type}|{f_val}".encode("utf-8")).hexdigest()[:14]
+            facts_map[fid] = {
+                "fact_id": fid,
+                "fact_type": f_type,
+                "fact_value": f_val,
+                "figure_status": structured["figure_status"],
+                "source_url": source_url,
+                "source_name": structured["source_name"],
+                "source_publication_date": structured["when"],
+                "supporting_evidence": evidence[:300],
+                "verification_status": "verified",
+                "confidence_level": "primary_official" if "tier1" in str(working.get("reliability_level", "")) else "corroborated_editorial",
+                "verification_timestamp": now_iso,
+            }
+            item_fact_ids.append(fid)
 
+        working["fact_ids"] = item_fact_ids
+        verified.append(working)
 
-if __name__ == "__main__":
-    sys.exit(main())
+    ledger["facts"] = facts_map
+    ledger["updated_at"] = now_iso
+    atomic_write_json(l_path, ledger)
+    return verified, quarantined

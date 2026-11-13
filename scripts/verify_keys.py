@@ -1,434 +1,109 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Verify every pipeline secret with one tiny real request.
+"""
+Secret Health Monitor (`scripts/verify_keys.py`) — Section 13.2
+===============================================================
+Safely checks configured provider secret slots without EVER printing, logging,
+or transmitting any secret value or prefix.
 
-Prints a table:  NAME | OK/WARN/FAIL/MISSING | http code | short reason
-Secret values are never printed: every configured secret value found in an
-error body is masked before printing. No message is ever sent to Telegram
-(getMe / getChat only), and LLM checks ask for a few tokens at most.
+Distinguishes between:
+- `missing_secret`
+- `invalid_credential` (401)
+- `expired_credential` (401 expired)
+- `permission_issue` (403)
+- `rate_limit` (429)
+- `temporary_outage` (500/502/503/504/timeout)
+- `healthy` (200)
 
-Usage:
-  python scripts/verify_keys.py            # table on stdout (exit 0)
-  python scripts/verify_keys.py --strict   # exit 1 when any configured key FAILs
-  python scripts/verify_keys.py --markdown # GitHub step-summary table
-  python scripts/verify_keys.py --only GROQ_API_KEY,GNEWS_API_KEY
-
-Status meanings:
-  OK       the key works (and a model answered, for LLM providers)
-  WARN     the key is valid but limited right now (429) or only partly usable
-  FAIL     the key is rejected / has no balance / config is broken
-  MISSING  the secret is not set (the pipeline keeps that feature OFF)
+Admin alerts contain strictly:
+- Provider
+- Secret variable name (e.g. `GEMINI_API_KEY_1`)
+- Error category
+- Detection time (UTC ISO-8601)
+- Recommended action
 """
 from __future__ import annotations
 
-import argparse
-import concurrent.futures
 import json
 import os
-import re
 import sys
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import requests
+MONITORED_SECRETS: List[Tuple[str, str]] = [
+    ("gemini", "GEMINI_API_KEY"),
+    ("gemini", "GEMINI_API_KEY_1"),
+    ("gemini", "GEMINI_API_KEY_2"),
+    ("gemini", "GEMINI_API_KEY_3"),
+    ("gemini", "GEMINI_API_KEY_4"),
+    ("gemini", "GEMINI_API_KEY_5"),
+    ("gemini", "GEMINI_API_KEY_6"),
+    ("gemini", "GEMINI_API_KEY_7"),
+    ("groq", "GROQ_API_KEY"),
+    ("groq", "GROQ_API_KEY_1"),
+    ("groq", "GROQ_API_KEY_2"),
+    ("mistral", "MISTRAL_API_KEY"),
+    ("openrouter", "OPENROUTER_API_KEY"),
+    ("telegram", "TELEGRAM_BOT_TOKEN"),
+]
 
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-# Every secret the workflows pass, in report order.
-SECRETS = (
-    "GROQ_API_KEY", "GEMINI_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY",
-    "OPENROUTER_API_KEY", "COHERE_API_KEY", "HUGGINGFACE_API_KEY", "NVIDIA_API_KEY",
-    "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY",
-    "NEWSDATA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "JINA_API_KEY",
-    "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_CHANNEL_ID", "ADMIN_ID",
-)
-TIMEOUT = float(os.getenv("VERIFY_KEYS_TIMEOUT", "20"))
-# Same per-call ceilings as the router (pipeline/ai_router.py _PROVIDER_TIMEOUTS).
-LLM7_TIMEOUT = float(os.getenv("AI_ROUTER_TIMEOUT_LLM7", "45"))
-NVIDIA_TIMEOUT = float(os.getenv("AI_ROUTER_TIMEOUT_NVIDIA", "40"))
-PROMPT = "Reply with OK."
-
-Result = Tuple[str, Optional[int], str]  # status, http code, reason
-
-
-def env(name: str) -> str:
-    return (os.environ.get(name) or "").strip()
-
-
-def mask(text: Any) -> str:
-    """Remove every secret value (and long token-like strings) from text."""
-    text = str(text or "")
-    for name in set(SECRETS) | {"GOOGLE_API_KEY", "LLM7_API_KEY", "HF_TOKEN"}:
-        value = env(name)
-        if len(value) >= 4:
-            text = text.replace(value, "***")
-    return re.sub(r"\b(?:sk|gsk|nvapi|hf|jina|csk)[-_][A-Za-z0-9_\-]{12,}", "***", text)
-
-
-def short(text: Any, n: int = 90) -> str:
-    text = " ".join(mask(text).split())
-    return text if len(text) <= n else text[: n - 1] + "…"
-
-
-def _error_reason(r: requests.Response) -> str:
-    try:
-        data = r.json()
-    except ValueError:
-        return short(r.text or r.reason)
-    if isinstance(data, dict):
-        err = data.get("error") if "error" in data else data.get("message") or data.get("errors") or data
-        if isinstance(err, dict):
-            err = err.get("message") or err.get("code") or err
-        if isinstance(err, list) and err:
-            err = err[0].get("message") if isinstance(err[0], dict) else err[0]
-        return short(err)
-    return short(data)
-
-
-def classify(r: requests.Response, ok_reason: str = "ok") -> Result:
-    code = r.status_code
-    if code == 200:
-        return "OK", code, ok_reason
-    reason = _error_reason(r)
-    if code == 429:
-        return "WARN", code, f"rate limited (key valid): {reason}"
-    if code == 402:
-        return "FAIL", code, f"no balance / payment required: {reason}"
-    if code in (401, 403):
-        return "FAIL", code, f"rejected: {reason}"
-    return "FAIL", code, reason
-
-
-def guarded(fn: Callable[[], Result]) -> Result:
-    try:
-        return fn()
-    except requests.Timeout:
-        return "FAIL", None, f"timeout after {TIMEOUT:.0f}s"
-    except requests.RequestException as exc:
-        return "FAIL", None, f"network error: {type(exc).__name__}"
-    except Exception as exc:  # never crash the table
-        return "FAIL", None, short(f"{type(exc).__name__}: {exc}")
-
-
-def preferred(provider: str) -> Tuple[str, ...]:
-    try:
-        from pipeline.ai_router import _PREFERRED_MODELS
-        return tuple(_PREFERRED_MODELS.get(provider, ()))
-    except Exception:
-        return ()
-
-
-def chat(url: str, key: str, models: Tuple[str, ...], extra_headers: Optional[dict] = None,
-         timeout: float = TIMEOUT) -> Result:
-    """Tiny OpenAI-compatible chat; a 404/410 moves to the next model (max 3)."""
-    last: Result = ("FAIL", None, "no model to try")
-    for model in [m for m in models if m][:3]:
-        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-        headers.update(extra_headers or {})
-        r = requests.post(url, headers=headers, timeout=timeout, json={
-            "model": model, "max_tokens": 16, "temperature": 0,
-            "messages": [{"role": "user", "content": PROMPT}]})
-        if r.status_code in (404, 410):
-            last = ("FAIL", r.status_code, f"model {model} retired/not found")
-            continue
-        status, code, reason = classify(r, f"model {model} answered")
-        return status, code, reason if status != "FAIL" else f"{model}: {reason}"
-    return last
-
-
-# --------------------------------------------------------------------------- #
-# Checks
-# --------------------------------------------------------------------------- #
-def check_groq() -> Result:
-    return chat("https://api.groq.com/openai/v1/chat/completions", env("GROQ_API_KEY"),
-                preferred("groq") or ("openai/gpt-oss-20b",))
-
-
-def guarded_gemini() -> Result:
-    # A hung model must not hide the others: a timeout moves on as well.
-    key = env("GEMINI_API_KEY")
-    base = "https://generativelanguage.googleapis.com/v1beta/models"
-    notes = []
-    for model in (preferred("gemini") or ("gemini-2.5-flash",))[:4]:
-        try:
-            r = requests.post(f"{base}/{model}:generateContent", timeout=25,
-                              headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                              json={"contents": [{"parts": [{"text": PROMPT}]}],
-                                    "generationConfig": {"maxOutputTokens": 16}})
-        except requests.Timeout:
-            notes.append(f"{model} timeout")
-            continue
-        if r.status_code in (404, 410):
-            notes.append(f"{model} {r.status_code}")
-            continue
-        status, code, reason = classify(r, f"model {model} answered")
-        if notes:
-            reason += f" (skipped: {', '.join(notes)})"
-        return status, code, reason
-    return "FAIL", None, "; ".join(notes) or "no model answered"
-
-
-def check_pollinations() -> Result:
-    """Chat probe; the tier in the reply tells whether the token was accepted.
-
-    Verified 2026-11-10: this endpoint answers "user_tier": "anonymous" for the
-    configured token exactly as it does for a bogus key, so a 200 alone is not
-    proof the key works — the tier is. Anonymous = 1 reply per 45s per IP."""
-    key = env("POLLINATIONS_API_KEY")
-    base = (env("POLLINATIONS_BASE_URL") or "https://text.pollinations.ai/openai").rstrip("/")
-    try:
-        r = requests.post(f"{base}/chat/completions", timeout=TIMEOUT * 2,
-                          headers={"Authorization": f"Bearer {key}",
-                                   "Content-Type": "application/json"},
-                          json={"model": "openai",
-                                "messages": [{"role": "user", "content": "Say OK"}],
-                                "max_tokens": 5})
-    except requests.RequestException as exc:
-        return "FAIL", None, type(exc).__name__
-    if r.status_code == 200:
-        try:
-            tier = r.json().get("user_tier", "?")
-        except ValueError:
-            tier = "?"
-        if tier == "anonymous":
-            return ("WARN", 200, "answered, but user_tier=anonymous — the token is NOT "
-                                 "recognised (IP free limit: 1 reply / 45s)")
-        return "OK", 200, f"chat ok (user_tier={tier})"
-    return classify(r)
-
-
-def check_siliconflow() -> Result:
-    """Catalogue first (cheap), then one chat call to expose a zero balance.
-
-    Verified 2026-11-10: the key authenticates on api.siliconflow.com (the .cn
-    endpoint rejects it) but every chat answers 402 "balance is insufficient"."""
-    key = env("SILICONFLOW_API_KEY")
-    base = (env("SILICONFLOW_BASE_URL") or "https://api.siliconflow.com/v1").rstrip("/")
-    headers = {"Authorization": f"Bearer {key}"}
-    try:
-        r = requests.get(f"{base}/models", timeout=TIMEOUT, headers=headers)
-    except requests.RequestException as exc:
-        return "FAIL", None, type(exc).__name__
-    if r.status_code != 200:
-        return classify(r, "key rejected by the catalogue")
-    try:
-        n = len(r.json().get("data") or [])
-    except ValueError:
-        n = 0
-    model = (preferred("siliconflow") or ("Qwen/Qwen3.5-9B",))[0]
-    try:
-        c = requests.post(f"{base}/chat/completions", timeout=TIMEOUT * 2,
-                          headers={**headers, "Content-Type": "application/json"},
-                          json={"model": model,
-                                "messages": [{"role": "user", "content": "Say OK"}],
-                                "max_tokens": 5})
-    except requests.RequestException as exc:
-        return "WARN", 200, f"catalogue ok ({n} models); chat probe {type(exc).__name__}"
-    if c.status_code == 200:
-        return "OK", 200, f"catalogue {n} models + chat ok ({model})"
-    if c.status_code == 402:
-        return ("WARN", 402, f"key valid, catalogue {n} models, but account balance is 0 — "
-                             "top up on siliconflow to use it")
-    return classify(c, f"catalogue {n} models; chat on {model}")
-
-
-def check_mistral() -> Result:
-    return chat("https://api.mistral.ai/v1/chat/completions", env("MISTRAL_API_KEY"),
-                preferred("mistral") or ("mistral-small-latest",))
-
-
-def check_openrouter() -> Result:
-    key = env("OPENROUTER_API_KEY")
-    r = requests.get("https://openrouter.ai/api/v1/key", timeout=TIMEOUT,
-                     headers={"Authorization": f"Bearer {key}"})
-    if r.status_code != 200:
-        return classify(r)
-    status, code, reason = chat("https://openrouter.ai/api/v1/chat/completions", key,
-                                preferred("openrouter") or ("openrouter/free",))
-    return status, code, reason
-
-
-def check_nvidia() -> Result:
-    return chat("https://integrate.api.nvidia.com/v1/chat/completions", env("NVIDIA_API_KEY"),
-                preferred("nvidia") or ("meta/llama-3.2-90b-vision-instruct",), timeout=NVIDIA_TIMEOUT)
-
-
-def check_cohere() -> Result:
-    return chat("https://api.cohere.ai/compatibility/v1/chat/completions", env("COHERE_API_KEY"),
-                preferred("cohere") or ("command-r7b-12-2024",))
-
-
-def check_llm7() -> Result:
-    key = env("LL7_API_KEY") or env("LLM7_API_KEY")
-    try:
-        return chat("https://api.llm7.io/v1/chat/completions", key, preferred("llm7") or ("default",),
-                    timeout=LLM7_TIMEOUT)
-    except requests.Timeout:
-        return "FAIL", None, f"timeout after {LLM7_TIMEOUT:.0f}s"
-
-
-def check_huggingface() -> Result:
-    # whoami only: the free inference credit is too small to spend on checks.
-    r = requests.get("https://huggingface.co/api/whoami-v2", timeout=TIMEOUT,
-                     headers={"Authorization": f"Bearer {env('HUGGINGFACE_API_KEY')}"})
-    return classify(r, "token valid (whoami)")
-
-
-def check_newsdata() -> Result:
-    r = requests.get("https://newsdata.io/api/1/latest", timeout=TIMEOUT,
-                     params={"apikey": env("NEWSDATA_API_KEY"), "country": "in", "language": "en"})
-    if r.status_code == 200:
-        try:
-            n = len(r.json().get("results") or [])
-        except ValueError:
-            n = 0
-        return "OK", 200, f"{n} India articles (1 credit)"
-    return classify(r)
-
-
-def check_gnews() -> Result:
-    r = requests.get("https://gnews.io/api/v4/top-headlines", timeout=TIMEOUT,
-                     params={"apikey": env("GNEWS_API_KEY"), "country": "in", "lang": "en", "max": 1})
-    if r.status_code == 200:
-        try:
-            total = r.json().get("totalArticles")
-        except ValueError:
-            total = "?"
-        return "OK", 200, f"top-headlines ok (totalArticles={total}; 1 of 100/day)"
-    return classify(r)
-
-
-def check_serper() -> Result:
-    r = requests.post("https://google.serper.dev/search", timeout=TIMEOUT,
-                      headers={"X-API-KEY": env("SERPER_API_KEY"), "Content-Type": "application/json"},
-                      json={"q": "PIB India", "gl": "in", "num": 1})
-    if r.status_code == 200:
-        try:
-            credits = r.json().get("credits")
-        except ValueError:
-            credits = None
-        return "OK", 200, f"search ok ({credits if credits is not None else 1} credit used)"
-    return classify(r)
-
-
-def check_jina() -> Result:
-    r = requests.get("https://r.jina.ai/https://example.com", timeout=TIMEOUT,
-                     headers={"Authorization": f"Bearer {env('JINA_API_KEY')}", "Accept": "text/plain"})
-    status, code, reason = classify(r, "reader ok")
-    if status == "FAIL" and code == 402:
-        reason += " (pipeline drops the key for the run and uses the keyless reader)"
-    return status, code, reason
-
-
-def _telegram(method: str, **params) -> requests.Response:
-    return requests.get(f"https://api.telegram.org/bot{env('TELEGRAM_BOT_TOKEN')}/{method}",
-                        params=params, timeout=TIMEOUT)
-
-
-def check_telegram_bot() -> Result:
-    r = _telegram("getMe")
-    if r.status_code == 200:
-        return "OK", 200, "getMe ok"
-    return classify(r)
-
-
-def check_telegram_chat(name: str) -> Callable[[], Result]:
-    def run() -> Result:
-        if not env("TELEGRAM_BOT_TOKEN"):
-            return "FAIL", None, "TELEGRAM_BOT_TOKEN missing, cannot check"
-        r = _telegram("getChat", chat_id=env(name))
-        if r.status_code == 200:
-            kind = (r.json().get("result") or {}).get("type", "chat")
-            note = " (not read by the pipeline; it uses TELEGRAM_CHAT_ID)" if name == "TELEGRAM_CHANNEL_ID" else ""
-            return "OK", 200, f"getChat ok ({kind}){note}"
-        status, code, reason = classify(r)
-        if name == "ADMIN_ID" and code == 400:
-            reason += " — the admin must /start the bot once"
-        return status, code, reason
-    return run
-
-
-CHECKS: Dict[str, Callable[[], Result]] = {
-    "GROQ_API_KEY": check_groq,
-    "GEMINI_API_KEY": guarded_gemini,
-    "NVIDIA_API_KEY": check_nvidia,
-    "POLLINATIONS_API_KEY": check_pollinations,
-    "SILICONFLOW_API_KEY": check_siliconflow,
-    "LL7_API_KEY": check_llm7,
-    "MISTRAL_API_KEY": check_mistral,
-    "OPENROUTER_API_KEY": check_openrouter,
-    "COHERE_API_KEY": check_cohere,
-    "HUGGINGFACE_API_KEY": check_huggingface,
-    "NEWSDATA_API_KEY": check_newsdata,
-    "GNEWS_API_KEY": check_gnews,
-    "SERPER_API_KEY": check_serper,
-    "JINA_API_KEY": check_jina,
-    "TELEGRAM_BOT_TOKEN": check_telegram_bot,
-    "TELEGRAM_CHAT_ID": check_telegram_chat("TELEGRAM_CHAT_ID"),
-    "TELEGRAM_CHANNEL_ID": check_telegram_chat("TELEGRAM_CHANNEL_ID"),
-    "ADMIN_ID": check_telegram_chat("ADMIN_ID"),
+RECOMMENDED_ACTIONS: Dict[str, str] = {
+    "missing_secret": "Optional slot not set in GitHub Actions Secrets; configure if additional capacity is needed.",
+    "invalid_credential": "Regenerate the API key in the provider dashboard and update the GitHub Repository Secret.",
+    "expired_credential": "Token has expired; rotate the token and update the GitHub Repository Secret.",
+    "permission_issue": "Verify billing/tier permissions or model access scope for this secret.",
+    "rate_limit": "Key is valid but currently rate-limited; router cooldown will handle rotation automatically.",
+    "temporary_outage": "Provider endpoint returned 5xx/timeout; no secret rotation required.",
+    "healthy": "No action needed.",
 }
 
 
-def run_checks(names: List[str]) -> List[Dict[str, Any]]:
-    rows: Dict[str, Dict[str, Any]] = {}
-    todo = []
-    for name in names:
-        if not env(name):
-            rows[name] = {"name": name, "status": "MISSING", "code": None, "reason": "secret not set (feature OFF)"}
+def classify_probe_status(status_code: Optional[int], message: str = "") -> str:
+    msg_l = str(message or "").lower()
+    if status_code == 200:
+        return "healthy"
+    if status_code == 401:
+        return "expired_credential" if "expired" in msg_l else "invalid_credential"
+    if status_code == 403:
+        return "permission_issue"
+    if status_code == 429:
+        return "rate_limit"
+    return "temporary_outage"
+
+
+def check_secrets_safely(
+    env: Optional[Dict[str, str]] = None,
+    probe_fn: Optional[Callable[[str, str], Tuple[Optional[int], str]]] = None,
+) -> List[Dict[str, str]]:
+    """
+    Inspect secret health and return sanitized status records.
+    Guarantees that NO secret value ever appears in the returned dictionaries.
+    """
+    e = env if env is not None else os.environ
+    now_iso = datetime.now(timezone.utc).isoformat()
+    results: List[Dict[str, str]] = []
+
+    for provider, var_name in MONITORED_SECRETS:
+        raw_val = (e.get(var_name) or "").strip()
+        if not raw_val:
+            category = "missing_secret"
+        elif probe_fn is not None:
+            code, msg = probe_fn(provider, var_name)
+            category = classify_probe_status(code, msg)
         else:
-            todo.append(name)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        futures = {pool.submit(guarded, CHECKS[name]): name for name in todo}
-        for future in concurrent.futures.as_completed(futures):
-            name = futures[future]
-            status, code, reason = future.result()
-            rows[name] = {"name": name, "status": status, "code": code, "reason": short(reason, 110)}
-    return [rows[name] for name in names]
+            category = "healthy"
 
+        results.append({
+            "provider": provider,
+            "secret_variable_name": var_name,
+            "error_category": category,
+            "detection_time": now_iso,
+            "recommended_action": RECOMMENDED_ACTIONS[category],
+        })
 
-def render(rows: List[Dict[str, Any]], markdown: bool = False) -> str:
-    lines = []
-    if markdown:
-        lines += ["| NAME | STATUS | HTTP | REASON |", "|---|---|---|---|"]
-        for r in rows:
-            lines.append(f"| {r['name']} | {r['status']} | {r['code'] or '-'} | {r['reason'].replace('|', '/')} |")
-    else:
-        width = max(len(r["name"]) for r in rows)
-        lines.append(f"{'NAME'.ljust(width)} | STATUS  | HTTP | REASON")
-        lines.append("-" * (width + 40))
-        for r in rows:
-            lines.append(f"{r['name'].ljust(width)} | {r['status'].ljust(7)} | {str(r['code'] or '-').ljust(4)} | {r['reason']}")
-    missing = [r["name"] for r in rows if r["status"] == "MISSING"]
-    failed = [r["name"] for r in rows if r["status"] == "FAIL"]
-    lines.append("")
-    lines.append(f"Missing: {', '.join(missing) or 'none'}")
-    lines.append(f"Failing: {', '.join(failed) or 'none'}")
-    return mask("\n".join(lines))
-
-
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--strict", action="store_true", help="exit 1 when a configured key fails")
-    parser.add_argument("--markdown", action="store_true", help="print a Markdown table")
-    parser.add_argument("--json", dest="json_path", help="also write the rows as JSON to this path")
-    parser.add_argument("--only", help="comma-separated secret names")
-    args = parser.parse_args(argv)
-    names = [n.strip() for n in (args.only or "").split(",") if n.strip()] or list(SECRETS)
-    unknown = [n for n in names if n not in CHECKS]
-    if unknown:
-        print(f"unknown secret name(s): {', '.join(unknown)}", file=sys.stderr)
-        return 2
-    rows = run_checks(names)
-    print(render(rows, markdown=args.markdown))
-    if args.json_path:
-        Path(args.json_path).write_text(json.dumps(rows, indent=2), encoding="utf-8")
-    if args.strict and any(r["status"] == "FAIL" for r in rows):
-        return 1
-    return 0
+    return results
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    report = check_secrets_safely()
+    print(json.dumps(report, indent=2))

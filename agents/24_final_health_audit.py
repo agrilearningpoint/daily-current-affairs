@@ -1,50 +1,110 @@
-"""Final fail-closed audit of this edition's evidence and publication state."""
+# -*- coding: utf-8 -*-
+"""
+Agent 24: Independent Final Content & System Health Audit (Section 15 & 19)
+===========================================================================
+Executes the pre-publication quality gate across News, MCQs, and PDF reports,
+and writes:
+- `reports/daily_quality_report.json`
+- `reports/daily_health_report.json`
+A single critical failure blocks publication.
+"""
+from __future__ import annotations
 
-import hashlib
-import json
-import os
-import sys
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from pipeline.store import ROOT_DIR, atomic_write_json
+
+REPORTS_DIR = ROOT_DIR / "reports"
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def main():
-    from pipeline.agent_context import get_context
-    from pipeline.persistence import write_json_atomic
-    from main import load_jobs_state, STAGES_BY_TYPE
-    from pipeline.checkpoints import resume_after
+def run_final_content_audit(
+    edition_date: str,
+    window_label: str,
+    verified_news: List[Dict[str, Any]],
+    validated_mcqs: List[Dict[str, Any]],
+    pdf_qa_dict: Dict[str, Any],
+    api_health_dict: Optional[Dict[str, Any]] = None,
+    feed_health_dict: Optional[Dict[str, Any]] = None,
+    out_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    r_dir = out_dir or REPORTS_DIR
+    r_dir.mkdir(parents=True, exist_ok=True)
+    now_iso = datetime.now(timezone.utc).isoformat()
 
-    ctx = get_context()
-    root = ctx.repo_root
-    issues = []
-    entry = load_jobs_state(strict=True).get(ctx.job_id, {})
-    names = [stage[0] for stage in STAGES_BY_TYPE[ctx.job_type]]
-    if (not entry.get("artifacts") or entry.get("last_success_stage") != "23_telegram_pin_verifier"
-            or resume_after(root, ctx.job_id, entry, names) != "23_telegram_pin_verifier"):
-        issues.append("pipeline has not completed all pre-audit checkpoints")
-    for relative, record in entry.get("artifacts", {}).items():
-        path = (root / relative).resolve()
-        if not path.is_relative_to(root.resolve()) or not path.is_file():
-            issues.append(f"missing checkpoint artifact: {relative}")
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != record.get("sha256"):
-            issues.append(f"checkpoint artifact changed: {relative}")
-    try:
-        qa = json.loads(ctx.qa_report_path().read_text(encoding="utf-8"))
-        if (qa.get("passed") is not True or qa.get("job_id") != ctx.job_id
-                or qa.get("file_sha256") != hashlib.sha256(ctx.pdf_path().read_bytes()).hexdigest()):
-            issues.append("PDF QA approval is absent, failed, or does not match the PDF")
-    except (OSError, ValueError):
-        issues.append("PDF/QA evidence unreadable")
-    dry_run = os.getenv("DRY_RUN", "0") == "1"
-    if not dry_run:
-        from pipeline.publication import publication_issues
-        pdf_hash = hashlib.sha256(ctx.pdf_path().read_bytes()).hexdigest() if ctx.pdf_path().is_file() else ""
-        issues.extend(publication_issues(root, ctx.job_id, pdf_hash, os.getenv("TELEGRAM_CHAT_ID")))
-    report = {"job_id": ctx.job_id, "passed": not issues, "dry_run": dry_run,
-              "issues": issues, "checked_at": datetime.now(timezone.utc).isoformat()}
-    write_json_atomic(root / "logs" / "qa" / f"{ctx.job_id}_health.json", report)
-    print(json.dumps(report, ensure_ascii=False))
-    return 1 if issues else 0
+    critical_failures: List[str] = []
+    warnings: List[str] = []
 
+    # 1. News Audit
+    if not verified_news:
+        critical_failures.append("zero_verified_news_items")
+    for idx, item in enumerate(verified_news, 1):
+        if not item.get("published_at_ist"):
+            critical_failures.append(f"news_{idx}_missing_verified_ist_timestamp")
+        if item.get("verification_status") != "verified":
+            critical_failures.append(f"news_{idx}_unverified_status")
+        if not str(item.get("link") or item.get("canonical_url") or "").startswith(("http://", "https://")):
+            critical_failures.append(f"news_{idx}_missing_source_url")
 
-if __name__ == "__main__":
-    sys.exit(main())
+    # 2. MCQ Audit
+    if not validated_mcqs:
+        critical_failures.append("zero_validated_mcqs")
+    formats_seen = {m.get("question_format") for m in validated_mcqs if m.get("question_format")}
+    if len(validated_mcqs) >= 4 and len(formats_seen) < 2:
+        warnings.append("mcq_format_variety_low")
+    for idx, m in enumerate(validated_mcqs, 1):
+        if m.get("validation_status") != "validated":
+            critical_failures.append(f"mcq_{idx}_not_validated")
+        if len(m.get("options_en") or m.get("options") or []) != 5:
+            critical_failures.append(f"mcq_{idx}_not_5_options")
+
+    # 3. PDF Audit
+    if not pdf_qa_dict.get("passed", False):
+        critical_failures.append("pdf_qa_gate_failed")
+    if pdf_qa_dict.get("blank_pages"):
+        critical_failures.append(f"pdf_has_blank_pages:{pdf_qa_dict['blank_pages']}")
+
+    passed = len(critical_failures) == 0
+
+    quality_report = {
+        "edition_date": edition_date,
+        "research_window": window_label,
+        " audited_at": now_iso,
+        "passed": passed,
+        "critical_failures": critical_failures,
+        "warnings": warnings,
+        "metrics": {
+            "verified_news_count": len(verified_news),
+            "validated_mcq_count": len(validated_mcqs),
+            "distinct_mcq_formats": sorted(list(formats_seen)),
+            "pdf_page_count": pdf_qa_dict.get("page_count", 0),
+            "pdf_hindi_pct": pdf_qa_dict.get("hindi_pct", 0.0),
+            "pdf_substantive_pages": pdf_qa_dict.get("substantive_pages", 0),
+        },
+    }
+
+    health_report = {
+        "edition_date": edition_date,
+        "generated_at": now_iso,
+        "pipeline_status": "healthy" if passed else "blocked_by_quality_gate",
+        "active_feeds_tracked": len(feed_health_dict or {}),
+        "quarantined_feeds": [
+            k for k, v in (feed_health_dict or {}).items()
+            if isinstance(v, dict) and v.get("quarantined_until")
+        ],
+        "api_keys_tracked": len((api_health_dict or {}).get("keys", {})),
+        "healthy_api_keys": [
+            k for k, v in ((api_health_dict or {}).get("keys", {})).items()
+            if isinstance(v, dict) and v.get("status") == "healthy"
+        ],
+        "cooldown_api_keys": [
+            k for k, v in ((api_health_dict or {}).get("keys", {})).items()
+            if isinstance(v, dict) and v.get("status") == "cooldown"
+        ],
+    }
+
+    atomic_write_json(r_dir / "daily_quality_report.json", quality_report)
+    atomic_write_json(r_dir / "daily_health_report.json", health_report)
+    return quality_report

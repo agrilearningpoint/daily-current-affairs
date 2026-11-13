@@ -1,0 +1,48 @@
+name: Scheduled Workflow Keepalive & Secret Health Monitor
+
+on:
+  schedule:
+    # Runs once every 45 days at 04:30 UTC (10:00 IST) to check repository inactivity
+    # and prevent GitHub's 60-day scheduled workflow auto-disable without daily commit spam.
+    - cron: "30 4 1,15 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  keepalive-and-secret-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Zero-Exposure Secret Health Monitor
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python scripts/verify_keys.py > state/secret_health_summary.json
+
+      - name: Check Last Commit Age (Only Heartbeat if > 50 Days Inactive)
+        run: |
+          LAST_TS=$(git log -1 --format=%ct)
+          NOW_TS=$(date +%s)
+          AGE_DAYS=$(( (NOW_TS - LAST_TS) / 86400 ))
+          echo "Last commit age: ${AGE_DAYS} days"
+          if [ "$AGE_DAYS" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/secret_health_summary.json
+            git diff --cached --quiet || (git commit -m "chore(keepalive): 50-day inactivity heartbeat [skip ci]" && git push origin HEAD)
+          fi

@@ -1,0 +1,85 @@
+name: Autonomous Self-Healing & Recovery Agent
+
+on:
+  workflow_run:
+    workflows: ["Daily News Pipeline", "Weekly News Pipeline", "Monthly News Pipeline"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Target Job ID to heal (e.g. daily_2026-11-13)"
+        required: false
+        type: string
+
+concurrency:
+  group: current-affairs-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  self-heal:
+    name: Diagnose, Recover & Verify
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Autonomous Self-Healer (Agent 25)
+        env:
+          TARGET_JOB_ID: ${{ github.event.inputs.job_id }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from agents import 25_auto_healer as healer  # handled via importlib below
+          PY
+          python -c "
+          import importlib.util, json, os
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location('healer', 'agents/25_auto_healer.py')
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          jobs_path = Path('state/jobs.json')
+          data = json.loads(jobs_path.read_text()) if jobs_path.is_file() else {'jobs': {}}
+          jobs = data.get('jobs', data)
+          target = os.environ.get('TARGET_JOB_ID', '').strip()
+          failed_jobs = [target] if target and target in jobs else [
+              k for k, v in jobs.items() if isinstance(v, dict) and v.get('status') in ('failed', 'FAILED', 'FAILED_FINAL')
+          ]
+          for jid in failed_jobs[-3:]:
+              err = str(jobs.get(jid, {}).get('last_error') or jobs.get(jid, {}).get('error') or 'workflow_failure')
+              cat = mod.classify_failure(err)
+              res = mod.execute_rule_based_recovery(jid, cat, err)
+              print('Healed:', json.dumps(res, indent=2))
+          "
+
+      - name: Run Unit Test Gate Before Persisting Recovery State
+        run: python -m unittest discover -s tests -p "test_enterprise_*.py" -v
+
+      - name: Commit Verified Recovery State
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git diff --cached --quiet || (git commit -m "chore(auto-heal): apply verified rule-based recovery [skip ci]" && git push origin HEAD)

@@ -136,18 +136,19 @@ _HAS_SHAPING, _SHAPING_DIAGNOSTIC = get_shaping_diagnostics()
 # --- FONT REGISTRATION ---
 def _register_fonts() -> Tuple[str, str, str, str]:
     font_candidates = [
-        ("Poppins-Regular", "Poppins-Regular.ttf"),
-        ("Poppins-Bold", "Poppins-Bold.ttf"),
-        ("Mukta-Regular", "Mukta-Regular.ttf"),
-        ("Mukta-Bold", "Mukta-Bold.ttf"),
+        ("Poppins-Regular", [os.path.join(FONTS_DIR, "Poppins-Regular.ttf"), "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]),
+        ("Poppins-Bold", [os.path.join(FONTS_DIR, "Poppins-Bold.ttf"), "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]),
+        ("Mukta-Regular", [os.path.join(FONTS_DIR, "Mukta-Regular.ttf"), "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"]),
+        ("Mukta-Bold", [os.path.join(FONTS_DIR, "Mukta-Bold.ttf"), "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"]),
     ]
-    for name, fname in font_candidates:
-        fpath = os.path.join(FONTS_DIR, fname)
-        if os.path.isfile(fpath):
-            try:
-                pdfmetrics.registerFont(TTFont(name, fpath))
-            except Exception:
-                pass
+    for name, paths in font_candidates:
+        for fpath in paths:
+            if os.path.isfile(fpath):
+                try:
+                    pdfmetrics.registerFont(TTFont(name, fpath))
+                    break
+                except Exception:
+                    continue
     registered = set(pdfmetrics.getRegisteredFontNames())
     f_reg = "Poppins-Regular" if "Poppins-Regular" in registered else "Helvetica"
     f_bold = "Poppins-Bold" if "Poppins-Bold" in registered else "Helvetica-Bold"
@@ -323,6 +324,21 @@ class _HindiTextFlowable(Flowable):
                     continue
         return ImageFont.load_default()
 
+    def _resolve_latin_pil_font(self, px_size: int) -> ImageFont.FreeTypeFont:
+        candidates = [
+            os.path.join(FONTS_DIR, "Poppins-Bold.ttf" if self.bold else "Poppins-Regular.ttf"),
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+            if self.bold
+            else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
+        for path in candidates:
+            if os.path.isfile(path):
+                try:
+                    return ImageFont.truetype(path, px_size)
+                except Exception:
+                    continue
+        return ImageFont.load_default()
+
     def wrap(self, availWidth, availHeight):
         w_pt = min(self.avail_width, max(120.0, float(availWidth) - self.left_indent))
         scale = 2.0
@@ -353,11 +369,22 @@ class _HindiTextFlowable(Flowable):
 
         line_h_px = int(px_font * 1.48)
         px_h = max(line_h_px + 8, len(lines) * line_h_px + 8)
+        latin_font = self._resolve_latin_pil_font(px_font)
         img = PILImage.new("RGB", (px_w, px_h), (255, 255, 255))
         draw = ImageDraw.Draw(img)
         y = 4
         for ln in lines:
-            draw.text((2, y), ln, font=font, fill=self.color)
+            # Split line into Devanagari vs ASCII/Latin segments so NotoSansDevanagari
+            # never renders ASCII letters as .notdef boxes
+            x_cursor = 2.0
+            for seg in re.findall(r"[\u0900-\u097F\s]+|[^\u0900-\u097F]+", ln):
+                use_f = font if DEVANAGARI_RE.search(seg) else latin_font
+                draw.text((x_cursor, y), seg, font=use_f, fill=self.color)
+                try:
+                    sb = use_f.getbbox(seg)
+                    x_cursor += max(0.0, float(sb[2] - sb[0]))
+                except Exception:
+                    x_cursor += len(seg) * (px_font * 0.5)
             y += line_h_px
 
         buf = io.BytesIO()

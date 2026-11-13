@@ -1,107 +1,182 @@
-"""Shared edition windows, independent of source configuration and network I/O."""
+# -*- coding: utf-8 -*-
+"""
+Strict Previous-24-Hour IST News Research Window Engine
+=======================================================
+Enforces an explicit India Standard Time (Asia/Kolkata) research window:
+For edition date D (default cutoff 06:00 IST):
+  window_start = (D - 1 day) at 06:00:00+05:30
+  window_end   = D at 06:00:00+05:30
 
-from datetime import date, datetime, time as dt_time, timedelta, timezone
+Rules enforced (Master Spec Section 5):
+1. Every news item must have a verified publication timestamp.
+2. All timestamps are converted into Asia/Kolkata (+05:30).
+3. News published before window_start or after window_end is strictly excluded.
+4. Article modification/update dates are never used to disguise an old original_published_at.
+5. Old-event coverage (e.g. "in 2023", "last year") inside a newly published article is flagged.
+6. Missing timestamps are quarantined, never assumed to be today's news.
+"""
+from __future__ import annotations
+
+import os
+import re
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
+from email.utils import parsedate_to_datetime
+from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 IST = ZoneInfo("Asia/Kolkata")
 
-
-def rolling_24h_utc_window(run_started_at_utc: datetime | None = None) -> tuple[datetime, datetime]:
-    """Return strictly reproducible 24-hour UTC window: [run_started_at_utc - 24 hours, run_started_at_utc].
-    
-    Timestamps are converted to Asia/Kolkata for display and metadata logging.
-    """
-    if run_started_at_utc is None:
-        run_started_at_utc = datetime.now(timezone.utc)
-    elif run_started_at_utc.tzinfo is None:
-        run_started_at_utc = run_started_at_utc.replace(tzinfo=timezone.utc)
-    else:
-        run_started_at_utc = run_started_at_utc.astimezone(timezone.utc)
-    window_end = run_started_at_utc
-    window_start = window_end - timedelta(hours=24)
-    return window_start, window_end
+STALE_EVENT_YEAR_RE = re.compile(r"\b(201\d|202[0-4])\b")
+OLD_EVENT_PHRASE_RE = re.compile(
+    r"\b(?:two\s+years\s+ago|three\s+years\s+ago|back\s+in\s+202[0-4]|archive\s+report)\b",
+    re.IGNORECASE,
+)
 
 
-DEFAULT_DAILY_CUTOFF = "06:00"
-# A previous edition's recorded end is trusted as the next start only when it
-# is at most this many hours before the nominal start (prevents a stale or
-# missing edition from producing a multi-day window).
-_MAX_CARRYOVER_HOURS = 12
+@dataclass(frozen=True)
+class ResearchWindow:
+    edition_date: str
+    start_ist: datetime
+    end_ist: datetime
+
+    @property
+    def label(self) -> str:
+        return (
+            f"{self.start_ist.strftime('%d %B %Y, %H:%M IST')} to "
+            f"{self.end_ist.strftime('%d %B %Y, %H:%M IST')}"
+        )
+
+    def contains(self, dt: datetime) -> bool:
+        dt_ist = to_ist(dt)
+        return self.start_ist <= dt_ist <= self.end_ist
 
 
-def daily_cutoff() -> dt_time:
-    """Edition cutoff (IST wall clock) from ALP_DAILY_CUTOFF, default 06:00."""
-    import os
-    raw = (os.getenv("ALP_DAILY_CUTOFF") or DEFAULT_DAILY_CUTOFF).strip()
+def to_ist(dt: datetime) -> datetime:
+    """Convert any aware or naive datetime to Asia/Kolkata (naive assumed UTC)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST)
+
+
+def compute_edition_window(
+    edition_date_str: Optional[str] = None,
+    cutoff_hhmm: Optional[str] = None,
+    hours: int = 24,
+) -> ResearchWindow:
+    """Compute the strict 24-hour IST research window for an edition date."""
+    if not edition_date_str:
+        edition_date_str = os.getenv("ALP_JOB_DATE") or datetime.now(IST).strftime("%Y-%m-%d")
+    cutoff = (cutoff_hhmm or os.getenv("ALP_DAILY_CUTOFF", "06:00")).strip()
+    hh, mm = (int(x) for x in cutoff.split(":", 1))
+    d = date.fromisoformat(edition_date_str)
+    end_ist = datetime.combine(d, time(hh, mm, 0), tzinfo=IST)
+    start_ist = end_ist - timedelta(hours=hours)
+    return ResearchWindow(edition_date=edition_date_str, start_ist=start_ist, end_ist=end_ist)
+
+
+def parse_timestamp_to_ist(raw_value: Any) -> Optional[datetime]:
+    """Parse ISO-8601, RFC-2822 (RSS pubDate), or epoch into an IST-aware datetime."""
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, datetime):
+        return to_ist(raw_value)
+    if isinstance(raw_value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(raw_value), tz=timezone.utc).astimezone(IST)
+        except Exception:
+            return None
+    s = str(raw_value).strip()
+    if not s:
+        return None
+    # Try ISO-8601
     try:
-        hh, mm = raw.split(":", 1)
-        return dt_time(int(hh), int(mm))
-    except (ValueError, TypeError):
-        return dt_time(6, 0)
-
-
-def daily_edition_window(edition_day: date, *, previous_end: datetime | None = None,
-                         now: datetime | None = None) -> tuple[datetime, datetime]:
-    """Fixed news window for daily edition ``edition_day``.
-
-    Nominal window: (edition_day-1) CUTOFF IST -> edition_day CUTOFF IST
-    (CUTOFF = ALP_DAILY_CUTOFF, default 06:00). It depends on the edition date,
-    never on when the run happens, so a late cron, a retry or a --reset cannot
-    shift it or make it overlap the previous edition.
-
-    * A run before the cutoff (the 02:00-04:00 IST generation crons) cannot see
-      the future, so the end is clipped to the run time.
-    * When the previous edition recorded its actual end (``previous_end``), the
-      window starts there instead, so consecutive editions are contiguous with
-      no overlap and no gap (e.g. a 02:00 generation run yesterday -> today's
-      window starts at yesterday 02:00).
-    """
-    cutoff = daily_cutoff()
-    nominal_end = datetime.combine(edition_day, cutoff, tzinfo=IST)
-    nominal_start = nominal_end - timedelta(hours=24)
-    now = (now or datetime.now(IST)).astimezone(IST)
-    end = now if nominal_start < now < nominal_end else nominal_end
-    start = nominal_start
-    if previous_end is not None:
-        if previous_end.tzinfo is None:
-            previous_end = previous_end.replace(tzinfo=IST)
-        previous_end = previous_end.astimezone(IST)
-        if nominal_start - timedelta(hours=_MAX_CARRYOVER_HOURS) <= previous_end < end:
-            start = previous_end
-    return start, end
-
-
-def collect_window(job_type: str, job_date: str, *, previous_end: datetime | None = None,
-                   now: datetime | None = None) -> tuple[datetime, datetime]:
-    """Return inclusive IST collection window for a daily/weekly/monthly edition.
-
-    Daily: fixed edition window, see ``daily_edition_window`` (previous day
-    06:00 IST -> edition day 06:00 IST by default, contiguous with the previous
-    edition's recorded end when one is given).
-    Weekly: Monday through the end of job_date.
-    Monthly: previous complete month when job_date is the first; otherwise MTD.
-    """
-    if job_type not in {"daily", "weekly", "monthly"}:
-        raise ValueError(f"Unsupported job_type: {job_type!r}")
+        iso_s = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(iso_s)
+        return to_ist(dt)
+    except Exception:
+        pass
+    # Try RFC-2822 (RSS pubDate)
     try:
-        edition_day = date.fromisoformat(job_date)
-    except ValueError as exc:
-        raise ValueError(f"job_date must be YYYY-MM-DD, got {job_date!r}") from exc
+        dt = parsedate_to_datetime(s)
+        if dt is not None:
+            return to_ist(dt)
+    except Exception:
+        pass
+    # Try common Indian date patterns "2026-11-13 14:30:00"
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%d-%m-%Y %H:%M", "%Y/%m/%d %H:%M:%S"):
+        try:
+            dt = datetime.strptime(s, fmt).replace(tzinfo=IST)
+            return dt
+        except Exception:
+            continue
+    return None
 
-    if job_type == "daily":
-        start, end = daily_edition_window(edition_day, previous_end=previous_end, now=now)
-    elif job_type == "weekly":
-        start_day = edition_day - timedelta(days=edition_day.weekday())
-        start = datetime.combine(start_day, dt_time.min, tzinfo=IST)
-        end = datetime.combine(edition_day, dt_time.max, tzinfo=IST)
-    else:
-        if edition_day.day == 1:
-            end_day = edition_day - timedelta(days=1)
-            start_day = end_day.replace(day=1)
-            start = datetime.combine(start_day, dt_time.min, tzinfo=IST)
-            end = datetime.combine(end_day, dt_time.max, tzinfo=IST)
-        else:
-            start_day = edition_day.replace(day=1)
-            start = datetime.combine(start_day, dt_time.min, tzinfo=IST)
-            end = datetime.combine(edition_day, dt_time.max, tzinfo=IST)
-    return start, end
+
+def is_old_event_coverage(item: Dict[str, Any], edition_year: int) -> Tuple[bool, str]:
+    """Detect when a newly published article is actually retrospective coverage of an old event."""
+    headline = str(item.get("headline_en") or item.get("title") or "")
+    summary = str(item.get("summary_en") or item.get("summary") or "")
+    combined = f"{headline} {summary}"
+    if OLD_EVENT_PHRASE_RE.search(combined):
+        return True, "retrospective_old_event_phrase"
+    # If the headline explicitly centers on an older year without current edition year
+    years = [int(y) for y in re.findall(r"\b(20\d{2})\b", headline)]
+    if years and max(years) < edition_year - 1:
+        return True, f"headline_references_old_year_{max(years)}"
+    return False, ""
+
+
+def filter_articles_by_window(
+    items: List[Dict[str, Any]],
+    window: ResearchWindow,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Filter articles strictly against `window`.
+    Returns (accepted_items, rejected_outside_window, quarantined_missing_timestamp).
+    """
+    accepted: List[Dict[str, Any]] = []
+    rejected: List[Dict[str, Any]] = []
+    quarantined: List[Dict[str, Any]] = []
+    edition_year = int(window.edition_date.split("-")[0])
+
+    for item in items:
+        working = dict(item)
+        # Rule 4: Do not confuse updated_at with original_published_at
+        orig_raw = (
+            working.get("original_published_at")
+            or working.get("published_at")
+            or working.get("pubDate")
+            or working.get("published")
+        )
+        # If only updated_at is present without published_at, quarantine
+        if not orig_raw:
+            working["quarantine_reason"] = "missing_original_publication_timestamp"
+            quarantined.append(working)
+            continue
+
+        pub_ist = parse_timestamp_to_ist(orig_raw)
+        if pub_ist is None:
+            working["quarantine_reason"] = f"unparseable_timestamp:{orig_raw}"
+            quarantined.append(working)
+            continue
+
+        working["published_at_ist"] = pub_ist.isoformat()
+
+        if not window.contains(pub_ist):
+            working["rejection_reason"] = (
+                f"outside_window ({pub_ist.isoformat()} not in "
+                f"[{window.start_ist.isoformat()}, {window.end_ist.isoformat()}])"
+            )
+            rejected.append(working)
+            continue
+
+        old_ev, reason = is_old_event_coverage(working, edition_year)
+        if old_ev:
+            working["rejection_reason"] = f"old_event_coverage:{reason}"
+            rejected.append(working)
+            continue
+
+        accepted.append(working)
+
+    return accepted, rejected, quarantined

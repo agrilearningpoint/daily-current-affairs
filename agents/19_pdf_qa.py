@@ -692,7 +692,7 @@ def check_mcq_variety(report: QAReport, mcqs: List[Dict[str, Any]],
 HTML_TAG_RE = re.compile(r"<(?:span|div|time|p|br|table|tr|td|b|i|font)\b[^>]*>", re.IGNORECASE)
 
 REPLACEMENT_CHAR_RE = re.compile(r"[\uFFFD\u25A1]")
-UNSUPPORTED_SYMBOL_RE = re.compile(r"[►📌📎✂✖️->√★•◽☆▪️☑️]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]")
+UNSUPPORTED_SYMBOL_RE = re.compile(r"[►📌📎✂✖️√★◽☆▪️☑️]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]")
 
 
 def check_glyph_integrity(report: QAReport, text: str) -> None:
