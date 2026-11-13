@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-13T07:07:47.071606+05:30",
+  "updated": "2026-11-13T16:50:01.598092+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -519,7 +519,7 @@
       "q": "Which of the following categories includes the legislative measure recently discussed in official government u"
     },
     "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
-      "count": 5,
+      "count": 6,
       "last_seen": "2026-11-13",
       "type": "concept",
       "concept_id": "msp",
@@ -1119,7 +1119,7 @@
       "published": false
     },
     "thenewsindiastbdeathsfall38since2015outpacingglobaldeclinewh": {
-      "count": 1,
+      "count": 2,
       "last_seen": "2026-11-13",
       "type": "place-state",
       "q": "The news \"India’s TB deaths fall 38% since 2015, outpacing global decline: WHO report\" is related to which Sta",
@@ -1147,17 +1147,66 @@
       "published": false
     },
     "thenewscabinetapprovesyugeyugeenbharatmuseumpmmodisaysitwill": {
-      "count": 1,
+      "count": 2,
       "last_seen": "2026-11-13",
       "type": "place-state",
       "q": "The news \"Cabinet approves Yuge Yugeen Bharat Museum; PM Modi says it will transform into global centre of cul",
+      "published": false
+    },
+    "whichinstitutionsuppertolerancelimitwasbreachedbyindiasretai": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which institution's upper tolerance limit was breached by India's retail inflation in October 2026?",
+      "published": false
+    },
+    "whichorganisationisassociatedwiththenewsviewindiasoctoberret": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"VIEW India's October retail inflation at 6.09% on-year\"?",
+      "published": false
+    },
+    "whichcountrywasspecificallymentionedinthereportashavingitstr": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which country was specifically mentioned in the report as having its trade with India boosted by recent FTAs i",
+      "published": false
+    },
+    "whatisthetotalfinancialoutlayapprovedbythecabinetforthenewof": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "What is the total financial outlay approved by the Cabinet for the new offshore oil and gas exploration initia",
+      "published": false
+    },
+    "whichorganisationisassociatedwiththenewsindiastbdeathsfall38": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"India’s TB deaths fall 38% since 2015, outpacing global declin",
+      "published": false
+    },
+    "thenewsinculminationof10yearsofdedicatedeffortsunionenvironm": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"In culmination of 10 years of dedicated efforts, Union Environment Minister and CM () initiate the p",
+      "published": false
+    },
+    "whichbodyreleasedthereporttitledimpactassessmentofplischemes": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which body released the report titled \"Impact Assessment of PLI Schemes\"?",
       "published": false
     }
   },
   "concepts": {
     "msp": {
       "v0": {
-        "count": 2,
+        "count": 3,
         "last_seen": "2026-11-13",
         "published": false
       },
