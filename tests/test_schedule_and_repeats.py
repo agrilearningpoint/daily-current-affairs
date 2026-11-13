@@ -291,3 +291,26 @@ def test_daily_workflow_schedule_and_flags():
     assert "github.event.inputs.allow_fallback == 'true' && '1' || '0'" in text
     assert "allow_fallback == 'false'" not in text
     assert "scripts/run_summary.py" in text
+
+
+def test_qa_failure_rebuilds_instead_of_replaying_rejected_edition(monkeypatch, tmp_path):
+    """2026-11-13: seven red runs replayed one QA-rejected checkpoint."""
+    monkeypatch.setattr(main, "JOBS_STATE_PATH", tmp_path / "state/jobs.json")
+    (tmp_path / "state" / "locks").mkdir(parents=True)
+    main.save_jobs_state({"daily_2026-11-13": {
+        "status": "failed", "failed_stage": "19_pdf_qa",
+        "last_success_stage": "18_pdf_design", "dry_run": False}})
+    monkeypatch.setenv("DRY_RUN", "0")
+    monkeypatch.setattr(main, "resume_after", lambda *a: "18_pdf_design")
+    assert main.resolve_resume_stage("daily_2026-11-13", main.DAILY_STAGES) is None
+
+
+def test_earlier_failure_still_resumes(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "JOBS_STATE_PATH", tmp_path / "state/jobs.json")
+    (tmp_path / "state" / "locks").mkdir(parents=True)
+    main.save_jobs_state({"daily_2026-11-13": {
+        "status": "failed", "failed_stage": "16_mcq_generator",
+        "last_success_stage": "12_content_editor", "dry_run": False}})
+    monkeypatch.setenv("DRY_RUN", "0")
+    monkeypatch.setattr(main, "resume_after", lambda *a: "12_content_editor")
+    assert main.resolve_resume_stage("daily_2026-11-13", main.DAILY_STAGES) == "12_content_editor"

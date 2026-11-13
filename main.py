@@ -481,6 +481,15 @@ def resolve_resume_stage(job_id: str, stages: list[tuple[str, str, bool]]) -> st
         return None
     if entry.get("dry_run") != (os.getenv("DRY_RUN", "0") == "1"):
         return None
+    # 2026-11-13: a job that failed AT pdf_qa has a finished edition the gate
+    # already rejected; resuming it replays stage 19 against the same PDF and
+    # re-fails identically on every backup cron (seven red runs for one root
+    # cause).  Rebuild from scratch instead - fresh providers, fresh choices.
+    # Failures earlier than 19 keep resuming: those re-run the failed stage.
+    if entry.get("status") == "failed" and entry.get("failed_stage") == "19_pdf_qa":
+        log(f"job '{job_id}' failed at 19_pdf_qa; resuming would replay the rejected "
+            f"edition - rebuilding from scratch instead")
+        return None
     return resume_after(ROOT, job_id, entry, [name for name, _, _ in stages])
 
 
