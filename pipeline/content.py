@@ -875,6 +875,7 @@ def build_content(items, job_meta):
     stats = {"total_items": len(items), "ai_passed": 0, "ai_failed": 0,
              "deterministic_fallback": 0, "untranslated": 0, "skipped_items": 0}
     out = []
+    out_sources: List[Any] = []
     for idx, it in enumerate(items):
         try:
             entry = _build_entry(it, stats)
@@ -885,8 +886,61 @@ def build_content(items, job_meta):
             stats["skipped_items"] += 1
         else:
             out.append(entry)
+            out_sources.append(it)
 
     stats["ai_failed"] = stats["deterministic_fallback"] + stats["untranslated"]
+
+    # ── Provider-recovery retry (2026-11-13) ────────────────────────────────
+    # A free-tier 429 storm can park every provider mid-stage; 13 of 15
+    # translations then fall back to English, stage 12 drops them as
+    # unreviewed and the edition dies at the QA floor.  When most of the batch
+    # failed at once, wait out the soonest provider cooldown (once, capped,
+    # within the stage AI budget) and rebuild just the failed entries.
+    if stats["ai_failed"] >= 3 and stats["ai_failed"] * 2 >= len(items):
+        try:
+            from pipeline import ai_router
+            import time as _time
+            left = ai_router.ai_time_left()
+            cap = float(os.getenv("ALP_CONTENT_RECOVERY_WAIT", "240") or 240)
+            # Providers still parked → wait for the soonest expiry.  Already
+            # recovered (the storm passed while the batch was in flight) →
+            # short fixed pause so per-minute quotas refill before the retry.
+            wait_s = ai_router.all_providers_recovery_wait()
+            if wait_s is None:
+                wait_s = float(os.getenv("ALP_CONTENT_STORM_PAUSE", "120") or 120)
+            if 2.0 <= wait_s <= cap and (left is None or wait_s + 60.0 <= left):
+                logger.warning("[Content Builder] %d/%d translations failed in one batch "
+                               "(provider storm) — waiting %.0fs, then retrying the failed entries",
+                               stats["ai_failed"], len(items), wait_s)
+                _time.sleep(wait_s)
+                retry_stats = {"total_items": 0, "ai_passed": 0, "ai_failed": 0,
+                               "deterministic_fallback": 0, "untranslated": 0, "skipped_items": 0}
+                recovered = 0
+                for idx, entry in enumerate(out):
+                    if not entry.get("translation_incomplete"):
+                        continue
+                    src = out_sources[idx] if idx < len(out_sources) else None
+                    if src is None:
+                        continue
+                    try:
+                        fresh = _build_entry(src, retry_stats)
+                    except Exception:
+                        fresh = None
+                    if fresh is not None and not fresh.get("translation_incomplete"):
+                        out[idx] = fresh
+                        recovered += 1
+                if recovered:
+                    stats["ai_passed"] += recovered
+                    for k in ("deterministic_fallback", "untranslated", "ai_failed"):
+                        stats[k] = max(0, stats[k] - recovered)
+                    logger.info("[Content Builder] recovery retry salvaged %d translation(s)", recovered)
+            elif wait_s is not None:
+                budget_txt = "n/a" if left is None else "%.0fs" % left
+                logger.warning("[Content Builder] providers cooled down for %.0fs (stage budget "
+                               "left: %s) — not waiting", wait_s, budget_txt)
+        except Exception as exc:  # recovery is a salvage aid, never fatal
+            logger.warning("[Content Builder] provider-recovery retry failed: %s", exc)
+
     total = stats["ai_passed"] + stats["ai_failed"]
     ai_pct = (stats["ai_passed"] / total * 100.0) if total else 0.0
     logger.info("[Content Builder] Translation stats: ai=%d fallback=%d untranslated=%d (AI success %.1f%%)",

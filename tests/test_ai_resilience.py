@@ -514,3 +514,70 @@ def test_recovery_wait_reports_the_soonest_expiry(monkeypatch):
     near.mark_disabled("rate limited", 90)
     wait = ai_router.all_providers_recovery_wait()
     assert wait is not None and 60 < wait <= 90
+
+
+# --------------------------------------------------------------------------- #
+# 2026-11-13: content builder must ride out a translation storm
+# --------------------------------------------------------------------------- #
+def _storm_items(n):
+    return [{"event_id": f"e{i}", "headline_en": f"Scheme {i} approved with Rs 500{i} Crore",
+             "source_name": "PIB", "source_url": f"https://pib.gov.in/e{i}", "source_tier": "tier1",
+             "category": "Agriculture", "raw_facts": f"Cabinet approved scheme {i}.",
+             "pub_time_ist": None, "duplicate_count": 1, "is_verified": True,
+             "provenance_verified": True, "verification_mode": "live"} for i in range(n)]
+
+
+def test_content_builder_waits_out_a_translation_storm_and_retries(monkeypatch):
+    from pipeline import content
+    import time as _time
+
+    slept = []
+    monkeypatch.setattr(_time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(ai_router, "all_providers_recovery_wait", lambda: 90.0)
+    monkeypatch.setattr(ai_router, "ai_time_left", lambda: 600.0)
+
+    storm = {"on": True}
+
+    def fake_entry(it, stats):
+        if storm["on"]:                              # storm: every translation falls back
+            stats["untranslated"] += 1
+            return {"event_id": it["event_id"], "translation_incomplete": True, "needs_review": True}
+        stats["ai_passed"] += 1                      # recovered: validated Hindi
+        return {"event_id": it["event_id"], "translation_incomplete": False, "needs_review": False}
+
+    real_sleep = _time.sleep
+
+    def fake_sleep(s):
+        slept.append(s)
+        storm["on"] = False                          # providers recover during the wait
+
+    monkeypatch.setattr(_time, "sleep", fake_sleep)
+    monkeypatch.setattr(content, "_build_entry", fake_entry)
+    monkeypatch.setattr(content, "_prefill_headline_translation_cache", lambda items: None)
+    monkeypatch.setattr(content, "_build_category_one_liners", lambda out: {})
+
+    c = content.build_content(_storm_items(6), {"type": "daily"})
+    assert slept == [90.0]                           # waited out the storm exactly once
+    assert all(not it.get("translation_incomplete") for it in c["items"])
+    assert c["translation_stats"]["ai_passed"] == 6  # whole batch salvaged
+
+
+def test_content_builder_does_not_retry_when_translations_are_fine(monkeypatch):
+    from pipeline import content
+    import time as _time
+
+    slept = []
+    monkeypatch.setattr(_time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(ai_router, "all_providers_recovery_wait", lambda: 90.0)
+    monkeypatch.setattr(ai_router, "ai_time_left", lambda: 600.0)
+
+    def good_entry(it, stats):
+        stats["ai_passed"] += 1
+        return {"event_id": it["event_id"], "translation_incomplete": False, "needs_review": False}
+
+    monkeypatch.setattr(content, "_build_entry", good_entry)
+    monkeypatch.setattr(content, "_prefill_headline_translation_cache", lambda items: None)
+    monkeypatch.setattr(content, "_build_category_one_liners", lambda out: {})
+    c = content.build_content(_storm_items(6), {"type": "daily"})
+    assert not slept
+    assert c["translation_stats"]["ai_failed"] == 0
