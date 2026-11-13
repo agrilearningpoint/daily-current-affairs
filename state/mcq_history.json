@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-13T16:50:01.598092+05:30",
+  "updated": "2026-11-13T17:27:34.276447+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -519,7 +519,7 @@
       "q": "Which of the following categories includes the legislative measure recently discussed in official government u"
     },
     "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
-      "count": 6,
+      "count": 7,
       "last_seen": "2026-11-13",
       "type": "concept",
       "concept_id": "msp",
@@ -1201,12 +1201,26 @@
       "type": "llm-schema",
       "q": "Which body released the report titled \"Impact Assessment of PLI Schemes\"?",
       "published": false
+    },
+    "whichbodyisresponsibleforissuingtheminimumsupportpricemspnot": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which body is responsible for issuing the Minimum Support Price (MSP) notifications mentioned in the Kisan Tak",
+      "published": false
+    },
+    "whichinstitutionisresponsibleforreviewingmonetarypolicyandse": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which institution is responsible for reviewing monetary policy and setting the 6% inflation ceiling in India?",
+      "published": false
     }
   },
   "concepts": {
     "msp": {
       "v0": {
-        "count": 3,
+        "count": 4,
         "last_seen": "2026-11-13",
         "published": false
       },

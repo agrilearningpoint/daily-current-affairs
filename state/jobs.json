@@ -2082,39 +2082,39 @@
     "checkpoint_run_id": "43138186723"
   },
   "daily_2026-11-13": {
-    "started_at": "2026-11-13T11:06:27.330184+00:00",
+    "started_at": "2026-11-13T11:50:41.431654+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-13.json": {
         "stage": "01_source_fetch",
-        "sha256": "9acd42d44697293903600a16337254b9130327f68a6378ed84fded8c72ebb9ec"
+        "sha256": "5e7c33094e0bf691f415db21d86e74b280e5de5f4210db79391c15c997050421"
       },
       "data/verified/daily_2026-11-13.json": {
         "stage": "04_fact_verification",
-        "sha256": "c76cd52383a1df6d18127d5f626fc63cc7e6e7aaae93e44524c8df93c46bc27d"
+        "sha256": "b7c4b50199e9e14fbb8501ff7a4186ec507d5136bfd8b17ca32e228728c1c0b9"
       },
       "data/dedup/daily_2026-11-13.json": {
         "stage": "05_deduplication",
-        "sha256": "01e91481f9ddbf85b2542d670d0409d43d5a9ec7c0663510210315e6a830b396"
+        "sha256": "097c5e70fc831e3e524f211617504d03174eb2517e56e8570e6ff7c27cbfd847"
       },
       "data/scored/daily_2026-11-13.json": {
         "stage": "06_news_importance",
-        "sha256": "6eb168d8eb88e754f5c6fa451b7179a2eb84aa57c6700184a676547da6bd01db"
+        "sha256": "76cedf6ed10841438ab7ba6927834e26f7e9700a3c5349f22a36d767e0086e4b"
       },
       "data/selected/daily_2026-11-13.json": {
         "stage": "10_final_news_selection",
-        "sha256": "bb956fadca449fc28e943d2ca24d8cc7d40127bc8cdd330638b503850e3b51d3"
+        "sha256": "564fac39ecaae0c5197af5e4dd835056241a992b127176214bb75440b44ccc88"
       },
       "data/content/daily_2026-11-13.json": {
         "stage": "12_content_editor",
-        "sha256": "650f94b2ed4cba0b62a0b205beffd220ced9bf35712c538812a42a6338c6ed02"
+        "sha256": "6716bbd105423972d8397a8e75d62f7fe166284ae21c898beac9bb0ad545613c"
       },
       "data/mcq/daily_2026-11-13.json": {
         "stage": "16_mcq_generator",
-        "sha256": "0872bded19e626580be36585c8c6b07ef604f09b3c077a9cf72f4f0d36ecba3b"
+        "sha256": "95979d5beb0d878bcc85efba6bd8bf8f9c8b7b244d98a9e010864e3bb1b98b69"
       },
       "output/daily_2026-11-13.pdf": {
         "stage": "18_pdf_design",
-        "sha256": "9e64db75b4f864817b96f459d2f5707d7adb22092080f9983075f39979e882aa"
+        "sha256": "16f013092d47c98de3d2ff78e10db5e214f844fa6b62d7d41f6484b58d072266"
       }
     },
     "run_attempts": 1,
@@ -2127,11 +2127,11 @@
       "end": "2026-11-13T06:00:00+05:30"
     },
     "github_run_id": "43420198399",
-    "status": "running",
-    "updated_at": "2026-11-13T11:50:38.228655+00:00",
+    "status": "failed",
+    "updated_at": "2026-11-13T11:58:29.201924+00:00",
     "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): s:           21\nChars:           34860\nDevanagari:      10381 (29.8%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            10\nAnswer markers:  10\nDuplicate Qs:    0\nDistinct stems:  9 (6-word prefixes)\nURLs:            0\nImages:          238\nBlank pages:     none\nSubstantive pgs: 20 (min page chars 498)\nNear-empty pgs:  [15]\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [15]\n  [ERROR] [edition_story_shortfall] Edition has 8 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 2 real news photos (target 10)\n========================================================================\n\n2026-11-13 11:21:22 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): lar, AAAAAA+Poppins-Bold...)\nMCQs:            3\nAnswer markers:  3\nDuplicate Qs:    0\nURLs:            0\nImages:          123\nBlank pages:     none\nSubstantive pgs: 13 (min page chars 607)\nNear-empty pgs:  none\n\n--- Issues ---\n  [ERROR] [too_few_pages] PDF has only 13 pages (min 15)\n  [ERROR] [insufficient_mcqs] Only 3 MCQs found (min 4)\n  [WARN] [below_page_target] 13 substantive page(s) is below the 15-page daily target (verified news volume may be low)\n  [ERROR] [edition_story_shortfall] Edition has 2 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 0 real news photos (target 10)\n========================================================================\n\n2026-11-13 11:58:24 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "43414256292"
+    "checkpoint_run_id": "43420198399"
   }
 }
