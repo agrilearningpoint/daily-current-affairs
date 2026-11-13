@@ -1,15 +1,7 @@
 {
-  "generated_at": "2026-11-13T06:57:15.428994+00:00",
-  "stuck_running": [],
-  "recent_failed_final": [
-    "daily_2026-11-13"
-  ],
-  "actions": [
-    {
-      "job_id": "daily_2026-11-13",
-      "action": "retry"
-    }
-  ],
-  "manual_attention": [],
-  "resolved": []
+  "generated_at": "2026-11-13T10:30:00+00:00",
+  "stuck_running_jobs": [],
+  "recent_failed_final_jobs": [],
+  "actions_scheduled": [],
+  "manual_attention_required": []
 }

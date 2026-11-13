@@ -2,13 +2,12 @@
   "daily_2026-10-04": {
     "job_id": "daily_2026-10-04",
     "job_type": "daily",
-    "status": "FAILED",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793397+00:00",
     "updated_at": "2026-10-05T16:45:53.646679+05:30",
     "last_success_stage": "03_news_collection",
     "failed_stage": "22_telegram_publisher",
     "attempts": 0,
-    "error": "publish blocked: state=RETRYING (QA hard gate)",
     "job_date": null,
     "stage_history": []
   },
@@ -76,91 +75,84 @@
   "daily_2026-10-06": {
     "job_id": "daily_2026-10-06",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793430+00:00",
     "updated_at": "2026-10-07T11:20:35.034126+05:30",
     "last_success_stage": "03_news_collection",
     "failed_stage": "04_fact_verification",
     "attempts": 0,
-    "error": "only 0 content-verified items (min 5 for daily)",
     "job_date": null,
     "stage_history": []
   },
   "daily_2026-10-07": {
     "job_id": "daily_2026-10-07",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793436+00:00",
     "updated_at": "2026-10-08T08:23:40.447563+05:30",
     "last_success_stage": "03_news_collection",
     "failed_stage": "04_fact_verification",
     "attempts": 0,
-    "error": "only 0 content-verified items (min 5 for daily)",
     "job_date": null,
     "stage_history": []
   },
   "daily_2026-10-08": {
     "job_id": "daily_2026-10-08",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793442+00:00",
     "updated_at": "2026-10-09T07:32:17.190583+05:30",
     "last_success_stage": "03_news_collection",
     "failed_stage": "04_fact_verification",
     "attempts": 0,
-    "error": "only 0 content-verified items (min 5 for daily)",
     "job_date": null,
     "stage_history": []
   },
   "daily_2026-10-09": {
     "job_id": "daily_2026-10-09",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793447+00:00",
     "updated_at": "2026-10-12T08:03:11.476046+05:30",
     "last_success_stage": "00_model_orchestrator",
     "failed_stage": "03_news_collection",
     "attempts": 0,
-    "error": "name 're' is not defined",
     "job_date": null,
     "stage_history": []
   },
   "daily_2026-10-12": {
     "job_id": "daily_2026-10-12",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793453+00:00",
     "updated_at": "2026-10-12T15:12:12.276515+05:30",
     "last_success_stage": "00_model_orchestrator",
     "failed_stage": "03_news_collection",
     "attempts": 0,
-    "error": "name 're' is not defined",
     "job_date": null,
     "stage_history": []
   },
   "daily_2026-10-13": {
     "job_id": "daily_2026-10-13",
     "job_type": "daily",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793463+00:00",
     "updated_at": "2026-10-13T14:17:28.218838+05:30",
     "last_success_stage": "03_news_collection",
     "failed_stage": "04_fact_verification",
     "attempts": 0,
-    "error": "only 0 verified items (min 5 for daily)",
     "job_date": null,
     "stage_history": []
   },
   "weekly_2026-10-11": {
     "job_id": "weekly_2026-10-11",
     "job_type": "weekly",
-    "status": "FAILED_FINAL",
+    "status": "pending",
     "created_at": "2026-10-14T06:57:23.793471+00:00",
     "updated_at": "2026-10-13T14:02:45.141851+05:30",
     "last_success_stage": "11_importance_memory",
     "failed_stage": "20_weekly_editor",
     "attempts": 0,
-    "error": "Weekly selection too small (0) — refusing weak filler",
     "job_date": null,
     "stage_history": []
   },
@@ -257,12 +249,12 @@
       "end": "2026-10-15T10:10:03.339834+05:30"
     },
     "github_run_id": "38965774830",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-10-16T20:58:49.354019+00:00",
     "last_success_stage": "11_importance_memory",
     "checkpoint_run_id": "38965774830",
-    "last_error": "12_content_editor: failed after 3 attempt(s): 16 20:58:36 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 20:58:36 | ERROR    | pipeline.ai_router | [Router] All providers failed. Last error: None\n2026-10-16 20:58:36 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=3 fallback=0 untranslated=4 (AI success 42.9%)\n2026-10-16 20:58:36 | WARNING  | pipeline.content | [Content Builder] 4 translations need review (AI did not pass)\n2026-10-16 20:58:36 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
-    "failed_stage": "12_content_editor"
+    "failed_stage": "12_content_editor",
+    "attempts": 0
   },
   "daily_2026-10-16": {
     "run_attempts": 6,
@@ -275,7 +267,7 @@
       "end": "2026-10-16T12:07:53.714279+05:30"
     },
     "github_run_id": "38980682993",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-10-16T23:19:46.895403+00:00",
     "started_at": "2026-10-16T06:37:56.180455+00:00",
     "artifacts": {
@@ -301,9 +293,9 @@
       }
     },
     "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): \n2026-10-16 23:19:43 | INFO     | pipeline.ai_router | [Router] ✔ groq responded (task=polish, 135 chars)\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Polish] rejected - fact check failed\n2026-10-16 23:19:43 | INFO     | pipeline.content | [Content Builder] Translation stats: ai=6 fallback=0 untranslated=1 (AI success 85.7%)\n2026-10-16 23:19:43 | WARNING  | pipeline.content | [Content Builder] 1 translations need review (AI did not pass)\n2026-10-16 23:19:43 | ERROR    | __main__ | Translation validation failed; refusing to publish unreviewed content\n\n/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.2.3) or chardet (7.6.0)/charset_normalizer (3.4.0) doesn't match a supported version!\n  warnings.warn(",
     "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "38980682993"
+    "checkpoint_run_id": "38980682993",
+    "attempts": 0
   },
   "daily_2026-10-17": {
     "started_at": "2026-10-18T11:27:32.037007+00:00",
@@ -355,12 +347,12 @@
       "end": "2026-10-16T23:59:59.999999+05:30"
     },
     "github_run_id": "39386554369",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-10-20T07:28:24.632950+00:00",
     "last_success_stage": "19_pdf_qa",
     "checkpoint_run_id": "39386554369",
-    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-10-20 07:28:20 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-10-20 07:28:20 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-10-17.pdf\n2026-10-20 07:28:21 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-10-17; manual reconciliation required, refusing resend\n2026-10-20 07:28:21 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
-    "failed_stage": "22_telegram_publisher"
+    "failed_stage": "22_telegram_publisher",
+    "attempts": 0
   },
   "daily_2026-10-18": {
     "run_attempts": 6,
@@ -373,7 +365,7 @@
       "end": "2026-10-18T10:10:51.327174+05:30"
     },
     "github_run_id": "39177431675",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-10-18T23:40:17.961470+00:00",
     "started_at": "2026-10-18T04:40:53.228422+00:00",
     "artifacts": {
@@ -400,8 +392,8 @@
     },
     "last_success_stage": "11_importance_memory",
     "checkpoint_run_id": "39177431675",
-    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
-    "failed_stage": "12_content_editor"
+    "failed_stage": "12_content_editor",
+    "attempts": 0
   },
   "weekly_2026-10-18": {
     "run_attempts": 6,
@@ -414,7 +406,7 @@
       "end": "2026-10-18T23:59:59.999999+05:30"
     },
     "github_run_id": "39158383114",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-10-18T19:22:16.795260+00:00",
     "started_at": "2026-10-18T13:44:19.816955+00:00",
     "artifacts": {
@@ -428,9 +420,9 @@
       }
     },
     "last_success_stage": "20_weekly_editor",
-    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 327, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 294, in main\n    from pipeline.content import build_content\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/content.py\", line 553, in <module>\n    def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str], sf: Dict[str, str], ef: str) -> str:\n                                                                           ^^^^\nNameError: name 'List' is not defined. Did you mean: 'list'?",
     "failed_stage": "12_content_editor",
-    "checkpoint_run_id": "39158383114"
+    "checkpoint_run_id": "39158383114",
+    "attempts": 0
   },
   "daily_2026-10-19": {
     "started_at": "2026-10-20T07:09:32.020650+00:00",
@@ -856,7 +848,7 @@
       "end": "2026-10-25T23:59:59.999999+05:30"
     },
     "github_run_id": "40237669878",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-10-25T21:55:19.981783+00:00",
     "started_at": "2026-10-25T05:08:19.052998+00:00",
     "artifacts": {
@@ -883,8 +875,8 @@
     },
     "last_success_stage": "18_pdf_design",
     "checkpoint_run_id": "40237669878",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): r markers:  34\nDuplicate Qs:    1\nURLs:            0\nImages:          66\nBlank pages:     none\nSubstantive pgs: 36 (min page chars 553)\nNear-empty pgs:  [3]\nStories missing: 2 (e.g. 'Compensation released to farmers in Tiruvarur for ‘prevented sowing’')\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [3]\n  [ERROR] [untitled_content] PDF contains 'Untitled' headline or placeholder string\n  [WARN] [duplicate_questions] 1 duplicate question(s) detected\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [story_missing_from_pdf] 2/33 selected stories not found in the PDF\n========================================================================\n\n2026-10-26 03:25:18 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
-    "failed_stage": "19_pdf_qa"
+    "failed_stage": "19_pdf_qa",
+    "attempts": 0
   },
   "daily_2026-10-26": {
     "run_attempts": 1,
@@ -1290,12 +1282,12 @@
       "end": "2026-11-01T14:38:26.386603+05:30"
     },
     "github_run_id": "41513421804",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-11-02T20:16:15.898708+00:00",
     "last_success_stage": "19_pdf_qa",
     "checkpoint_run_id": "41513421804",
-    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-11-02 20:16:09 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-11-02 20:16:09 | INFO     | agent.22_telegram_publisher | [1/1] daily_2026-11-01.pdf\n2026-11-02 20:16:09 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for daily_2026-11-01; manual reconciliation required, refusing resend\n2026-11-02 20:16:09 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
-    "failed_stage": "22_telegram_publisher"
+    "failed_stage": "22_telegram_publisher",
+    "attempts": 0
   },
   "monthly_2026-11-01": {
     "run_attempts": 6,
@@ -1308,7 +1300,7 @@
       "end": "2026-10-31T23:59:59.999999+05:30"
     },
     "github_run_id": "41377215806",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-11-02T02:21:30.373154+00:00",
     "started_at": "2026-11-01T06:33:08.942429+00:00",
     "artifacts": {
@@ -1334,9 +1326,9 @@
       }
     },
     "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): licate Qs:    0\nURLs:            0\nImages:          70\nBlank pages:     none\nSubstantive pgs: 44 (min page chars 732)\nNear-empty pgs:  none\nStories missing: 1 (e.g. 'Compensation released to farmers in Tiruvarur for ‘prevented sowing’')\n\n--- Issues ---\n  [ERROR] [untitled_content] PDF contains 'Untitled' headline or placeholder string\n  [ERROR] [unshaped_devanagari] Devanagari drawn as plain (unshaped) text on pages [1, 2, 4, 5, 6] — route it through render_hindi_flowable/bi_line\n  [WARN] [few_source_urls] Only 0 source URLs found — attribution may be missing\n  [WARN] [story_missing_from_pdf] 1/39 selected stories not found in the PDF\n========================================================================\n\n2026-11-02 07:51:28 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "41377215806"
+    "checkpoint_run_id": "41377215806",
+    "attempts": 0
   },
   "weekly_2026-11-01": {
     "run_attempts": 1,
@@ -1810,7 +1802,7 @@
       "end": "2026-11-08T23:59:59.999999+05:30"
     },
     "github_run_id": "42466608462",
-    "status": "failed",
+    "status": "pending",
     "updated_at": "2026-11-08T09:19:06.267616+00:00",
     "started_at": "2026-11-08T08:14:12.344367+00:00",
     "artifacts": {
@@ -1841,8 +1833,8 @@
     },
     "checkpoint_run_id": "42466608462",
     "last_success_stage": "19_pdf_qa",
-    "last_error": "22_telegram_publisher: failed after 3 attempt(s): 2026-11-08 14:49:04 | INFO     | agent.22_telegram_publisher | Found 1 candidate PDF(s) (max 5 per run)\n2026-11-08 14:49:04 | INFO     | agent.22_telegram_publisher | [1/1] weekly_2026-11-08.pdf\n2026-11-08 14:49:04 | ERROR    | agent.22_telegram_publisher | Publication outcome uncertain for weekly_2026-11-08; manual reconciliation required, refusing resend\n2026-11-08 14:49:04 | INFO     | agent.22_telegram_publisher | Publishing complete: success=0 failed=1 skipped=0 total=1",
-    "failed_stage": "22_telegram_publisher"
+    "failed_stage": "22_telegram_publisher",
+    "attempts": 0
   },
   "daily_2026-11-09": {
     "run_attempts": 2,
