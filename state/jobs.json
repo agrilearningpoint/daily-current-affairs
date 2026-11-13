@@ -2082,7 +2082,7 @@
     "checkpoint_run_id": "43138186723"
   },
   "daily_2026-11-13": {
-    "run_attempts": 5,
+    "run_attempts": 6,
     "job_id": "daily_2026-11-13",
     "job_type": "daily",
     "job_date": "2026-11-13",
@@ -2092,8 +2092,8 @@
       "end": "2026-11-13T06:00:00+05:30"
     },
     "github_run_id": "43382545047",
-    "status": "running",
-    "updated_at": "2026-11-13T07:01:28.841017+00:00",
+    "status": "failed",
+    "updated_at": "2026-11-13T07:01:54.083423+00:00",
     "started_at": "2026-11-13T01:24:10.277123+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-13.json": {
@@ -2130,8 +2130,8 @@
       }
     },
     "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): ges:           21\nChars:           29599\nDevanagari:      8686 (29.3%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            10\nAnswer markers:  11\nDuplicate Qs:    0\nDistinct stems:  10 (6-word prefixes)\nURLs:            0\nImages:          210\nBlank pages:     none\nSubstantive pgs: 20 (min page chars 412)\nNear-empty pgs:  [4]\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [4]\n  [ERROR] [edition_story_shortfall] Edition has 9 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 7 real news photos (target 10)\n========================================================================\n\n2026-11-13 06:58:18 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): ges:           21\nChars:           29599\nDevanagari:      8686 (29.3%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            10\nAnswer markers:  11\nDuplicate Qs:    0\nDistinct stems:  10 (6-word prefixes)\nURLs:            0\nImages:          210\nBlank pages:     none\nSubstantive pgs: 20 (min page chars 412)\nNear-empty pgs:  [4]\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [4]\n  [ERROR] [edition_story_shortfall] Edition has 9 stories for 15 selected (floor 13) — reserves could not replace dropped stories\n  [INFO] [few_photos] 7 real news photos (target 10)\n========================================================================\n\n2026-11-13 07:01:48 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "43382266772"
+    "checkpoint_run_id": "43382545047"
   }
 }
