@@ -1,455 +1,1337 @@
 {
-  "mcqs": [
-    {
-      "mcq_id": "mcq_938884c099e1dad9",
-      "event_id": "ev_25f105d5e6f2",
-      "source_news_id": "ev_25f105d5e6f2",
-      "source_url": "https://pib.gov.in/PressReleasePage.aspx?PRID=20261101",
-      "question_format": "numerical_statistical",
-      "question": "What is the verified financial outlay / statistical figure associated with 'Union Cabinet approves Clean Plant Programme under Mission for Integrated Development of Horticulture with ₹1,765.67 crore outlay' announced by ICAR?",
-      "question_en": "What is the verified financial outlay / statistical figure associated with 'Union Cabinet approves Clean Plant Programme under Mission for Integrated Development of Horticulture with ₹1,765.67 crore outlay' announced by ICAR?",
-      "question_hi": "ICAR द्वारा घोषित 'केंद्रीय मंत्रिमंडल ने एकीकृत बागवानी विकास मिशन के तहत ₹1,765.67 करोड़ के परिव्यय से क्लीन प्लांट प्रोग्राम को मंजूरी दी' से संबंधित सत्यापित वित्तीय परिव्यय / सांख्यिकीय आँकड़ा क्या है?",
-      "options": [
-        "₹1,765.67 crore",
-        "₹250 crore / ₹250 करोड़",
-        "₹500 crore / ₹500 करोड़",
-        "₹2,500 crore / ₹2,500 करोड़",
-        "₹5,000 crore / ₹5,000 करोड़"
-      ],
-      "options_en": [
-        "₹1,765.67 crore",
-        "₹250 crore",
-        "₹500 crore",
-        "₹2,500 crore",
-        "₹5,000 crore"
-      ],
-      "options_hi": [
-        "₹1,765.67 crore",
-        "₹250 करोड़",
-        "₹500 करोड़",
-        "₹2,500 करोड़",
-        "₹5,000 करोड़"
-      ],
-      "answer": "A",
-      "correct_answer": "A",
-      "answer_value": "₹1,765.67 crore",
-      "explanation": "The Union Cabinet chaired by the Prime Minister approved the Clean Plant Programme (CPP) proposed by the Ministry of Agriculture & Farmers Welfare with a financial outlay of ₹1,765.67 crore. Implemented by the National Horticulture Board (NHB) and ICAR, it establishes 9 world-class Clean Plant Centers across India to provide virus-free planting material for fruit crops.",
-      "explanation_en": "The Union Cabinet chaired by the Prime Minister approved the Clean Plant Programme (CPP) proposed by the Ministry of Agriculture & Farmers Welfare with a financial outlay of ₹1,765.67 crore. Implemented by the National Horticulture Board (NHB) and ICAR, it establishes 9 world-class Clean Plant Centers across India to provide virus-free planting material for fruit crops.",
-      "explanation_hi": "केंद्रीय मंत्रिमंडल ने कृषि एवं किसान कल्याण मंत्रालय द्वारा प्रस्तावित ₹1,765.67 करोड़ के वित्तीय परिव्यय वाले क्लीन प्लांट प्रोग्राम (CPP) को मंजूरी दी। राष्ट्रीय बागवानी बोर्ड (NHB) और आईसीएआर (ICAR) द्वारा कार्यान्वित इस कार्यक्रम के तहत फलों की फसलों के लिए वायरस-मुक्त रोपण सामग्री उपलब्ध कराने हेतु 9 क्लीन प्लांट सेंटर स्थापित किए जाएंगे।",
-      "topic": "Agriculture & Rural Development",
-      "subtopic": "Union Cabinet approves Clean Plant Programme under",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Easy",
-      "generation_date": "2026-11-13",
-      "fact_key": "num|ev_25f105d5e6f2|₹1,765.67 crore",
-      "semantic_fingerprint": "938884c099e1dad9",
-      "validation_status": "pending"
+  "version": 1,
+  "updated": "2026-11-13T19:45:19.217385+05:30",
+  "questions": {
+    "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Module-III Training Programme for Assistants (Batch-1) c"
     },
-    {
-      "mcq_id": "mcq_773175277f7624a7",
-      "event_id": "ev_554459fbb4bc",
-      "source_news_id": "ev_554459fbb4bc",
-      "source_url": "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=59102",
-      "question_format": "statement_based_2",
-      "question": "Consider the following statements regarding 'RBI enhances collateral-free Kisan Credit Card and agricultural loan limit from ₹1.6 lakh to ₹2 lakh per borrower': 1. It is associated with RBI. 2. Its primary implementation focus includes India. Which of the statements given above is/are correct?",
-      "question_en": "Consider the following statements regarding 'RBI enhances collateral-free Kisan Credit Card and agricultural loan limit from ₹1.6 lakh to ₹2 lakh per borrower': 1. It is associated with RBI. 2. Its primary implementation focus includes India. Which of the statements given above is/are correct?",
-      "question_hi": "'भारतीय रिज़र्व बैंक (RBI) ने प्रति उधारकर्ता जमानत-मुक्त किसान क्रेडिट कार्ड और कृषि ऋण सीमा ₹1.6 लाख से बढ़ाकर ₹2 लाख की' के संदर्भ में निम्नलिखित कथनों पर विचार कीजिए: 1. यह RBI से संबंधित है। 2. इसका प्रमुख क्रियान्वयन क्षेत्र India से जुड़ा है। उपर्युक्त में से कौन-सा/से कथन सही है/हैं?",
-      "options": [
-        "Only 1 / केवल 1",
-        "Only 2 / केवल 2",
-        "Both 1 and 2 / 1 और 2 दोनों",
-        "Neither 1 nor 2 / न तो 1 और न ही 2",
-        "1 only (Provisional) / केवल 1 (अनंतिम)"
-      ],
-      "options_en": [
-        "Only 1",
-        "Only 2",
-        "Both 1 and 2",
-        "Neither 1 nor 2",
-        "1 only (Provisional)"
-      ],
-      "options_hi": [
-        "केवल 1",
-        "केवल 2",
-        "1 और 2 दोनों",
-        "न तो 1 और न ही 2",
-        "केवल 1 (अनंतिम)"
-      ],
-      "answer": "C",
-      "correct_answer": "C",
-      "answer_value": "Both 1 and 2",
-      "explanation": "The Reserve Bank of India (RBI) announced the enhancement of the limit for collateral-free agricultural loans, including allied activities, from ₹1.6 lakh to ₹2 lakh per borrower. Banks have been directed to waive collateral security and margin requirements for loans up to ₹2 lakh to cushion small and marginal farmers against rising input costs.",
-      "explanation_en": "The Reserve Bank of India (RBI) announced the enhancement of the limit for collateral-free agricultural loans, including allied activities, from ₹1.6 lakh to ₹2 lakh per borrower. Banks have been directed to waive collateral security and margin requirements for loans up to ₹2 lakh to cushion small and marginal farmers against rising input costs.",
-      "explanation_hi": "भारतीय रिज़र्व बैंक (RBI) ने संबद्ध गतिविधियों सहित जमानत-मुक्त कृषि ऋण की सीमा को प्रति किसान ₹1.6 लाख से बढ़ाकर ₹2 लाख करने की घोषणा की है। छोटे और सीमांत किसानों को बढ़ती इनपुट लागत से राहत देने के लिए बैंकों को ₹2 लाख तक के ऋण पर मार्जिन और गारंटी न लेने का निर्देश दिया गया है।",
-      "topic": "Economy, Banking & Finance",
-      "subtopic": "RBI enhances collateral-free Kisan Credit Card and",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Moderate",
-      "generation_date": "2026-11-13",
-      "fact_key": "stmt2|ev_554459fbb4bc|RBI|India",
-      "semantic_fingerprint": "773175277f7624a7",
-      "validation_status": "pending"
+    "whatisthekeyfiguremetricassociatedwithindianewzealandftacome": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "static-number",
+      "q": "What is the key figure / metric associated with: \"India-New Zealand FTA comes into force, new visa categories "
     },
-    {
-      "mcq_id": "mcq_14f37bcd422c23b8",
-      "event_id": "ev_cffa540580fc",
-      "source_news_id": "ev_cffa540580fc",
-      "source_url": "https://up.gov.in/up-yuva-udyami-2026",
-      "question_format": "statement_based_2",
-      "question": "Consider the following statements regarding 'Uttar Pradesh Government launches Mukhyamantri Yuva Udyami Vikas Abhiyan with ₹1,000 crore budget allocation for 1 lakh youth annually': 1. It is associated with Uttar Pradesh Information Portal. 2. Its primary implementation focus includes Uttar Pradesh. Which of the statements given above is/are correct?",
-      "question_en": "Consider the following statements regarding 'Uttar Pradesh Government launches Mukhyamantri Yuva Udyami Vikas Abhiyan with ₹1,000 crore budget allocation for 1 lakh youth annually': 1. It is associated with Uttar Pradesh Information Portal. 2. Its primary implementation focus includes Uttar Pradesh. Which of the statements given above is/are correct?",
-      "question_hi": "'उत्तर प्रदेश सरकार ने प्रतिवर्ष 1 लाख युवाओं के लिए ₹1,000 करोड़ के बजट आवंटन से मुख्यमंत्री युवा उद्यमी विकास अभियान शुरू किया' के संदर्भ में निम्नलिखित कथनों पर विचार कीजिए: 1. यह Uttar Pradesh Information Portal से संबंधित है। 2. इसका प्रमुख क्रियान्वयन क्षेत्र Uttar Pradesh से जुड़ा है। उपर्युक्त में से कौन-सा/से कथन सही है/हैं?",
-      "options": [
-        "Only 1 / केवल 1",
-        "Only 2 / केवल 2",
-        "Both 1 and 2 / 1 और 2 दोनों",
-        "Neither 1 nor 2 / न तो 1 और न ही 2",
-        "1 only (Provisional) / केवल 1 (अनंतिम)"
-      ],
-      "options_en": [
-        "Only 1",
-        "Only 2",
-        "Both 1 and 2",
-        "Neither 1 nor 2",
-        "1 only (Provisional)"
-      ],
-      "options_hi": [
-        "केवल 1",
-        "केवल 2",
-        "1 और 2 दोनों",
-        "न तो 1 और न ही 2",
-        "केवल 1 (अनंतिम)"
-      ],
-      "answer": "C",
-      "correct_answer": "C",
-      "answer_value": "Both 1 and 2",
-      "explanation": "The Uttar Pradesh Government notified the Mukhyamantri Yuva Udyami Vikas Abhiyan in Lucknow with an allocation of ₹1,000 crore to finance 1 lakh young entrepreneurs every year (10 lakh over 10 years). Eligible trained youth receive interest-free, collateral-free loans up to ₹5 lakh for micro-enterprises and agro-processing units.",
-      "explanation_en": "The Uttar Pradesh Government notified the Mukhyamantri Yuva Udyami Vikas Abhiyan in Lucknow with an allocation of ₹1,000 crore to finance 1 lakh young entrepreneurs every year (10 lakh over 10 years). Eligible trained youth receive interest-free, collateral-free loans up to ₹5 lakh for micro-enterprises and agro-processing units.",
-      "explanation_hi": "उत्तर प्रदेश सरकार ने लखनऊ में प्रतिवर्ष 1 लाख युवा उद्यमियों (10 वर्षों में 10 लाख) को वित्तपोषित करने हेतु ₹1,000 करोड़ के आवंटन के साथ मुख्यमंत्री युवा उद्यमी विकास अभियान अधिसूचित किया। पात्र प्रशिक्षित युवाओं को सूक्ष्म उद्यमों और कृषि-प्रसंस्करण इकाइयों के लिए ₹5 लाख तक का ब्याज-मुक्त, जमानत-मुक्त ऋण मिलेगा।",
-      "topic": "Uttar Pradesh Special",
-      "subtopic": "Mukhyamantri Yuva Udyami Vikas Abhiyan",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Moderate",
-      "generation_date": "2026-11-13",
-      "fact_key": "stmt2|ev_cffa540580fc|Uttar Pradesh Information Portal|Uttar Pradesh",
-      "semantic_fingerprint": "14f37bcd422c23b8",
-      "validation_status": "pending"
+    "whichministryorganisationisresponsibleforimplementingvisitof": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Visit of the Prime Minister of Poland to India "
     },
-    {
-      "mcq_id": "mcq_959fcd3fe108b3c8",
-      "event_id": "ev_66da362aeb59",
-      "source_news_id": "ev_66da362aeb59",
-      "source_url": "https://nabard.org/ridf-sanction-2026",
-      "question_format": "pair_based",
-      "question": "With reference to recent current affairs, which of the following pairs is correctly matched? Initiative: 'NABARD sanctions ₹1,972 crore financial assistance under Rural In' — Nodal Body: NABARD",
-      "question_en": "With reference to recent current affairs, which of the following pairs is correctly matched? Initiative: 'NABARD sanctions ₹1,972 crore financial assistance under Rural In' — Nodal Body: NABARD",
-      "question_hi": "हालिया करेंट अफेयर्स के संदर्भ में, निम्नलिखित में से कौन-सा युग्म सही सुमेलित है? पहल: 'नाबार्ड (NABARD) ने सूक्ष्म सिंचाई और ग्रामीण सड़कों के लिए ग्राम' — नोडल संस्था: NABARD",
-      "options": [
-        "NABARD sanctions ₹1,972 crore financial assis — NABARD",
-        "NABARD sanctions ₹1,972 crore financial assis — SEBI",
-        "NABARD sanctions ₹1,972 crore financial assis — DRDO",
-        "NABARD sanctions ₹1,972 crore financial assis — Election Commission",
-        "NABARD sanctions ₹1,972 crore financial assis — UPSC"
-      ],
-      "options_en": [
-        "NABARD sanctions ₹1,972 crore financial assis — NABARD",
-        "NABARD sanctions ₹1,972 crore financial assis — SEBI",
-        "NABARD sanctions ₹1,972 crore financial assis — DRDO",
-        "NABARD sanctions ₹1,972 crore financial assis — Election Commission",
-        "NABARD sanctions ₹1,972 crore financial assis — UPSC"
-      ],
-      "options_hi": [
-        "NABARD sanctions ₹1,972 crore financial assis — NABARD",
-        "NABARD sanctions ₹1,972 crore financial assis — SEBI",
-        "NABARD sanctions ₹1,972 crore financial assis — DRDO",
-        "NABARD sanctions ₹1,972 crore financial assis — Election Commission",
-        "NABARD sanctions ₹1,972 crore financial assis — UPSC"
-      ],
-      "answer": "A",
-      "correct_answer": "A",
-      "answer_value": "NABARD sanctions ₹1,972 crore financial assis — NABARD",
-      "explanation": "The National Bank for Agriculture and Rural Development (NABARD) sanctioned ₹1,972 crore under the Rural Infrastructure Development Fund (RIDF) to bolster rural drinking water supply, micro-irrigation canals, and all-weather rural connectivity bridges across agrarian districts.",
-      "explanation_en": "The National Bank for Agriculture and Rural Development (NABARD) sanctioned ₹1,972 crore under the Rural Infrastructure Development Fund (RIDF) to bolster rural drinking water supply, micro-irrigation canals, and all-weather rural connectivity bridges across agrarian districts.",
-      "explanation_hi": "राष्ट्रीय कृषि और ग्रामीण विकास बैंक (नाबार्ड) ने कृषि प्रधान जिलों में ग्रामीण पेयजल आपूर्ति, सूक्ष्म सिंचाई नहरों और ग्रामीण संपर्क पुलों को सुदृढ़ करने के लिए ग्रामीण अवसंरचना विकास निधि (RIDF) के अंतर्गत ₹1,972 करोड़ की वित्तीय सहायता स्वीकृत की है।",
-      "topic": "Agriculture & Rural Development",
-      "subtopic": "NABARD sanctions ₹1,972 crore financial assistance",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Difficult",
-      "generation_date": "2026-11-13",
-      "fact_key": "pair|ev_66da362aeb59|NABARD",
-      "semantic_fingerprint": "959fcd3fe108b3c8",
-      "validation_status": "pending"
+    "whichministryorganisationisresponsibleforimplementingdstscie": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"DST - Scientific Programmes - Department of Sci"
     },
-    {
-      "mcq_id": "mcq_fd9f54409539a2a3",
-      "event_id": "ev_efa89820593b",
-      "source_news_id": "ev_efa89820593b",
-      "source_url": "https://www.isro.gov.in/EOS08_SSLVD3_Mission.html",
-      "question_format": "statement_based_2",
-      "question": "Consider the following statements regarding 'ISRO successfully launches EOS-08 Earth Observation Satellite aboard SSLV-D3 from Satish Dhawan Space Centre in Sriharikota': 1. It is associated with ISRO. 2. Its primary implementation focus includes India. Which of the statements given above is/are correct?",
-      "question_en": "Consider the following statements regarding 'ISRO successfully launches EOS-08 Earth Observation Satellite aboard SSLV-D3 from Satish Dhawan Space Centre in Sriharikota': 1. It is associated with ISRO. 2. Its primary implementation focus includes India. Which of the statements given above is/are correct?",
-      "question_hi": "'इसरो (ISRO) ने श्रीहरिकोटा के सतीश धवन अंतरिक्ष केंद्र से SSLV-D3 द्वारा EOS-08 पृथ्वी अवलोकन उपग्रह का सफल प्रक्षेपण किया' के संदर्भ में निम्नलिखित कथनों पर विचार कीजिए: 1. यह ISRO से संबंधित है। 2. इसका प्रमुख क्रियान्वयन क्षेत्र India से जुड़ा है। उपर्युक्त में से कौन-सा/से कथन सही है/हैं?",
-      "options": [
-        "Only 1 / केवल 1",
-        "Only 2 / केवल 2",
-        "Both 1 and 2 / 1 और 2 दोनों",
-        "Neither 1 nor 2 / न तो 1 और न ही 2",
-        "1 only (Provisional) / केवल 1 (अनंतिम)"
-      ],
-      "options_en": [
-        "Only 1",
-        "Only 2",
-        "Both 1 and 2",
-        "Neither 1 nor 2",
-        "1 only (Provisional)"
-      ],
-      "options_hi": [
-        "केवल 1",
-        "केवल 2",
-        "1 और 2 दोनों",
-        "न तो 1 और न ही 2",
-        "केवल 1 (अनंतिम)"
-      ],
-      "answer": "C",
-      "correct_answer": "C",
-      "answer_value": "Both 1 and 2",
-      "explanation": "The Indian Space Research Organisation (ISRO) completed the third developmental flight SSLV-D3 from Sriharikota, placing the 175.5 kg EOS-08 Earth Observation micro-satellite into a 475 km circular Low Earth Orbit. EOS-08 carries Electro Optical Infrared (EOIR) and GNSS-Reflectometry payloads for soil moisture and flood monitoring.",
-      "explanation_en": "The Indian Space Research Organisation (ISRO) completed the third developmental flight SSLV-D3 from Sriharikota, placing the 175.5 kg EOS-08 Earth Observation micro-satellite into a 475 km circular Low Earth Orbit. EOS-08 carries Electro Optical Infrared (EOIR) and GNSS-Reflectometry payloads for soil moisture and flood monitoring.",
-      "explanation_hi": "भारतीय अंतरिक्ष अनुसंधान संगठन (ISRO) ने श्रीहरिकोटा से तीसरी विकासात्मक उड़ान SSLV-D3 को सफलतापूर्वक पूरा करते हुए 175.5 किलोग्राम के EOS-08 पृथ्वी अवलोकन माइक्रो-सैटेलाइट को 475 किमी की वृत्ताकार कक्षा में स्थापित किया। इसमें मृदा नमी और बाढ़ निगरानी के लिए EOIR और GNSS-Reflectometry पेलोड लगे हैं।",
-      "topic": "Science & Technology",
-      "subtopic": "ISRO successfully launches EOS-08 Earth Observatio",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Easy",
-      "generation_date": "2026-11-13",
-      "fact_key": "stmt2|ev_efa89820593b|ISRO|India",
-      "semantic_fingerprint": "fd9f54409539a2a3",
-      "validation_status": "pending"
+    "whichministryorganisationisresponsibleforimplementingsportsa": {
+      "count": 2,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"- Sports Authority of India\"?"
     },
-    {
-      "mcq_id": "mcq_40eb6407cb7167c8",
-      "event_id": "ev_154dcd330be4",
-      "source_news_id": "ev_154dcd330be4",
-      "source_url": "https://icar.org.in/109-crop-varieties-2026",
-      "question_format": "statement_based_2",
-      "question": "Consider the following statements regarding 'ICAR releases 109 biofortified and climate-resilient crop varieties across 61 field and horticultural crops in New Delhi': 1. It is associated with ICAR. 2. Its primary implementation focus includes New Delhi. Which of the statements given above is/are correct?",
-      "question_en": "Consider the following statements regarding 'ICAR releases 109 biofortified and climate-resilient crop varieties across 61 field and horticultural crops in New Delhi': 1. It is associated with ICAR. 2. Its primary implementation focus includes New Delhi. Which of the statements given above is/are correct?",
-      "question_hi": "'आईसीएआर (ICAR) ने नई दिल्ली में 61 खेत और बागवानी फसलों की 109 बायोफोर्टिफाइड और जलवायु-अनुकूली किस्में जारी कीं' के संदर्भ में निम्नलिखित कथनों पर विचार कीजिए: 1. यह ICAR से संबंधित है। 2. इसका प्रमुख क्रियान्वयन क्षेत्र New Delhi से जुड़ा है। उपर्युक्त में से कौन-सा/से कथन सही है/हैं?",
-      "options": [
-        "Only 1 / केवल 1",
-        "Only 2 / केवल 2",
-        "Both 1 and 2 / 1 और 2 दोनों",
-        "Neither 1 nor 2 / न तो 1 और न ही 2",
-        "1 only (Provisional) / केवल 1 (अनंतिम)"
-      ],
-      "options_en": [
-        "Only 1",
-        "Only 2",
-        "Both 1 and 2",
-        "Neither 1 nor 2",
-        "1 only (Provisional)"
-      ],
-      "options_hi": [
-        "केवल 1",
-        "केवल 2",
-        "1 और 2 दोनों",
-        "न तो 1 और न ही 2",
-        "केवल 1 (अनंतिम)"
-      ],
-      "answer": "C",
-      "correct_answer": "C",
-      "answer_value": "Both 1 and 2",
-      "explanation": "The Indian Council of Agricultural Research (ICAR) released 109 high-yielding, climate-resilient, and biofortified seed varieties covering 61 crops in New Delhi, including 34 field crops (cereals, millets, pulses, oilseeds) and 27 horticultural crops rich in zinc, iron, and protein.",
-      "explanation_en": "The Indian Council of Agricultural Research (ICAR) released 109 high-yielding, climate-resilient, and biofortified seed varieties covering 61 crops in New Delhi, including 34 field crops (cereals, millets, pulses, oilseeds) and 27 horticultural crops rich in zinc, iron, and protein.",
-      "explanation_hi": "भारतीय कृषि अनुसंधान परिषद (ICAR) ने नई दिल्ली में 61 फसलों की 109 उच्च उपज वाली, जलवायु-सहिष्णु और बायोफोर्टिफाइड किस्में जारी कीं, जिनमें 34 खेत की फसलें (अनाज, श्री अन्न, दलहन, तिलहन) और 27 बागवानी फसलें शामिल हैं।",
-      "topic": "Agriculture & Rural Development",
-      "subtopic": "ICAR releases 109 biofortified and climate-resilie",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Moderate",
-      "generation_date": "2026-11-13",
-      "fact_key": "stmt2|ev_154dcd330be4|ICAR|New Delhi",
-      "semantic_fingerprint": "40eb6407cb7167c8",
-      "validation_status": "pending"
+    "whichinstitutionorentityiscentrallyfeaturedinjaishankarholds": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Jaishankar holds talks with UAE’s Foreign Minister in Mu"
     },
-    {
-      "mcq_id": "mcq_a809ce37e132dec5",
-      "event_id": "ev_cc8215f81057",
-      "source_news_id": "ev_cc8215f81057",
-      "source_url": "https://moef.gov.in/ramsar-85-sites-2026",
-      "question_format": "numerical_statistical",
-      "question": "What is the verified financial outlay / statistical figure associated with 'Ministry of Environment notifies 3 new Ramsar Sites in Tamil Nadu and Madhya Pradesh, taking India tally to 85 wetlands' announced by Ministry of Environment?",
-      "question_en": "What is the verified financial outlay / statistical figure associated with 'Ministry of Environment notifies 3 new Ramsar Sites in Tamil Nadu and Madhya Pradesh, taking India tally to 85 wetlands' announced by Ministry of Environment?",
-      "question_hi": "Ministry of Environment द्वारा घोषित 'पर्यावरण मंत्रालय (MoEFCC) ने तमिलनाडु और मध्य प्रदेश में 3 नए रामसर स्थल अधिसूचित किए, भारत में कुल संख्या 85 हुई' से संबंधित सत्यापित वित्तीय परिव्यय / सांख्यिकीय आँकड़ा क्या है?",
-      "options": [
-        "13,58,068 hectares",
-        "₹250 crore / ₹250 करोड़",
-        "₹500 crore / ₹500 करोड़",
-        "₹2,500 crore / ₹2,500 करोड़",
-        "₹5,000 crore / ₹5,000 करोड़"
-      ],
-      "options_en": [
-        "13,58,068 hectares",
-        "₹250 crore",
-        "₹500 crore",
-        "₹2,500 crore",
-        "₹5,000 crore"
-      ],
-      "options_hi": [
-        "13,58,068 hectares",
-        "₹250 करोड़",
-        "₹500 करोड़",
-        "₹2,500 करोड़",
-        "₹5,000 करोड़"
-      ],
-      "answer": "A",
-      "correct_answer": "A",
-      "answer_value": "13,58,068 hectares",
-      "explanation": "The Ministry of Environment, Forest and Climate Change (MoEFCC) designated Nanjarayan Bird Sanctuary and Kazhuveli Bird Sanctuary in Tamil Nadu alongside Tawa Reservoir in Madhya Pradesh as Ramsar Sites of International Importance, expanding India's network to 85 sites covering 13,58,068 hectares.",
-      "explanation_en": "The Ministry of Environment, Forest and Climate Change (MoEFCC) designated Nanjarayan Bird Sanctuary and Kazhuveli Bird Sanctuary in Tamil Nadu alongside Tawa Reservoir in Madhya Pradesh as Ramsar Sites of International Importance, expanding India's network to 85 sites covering 13,58,068 hectares.",
-      "explanation_hi": "पर्यावरण, वन और जलवायु परिवर्तन मंत्रालय (MoEFCC) ने तमिलनाडु के नंजरायन पक्षी अभयारण्य और काझुवेली पक्षी अभयारण्य तथा मध्य प्रदेश के तवा जलाशय को अंतर्राष्ट्रीय महत्व के रामसर स्थल के रूप में नामित किया, जिससे भारत में कुल रामसर स्थलों की संख्या 85 (13,58,068 हेक्टेयर) हो गई है।",
-      "topic": "Environment & Ecology",
-      "subtopic": "Ministry of Environment notifies 3 new Ramsar Site",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Moderate",
-      "generation_date": "2026-11-13",
-      "fact_key": "num|ev_cc8215f81057|13,58,068 hectares",
-      "semantic_fingerprint": "a809ce37e132dec5",
-      "validation_status": "pending"
+    "whichministryorganisationisresponsibleforimplementingdepartm": {
+      "count": 2,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"- Department of Science and Technology (DST)\"?"
     },
-    {
-      "mcq_id": "mcq_3871e037c3d0f45e",
-      "event_id": "ev_5bddf21f99ea",
-      "source_news_id": "ev_5bddf21f99ea",
-      "source_url": "https://agriwelfare.gov.in/rabi-msp-notification-2026",
-      "question_format": "assertion_reason",
-      "question": "Assertion (A): CACP and Union Cabinet approve Rabi Marketing Season MSP hike with Rapeseed and Mustard increased by ₹300 per quintal to ₹5,950. Reason (R): This initiative is overseen by CACP under the Agriculture & Rural Development domain. Select the correct code:",
-      "question_en": "Assertion (A): CACP and Union Cabinet approve Rabi Marketing Season MSP hike with Rapeseed and Mustard increased by ₹300 per quintal to ₹5,950. Reason (R): This initiative is overseen by CACP under the Agriculture & Rural Development domain. Select the correct code:",
-      "question_hi": "अभिकथन (A): केंद्रीय मंत्रिमंडल ने रबी विपणन सीजन के लिए न्यूनतम समर्थन मूल्य (MSP) में वृद्धि को मंजूरी दी; सरसों का MSP ₹300 बढ़कर ₹5,950 प्रति क्विंटल हुआ। कारण (R): यह पहल Agriculture & Rural Development क्षेत्र के अंतर्गत CACP द्वारा संचालित है। सही कूट का चयन कीजिए:",
-      "options": [
-        "Both A and R are true, and R is the correct explanation of A / A और R दोनों सत्य हैं, तथा R, A की सही व्याख्या है",
-        "Both A and R are true, but R is not the correct explanation of A / A और R दोनों सत्य हैं, परंतु R, A की सही व्याख्या नहीं है",
-        "A is true, but R is false / A सत्य है, परंतु R असत्य है",
-        "A is false, but R is true / A असत्य है, परंतु R सत्य है",
-        "Both A and R are false / A और R दोनों असत्य हैं"
-      ],
-      "options_en": [
-        "Both A and R are true, and R is the correct explanation of A",
-        "Both A and R are true, but R is not the correct explanation of A",
-        "A is true, but R is false",
-        "A is false, but R is true",
-        "Both A and R are false"
-      ],
-      "options_hi": [
-        "A और R दोनों सत्य हैं, तथा R, A की सही व्याख्या है",
-        "A और R दोनों सत्य हैं, परंतु R, A की सही व्याख्या नहीं है",
-        "A सत्य है, परंतु R असत्य है",
-        "A असत्य है, परंतु R सत्य है",
-        "A और R दोनों असत्य हैं"
-      ],
-      "answer": "A",
-      "correct_answer": "A",
-      "answer_value": "Both A and R are true, and R is the correct explanation of A",
-      "explanation": "Based on recommendations of the Commission for Agricultural Costs and Prices (CACP), the Cabinet Committee on Economic Affairs (CCEA) approved Minimum Support Prices (MSP) for 6 mandated Rabi crops. Wheat MSP was raised by ₹150 per quintal to ₹2,425, while Rapeseed & Mustard saw the highest absolute increase of ₹300 per quintal to ₹5,950.",
-      "explanation_en": "Based on recommendations of the Commission for Agricultural Costs and Prices (CACP), the Cabinet Committee on Economic Affairs (CCEA) approved Minimum Support Prices (MSP) for 6 mandated Rabi crops. Wheat MSP was raised by ₹150 per quintal to ₹2,425, while Rapeseed & Mustard saw the highest absolute increase of ₹300 per quintal to ₹5,950.",
-      "explanation_hi": "कृषि लागत और मूल्य आयोग (CACP) की सिफारिशों के आधार पर आर्थिक मामलों की मंत्रिमंडलीय समिति (CCEA) ने 6 रबी फसलों के न्यूनतम समर्थन मूल्य (MSP) में वृद्धि को मंजूरी दी। गेहूँ का MSP ₹150 बढ़कर ₹2,425 प्रति क्विंटल और रेपसीड व सरसों का MSP सर्वाधिक ₹300 बढ़कर ₹5,950 प्रति क्विंटल निर्धारित किया गया।",
-      "topic": "Agriculture & Rural Development",
-      "subtopic": "CACP and Union Cabinet approve Rabi Marketing Seas",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Difficult",
-      "generation_date": "2026-11-13",
-      "fact_key": "ar|ev_5bddf21f99ea|CACP",
-      "semantic_fingerprint": "3871e037c3d0f45e",
-      "validation_status": "pending"
+    "whichinstitutionorentityiscentrallyfeaturedin2026economicsno": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"2026 Economics Nobel Prize: Putting the humanity in macr"
     },
-    {
-      "mcq_id": "mcq_3fd9b14183b47d5b",
-      "event_id": "ev_ed3f41a776c6",
-      "source_news_id": "ev_ed3f41a776c6",
-      "source_url": "https://drdo.gov.in/lrlacm-flight-test-2026",
-      "question_format": "pair_based",
-      "question": "With reference to recent current affairs, which of the following pairs is correctly matched? Initiative: 'DRDO conducts successful flight test of Long Range Land Attack Cr' — Nodal Body: DRDO",
-      "question_en": "With reference to recent current affairs, which of the following pairs is correctly matched? Initiative: 'DRDO conducts successful flight test of Long Range Land Attack Cr' — Nodal Body: DRDO",
-      "question_hi": "हालिया करेंट अफेयर्स के संदर्भ में, निम्नलिखित में से कौन-सा युग्म सही सुमेलित है? पहल: 'डीआरडीओ (DRDO) ने ओडिशा के चांदीपुर स्थित एकीकृत परीक्षण रेंज से ' — नोडल संस्था: DRDO",
-      "options": [
-        "DRDO conducts successful flight test of Long  — DRDO",
-        "DRDO conducts successful flight test of Long  — SEBI",
-        "DRDO conducts successful flight test of Long  — Election Commission",
-        "DRDO conducts successful flight test of Long  — UPSC",
-        "DRDO conducts successful flight test of Long  — CSIR"
-      ],
-      "options_en": [
-        "DRDO conducts successful flight test of Long  — DRDO",
-        "DRDO conducts successful flight test of Long  — SEBI",
-        "DRDO conducts successful flight test of Long  — Election Commission",
-        "DRDO conducts successful flight test of Long  — UPSC",
-        "DRDO conducts successful flight test of Long  — CSIR"
-      ],
-      "options_hi": [
-        "DRDO conducts successful flight test of Long  — DRDO",
-        "DRDO conducts successful flight test of Long  — SEBI",
-        "DRDO conducts successful flight test of Long  — Election Commission",
-        "DRDO conducts successful flight test of Long  — UPSC",
-        "DRDO conducts successful flight test of Long  — CSIR"
-      ],
-      "answer": "A",
-      "correct_answer": "A",
-      "answer_value": "DRDO conducts successful flight test of Long  — DRDO",
-      "explanation": "The Defence Research and Development Organisation (DRDO) conducted the maiden flight-test of the Long Range Land Attack Cruise Missile (LRLACM) with a range of 1,000 km from a mobile articulated launcher at the Integrated Test Range (ITR), Chandipur off the coast of Odisha, developed by Aeronautical Development Establishment (ADE), Bengaluru.",
-      "explanation_en": "The Defence Research and Development Organisation (DRDO) conducted the maiden flight-test of the Long Range Land Attack Cruise Missile (LRLACM) with a range of 1,000 km from a mobile articulated launcher at the Integrated Test Range (ITR), Chandipur off the coast of Odisha, developed by Aeronautical Development Establishment (ADE), Bengaluru.",
-      "explanation_hi": "रक्षा अनुसंधान एवं विकास संगठन (DRDO) ने ओडिशा के चांदीपुर स्थित एकीकृत परीक्षण रेंज (ITR) से 1,000 किमी की मारक क्षमता वाली लॉन्ग रेंज लैंड अटैक क्रूज मिसाइल (LRLACM) का मोबाइल आर्टिकुलेटेड लॉन्चर से सफल प्रथम उड़ान परीक्षण किया। इसे बेंगलुरु की एयरोनॉटिकल डेवलपमेंट एस्टैब्लिशमेंट (ADE) ने विकसित किया है।",
-      "topic": "Defense & Security",
-      "subtopic": "DRDO conducts successful flight test of Long Range",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Easy",
-      "generation_date": "2026-11-13",
-      "fact_key": "pair|ev_ed3f41a776c6|DRDO",
-      "semantic_fingerprint": "3fd9b14183b47d5b",
-      "validation_status": "pending"
+    "whichministryorganisationisresponsibleforimplementingstateme": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Statement on anti-India references at the Organ"
     },
-    {
-      "mcq_id": "mcq_b1680ec2967a907f",
-      "event_id": "ev_e3537b7aaf67",
-      "source_news_id": "ev_e3537b7aaf67",
-      "source_url": "https://fao.org/food-outlook-nov-2026",
-      "question_format": "direct_factual",
-      "question": "Which institution / ministry is the nodal authority behind the verified development 'FAO releases Global Food Outlook 2026 projecting India rice production at record 138 million tonnes and improved global cereal stocks'?",
-      "question_en": "Which institution / ministry is the nodal authority behind the verified development 'FAO releases Global Food Outlook 2026 projecting India rice production at record 138 million tonnes and improved global cereal stocks'?",
-      "question_hi": "सत्यापित विकास 'एफएओ (FAO) ने ग्लोबल फूड आउटलुक 2026 रिपोर्ट जारी की; भारत का चावल उत्पादन रिकॉर्ड 138 मिलियन टन रहने का अनुमान' के पीछे नोडल प्राधिकरण / मंत्रालय कौन-सा है?",
-      "options": [
-        "FAO",
-        "Ministry of Agriculture & Farmers Welfare / कृषि एवं किसान कल्याण मंत्रालय",
-        "NABARD / नाबार्ड (NABARD)",
-        "ICAR / भारतीय कृषि अनुसंधान परिषद (ICAR)",
-        "Reserve Bank of India (RBI) / भारतीय रिज़र्व बैंक (RBI)"
-      ],
-      "options_en": [
-        "FAO",
-        "Ministry of Agriculture & Farmers Welfare",
-        "NABARD",
-        "ICAR",
-        "Reserve Bank of India (RBI)"
-      ],
-      "options_hi": [
-        "FAO",
-        "कृषि एवं किसान कल्याण मंत्रालय",
-        "नाबार्ड (NABARD)",
-        "भारतीय कृषि अनुसंधान परिषद (ICAR)",
-        "भारतीय रिज़र्व बैंक (RBI)"
-      ],
-      "answer": "A",
-      "correct_answer": "A",
-      "answer_value": "FAO",
-      "explanation": "The Food and Agriculture Organization (FAO) of the United Nations published its biannual Food Outlook report in Rome, projecting global cereal utilization at 2,853 million tonnes and highlighting India's record rice harvest of 138 million tonnes alongside expanded public foodgrain buffer stocks.",
-      "explanation_en": "The Food and Agriculture Organization (FAO) of the United Nations published its biannual Food Outlook report in Rome, projecting global cereal utilization at 2,853 million tonnes and highlighting India's record rice harvest of 138 million tonnes alongside expanded public foodgrain buffer stocks.",
-      "explanation_hi": "संयुक्त राष्ट्र के खाद्य और कृषि संगठन (FAO) ने रोम में अपनी द्विवार्षिक 'फूड आउटलुक' रिपोर्ट प्रकाशित की, जिसमें वैश्विक अनाज उपयोग 2,853 मिलियन टन रहने का अनुमान लगाया गया है और भारत के रिकॉर्ड 138 मिलियन टन चावल उत्पादन को रेखांकित किया गया है।",
-      "topic": "International Affairs",
-      "subtopic": "FAO releases Global Food Outlook 2026 projecting I",
-      "exam_category": "IBPS AFO / NABARD / UPSSSC AGTA / UPSC",
-      "difficulty": "Moderate",
-      "generation_date": "2026-11-13",
-      "fact_key": "org|ev_e3537b7aaf67|FAO",
-      "semantic_fingerprint": "b1680ec2967a907f",
-      "validation_status": "pending"
+    "whichinstitutionorentityiscentrallyfeaturedinharyanasbpsgove": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Haryana’s BPS Government Medical College becomes first I"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincalcuttahcsaysi": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Calcutta HC says inquiry commission headed by retired ju"
+    },
+    "whichministryorganisationisresponsibleforimplementingraksham": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Raksha Mantri Shri Rajnath Singh to represent I"
+    },
+    "whichministryorganisationisresponsibleforimplementinguppanch": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"U.P. Panchayat poll: Is BJP looking to bypass t"
+    },
+    "whichministryorganisationisresponsibleforimplementingbengalu": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Bengaluru–Mumbai Vande Bharat sleeper train lik"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnehaboratheperm": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Neha Bora | The permanence of agitation\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinrumpsaysmigrant": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"rump says migrants, jihadists and communists are ‘destro"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinamitshahmeetsfa": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Amit Shah meets family of Bikramjit Singh, killed after "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnsuiworkerassau": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"NSUI worker assault: Congress’ overnight protest at Jaip"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedindivisionofenvir": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"DIVISION OF ENVIRONMENTAL SCIENCES ICAR-INDIAN AGRICULTU"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnorthkoreaskimy": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"North Korea's Kim Yo Jong warns South Korea, says border"
+    },
+    "whichministryorganisationisresponsibleforimplementingofficia": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Official visit of H.E. Mr. Donald Tusk, Prime M"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincorrigendumeoie": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Corrigendum - EOI - Empanelment of Support Provider and "
+    },
+    "whichministryorganisationisresponsibleforimplementingministr": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"- Ministry of Environment, Forest and Climate C"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinuntitledicarind": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Untitled - ICAR-indian agricultural research institute\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinjamiaformscommi": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Jamia forms committee to draft students' union constitut"
+    },
+    "whichministryorganisationisresponsibleforimplementingshrichi": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Shri Chinmoy Naik concurrently accredited as th"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincorrigendumagri": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"CORRIGENDUM AGRIM Unit, ICAR PUSA, NEW DELHI – 110012 Wi"
+    },
+    "withreferencetokukizogroupsdemandreimpositionofpresidentsrul": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "statement",
+      "q": "With reference to \"Kuki-Zo groups demand reimposition of President’s Rule in Manipur\", which of the following "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinacgscopyawardpr": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"‘ACG-SCOPY Award’ presented to MedIndia Hospitals\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinonsongindialook": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"On-song India look to beat travel fatigue in T20 series-"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinaapallegescorru": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"AAP alleges corruption in DJB on spraying of anti-frothi"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedindphcontinuesden": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"DPH continues dengue surveillance, school environments i"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinribalheldforpos": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"ribal held for possession of country-made gun, explosive"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinbjdslamsbjpforp": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"BJD slams BJP for personal attack on Naveen over his dem"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinharyanacongress": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Haryana Congress flays BJP government over its failure t"
+    },
+    "withreferencetosaudiauthoritiessaytwokilledbyfallingdebrisat": {
+      "count": 1,
+      "last_seen": "2026-10-22",
+      "type": "statement",
+      "q": "With reference to \"Saudi authorities say two killed by falling debris at oil facility\", which of the following"
+    },
+    "whichministryorganisationisresponsibleforimplementingdivisio": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Division of Vegetable Science ICAR-lndian Agric"
+    },
+    "whichministryorganisationisresponsibleforimplementinginaugur": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Inaugural India–Canada Migration and Mobility D"
+    },
+    "whichministryorganisationisresponsibleforimplementingtendern": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Tender No. 02-08030(01)/4/2025-JNS(HO)(II) date"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedineverymonththere": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Every month there is anew tragedy and audit, says ; BJP "
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithgovernmentofi": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Government of India Provides US to Sri Lanka\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinamidallegedliqu": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Amid alleged liquor deaths in ’s Dewas, police nab 10 fo"
+    },
+    "whichministryorganisationisresponsibleforimplementingmeavisi": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"MEA | Visits | Incoming Visit | Visit Detail\"?"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithfiftyyearsago": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Fifty years ago | Foreign bank accounts: 400 cases"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithareadysolutio": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"A ready solution to tackle anaemia\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinmaharashtrawill": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Maharashtra will prioritise its own interest on Telangan"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinkhargesremarkso": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Kharge’s remarks on reflects desperation: BJP\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinveryseverecyclo": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Very severe cyclone ‘Arnab’ to make landfall along Andhr"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedininspectsyamunac": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"inspects Yamuna cruise trial run ahead of Nov. launch\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinsfenceacybersec": {
+      "count": 1,
+      "last_seen": "2026-10-27",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"’s fence, a cybersecurity challenge\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinmorningdigestpl": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Morning Digest: places next-generation navigation satell"
+    },
+    "whichministryorganisationisresponsibleforimplementing12throu": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"12th round of India-Armenia Foreign Office Cons"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithbeyondgullibi": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Beyond gullibility: On digital arrest scams\"?"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithjapansomronhe": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Japan’s Omron Healthcare opens first India manufac"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedin03launchedsucce": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"03 launched successfully; satellite placed in intended o"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinkarnatakahighco": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Karnataka High Court to nominate new head for to probe K"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithheavypollingi": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Heavy polling in second phase panchayat elections "
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithdelhiblostore": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Delhi BLOs to record reasons for removing names of"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincallsforprotect": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"calls for protecting Vembanad lake system\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedindamagesroadswas": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"damages roads, washes away bridge in Bhutan\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedin17issue15dayult": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"17 issue 15-day ultimatum to address ‘coterie culture’, "
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithelectorsdelet": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"electors deleted in Kolkata; West Bengal Congress "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinhighcourtdirect": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"High Court directs to collect charges from autonomous co"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinmansetshouseabl": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Man sets house ablaze; firefighter injured in cylinder b"
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithsevenpackaged": {
+      "count": 1,
+      "last_seen": "2026-10-31",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"Seven packaged drinking water units closed for vio"
+    },
+    "whichlocationhasbeennotifiedasindiasfirstorganicfisheriesclu": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which location has been notified as India's first Organic Fisheries Cluster under the Pradhan Mantri Matsya Sa"
+    },
+    "whichorganisationisassociatedwiththenewsipofundraisingrises3": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"IPO fundraising rises 30% to record ₹84,400 crore in H1FY27: R"
+    },
+    "whichcitywasselectedfortheestablishmentoftheskillindiaintern": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which city was selected for the establishment of the Skill India International Centre following an MoU signed "
+    },
+    "howmanynextgenerationcorvettesfortheindiannavyaretobeprocure": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "How many Next Generation Corvettes for the Indian Navy are to be procured under the contracts worth Rs 53,866."
+    },
+    "whohasbeenappointedasthenextambassadorofindiatotherepublicof": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Who has been appointed as the next Ambassador of India to the Republic of Senegal?"
+    },
+    "whichorganisationisassociatedwiththenewsmodinksrs4106croreco": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"MoD inks Rs 4,106 crore contracts for GSAT-7C communication sa"
+    },
+    "whichorganisationisassociatedwiththenewsncscinterventionresu": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"NCSC Intervention Results in Mandatory Reporting of SC Benefic"
+    },
+    "inwhichdistrictofbihardidthenhrcrecentlytakesuomotucognizanc": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "In which district of Bihar did the NHRC recently take suo motu cognizance of a dilapidated Government Primary "
+    },
+    "whichauthorityhasbeenapprovedbythecabinetforsettingupaccordi": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which authority has been approved by the Cabinet for setting up according to recent government updates?"
+    },
+    "accordingtotheofficialbulletinfromtheindiameteorologicaldepa": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "According to the official bulletin from the India Meteorological Department, near which place did the landfall"
+    },
+    "wherewasthebharatrenewableenergysummitexpoinauguratedwhereth": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Where was the Bharat Renewable Energy Summit & Expo inaugurated, where the Prime Minister delivered an address"
+    },
+    "whicheventrecentlycalledforhigherproductivityinnovativebreed": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which event recently called for higher productivity, innovative breeding and farmer-centric research?"
+    },
+    "inwhichvillageofthesouthernzaporizhzhiaregiondidtherussianst": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "In which village of the southern Zaporizhzhia region did the Russian strikes on an aid centre and shelter occu"
+    },
+    "thenewsamitshahbackssiralleges3croreillegalinfiltratorsident": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "place-state",
+      "q": "The news \"Amit Shah backs SIR, alleges 3 crore ‘illegal infiltrators’ identified in 13 crore deleted voters\" i"
+    },
+    "whichsummitwasinauguratedbytheprimeministerin2026": {
+      "count": 1,
+      "last_seen": "2026-11-03",
+      "type": "llm-schema",
+      "q": "Which summit was inaugurated by the Prime Minister in 2026?"
+    },
+    "whichresearchinstitutescultivarsarefeaturedonthekisansarathi": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which research institute's cultivars are featured on the Kisan Sarathi Platform?"
+    },
+    "whichindianregulatorisresponsibleforsettingtheprioritysector": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which Indian regulator is responsible for setting the Priority Sector Lending (PSL) quotas for banks?"
+    },
+    "whatisthebudgetallocationannouncedforthevetrilaptopschemeint": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "What is the budget allocation announced for the Vetri Laptop Scheme in the 2026-27 Tamil Nadu budget?"
+    },
+    "whichsubsidiariesareincludedalongsidetheparentfirmintheborro": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which subsidiaries are included alongside the parent firm in the borrowings intended to be repaid using the pr"
+    },
+    "whichofthefollowingdetailsarementionedaspartofthestrategyfor": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which of the following details are mentioned as part of the strategy for achieving self-reliance in protein cr"
+    },
+    "whichofthefollowingcategoriesincludesthelegislativemeasurere": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which of the following categories includes the legislative measure recently discussed in official government u"
+    },
+    "whichbodyrecommendstheminimumsupportpricemspofnotifiedcropst": {
+      "count": 8,
+      "last_seen": "2026-11-13",
+      "type": "concept",
+      "concept_id": "msp",
+      "q": "Which body recommends the Minimum Support Price (MSP) of notified crops to the Government of India?",
+      "published": true
+    },
+    "alongwithroadsandhealthwhichothersectoriscoveredunderthenewl": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Along with roads and health, which other sector is covered under the newly announced credit line for Guyana me"
+    },
+    "whichinstitutionbasedinmumbairecentlyoperationalisedthecbdtc": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which institution based in Mumbai recently operationalised the CBDT-CAG Memorandum of Understanding through a "
+    },
+    "whichcentralschemewasmentionedbythejanasenapartypresidentasb": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which central scheme was mentioned by the Jana Sena Party president as being utilized to supply drinking water"
+    },
+    "whichmultilateralresearchandinnovationframeworkprogrammehasr": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which multilateral research and innovation framework programme has recently concluded negotiations for India t"
+    },
+    "withwhichunitednationsorgandoesthesustainabledevelopmentcoun": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "With which United Nations organ does the Sustainable Development Council hold Special Consultative Status?"
+    },
+    "whichunionterritorysgovernmentannounceda5annualincrementfore": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which Union Territory's government announced a 5% annual increment for eligible contractual employees under th"
+    },
+    "whicheventwasrecentlyorganizedtorecognizethecontributionsofm": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which event was recently organized to recognize the contributions of medical professionals in Jammu?"
+    },
+    "whichphraseismentionedinthepibreleaseconcerningthe2026legisl": {
+      "count": 1,
+      "last_seen": "2026-11-08",
+      "type": "llm-schema",
+      "q": "Which phrase is mentioned in the PIB release concerning the 2026 legislation on bankers' records?"
+    },
+    "whichcommitteeofthereservebankofindiahasbeendirectedtoconcen": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which committee of the Reserve Bank of India has been directed to concentrate on critical policy and operation"
+    },
+    "whichcountrysfreetradeagreementwascitedashelpingindiaachieve": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which country's free trade agreement was cited as helping India achieve a record export value in FY26?"
+    },
+    "whichauthoritygavetheapprovalforthepmdharaschemeforgreenener": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which authority gave the approval for the PM‑DHARA scheme for green energy transmission?"
+    },
+    "whichindividualdidpresidentdonaldtrumpappointashischiefofsta": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which individual did President Donald Trump appoint as his chief of staff on November 6, 2026?"
+    },
+    "whichorganizationiscreditedwiththecultivarshighlightedinthep": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Which organization is credited with the cultivars highlighted in the PIB’s “New Era of Indian Agriculture and "
+    },
+    "duringthediwalicelebrationinbastarprimeministernarendramodid": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "During the Diwali celebration in Bastar, Prime Minister Narendra Modi distributed sweets at the camp of which "
+    },
+    "inwhichindianstatedidthefisheriessecretaryengagetilapiafarme": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "In which Indian state did the Fisheries Secretary engage tilapia farmers to chart an export‑oriented cluster d"
+    },
+    "thenewsestablishestinkeringlabtakingsupportfromindiasatalinn": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "place-country",
+      "q": "The news \"establishes Tinkering Lab taking support from India’s Atal Innovation Mission\" involves which countr"
+    },
+    "whowasgiventhefirstopportunitybypresidentisaacherzogtoformth": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "Who was given the first opportunity by President Isaac Herzog to form the next Israeli government after the No"
+    },
+    "inwhichtexascitydidstatebankofindiacaliforniaopenitsfirstbra": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "In which Texas city did State Bank of India (California) open its first branch outside California?"
+    },
+    "accordingtothearticleinvestorsarecloselytrackinginflationdat": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "According to the article, investors are closely tracking inflation data from which of the following countries?"
+    },
+    "duringthediwaliseasontheprimeministermetwhichconstitutionalo": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "llm-schema",
+      "q": "During the Diwali season, the Prime Minister met which constitutional office‑holder to convey greetings?"
+    },
+    "whichorganisationisassociatedwiththenewsindiahandmadeadigita": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Indiahandmade: A Digital Platform for India's Craft Heritage\"?"
+    },
+    "whichorganisationisassociatedwiththenewsmybharatwheredigital": {
+      "count": 1,
+      "last_seen": "2026-11-09",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"MY Bharat – Where Digital India Meets Young India\"?"
+    },
+    "whichorganisationdevelopedandoperatestheunifiedpaymentsinter": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "concept",
+      "concept_id": "upi",
+      "q": "Which organisation developed and operates the Unified Payments Interface (UPI)?"
+    },
+    "whichofthefollowingisaprimarycomponentassociatedwiththeimple": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following is a primary component associated with the implementation of the newly announced agricu"
+    },
+    "whichgovernmentbodyisresponsibleforconductingdiplomaticdialo": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which government body is responsible for conducting diplomatic dialogues and managing bilateral relations with"
+    },
+    "whichofthefollowingisafunctionofthereservebankofindiaasmenti": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following is a function of the Reserve Bank of India, as mentioned in recent news regarding retai"
+    },
+    "whichofthefollowingbodiesreplacedtheplanningcommissionofindi": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following bodies replaced the Planning Commission of India?"
+    },
+    "atwhichindiannavyestablishmentwillthepassingoutparadeofthela": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "At which Indian Navy establishment will the passing out parade of the largest batch of Agniveers be conducted?"
+    },
+    "whichindianministryissuedthejointpressreleaseforthe7thindiae": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which Indian ministry issued the joint press release for the 7th India‑EU Strategic Partnership Review Meeting"
+    },
+    "theincentiveschemeforpromotionofdomesticpngconnectionsaddres": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "The Incentive Scheme for Promotion of Domestic PNG Connections addresses which key aspects?"
+    },
+    "whichofthefollowingaspectswashighlightedinthenewsregardingth": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which of the following aspects was highlighted in the news regarding the launch of the ‘Nasha Mukt Yuva for Vi"
+    },
+    "whatisthedailydatalimitprovidedtostudentsunderthenewlyapprov": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "What is the daily data limit provided to students under the newly approved educational digital initiative in O"
+    },
+    "whichukrainianheadofstatedidindiasheadofgovernmentspeakwitha": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "Which Ukrainian head of state did India's head of government speak with, as reported in the PIB release?"
+    },
+    "inwhichindianstateisthecityofjagdalpurlocatedwherearecentpub": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "llm-schema",
+      "q": "In which Indian state is the city of Jagdalpur located, where a recent public programme was attended by the Pr"
+    },
+    "whichorganisationisassociatedwiththenewsdikshapoweringindias": {
+      "count": 1,
+      "last_seen": "2026-11-10",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"DIKSHA: Powering India's Digital Learning Ecosystem\"?"
+    },
+    "bywhatpercentagediduscoreinflationriseinoctoberaccordingtoth": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "By what percentage did US core inflation rise in October, according to the recent report?",
+      "published": true
+    },
+    "thenewssaleofriceunderopenmarketsaleschemedomesticbyfciregio": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "place-state",
+      "q": "The news \"Sale of Rice under Open Market Sale Scheme (Domestic) by FCI, Regional Office\" is related to which S",
+      "published": true
+    },
+    "whichauthorityinodishaisresponsibleforapprovinglargescalepow": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which authority in Odisha is responsible for approving large‑scale power projects?",
+      "published": true
+    },
+    "whichministryinindiaconductstheforeignofficeconsultationswit": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which ministry in India conducts the foreign office consultations with Ecuador?",
+      "published": true
+    },
+    "thenewschartsanationalroadmapformilletledagriculturaltransfo": {
+      "count": 2,
+      "last_seen": "2026-11-11",
+      "type": "place-state",
+      "q": "The news \"charts a National Roadmap for Millet led Agricultural Transformation\" is related to which State / Un",
+      "published": true
+    },
+    "howmanyapplicationswerereceivedfromntpclimitedduringtheconcl": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "How many applications were received from NTPC Limited during the conclusion of Round 2 of the Scheme for Promo",
+      "published": true
+    },
+    "whichentityhasbeeninvitedbyluxembourgtoshareindiasolympicedu": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which entity has been invited by Luxembourg to share India's Olympic education experience for its national pro",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsmaharashtrafarmersse": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Maharashtra farmers seek uniform sugarcane price, ₹2 lakh loan",
+      "published": true
+    },
+    "whichofthefollowingisassociatedwiththeschemeforwhichfreshapp": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which of the following is associated with the scheme for which fresh applications have been invited as per rec",
+      "published": true
+    },
+    "accordingtotherecentreporthowmanydistrictsacrossvariousstate": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "According to the recent report, how many districts across various states have been identified by the governmen",
+      "published": true
+    },
+    "whichofthefollowingdetailsareassociatedwiththepmedrivescheme": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which of the following details are associated with the PM E-DRIVE Scheme as per the official release?",
+      "published": true
+    },
+    "whichstateexperiencedsignificantagriculturaldamageacross461l": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which state experienced significant agricultural damage across 4.61 lakh hectares due to severe cyclonic distu",
+      "published": true
+    },
+    "underwhichnationwideinitiativearecitizensinvitedtoregisteras": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Under which nationwide initiative are citizens invited to register as Vayo SAATHI Volunteers?",
+      "published": true
+    },
+    "whichindianagencyhascompletedthekeysystemsandinfrastructuref": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which Indian agency has completed the key systems and infrastructure for the Gaganyaan mission as reported?",
+      "published": true
+    },
+    "whoannouncestheminimumsupportpricemspfornotifiedcropsinindia": {
+      "count": 2,
+      "last_seen": "2026-11-11",
+      "type": "concept",
+      "concept_id": "msp",
+      "q": "Who announces the Minimum Support Price (MSP) for notified crops in India?",
+      "published": true
+    },
+    "whichstatescabinetrecentlyapprovedaproposalforapumpedstorage": {
+      "count": 2,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which state's cabinet recently approved a proposal for a pumped storage power project worth Rs 4,708-crore?",
+      "published": true
+    },
+    "whichresearchcouncilscultivarsarehighlightedinthediscussiono": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which research council's cultivars are highlighted in the discussion on region‑specific farm strategy?",
+      "published": true
+    },
+    "whichindianorganizationwasinvitedbyluxembourgtoshareitsolymp": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which Indian organization was invited by Luxembourg to share its Olympic education experience for the Luxembou",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsgaganyaanmissionreac": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Gaganyaan mission reaches advanced stage as completes key syst",
+      "published": true
+    },
+    "whichairlinepartneredwithindiapostforthedigitaldetox20initia": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which airline partnered with India Post for the Digital Detox 2.0 initiative?",
+      "published": true
+    },
+    "underthebiharkibetistartupchallengeschemehowmanyfemalestuden": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Under the Bihar Ki Beti Startup Challenge Scheme, how many female students are slated to receive benefits star",
+      "published": true
+    },
+    "whichorganizationwasspecificallymentionedalongsidedrdobreakt": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which organization was specifically mentioned alongside DRDO breakthroughs regarding defense procurements and ",
+      "published": true
+    },
+    "whatwasthetotalamountpaidincommissionsbyindias10largestasset": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "What was the total amount paid in commissions by India's 10 largest asset management houses during the financi",
+      "published": true
+    },
+    "thejaljeevanmissionaimstoprovidewhichofthefollowingtoeveryru": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "concept",
+      "concept_id": "jjm",
+      "q": "The Jal Jeevan Mission aims to provide which of the following to every rural household?",
+      "published": true
+    },
+    "whichinstitutionscultivarsandkeycropstatisticswerefeaturedal": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which institution's cultivars and key crop statistics were featured alongside central agricultural schemes dur",
+      "published": true
+    },
+    "whichregionalofficeofthefoodcorporationofindiaisassociatedwi": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which regional office of the Food Corporation of India is associated with the domestic sale of rice under the ",
+      "published": true
+    },
+    "whichdistinguishednationalinstitutionisresponsibleforpresent": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which distinguished national institution is responsible for presenting the prestigious fellowships and honors ",
+      "published": true
+    },
+    "whichcountryhasinvitedbcoretoshareitsolympiceducationexperie": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which country has invited BCORE to share its Olympic education experience from India for its national programm",
+      "published": true
+    },
+    "whichschemehasrecentlyinvitedfreshapplicationsaccordingtothe": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which scheme has recently invited fresh applications according to the Press Information Bureau release?",
+      "published": true
+    },
+    "whichinitiativesdetailsregardingimplementingministriesfinanc": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which initiative's details regarding implementing ministries, financial outlays, target demographics, and flag",
+      "published": true
+    },
+    "whichinitiativehasinvitedcitizenstoregisterasvolunteerstosup": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which initiative has invited citizens to register as volunteers to support senior citizens under the recently ",
+      "published": true
+    },
+    "whichorganizationisresponsibleforimplementingthegaganyaanpro": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which organization is responsible for implementing the Gaganyaan project mentioned in the news?",
+      "published": true
+    },
+    "whatisthenumericaldesignationassignedtotherefreshednutrition": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "What is the numerical designation assigned to the refreshed nutrition delivery initiative mentioned in the new",
+      "published": true
+    },
+    "whichairlinecollaboratedwithindiaposttoexecutethedigitaldeto": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which airline collaborated with India Post to execute the Digital Detox initiative across selected flights?",
+      "published": true
+    },
+    "accordingtotherecentreportreleasedbymoodysratingswhichfactor": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "According to the recent report released by Moody's Ratings, which factor alongside higher financing costs is e",
+      "published": true
+    },
+    "whichnationalspaceagencyofindiaestablishedin1969andheadquart": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which national space agency of India, established in 1969 and headquartered in Bengaluru, operates under the D",
+      "published": true
+    },
+    "whichunionministryisthenodalagencyresponsibleforimplementing": {
+      "count": 1,
+      "last_seen": "2026-11-11",
+      "type": "llm-schema",
+      "q": "Which Union Ministry is the nodal agency responsible for implementing the Jal Jeevan Mission in India?",
+      "published": true
+    },
+    "whichbodyisresponsibleforrecommendingtheminimumsupportpricem": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which body is responsible for recommending the Minimum Support Price (MSP) for agricultural crops in India?",
+      "published": true
+    },
+    "whichspecificarchitecturalstructuresinthenationalcapitalareb": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which specific architectural structures in the national capital are being repurposed for the establishment of ",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsfarmfireincidentsfal": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Farm-fire incidents fall 11.5% across six northern states to 9",
+      "published": true
+    },
+    "whichorganizationalongsideamulrecentlyannouncedanincreaseint": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which organization, alongside Amul, recently announced an increase in the retail cost of fresh milk pouches?",
+      "published": true
+    },
+    "underthefiveyearextensionapprovedbytheunioncabinetforfinanci": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Under the five-year extension approved by the Union Cabinet for financial support to SC, ST, and women entrepr",
+      "published": true
+    },
+    "whichorganizationhasjurisdictionoverthegreattrigonometricals": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which organization has jurisdiction over the Great Trigonometrical Survey stations in Tamil Nadu?",
+      "published": true
+    },
+    "thecommissionforagriculturalcostsandpricescacpworksunderwhic": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "concept",
+      "concept_id": "msp",
+      "q": "The Commission for Agricultural Costs and Prices (CACP) works under which Union Ministry?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsinflationseenhitting": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Inflation seen hitting 6% ceiling in October, putting rate pol",
+      "published": true
+    },
+    "whichbodyismandatedtorecommendtheminimumsupportpricesmspfora": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which body is mandated to recommend the Minimum Support Prices (MSP) for agricultural crops in India?",
+      "published": true
+    },
+    "thenewsmanwins15crorelotteryadayafterdaughterbarkatsbirthwew": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "place-state",
+      "q": "The news \"man wins ₹1.5 crore lottery a day after daughter Barkat's birth: ‘We wanted a boy\" is related to whi",
+      "published": true
+    },
+    "by2030whattargethasindiasetforitsnonfossilpowergenerationcap": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "By 2030, what target has India set for its non-fossil power generation capacity?",
+      "published": true
+    },
+    "whatistheindicativeissuepricepersharethatbajajfinancesetfori": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "What is the indicative issue price per share that Bajaj Finance set for its Qualified Institutional Placement ",
+      "published": true
+    },
+    "whichinstitutionsmonetarypolicyreviewswerementionedinthenews": {
+      "count": 1,
+      "last_seen": "2026-11-12",
+      "type": "llm-schema",
+      "q": "Which institution’s monetary policy reviews were mentioned in the news article?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsretailinflationat609": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Retail inflation at 6.09% in October, breaches upper band afte",
+      "published": true
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinretailinflation": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Retail inflation at 6.09% in October, breaches 's upper ",
+      "published": true
+    },
+    "whichfundisfinancingthedigitalparkconstructionworkthattheker": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which fund is financing the digital park construction work that the Kerala government is set to inaugurate?",
+      "published": true
+    },
+    "whichindianagencyconductedthenaseemalbahrseabreezeexercisewi": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which Indian agency conducted the 'Naseem Al Bahr (Sea Breeze)' exercise with Oman?",
+      "published": true
+    },
+    "thenewsindiastbdeathsfall38since2015outpacingglobaldeclinewh": {
+      "count": 2,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"India’s TB deaths fall 38% since 2015, outpacing global decline: WHO report\" is related to which Sta",
+      "published": true
+    },
+    "thenewshowtoinvestabroadthroughgiftcityastepbystepguideisrel": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"How to invest abroad through GIFT City: A step-by-step guide\" is related to which State / Union Terr",
+      "published": true
+    },
+    "asofthelatestupdatewhichroundofnegotiationshasbeenconductedb": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "As of the latest update, which round of negotiations has been conducted between India and Canada for the Compr",
+      "published": true
+    },
+    "whichofthefollowingaspectswasspecificallyhighlightedintherep": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which of the following aspects was specifically highlighted in the report on the PLI schemes released recently",
+      "published": true
+    },
+    "thenewscabinetapprovesyugeyugeenbharatmuseumpmmodisaysitwill": {
+      "count": 2,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"Cabinet approves Yuge Yugeen Bharat Museum; PM Modi says it will transform into global centre of cul",
+      "published": true
+    },
+    "whichinstitutionsuppertolerancelimitwasbreachedbyindiasretai": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which institution's upper tolerance limit was breached by India's retail inflation in October 2026?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsviewindiasoctoberret": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"VIEW India's October retail inflation at 6.09% on-year\"?",
+      "published": true
+    },
+    "whichcountrywasspecificallymentionedinthereportashavingitstr": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which country was specifically mentioned in the report as having its trade with India boosted by recent FTAs i",
+      "published": true
+    },
+    "whatisthetotalfinancialoutlayapprovedbythecabinetforthenewof": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "What is the total financial outlay approved by the Cabinet for the new offshore oil and gas exploration initia",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsindiastbdeathsfall38": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"India’s TB deaths fall 38% since 2015, outpacing global declin",
+      "published": true
+    },
+    "thenewsinculminationof10yearsofdedicatedeffortsunionenvironm": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "place-state",
+      "q": "The news \"In culmination of 10 years of dedicated efforts, Union Environment Minister and CM () initiate the p",
+      "published": true
+    },
+    "whichbodyreleasedthereporttitledimpactassessmentofplischemes": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which body released the report titled \"Impact Assessment of PLI Schemes\"?",
+      "published": true
+    },
+    "whichbodyisresponsibleforissuingtheminimumsupportpricemspnot": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which body is responsible for issuing the Minimum Support Price (MSP) notifications mentioned in the Kisan Tak",
+      "published": true
+    },
+    "whichinstitutionisresponsibleforreviewingmonetarypolicyandse": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which institution is responsible for reviewing monetary policy and setting the 6% inflation ceiling in India?",
+      "published": true
+    },
+    "whichofthefollowingmacroeconomicindicatorsandmetricswerehigh": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which of the following macroeconomic indicators and metrics were highlighted alongside the external trade perf",
+      "published": true
+    },
+    "whichinitiativehasbeenapprovedbythecabinetwithafinancialoutl": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which initiative has been approved by the Cabinet with a financial outlay of Rs 84,084 crore to boost offshore",
+      "published": true
+    },
+    "whichculturalinstitutionprojecthasbeenrecentlyapprovedbytheu": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which cultural institution project has been recently approved by the Union Cabinet, as announced via News On A",
+      "published": true
+    },
+    "whatpercentageofindiastbprogrammefundingrequirementsismetthr": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "What percentage of India's TB programme funding requirements is met through domestic resources, as reported in",
+      "published": true
+    },
+    "inwhichprotectedareaofrajasthanwastheprocessforthereleaseofc": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "In which protected area of Rajasthan was the process for the release of captive-bred Great Indian Bustards int",
+      "published": true
+    },
+    "whichorganizationscultivarswerehighlightedduringthekisantakb": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which organization's cultivars were highlighted during the Kisan Tak Bharat Agriculture Conference 2026?",
+      "published": true
+    },
+    "whatisthepercentageceilingsetbythereservebankofindiaforconsu": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "What is the percentage ceiling set by the Reserve Bank of India for consumer price growth that was reported as",
+      "published": true
+    },
+    "whowasappointedasnvidiasinterimchiefexecutiveafterjensenhuan": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Who was appointed as Nvidia's interim chief executive after Jensen Huang stepped down?",
+      "published": true
+    },
+    "whichorganizationrecentlylaunchedthereporttitledimpactassess": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which organization recently launched the report titled “Impact Assessment of PLI Schemes”?",
+      "published": true
+    },
+    "whichnewlyhighlightedcropstrainsarereportedtodemonstrateprom": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which newly highlighted crop strains are reported to demonstrate promising yield potential of 20 quintals per ",
+      "published": true
+    },
+    "whichofthefollowingisfeaturedonthenewlylauncheddigitalinitia": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which of the following is featured on the newly launched digital initiative mentioned in the news?",
+      "published": true
+    },
+    "whichinitiativewashighlightedregardingimplementingministries": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which initiative was highlighted regarding implementing ministries, financial outlays, target demographics, an",
+      "published": true
+    },
+    "whichinitiativehasbeenlaunchedbythegovernmentwithafinancialo": {
+      "count": 1,
+      "last_seen": "2026-11-13",
+      "type": "llm-schema",
+      "q": "Which initiative has been launched by the government with a financial outlay of Rs 200 crore to support new en",
+      "published": true
     }
-  ],
-  "updated_at": "2026-11-13T16:54:06.987434+00:00"
+  },
+  "concepts": {
+    "msp": {
+      "v0": {
+        "count": 5,
+        "last_seen": "2026-11-13",
+        "published": true
+      },
+      "v1": {
+        "count": 2,
+        "last_seen": "2026-11-11",
+        "published": true
+      },
+      "v2": {
+        "count": 1,
+        "last_seen": "2026-11-12",
+        "published": true
+      }
+    },
+    "jjm": {
+      "v1": {
+        "count": 1,
+        "last_seen": "2026-11-11",
+        "published": true
+      }
+    }
+  }
 }

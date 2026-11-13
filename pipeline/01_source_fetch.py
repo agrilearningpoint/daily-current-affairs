@@ -1,272 +1,650 @@
-# -*- coding: utf-8 -*-
+"""Canonical production collection stage (Task 01).
+
+Single source-fetch path for daily jobs. Loads the canonical registry from
+pipeline.source_registry, fetches RSS feeds with feedparser, normalizes and
+validates every article at this boundary, and writes one edition JSON file.
+
+Contract:
+- Output path: data/raw/<job_id>.json   (job_id = ALP_JOB_ID or daily_<date>)
+- Date policy : requested ALP_JOB_DATE is authoritative for naming; the
+                collection uses the shared IST edition window (previous day
+                for historical daily editions). Backfill never becomes "today".
+- Failure    : zero usable articles after a full run -> exit 2 (loud fail).
+               A single failed feed does NOT discard other feeds' results.
+- No live network access happens at import time.
 """
-Zero-Key RSS/Atom-First News Collector with ETag Caching & Dead-Feed Quarantine
-==============================================================================
-Implements Master Spec Section 4:
-- Works with 0 paid search API keys using `config/news_sources.json` & `config/feeds.py`.
-- Concurrent RSS/Atom collection with per-request timeout & exponential backoff.
-- Conditional HTTP requests (`If-None-Match` ETag and `If-Modified-Since`).
-- Content caching for 304 Not Modified responses.
-- Feed health tracking in `state/feed_health.json`:
-  - Quarantines any feed after `MAX_FAILURES` (default 3) consecutive failures for
-    `QUARANTINE_HOURS` (default 24h), then automatically probes recovery.
-"""
+
 from __future__ import annotations
 
 import concurrent.futures
 import hashlib
+import html
 import json
-import logging
 import os
-import time
-import urllib.error
-import urllib.request
-import xml.etree.ElementTree as ET
+import re
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-from pipeline.store import STATE_DIR, atomic_write_json, canonicalize_url, safe_read_json
-from pipeline.windows import compute_edition_window, filter_articles_by_window
+try:
+    import feedparser  # declared in requirements.txt
+    import requests
+except ImportError as exc:  # pragma: no cover - environment issue
+    raise SystemExit(
+        "feedparser is required for source fetching. "
+        "Install project dependencies (pip install -r requirements.txt). "
+        f"Original error: {exc}"
+    ) from exc
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-SOURCES_JSON = ROOT_DIR / "config" / "news_sources.json"
-FEED_HEALTH_JSON = STATE_DIR / "feed_health.json"
-FEED_CACHE_DIR = STATE_DIR / "feed_cache"
-FEED_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-MAX_CONSECUTIVE_FAILURES = int(os.getenv("ALP_FEED_MAX_FAILURES", "3"))
-QUARANTINE_HOURS = int(os.getenv("ALP_FEED_QUARANTINE_HOURS", "24"))
-REQUEST_TIMEOUT = float(os.getenv("ALP_RSS_TIMEOUT", "10.0"))
+from pipeline.source_registry import SourceSpec, SourceConfigError, load_sources
 
-logger = logging.getLogger("pipeline.01_source_fetch")
-
-
-def load_configured_sources() -> List[Dict[str, Any]]:
-    data = safe_read_json(SOURCES_JSON, {"sources": []})
-    return [s for s in data.get("sources", []) if s.get("enabled", True)]
+RAW_DIR = ROOT / "data" / "raw"
 
 
-def is_feed_quarantined(health_entry: Dict[str, Any], now_utc: datetime) -> bool:
-    q_until = health_entry.get("quarantined_until")
-    if not q_until:
-        return False
-    try:
-        until_dt = datetime.fromisoformat(q_until)
-        if until_dt.tzinfo is None:
-            until_dt = until_dt.replace(tzinfo=timezone.utc)
-        # Automatic recovery probe once quarantine window expires
-        return now_utc < until_dt
-    except Exception:
-        return False
+# --------------------------------------------------------------------------
+# Job context (date/backfill correctness)
+# --------------------------------------------------------------------------
+
+# Regex to detect raw document filenames (e.g. 459-1.pdf - CPCB) that must never become news headlines
+RAW_FILE_RE = re.compile(
+    r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)",
+    re.IGNORECASE,
+)
+
+# Publisher paywalls and consent walls sometimes return HTTP 200 and their UI
+# copy was previously mistaken for article text.  Such copy must never enter a
+# study edition, even when a valid RSS headline is available.
+JUNK_ARTICLE_TEXT_RE = re.compile(
+    r"(?:you\s+(?:do\s+not|don't)\s+have\s+(?:an\s+)?active\s+subscription|"
+    # Curly apostrophes can be mojibake in fetched publisher HTML, so these
+    # phrase-level guards deliberately do not depend on the apostrophe.
+    r"active\s+subscription|subscribed\s+with\s+another\s+email|"
+    r"need\s+help\s+with\s+your\s+subscription|logout\s+and\s+login\s+with\s+that\s+one|"
+    r"subscription\s+benefits|unlock\s+this\s+with\s+subscription|"
+    r"sign\s+in\s+to\s+continue|subscribe\s+to\s+continue|"
+    r"enable\s+(?:cookies|javascript)\s+to\s+continue|"
+    r"access\s+denied|captcha|verify\s+you\s+are\s+human)",
+    re.IGNORECASE,
+)
+
+# A few publisher pages prepend account UI to the article text.  Strip only
+# this tightly-scoped sequence; the following article body is still useful
+# evidence and should not be discarded just because its first sentence is UI.
+PUBLISHER_UI_PREFIX_RE = re.compile(
+    r"you\s+.{0,45}?active\s+subscription\s*\.?\s*"
+    r"subscribed\s+with\s+another\s+email\s*\?\s*"
+    r"logout\s+and\s+login\s+with\s+that\s+one\s*\.?\s*"
+    r"need\s+help\s+with\s+your\s+subscription\s*\?",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
-def record_feed_result(
-    health: Dict[str, Any],
-    source_id: str,
-    success: bool,
-    now_utc: datetime,
-    etag: Optional[str] = None,
-    last_modified: Optional[str] = None,
-    error_msg: str = "",
-) -> None:
-    entry = health.setdefault(source_id, {"failure_count": 0})
-    if success:
-        entry["failure_count"] = 0
-        entry["last_successful_fetch"] = now_utc.isoformat()
-        entry["quarantined_until"] = None
-        entry["last_error"] = ""
-        if etag:
-            entry["etag"] = etag
-        if last_modified:
-            entry["last_modified"] = last_modified
-    else:
-        entry["failure_count"] = int(entry.get("failure_count", 0)) + 1
-        entry["last_failure_at"] = now_utc.isoformat()
-        entry["last_error"] = error_msg[:240]
-        if entry["failure_count"] >= MAX_CONSECUTIVE_FAILURES:
-            entry["quarantined_until"] = (now_utc + timedelta(hours=QUARANTINE_HOURS)).isoformat()
+def strip_publisher_ui(text: str) -> str:
+    return PUBLISHER_UI_PREFIX_RE.sub(" ", text or "").strip()
 
 
-def parse_rss_or_atom_xml(xml_bytes: bytes, source_meta: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Parse RSS 2.0 or Atom XML using Python stdlib ElementTree."""
-    items: List[Dict[str, Any]] = []
-    try:
-        root = ET.fromstring(xml_bytes)
-    except ET.ParseError:
-        return items
-
-    # RSS 2.0 <item> elements
-    for item_el in root.findall(".//item"):
-        title = (item_el.findtext("title") or "").strip()
-        link = (item_el.findtext("link") or "").strip()
-        desc = (item_el.findtext("description") or "").strip()
-        pub_date = (item_el.findtext("pubDate") or item_el.findtext("{http://purl.org/dc/elements/1.1/}date") or "").strip()
-        if title and link:
-            items.append({
-                "title": title,
-                "headline_en": title,
-                "summary": desc or title,
-                "summary_en": desc or title,
-                "link": canonicalize_url(link),
-                "original_published_at": pub_date,
-                "published_at": pub_date,
-                "source_id": source_meta.get("source_id", ""),
-                "source_name": source_meta.get("source_name", ""),
-                "domain": source_meta.get("domain", ""),
-                "category": source_meta.get("category", "National Affairs & Schemes"),
-                "reliability_level": source_meta.get("reliability_level", "tier2_editorial"),
-            })
-
-    # Atom <entry> elements
-    if not items:
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        for entry_el in root.findall(".//atom:entry", ns) + root.findall(".//entry"):
-            title = (entry_el.findtext("atom:title", default="", namespaces=ns) or entry_el.findtext("title") or "").strip()
-            link_el = entry_el.find("atom:link", ns) or entry_el.find("link")
-            link = (link_el.attrib.get("href", "") if link_el is not None else "").strip()
-            summary = (
-                entry_el.findtext("atom:summary", default="", namespaces=ns)
-                or entry_el.findtext("atom:content", default="", namespaces=ns)
-                or entry_el.findtext("summary")
-                or ""
-            ).strip()
-            published = (
-                entry_el.findtext("atom:published", default="", namespaces=ns)
-                or entry_el.findtext("published")
-                or entry_el.findtext("atom:updated", default="", namespaces=ns)
-                or ""
-            ).strip()
-            if title and link:
-                items.append({
-                    "title": title,
-                    "headline_en": title,
-                    "summary": summary or title,
-                    "summary_en": summary or title,
-                    "link": canonicalize_url(link),
-                    "original_published_at": published,
-                    "published_at": published,
-                    "source_id": source_meta.get("source_id", ""),
-                    "source_name": source_meta.get("source_name", ""),
-                    "domain": source_meta.get("domain", ""),
-                    "category": source_meta.get("category", "National Affairs & Schemes"),
-                    "reliability_level": source_meta.get("reliability_level", "tier2_editorial"),
-                })
-    return items
+def is_usable_article_text(text: str) -> bool:
+    """Reject boilerplate/paywall responses that are not news evidence."""
+    cleaned = strip_publisher_ui(sanitize_feed_text(text))
+    return bool(cleaned) and not bool(JUNK_ARTICLE_TEXT_RE.search(cleaned))
 
 
-def fetch_single_source(
-    source: Dict[str, Any],
-    health: Dict[str, Any],
-    now_utc: datetime,
-    http_getter: Optional[Callable[[str, Dict[str, str], float], Tuple[int, bytes, Dict[str, str]]]] = None,
-    max_retries: int = 2,
-) -> List[Dict[str, Any]]:
-    """Fetch a single RSS source with conditional ETag/Last-Modified, retries, and cache fallback."""
-    source_id = source["source_id"]
-    url = source["url"]
-    h_entry = health.get(source_id, {})
+def job_context() -> Tuple[str, str, datetime]:
+    """Return (job_id, job_date_iso, window_end_utc).
 
-    if is_feed_quarantined(h_entry, now_utc):
-        logger.info("Skipping quarantined feed %s until %s", source_id, h_entry.get("quarantined_until"))
-        return []
-
-    headers = {
-        "User-Agent": "AgriLearningPointBot/2.0 (+https://github.com/agrilearningpoint/daily-current-affairs)",
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
-    }
-    if h_entry.get("etag"):
-        headers["If-None-Match"] = h_entry["etag"]
-    if h_entry.get("last_modified"):
-        headers["If-Modified-Since"] = h_entry["last_modified"]
-
-    cache_file = FEED_CACHE_DIR / f"{source_id}.json"
-
-    for attempt in range(max_retries + 1):
+    ALP_JOB_DATE is authoritative. Never substitutes wall-clock today when an
+    explicit date was requested. Window boundaries come from pipeline.windows
+    so all collection paths share one edition policy.
+    """
+    now = datetime.now(timezone.utc)
+    date_env = os.environ.get("ALP_JOB_DATE", "").strip()
+    if date_env:
         try:
-            if http_getter is not None:
-                status, body, resp_headers = http_getter(url, headers, REQUEST_TIMEOUT)
-            else:
-                req = urllib.request.Request(url, headers=headers)
-                with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-                    status = resp.status
-                    body = resp.read()
-                    resp_headers = {k.lower(): v for k, v in resp.headers.items()}
-
-            if status == 304 and cache_file.is_file():
-                record_feed_result(health, source_id, True, now_utc)
-                return safe_read_json(cache_file, [])
-
-            if 200 <= status < 300:
-                parsed_items = parse_rss_or_atom_xml(body, source)
-                record_feed_result(
-                    health,
-                    source_id,
-                    True,
-                    now_utc,
-                    etag=resp_headers.get("etag"),
-                    last_modified=resp_headers.get("last-modified"),
-                )
-                atomic_write_json(cache_file, parsed_items)
-                return parsed_items
-
-            raise RuntimeError(f"HTTP {status}")
-        except urllib.error.HTTPError as exc:
-            if exc.code == 304 and cache_file.is_file():
-                record_feed_result(health, source_id, True, now_utc)
-                return safe_read_json(cache_file, [])
-            err_str = f"HTTPError {exc.code}: {exc.reason}"
-        except Exception as exc:
-            err_str = f"{type(exc).__name__}: {exc}"
-
-        if attempt < max_retries:
-            time.sleep(0.05 * (2 ** attempt))
-        else:
-            record_feed_result(health, source_id, False, now_utc, error_msg=err_str)
-
-    return []
-
-
-def collect_all_sources(
-    edition_date: Optional[str] = None,
-    sources: Optional[List[Dict[str, Any]]] = None,
-    http_getter: Optional[Callable[[str, Dict[str, str], float], Tuple[int, bytes, Dict[str, str]]]] = None,
-    now_utc: Optional[datetime] = None,
-) -> Dict[str, Any]:
-    """Concurrent RSS-first collection + strict 24h IST window filtering."""
-    now_utc = now_utc or datetime.now(timezone.utc)
-    active_sources = sources if sources is not None else load_configured_sources()
-    health = safe_read_json(FEED_HEALTH_JSON, {})
-    window = compute_edition_window(edition_date)
-
-    raw_items: List[Dict[str, Any]] = []
-    # Sequential when custom http_getter is used in unit tests to keep health state deterministic,
-    # or ThreadPoolExecutor in production
-    if http_getter is not None:
-        for src in active_sources:
-            raw_items.extend(fetch_single_source(src, health, now_utc, http_getter=http_getter))
+            base = datetime.strptime(date_env, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            print(f"[01_source_fetch] invalid ALP_JOB_DATE={date_env!r}; "
+                  f"expected YYYY-MM-DD", file=sys.stderr)
+            raise SystemExit(2)
     else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-            futs = {pool.submit(fetch_single_source, src, health, now_utc): src for src in active_sources}
-            for fut in concurrent.futures.as_completed(futs):
+        base = now
+    job_date = base.strftime("%Y-%m-%d")
+    job_id = os.environ.get("ALP_JOB_ID", "").strip() or f"daily_{job_date}"
+    from pipeline.windows import collect_window
+    _, window_end = collect_window(os.getenv("ALP_JOB_TYPE", "daily"), job_date)
+    if os.getenv("ALP_WINDOW_END"):
+        window_end = datetime.fromisoformat(os.environ["ALP_WINDOW_END"])
+    window_end = window_end.astimezone(timezone.utc)
+    return job_id, job_date, window_end
+
+
+def _parse_entry_time(entry: Any) -> datetime | None:
+    """Timezone-aware publication datetime from a feedparser entry, or None."""
+    for key in ("published_parsed", "updated_parsed", "created_parsed"):
+        t = getattr(entry, key, None)
+        if t:
+            try:
+                return datetime.fromtimestamp(calendar_time_to_epoch(t), tz=timezone.utc)
+            except Exception:
+                continue
+    # Robust fallback: parse string representations if struct_time is unavailable
+    for key in ("published", "updated", "pubDate", "created", "dc_date"):
+        val = getattr(entry, key, None)
+        if val and isinstance(val, str):
+            try:
+                from email.utils import parsedate_to_datetime
+                dt = parsedate_to_datetime(val)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+            except Exception:
+                pass
+            try:
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+            except Exception:
+                pass
+    return None
+
+
+def calendar_time_to_epoch(t) -> float:
+    import calendar
+    return calendar.timegm(t)
+
+
+def content_hash(title: str, link: str) -> str:
+    """Stable dedup key: normalized title + normalized link."""
+    norm_title = " ".join((title or "").lower().split())
+    norm_link = (link or "").strip().lower()
+    return hashlib.sha256(f"{norm_title}|{norm_link}".encode("utf-8")).hexdigest()[:16]
+
+
+QUALITY_PUBLISHERS = {
+    "thehindu": "The Hindu", "indianexpress": "Indian Express", "ndtv": "NDTV",
+    "timesofindia": "TOI", "hindustantimes": "Hindustan Times", "thewire": "The Wire",
+    "moneycontrol": "Moneycontrol", "deccanherald": "Deccan Herald", "theprint": "The Print",
+    "scroll.in": "Scroll", "bbc": "BBC", "reuters": "Reuters", "bloomberg": "Bloomberg",
+    "forbes": "Forbes", "financialexpress": "Financial Express", "cnbctv18": "CNBC TV18",
+    "pib": "PIB", "ani": "ANI", "pti": "PTI", "ddnews": "DD News",
+    "news18": "News18", "indiatoday": "India Today", "thequint": "The Quint",
+    "business-standard": "Business Standard", "livemint": "Mint",
+    "economictimes": "Economic Times", "businessline": "BusinessLine",
+    "icar": "ICAR", "iari": "IARI", "rbi": "RBI", "nabard": "NABARD", "niti": "NITI Aayog",
+    "sebi": "SEBI", "pfrda": "PFRDA", "irdai": "IRDAI", "npci": "NPCI",
+    "isro": "ISRO", "drdo": "DRDO", "fao": "FAO", "who": "WHO",
+    "worldbank": "World Bank", "imf": "IMF", "wto": "WTO",
+}
+
+
+def clean_url(url: str) -> str:
+    """Normalize and unwrap Google News redirect links and strip tracking tokens."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if url.startswith("/"):
+        url = "https://news.google.com" + url
+    if "news.google.com" in url:
+        m = re.search(r"url=([^&\s]+)", url)
+        if m:
+            try:
+                from urllib.parse import unquote
+                url = unquote(m.group(1))
+            except Exception:
+                pass
+    if "news.google.com" in url and len(url) > 120:
+        m = re.search(r"CBM[ij][a-zA-Z0-9_-]+", url)
+        if m:
+            cid = m.group(0)
+            url = "https://news.google.com/articles/" + cid
+    return url[:300]
+
+
+def resolve_publisher(url: str, default_name: str) -> str:
+    """Extract clean publication brand from target domain."""
+    if not url:
+        return default_name
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.lower().replace("www.", "").replace("m.", "")
+        for key, name in QUALITY_PUBLISHERS.items():
+            if key in domain:
+                return name
+    except Exception:
+        pass
+    return default_name
+
+
+def sanitize_feed_text(text: str) -> str:
+    """Strip raw HTML tags, unescape HTML entities, and collapse whitespace."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"<[^>]+>", " ", text)
+    cleaned = html.unescape(cleaned)
+    return " ".join(cleaned.split()).strip()
+
+
+def clean_and_validate_headline(raw_title: str, source_name: str = "") -> Tuple[str, bool]:
+    """Clean, sanitize, and validate headline against junk/untitled/truncated patterns.
+    
+    Returns (cleaned_title, is_valid).
+    """
+    title = sanitize_feed_text(raw_title)
+    if not title:
+        return "", False
+
+    # Strip leading dashes, bullets, spaces, arrows
+    title = re.sub(r"^[-–—•:\|\s\>]+", "", title).strip()
+
+    # Strip redundant trailing publisher repetition (e.g. 'Headline - Source Name')
+    if source_name:
+        s_clean = re.sub(r"[^\w\s]", "", source_name).lower().strip()
+        parts = title.rsplit(" - ", 1)
+        if len(parts) == 2:
+            suffix_clean = re.sub(r"[^\w\s]", "", parts[1]).lower().strip()
+            if suffix_clean == s_clean or (s_clean and s_clean in suffix_clean):
+                title = parts[0].strip()
+
+    # Reject placeholder "Untitled"
+    if re.search(r"\buntitled\b", title, re.IGNORECASE):
+        return title, False
+
+    # Reject raw files (.pdf, .docx, etc.)
+    if RAW_FILE_RE.search(title):
+        return title, False
+
+    # Reject bare ministry / department / organisation names without an event
+    bare_org_patterns = [
+        r"^(?:Department|Ministry)\s+of\s+[A-Za-z\s,&-]+$",
+        r"^Sports Authority of India$",
+        r"^Election Commission of India$",
+        r"^Indian Council of Agricultural Research$",
+        r"^ICAR-[A-Za-z\s,&-]+$",
+    ]
+    for pat in bare_org_patterns:
+        if re.match(pat, title.strip(), re.IGNORECASE):
+            return title, False
+
+    # Length and word count checks
+    words = title.split()
+    if len(title) < 18 or len(words) < 4:
+        return title, False
+
+    # Check for truncated leading characters (e.g. 'aiwan' -> 'Taiwan', 'ranscript' -> 'Transcript')
+    first_char = title[0]
+    if first_char.isalpha() and first_char.islower() and not title.startswith(("e-", "i-", "m-")):
+        if title.startswith("aiwan "):
+            title = "T" + title
+        elif title.startswith("ranscript "):
+            title = "T" + title
+        else:
+            return title, False
+
+    return title, True
+
+
+def extract_article_text(url: str, timeout: int = 5) -> str:
+    """Safely extract plain article text from webpage URL without hanging."""
+    return extract_article_page(url, timeout)[0]
+
+
+def extract_article_page(url: str, timeout: int = 5) -> Tuple[str, str]:
+    """(plain article text, og:image url) for an article page; ("", "") on any failure."""
+    if not url or not url.startswith(("http://", "https://")):
+        return "", ""
+    if os.getenv("ALP_DISABLE_NETWORK", "0") == "1" or os.getenv("DRY_RUN", "0") == "1":
+        return "", ""
+    image = ""
+    try:
+        from bs4 import BeautifulSoup
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        if resp.status_code != 200 or not resp.text:
+            return "", ""
+        try:
+            from pipeline.news_images import extract_og_image
+            image = extract_og_image(resp.text[:300_000], resp.url or url)
+        except Exception:
+            image = ""
+        soup = BeautifulSoup(resp.content[:300_000], "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "aside"]):
+            tag.decompose()
+        paragraphs = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
+        meaningful = []
+        for paragraph in paragraphs:
+            p = strip_publisher_ui(paragraph)
+            if (len(p) > 30 and is_usable_article_text(p)
+                    and not any(w in p.lower() for w in ("copyright", "all rights reserved", "terms of use"))):
+                meaningful.append(p)
+        text = " ".join(meaningful)
+        return " ".join(text.split())[:3000], image
+    except Exception:
+        return "", image
+
+
+_IMG_SRC_RE = re.compile(r"<img[^>]+src=[\"']([^\"']+)[\"']", re.I)
+
+
+def extract_entry_image(entry: Any) -> str:
+    """Photo URL carried by the feed entry itself (media:thumbnail/content, enclosure, <img> in HTML)."""
+    try:
+        from pipeline.news_images import plausible_image_url
+    except Exception:  # pragma: no cover
+        return ""
+    get = entry.get if hasattr(entry, "get") else (lambda k, d=None: getattr(entry, k, d))
+    best, best_w = "", -1
+    for key in ("media_content", "media_thumbnail"):
+        for value in get(key) or []:
+            if not isinstance(value, dict):
+                continue
+            url = str(value.get("url") or "").strip()
+            medium = str(value.get("medium") or value.get("type") or "image").lower()
+            if not plausible_image_url(url) or not ("image" in medium or medium == ""):
+                continue
+            try:
+                w = int(value.get("width") or 0)
+            except (TypeError, ValueError):
+                w = 0
+            if w > best_w:
+                best, best_w = url, w
+    if best:
+        return best
+    for enc in get("enclosures") or []:
+        url = str((enc or {}).get("href") or (enc or {}).get("url") or "").strip()
+        mime = str((enc or {}).get("type") or "").lower()
+        if plausible_image_url(url) and (mime.startswith("image/") or not mime):
+            return url
+    for link in get("links") or []:
+        if str((link or {}).get("rel")) == "enclosure" and str((link or {}).get("type", "")).startswith("image/"):
+            url = str(link.get("href") or "")
+            if plausible_image_url(url):
+                return url
+    html_blobs = [str(get("summary") or "")]
+    for c in get("content") or []:
+        html_blobs.append(str((c or {}).get("value") or ""))
+    for blob in html_blobs:
+        for m in _IMG_SRC_RE.finditer(blob):
+            url = html.unescape(m.group(1)).strip()
+            if url.startswith("//"):
+                url = "https:" + url
+            if plausible_image_url(url):
+                return url
+    return ""
+
+
+def _feed_level_time(parsed: Any) -> datetime | None:
+    """Channel-level publication time (lastBuildDate / pubDate / updated) of a feed."""
+    feed = getattr(parsed, "feed", None)
+    if feed is None:
+        return None
+    return _parse_entry_time(feed)
+
+
+# --------------------------------------------------------------------------
+# Fetch + normalize
+# --------------------------------------------------------------------------
+
+# Per-source breakdown of skipped entries from the latest fetch_spec() call
+# (bad_title / bad_link / no_date) plus feed_dated acceptances, for the log.
+SKIP_REASONS: Dict[str, Dict[str, int]] = {}
+
+
+def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
+               seen_hashes: set | None = None) -> Tuple[List[Dict[str, Any]], int, int, str | None]:
+    """Fetch one feed. Returns (articles, total_entries, skipped_malformed, error).
+
+    Errors are reported per feed; they never discard results from other feeds.
+    """
+    if seen_hashes is None:
+        seen_hashes = set()
+    collected: List[Dict[str, Any]] = []
+    malformed = 0
+    try:
+        # ALP_FEED_TIMEOUT is canonical; REQUEST_TIMEOUT is the legacy alias
+        # documented in older .env files.
+        timeout = int(os.getenv("ALP_FEED_TIMEOUT") or os.getenv("REQUEST_TIMEOUT") or "20")
+        response = requests.get(spec.rss_url, headers={"User-Agent": "alp-collector/1.0"},
+                                timeout=timeout)
+        response.raise_for_status()
+        parsed = feedparser.parse(response.content)
+    except Exception as exc:  # network/disk level failure
+        return [], 0, 0, f"{type(exc).__name__}: {exc}"
+
+    status = getattr(parsed, "status", None)
+    if parsed.bozo and not parsed.entries:
+        err = getattr(parsed, "bozo_exception", "unparseable feed")
+        if status == 404:
+            return [], 0, 0, f"HTTP 404 (feed moved/deleted): {spec.rss_url}"
+        return [], 0, 0, f"feed parse error ({err})"
+
+    entries = list(getattr(parsed, "entries", []) or [])
+    reasons = {"bad_title": 0, "bad_link": 0, "no_date": 0, "feed_dated": 0}
+    # Official feeds (e.g. PIB RssMain.aspx) often omit per-item <pubDate>.  Such
+    # items are accepted ONLY for official sources and ONLY when the channel's
+    # own lastBuildDate/pubDate falls inside the job window; they are stamped
+    # date_source="feed" so later stages can tell.  Disable with
+    # ALP_ACCEPT_FEED_DATED_OFFICIAL=0 (strict per-item dates only).
+    feed_time = None
+    if spec.official and os.getenv("ALP_ACCEPT_FEED_DATED_OFFICIAL", "1") != "0":
+        feed_time = _feed_level_time(parsed)
+        if feed_time is not None and not (window_start <= feed_time <= window_end):
+            feed_time = None
+    for entry in entries:
+        raw_title = getattr(entry, "title", "") or ""
+        title, is_valid = clean_and_validate_headline(raw_title, spec.name)
+        link = clean_url((getattr(entry, "link", "") or "").strip())
+        if not is_valid or not link.lower().startswith(("http://", "https://")):
+            malformed += 1
+            reasons["bad_title" if not is_valid else "bad_link"] += 1
+            continue  # validated at collection boundary; logged via counter
+        published = _parse_entry_time(entry)
+        date_source = "entry"
+        if published is None and feed_time is not None:
+            published, date_source = feed_time, "feed"
+            reasons["feed_dated"] += 1
+        if published is None:
+            # Missing timestamps are NOT treated as current news.
+            malformed += 1
+            reasons["no_date"] += 1
+            continue
+        if not (window_start <= published <= window_end):
+            continue  # outside the requested job window
+        h = content_hash(title, link)
+        if h in seen_hashes:
+            continue
+        seen_hashes.add(h)
+        summary = strip_publisher_ui(sanitize_feed_text(getattr(entry, "summary", "") or ""))
+        if not is_usable_article_text(summary):
+            summary = ""
+        # If summary is thin or identical to title, attempt substantive paragraph extraction
+        image_url = extract_entry_image(entry)
+        if len(summary) < 120 or summary.lower() == title.lower():
+            body_txt, page_img = extract_article_page(link, timeout=4)
+            if len(body_txt) > len(summary):
+                summary = body_txt
+            image_url = image_url or page_img
+            if len(summary) < 120 or not image_url:
+                # Jina Reader (JINA_API_KEY) for pages the direct fetch could not
+                # read; OFF without the key, and a 402 (no balance) turns it off
+                # for the run. Small per-run budget (ALP_JINA_MAX_CALLS).
                 try:
-                    raw_items.extend(fut.result())
+                    from pipeline import discovery_api
+                    if discovery_api.JINA.enabled() and os.getenv("DRY_RUN", "0") != "1":
+                        raw_txt, jina_img = discovery_api.jina_read(link, timeout=15)
+                        jina_txt = strip_publisher_ui(discovery_api.jina_article_text(raw_txt))[:3000]
+                        if len(jina_txt) > len(summary) and is_usable_article_text(jina_txt):
+                            summary = jina_txt
+                        image_url = image_url or jina_img
+                except Exception:
+                    pass
+        if not is_usable_article_text(summary):
+            # A valid headline alone may be retained for scoring, but it must
+            # not be dressed up as an article summary later in the pipeline.
+            summary = ""
+        source_name = resolve_publisher(link, spec.name)
+        collected.append({
+            "title": title,
+            "link": link,
+            "summary": summary[:2000],
+            "published": published.isoformat(),
+            "source_feed": spec.rss_url,
+            "source_name": source_name,
+            "source_id": spec.source_id,
+            "source_tier": spec.tier,
+            "publisher_url": spec.extra.get("url", spec.rss_url),
+            **({"source_level": spec.extra["level"]} if "level" in spec.extra else {}),
+            "official": spec.official,
+            "category": spec.category,
+            "language": spec.language,
+            "collected_at": datetime.now(timezone.utc).isoformat(),
+            "content_hash": h,
+            "image_url": image_url,
+            **({"date_source": date_source} if date_source != "entry" else {}),
+        })
+    SKIP_REASONS[spec.source_id] = reasons
+    return collected, len(entries), malformed, None
+
+
+def main() -> int:
+    job_id, job_date, window_end = job_context()
+    from pipeline.windows import collect_window
+    window_start, _ = collect_window(os.getenv("ALP_JOB_TYPE", "daily"), job_date)
+    if os.getenv("ALP_WINDOW_START"):
+        window_start = datetime.fromisoformat(os.environ["ALP_WINDOW_START"])
+    window_start = window_start.astimezone(timezone.utc)
+
+    try:
+        specs = load_sources()
+    except SourceConfigError as exc:
+        print(f"[01_source_fetch] FATAL source config error:\n{exc}", file=sys.stderr)
+        return 2
+
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = RAW_DIR / f"{job_id}.json"
+
+    all_articles: List[Dict[str, Any]] = []
+    seen_hashes: set = set()
+    feed_failures: List[Dict[str, str]] = []
+    ok_feeds = 0
+
+    # Staggered harvesting into 4 controlled batches to prevent burst rate-limits
+    def _source_batch_id(spec: SourceSpec) -> tuple[int, str]:
+        cat = (spec.category or "").lower()
+        if any(k in cat for k in ("agriculture", "govt_national", "core")):
+            return 1, "Core Government & Agriculture"
+        if any(k in cat for k in ("banking", "finance", "economy")):
+            return 2, "Banking, Finance & Regulators"
+        if any(k in cat for k in ("science", "defence", "international_org", "health")):
+            return 3, "Science, Defence & Multilateral Orgs"
+        return 4, "Discovery, Media & Broadcasters"
+
+    batches: Dict[int, Tuple[str, List[SourceSpec]]] = {}
+    for spec in specs:
+        b_id, b_name = _source_batch_id(spec)
+        if b_id not in batches:
+            batches[b_id] = (b_name, [])
+        batches[b_id][1].append(spec)
+
+    print(f"[01_source_fetch] Staggered harvesting: {len(specs)} sources partitioned across {len(batches)} batches")
+    import time
+    for b_id in sorted(batches.keys()):
+        b_name, b_specs = batches[b_id]
+        print(f"[01_source_fetch] >>> Starting Batch {b_id}/{len(batches)}: {b_name} ({len(b_specs)} sources)")
+        max_workers = min(6, max(1, len(b_specs)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_spec = {
+                executor.submit(fetch_spec, spec, window_start, window_end, None): spec
+                for spec in b_specs
+            }
+            for future in concurrent.futures.as_completed(future_to_spec):
+                spec = future_to_spec[future]
+                try:
+                    arts, total, malformed, error = future.result()
                 except Exception as exc:
-                    logger.warning("Worker exception: %s", exc)
+                    error = f"{type(exc).__name__}: {exc}"
+                    arts, total, malformed = [], 0, 0
+                if error:
+                    feed_failures.append({"source_id": spec.source_id,
+                                          "url": spec.rss_url, "error": error})
+                    print(f"[01_source_fetch] WARN feed failed: {spec.name} -> {error}",
+                          file=sys.stderr)
+                    continue
+                ok_feeds += 1
+                for art in arts:
+                    h = art.get("content_hash") or content_hash(art.get("title", ""), art.get("link", ""))
+                    if h not in seen_hashes:
+                        seen_hashes.add(h)
+                        all_articles.append(art)
+                why = SKIP_REASONS.get(spec.source_id) or {}
+                detail = ", ".join(f"{k}={v}" for k, v in why.items() if v)
+                n_img = sum(1 for a in arts if a.get("image_url"))
+                print(f"[01_source_fetch] {spec.name}: {len(arts)} in-window "
+                      f"(of {total} entries, {malformed} malformed skipped"
+                      f"{'; ' + detail if detail else ''}; {n_img} with image)")
+        if b_id < len(batches):
+            time.sleep(1.0)
 
-    atomic_write_json(FEED_HEALTH_JSON, health)
+    # Keyed news APIs (GNews v4, NewsData.io): extra India sources, OFF without
+    # their secrets, same edition window, de-duplicated against the RSS items.
+    api_report: Dict[str, Any] = {"enabled": False}
+    try:
+        from pipeline import news_api_sources
+        seen_titles = {news_api_sources.title_key(a.get("title", "")) for a in all_articles}
+        extra = news_api_sources.collect(
+            window_start, window_end, seen_hashes=seen_hashes, seen_titles=seen_titles,
+            validate_title=clean_and_validate_headline, clean_url=clean_url,
+            content_hash=content_hash,
+            clean_summary=lambda text: (lambda t: t if is_usable_article_text(t) else "")(
+                strip_publisher_ui(sanitize_feed_text(text))),
+        )
+        all_articles.extend(extra["articles"])
+        api_report = extra["report"]
+        if api_report.get("fetched") or api_report.get("kept"):
+            print(f"[01_source_fetch] news APIs: {api_report.get('kept', 0)} new in-window "
+                  f"(of {api_report.get('fetched', 0)} fetched; {api_report.get('duplicates', 0)} duplicates, "
+                  f"{api_report.get('out_of_window', 0)} out of window)")
+    except Exception as exc:  # an extra source must never break collection
+        print(f"[01_source_fetch] WARN news APIs skipped: {type(exc).__name__}", file=sys.stderr)
 
-    accepted, rejected, quarantined = filter_articles_by_window(raw_items, window)
-    return {
-        "edition_date": window.edition_date,
-        "window_label": window.label,
-        "window_start": window.start_ist.isoformat(),
-        "window_end": window.end_ist.isoformat(),
-        "raw_fetched_count": len(raw_items),
-        "accepted_count": len(accepted),
-        "rejected_outside_window_count": len(rejected),
-        "quarantined_missing_timestamp_count": len(quarantined),
-        "items": accepted,
-        "rejected": rejected,
-        "quarantined": quarantined,
+    edition = {
+        "schema_version": "1.0",
+        "job_id": job_id,
+        "job_date": job_date,
+        "collected_window": {
+            "start": window_start.isoformat(),
+            "end": window_end.isoformat(),
+        },
+        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "sources_enabled": len(specs),
+        "sources_fetched_ok": ok_feeds,
+        "sources_failed": len(feed_failures),
+        "feed_failures": feed_failures,
+        "news_apis": api_report,
+        "article_count": len(all_articles),
+        "articles_with_image": sum(1 for a in all_articles if a.get("image_url")),
+        "articles": all_articles,
     }
+
+    tmp_path = out_path.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(edition, ensure_ascii=False, indent=2),
+                        encoding="utf-8")
+    os.replace(tmp_path, out_path)  # atomic write
+
+    if not all_articles:
+        print(f"[01_source_fetch] FATAL: zero usable articles collected into "
+              f"{out_path} ({len(feed_failures)} feed failures). Refusing to "
+              f"produce an empty edition.", file=sys.stderr)
+        return 2
+
+    print(f"[01_source_fetch] wrote {out_path} "
+          f"({len(all_articles)} articles, {ok_feeds}/{len(specs)} feeds ok)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

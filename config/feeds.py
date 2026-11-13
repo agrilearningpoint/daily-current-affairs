@@ -11,22 +11,6 @@ A Google News result is discovery metadata, not a primary-source verification.
 from __future__ import annotations
 from urllib.parse import quote
 
-
-def gnews_url(domain: str, when: str = "2d") -> str:
-    """Return a Google News RSS site-search URL for a hostname or query.
-
-    Pass only a trusted configured domain; don't pass a full article URL.
-    """
-    domain = str(domain or "").strip().lower()
-    if not domain:
-        raise ValueError("domain must be a non-empty hostname or search query")
-    when = str(when or "2d").strip().lower()
-    if when not in {"1d", "2d", "3d", "5d", "7d", "14d", "30d"}:
-        when = "2d"
-    query = quote(f"site:{domain} when:{when}", safe="")
-    return f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
-
-
 # Tuple contract required by pipeline.collector:
 # (display_name, feed_url, tier, category_hint)
 # tier1 means primary/official publisher feed; tier2 means editorial discovery.
@@ -40,17 +24,6 @@ VERIFIED_RSS = [
     # tests/test_source_registry.py::test_verified_rss_and_all_sources_agree_on_shared_publishers.
     ("The Hindu National", "https://www.thehindu.com/feeder/default.rss", "tier2", "national"),
     ("Indian Express", "https://indianexpress.com/feed/", "tier2", "national"),
-    # High-reliability primary & Google News RSS fallbacks so daily runs always
-    # gather 60+ candidate stories even when external API keys hit 429 limits:
-    ("PIB Official Releases", "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1", "tier1", "national"),
-    ("PIB GNews Discovery", gnews_url("pib.gov.in", "2d"), "tier1", "national"),
-    ("AgriWelfare GNews", gnews_url("agriwelfare.gov.in", "3d"), "tier1", "agriculture"),
-    ("RBI Official GNews", gnews_url("rbi.org.in", "3d"), "tier1", "economy"),
-    ("NABARD Official GNews", gnews_url("nabard.org", "7d"), "tier1", "agriculture"),
-    ("APEDA Official GNews", gnews_url("apeda.gov.in", "7d"), "tier1", "agriculture"),
-    ("ISRO Official GNews", gnews_url("isro.gov.in", "7d"), "tier1", "science"),
-    ("DownToEarth Agriculture", "https://www.downtoearth.org.in/rss/agriculture", "tier2", "agriculture"),
-    ("LiveMint Economy", "https://www.livemint.com/rss/economy", "tier2", "economy"),
 ]
 
 # Map source domains to intended authority classes for discovery routing.
@@ -126,3 +99,18 @@ GOOGLE_NEWS_SITES = {
     "livemint.com": "tier2",
     "economictimes.indiatimes.com": "tier2",
 }
+
+
+def gnews_url(domain: str, when: str = "2d") -> str:
+    """Return a Google News RSS site-search URL for a hostname or query.
+
+    Pass only a trusted configured domain; don't pass a full article URL.
+    """
+    domain = str(domain or "").strip().lower()
+    if not domain:
+        raise ValueError("domain must be a non-empty hostname or search query")
+    when = str(when or "2d").strip().lower()
+    if when not in {"1d", "2d", "3d", "5d", "7d", "14d", "30d"}:
+        when = "2d"
+    query = quote(f"site:{domain} when:{when}", safe="")
+    return f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"

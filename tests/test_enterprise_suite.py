@@ -29,20 +29,20 @@ def _load(mod_name: str, rel_path: str):
     return mod
 
 
-windows = _load("windows", "pipeline/windows.py")
-store = _load("store", "pipeline/store.py")
-source_fetch = _load("source_fetch", "pipeline/01_source_fetch.py")
-fact_ver = _load("fact_ver", "agents/04_fact_verification.py")
-ai_router = _load("ai_router", "pipeline/ai_router.py")
-mcq_gen = _load("mcq_gen", "agents/16_mcq_generator.py")
-mcq_val = _load("mcq_val", "agents/17_mcq_validator.py")
-pdf_gen = _load("pdf_gen", "src/generate_pdf.py")
-pdf_qa = _load("pdf_qa", "agents/19_pdf_qa.py")
-tg_pub = _load("tg_pub", "agents/22_telegram_publisher.py")
-tg_pin = _load("tg_pin", "agents/23_telegram_pin_verifier.py")
-health_audit = _load("health_audit", "agents/24_final_health_audit.py")
-auto_healer = _load("auto_healer", "agents/25_auto_healer.py")
-verify_keys = _load("verify_keys", "scripts/verify_keys.py")
+windows = _load("windows", "enterprise_v2/windows.py")
+store = _load("store", "enterprise_v2/store.py")
+source_fetch = _load("source_fetch", "enterprise_v2/source_fetch.py")
+fact_ver = _load("fact_ver", "enterprise_v2/fact_verification.py")
+ai_router = _load("ai_router", "enterprise_v2/ai_router.py")
+mcq_gen = _load("mcq_gen", "enterprise_v2/mcq_generator.py")
+mcq_val = _load("mcq_val", "enterprise_v2/mcq_validator.py")
+pdf_gen = _load("pdf_gen", "enterprise_v2/generate_pdf.py")
+pdf_qa = _load("pdf_qa", "enterprise_v2/pdf_qa.py")
+tg_pub = _load("tg_pub", "enterprise_v2/telegram_publisher.py")
+tg_pin = _load("tg_pin", "enterprise_v2/telegram_pin_verifier.py")
+health_audit = _load("health_audit", "enterprise_v2/final_health_audit.py")
+auto_healer = _load("auto_healer", "enterprise_v2/auto_healer.py")
+verify_keys = _load("verify_keys", "enterprise_v2/verify_keys.py")
 
 
 class TestEnterprisePlatform(unittest.TestCase):

@@ -1,280 +1,486 @@
 # -*- coding: utf-8 -*-
 """
-Persistent Historical Storage & Atomic State Manager (Section 6 & 14)
-====================================================================
-Maintains durable Git-tracked JSON + SQLite-compatible historical stores in `state/`
-with file locking and atomic write-replace so data survives GitHub Actions runner
-destruction (via `scripts/sync_state.py` + artifact checkpoints) and prevents
-concurrent corruption:
-1. state/news_history.json        - Permanent 4-layer event & article history
-2. state/mcq_history.json         - Permanent MCQ fingerprint & stem database
-3. state/feed_health.json         - RSS ETag/Last-Modified cache & quarantine state
-4. state/api_health.json          - Per-key cooldown, RPM/RPD, and error state
-5. state/fact_ledger.json         - Verified numerical & institutional fact ledger
-6. state/published_events.json    - Telegram publication & pin reconciliation ledger
-7. state/healing_history.json     - Auto-healer repair budget & incident log
+Memory Store — Importance Memory + Published Events
+====================================================
+Persistent state for:
+- Importance memory (used by MCQ distractor pools + weekly/monthly editors)
+- Published events (idempotency ledger)
+- Source health tracking
+
+Production features:
+- Atomic writes (tempfile + fsync + os.replace)
+- File-level locking (fcntl on POSIX, msvcrt on Windows)
+- Corruption recovery (auto-backup + fresh start)
+- Legacy format migration (list → dict)
+- Size cap (LRU eviction of oldest entries)
+- Schema validation
+- Thread-safe operations
+- Env override for file location
+
+Env:
+  ALP_MEMORY_PATH        — override importance memory location
+  ALP_MEMORY_MAX_ENTRIES — max entries before trimming (default 2000)
+  ALP_PUBLISHED_PATH     — override published events location
 """
 from __future__ import annotations
 
-import hashlib
 import json
+import logging
 import os
-import re
 import tempfile
-from datetime import datetime, timedelta, timezone
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from typing import Any, Dict, Iterator, List, Optional, Union
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-STATE_DIR = ROOT_DIR / "state"
-STATE_DIR.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger("pipeline.store")
+
+# --------------------------------------------------------------------------- #
+# Paths
+# --------------------------------------------------------------------------- #
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+DEFAULT_MEMORY_PATH = REPO_ROOT / "state" / "importance_memory.json"
+DEFAULT_PUBLISHED_PATH = REPO_ROOT / "state" / "published_events.json"
+DEFAULT_SOURCE_HEALTH_PATH = REPO_ROOT / "state" / "source_health.json"
+
+MAX_MEMORY_ENTRIES = int(os.getenv("ALP_MEMORY_MAX_ENTRIES", "2000"))
+MAX_PUBLISHED_ENTRIES = int(os.getenv("ALP_PUBLISHED_MAX_ENTRIES", "10000"))
 
 
-def atomic_write_json(path: Path, data: Any) -> None:
-    """Write JSON atomically via temp file + os.replace to prevent partial writes."""
+def _memory_path() -> Path:
+    override = os.getenv("ALP_MEMORY_PATH")
+    return Path(override) if override else DEFAULT_MEMORY_PATH
+
+
+def _published_path() -> Path:
+    override = os.getenv("ALP_PUBLISHED_PATH")
+    return Path(override) if override else DEFAULT_PUBLISHED_PATH
+
+
+# --------------------------------------------------------------------------- #
+# Cross-platform file lock
+# --------------------------------------------------------------------------- #
+@contextmanager
+def _file_lock(path: Path) -> Iterator[None]:
+    """
+    Exclusive file lock for cross-process safety.
+
+    Delegates to pipeline.persistence.file_lock so POSIX uses fcntl.flock and
+    Windows uses msvcrt.locking — both real locks. (The previous local version
+    silently skipped locking off-POSIX, so concurrent Windows writers were not
+    actually serialised.) The lock lives in a sibling ``<name>.lock`` file so the
+    data file itself is never held open by a waiter.
+    """
+    from pipeline.persistence import file_lock
+
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with file_lock(lock_path):
+        yield
+
+
+# --------------------------------------------------------------------------- #
+# Atomic I/O
+# --------------------------------------------------------------------------- #
+def _atomic_write_json(path: Path, data: Any) -> None:
+    """Write JSON atomically: temp + fsync + os.replace."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{path.stem}_", suffix=".tmp", dir=str(path.parent)
+    )
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, ensure_ascii=False, indent=2)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_name, path)
-    finally:
-        if os.path.exists(tmp_name):
-            try:
-                os.remove(tmp_name)
-            except OSError:
-                pass
-
-
-def safe_read_json(path: Path, default: Any) -> Any:
-    """Read JSON safely; if corrupted, quarantine the broken file and return default."""
-    if not path.is_file():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
     except Exception:
-        quarantine = path.with_suffix(f".corrupt.{int(datetime.now(timezone.utc).timestamp())}.json")
         try:
-            os.replace(path, quarantine)
+            if os.path.exists(tmp):
+                os.remove(tmp)
         except OSError:
             pass
-        return default
+        raise
 
 
-# ---------------------------------------------------------------------------
-# 4-Layer News & Event Deduplication Engine (Section 6)
-# ---------------------------------------------------------------------------
-TRACKING_PARAMS = {
-    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    "fbclid", "gclid", "ref", "outputType", "icheck",
-}
-
-STOPWORDS = {
-    "the", "a", "an", "in", "on", "at", "to", "for", "of", "and", "or", "by",
-    "with", "from", "as", "is", "are", "was", "were", "has", "have", "had",
-    "new", "india", "indian", "government", "govt", "ministry", "announces",
-    "launched", "launches", "launch", "scheme", "programme", "mission", "under",
-}
-
-
-def canonicalize_url(url: str) -> str:
-    """Layer 1: Normalize scheme, netloc, path, and strip tracking query params."""
-    raw = str(url or "").strip()
-    if not raw:
-        return ""
+def _read_json(path: Path) -> Optional[Any]:
+    """
+    Read JSON. On corruption:
+    - Backup original to <path>.corrupt.<timestamp>
+    - Return None (caller falls back to default)
+    """
+    if not path.exists():
+        return None
     try:
-        parsed = urlparse(raw)
-        scheme = "https" if parsed.scheme in ("http", "https", "") else parsed.scheme.lower()
-        netloc = parsed.netloc.lower().removeprefix("www.")
-        path = re.sub(r"/+$", "", parsed.path or "")
-        q_pairs = [(k, v) for k, v in parse_qsl(parsed.query) if k.lower() not in TRACKING_PARAMS]
-        q_pairs.sort()
-        return urlunparse((scheme, netloc, path, "", urlencode(q_pairs), ""))
-    except Exception:
-        return raw.lower()
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        backup = path.with_suffix(f"{path.suffix}.corrupt.{int(time.time())}")
+        try:
+            path.rename(backup)
+            logger.error("Corrupt JSON at %s → backed up to %s: %s",
+                         path, backup, exc)
+        except OSError as rename_exc:
+            logger.error("Corrupt JSON at %s (backup failed: %s): %s",
+                         path, rename_exc, exc)
+        return None
+    except OSError as exc:
+        logger.error("Cannot read %s: %s", path, exc)
+        return None
 
 
-def normalize_headline(text: str) -> str:
-    """Layer 2: Lowercase, strip punctuation/source suffixes, collapse whitespace."""
-    s = str(text or "").strip()
-    s = re.sub(r"\s+[\-|–|—]\s+[A-Za-z0-9\s.&]{2,30}$", "", s)
-    s = re.sub(r"(?i)\b(?:rs|inr)\b\.?\s*", "₹", s)
-    s = re.sub(r"[^a-z0-9\u0900-\u097f₹]+", " ", s.lower())
-    return re.sub(r"\s+", " ", s).strip()
-
-
-def semantic_tokens(text: str) -> Set[str]:
-    """Extract content-bearing tokens for Layer 3 Jaccard/cosine similarity."""
-    norm = normalize_headline(text)
-    return {tok for tok in norm.split() if len(tok) > 2 and tok not in STOPWORDS}
-
-
-def semantic_similarity(text_a: str, text_b: str) -> float:
-    """Layer 3: Token overlap similarity (Jaccard + containment boost)."""
-    ta = semantic_tokens(text_a)
-    tb = semantic_tokens(text_b)
-    if not ta or not tb:
-        return 0.0
-    inter = len(ta & tb)
-    union = len(ta | tb)
-    jaccard = inter / union if union else 0.0
-    containment = inter / min(len(ta), len(tb))
-    return round(0.6 * jaccard + 0.4 * containment, 4)
-
-
-def compute_event_signature(item: Dict[str, Any]) -> str:
-    """Layer 4: Event identity signature combining key entities, numbers, and core nouns."""
-    title = str(item.get("headline_en") or item.get("title") or "")
-    summary = str(item.get("summary_en") or item.get("summary") or "")
-    text = f"{title} {summary[:200]}"
-    # Extract numbers/amounts and capitalized entities/acronyms
-    nums = sorted(set(re.findall(r"\d+(?:\.\d+)?", title)))
-    acronyms = sorted(set(re.findall(r"\b[A-Z]{2,8}\b", title)))
-    core = sorted(list(semantic_tokens(title)))[:6]
-    raw_sig = "|".join(acronyms[:3] + nums[:3] + core[:5])
-    return hashlib.sha1(raw_sig.encode("utf-8")).hexdigest()[:16] if raw_sig else ""
-
-
-def deduplicate_news_4layer(
-    candidates: List[Dict[str, Any]],
-    edition_date: str,
-    history_path: Optional[Path] = None,
-    similarity_threshold: float = 0.62,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+# --------------------------------------------------------------------------- #
+# Importance Memory
+# --------------------------------------------------------------------------- #
+def load_memory() -> Dict[str, Any]:
     """
-    Run 4-layer deduplication across incoming candidates AND permanent historical database.
-    Allows a historical event through ONLY when `is_verified_update=True` with new facts.
-    Returns (unique_events, dropped_duplicates).
+    Load importance memory as a dict keyed by event_id.
+
+    Returns empty dict if:
+    - File doesn't exist
+    - File is corrupt (auto-backed up)
+    - File format unrecognized
+
+    Never raises.
     """
-    h_path = history_path or (STATE_DIR / "news_history.json")
-    history = safe_read_json(h_path, {"events": {}})
-    hist_events: Dict[str, Dict[str, Any]] = history.get("events", {})
+    data = _read_json(_memory_path())
+    if data is None:
+        return {}
+    if isinstance(data, dict):
+        # Support {"events": {...}} wrapper
+        if "events" in data and isinstance(data["events"], dict):
+            return dict(data["events"])
+        return data
+    if isinstance(data, list):
+        # Legacy list format — migrate to dict
+        out: Dict[str, Any] = {}
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            key = item.get("event_id") or item.get("id") or item.get("fingerprint")
+            if key:
+                out[str(key)] = item
+        logger.info("[store] migrated list → dict (%d entries)", len(out))
+        return out
+    logger.warning("[store] unrecognized memory format: %s", type(data).__name__)
+    return {}
 
-    seen_urls: Dict[str, str] = {}
-    seen_norm_titles: Dict[str, str] = {}
-    seen_signatures: Dict[str, str] = {}
-    for ev_id, rec in hist_events.items():
-        if rec.get("canonical_url"):
-            seen_urls[rec["canonical_url"]] = ev_id
-        if rec.get("normalized_headline"):
-            seen_norm_titles[rec["normalized_headline"]] = ev_id
-        if rec.get("event_signature"):
-            seen_signatures[rec["event_signature"]] = ev_id
 
-    kept: List[Dict[str, Any]] = []
-    dropped: List[Dict[str, Any]] = []
+def save_memory(memory: Dict[str, Any]) -> None:
+    """
+    Save memory. Trims to MAX_MEMORY_ENTRIES, keeping newest by pub_time_ist.
+    Uses file lock + atomic write.
+    """
+    if not isinstance(memory, dict):
+        logger.warning("[store] save_memory: not a dict, skipping")
+        return
 
-    for item in candidates:
-        c_url = canonicalize_url(item.get("link") or item.get("url") or "")
-        headline = str(item.get("headline_en") or item.get("title") or "").strip()
-        summary = str(item.get("summary_en") or item.get("summary") or "").strip()
-        norm_h = normalize_headline(headline)
-        ev_sig = compute_event_signature(item)
-        is_update = bool(item.get("is_verified_update"))
+    if len(memory) > MAX_MEMORY_ENTRIES:
+        def _sort_key(kv):
+            ev = kv[1] if isinstance(kv[1], dict) else {}
+            return (
+                ev.get("pub_time_ist") or
+                ev.get("added_at") or
+                ev.get("updated") or
+                ""
+            )
+        sorted_items = sorted(memory.items(), key=_sort_key, reverse=True)
+        memory = dict(sorted_items[:MAX_MEMORY_ENTRIES])
+        logger.info("[store] trimmed memory to %d entries", MAX_MEMORY_ENTRIES)
 
-        dup_reason = None
-        matched_event_id = None
+    with _file_lock(_memory_path()):
+        _atomic_write_json(_memory_path(), memory)
 
-        # Layer 1: Canonical URL match
-        if c_url and c_url in seen_urls and not is_update:
-            dup_reason = "layer1_canonical_url"
-            matched_event_id = seen_urls[c_url]
 
-        # Layer 2: Normalized headline match
-        if not dup_reason and norm_h and norm_h in seen_norm_titles and not is_update:
-            dup_reason = "layer2_normalized_headline"
-            matched_event_id = seen_norm_titles[norm_h]
+def _merge_dicts(local: Dict[str, Any], remote: Dict[str, Any]) -> Dict[str, Any]:
+    """Union event maps; the entry with the newest known timestamp wins."""
+    from datetime import datetime, timezone
 
-        # Layer 3: Semantic headline + summary similarity
-        if not dup_reason and not is_update:
-            cand_text = f"{headline} {summary[:160]}"
-            for existing in kept:
-                ex_text = f"{existing.get('headline_en') or existing.get('title') or ''} {(existing.get('summary_en') or existing.get('summary') or '')[:160]}"
-                if semantic_similarity(headline, str(existing.get("headline_en") or existing.get("title") or "")) >= similarity_threshold or semantic_similarity(cand_text, ex_text) >= similarity_threshold:
-                    dup_reason = "layer3_semantic_similarity"
-                    matched_event_id = existing.get("event_id")
-                    existing.setdefault("other_reporting_urls", [])
-                    if c_url and c_url not in existing["other_reporting_urls"]:
-                        existing["other_reporting_urls"].append(c_url)
-                    break
-            if not dup_reason:
-                for ev_id, rec in hist_events.items():
-                    if semantic_similarity(headline, rec.get("original_headline", "")) >= similarity_threshold:
-                        dup_reason = "layer3_historical_semantic_similarity"
-                        matched_event_id = ev_id
-                        break
+    def stamp(entry):
+        if not isinstance(entry, dict):
+            return datetime.min.replace(tzinfo=timezone.utc)
+        for key in ("last_seen", "updated_at", "updated", "pub_time_ist", "added_at"):
+            try:
+                dt = datetime.fromisoformat(str(entry.get(key, "")).replace("Z", "+00:00"))
+                return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+            except ValueError:
+                continue
+        return datetime.min.replace(tzinfo=timezone.utc)
 
-        # Layer 4: Event identity signature match
-        if not dup_reason and ev_sig and ev_sig in seen_signatures and not is_update:
-            # Verify shared numbers/entities to avoid false collision
-            prev_rec = hist_events.get(seen_signatures[ev_sig], {})
-            if semantic_similarity(headline, prev_rec.get("original_headline", headline)) >= 0.45:
-                dup_reason = "layer4_event_identity"
-                matched_event_id = seen_signatures[ev_sig]
+    merged = dict(remote)
+    for key, value in local.items():
+        if key not in merged or stamp(value) >= stamp(merged[key]):
+            merged[key] = value
+    return merged
 
-        if dup_reason:
-            dup_copy = dict(item)
-            dup_copy["duplicate_reason"] = dup_reason
-            dup_copy["matched_event_id"] = matched_event_id
-            if matched_event_id and matched_event_id in hist_events:
-                hist_events[matched_event_id]["last_seen_date"] = edition_date
-                if c_url and c_url not in hist_events[matched_event_id].get("other_reporting_urls", []):
-                    hist_events[matched_event_id].setdefault("other_reporting_urls", []).append(c_url)
-            dropped.append(dup_copy)
+
+def record_scores(items, job_id, selected_ids=None, selected_items=None):
+    """Persist all scored events for later edition selection without git side effects.
+
+    Events chosen for the edition are additionally tagged ``selected_in`` (job
+    ids), which daily selection uses to avoid repeating a story that an
+    earlier edition already carried (see ``recently_selected``).
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    chosen = {str(e) for e in (selected_ids or [])}
+    with _file_lock(_memory_path()):
+        memory = load_memory()
+        for item in list(items) + [i for i in (selected_items or []) if i.get("event_id") not in
+                                   {x.get("event_id") for x in items}]:
+            previous = memory.get(item["event_id"]) if isinstance(memory.get(item["event_id"]), dict) else {}
+            event = dict(item, last_seen=now, last_job_id=job_id)
+            tags = [j for j in (previous.get("selected_in") or []) if isinstance(j, str)]
+            if str(item["event_id"]) in chosen and job_id not in tags:
+                tags.append(job_id)
+            if tags:
+                event["selected_in"] = tags[-10:]
+            memory[item["event_id"]] = event
+        newest = sorted(memory.items(), key=lambda kv: kv[1].get("last_seen", "")
+                        if isinstance(kv[1], dict) else "", reverse=True)
+        _atomic_write_json(_memory_path(), dict(newest[:MAX_MEMORY_ENTRIES]))
+
+
+def recently_selected(job_id: str, lookback_days: int = 3) -> Dict[str, set]:
+    """Event ids, links and story keys of stories that EARLIER daily editions
+    (the ``lookback_days`` before ``job_id``'s date) selected. The current
+    edition itself is never included, so a retry/--reset keeps its stories."""
+    from datetime import date, timedelta
+    from pipeline.news_filters import story_key
+    out: Dict[str, set] = {"ids": set(), "links": set(), "keys": set()}
+    try:
+        kind, day = job_id.rsplit("_", 1)
+        today = date.fromisoformat(day)
+    except ValueError:
+        return out
+    earlier = {f"{kind}_{(today - timedelta(days=n)).isoformat()}" for n in range(1, lookback_days + 1)}
+    for event_id, event in load_memory().items():
+        if not isinstance(event, dict) or not earlier.intersection(event.get("selected_in") or []):
             continue
-
-        event_id = item.get("event_id") or f"ev_{hashlib.sha1((c_url or norm_h).encode('utf-8')).hexdigest()[:12]}"
-        enriched = dict(item)
-        enriched["event_id"] = event_id
-        enriched["canonical_url"] = c_url
-        enriched["normalized_headline"] = norm_h
-        enriched["event_signature"] = ev_sig
-        enriched.setdefault("other_reporting_urls", [])
-        if is_update:
-            enriched["update_badge"] = "VERIFIED UPDATE"
-
-        kept.append(enriched)
-        if c_url:
-            seen_urls[c_url] = event_id
-        if norm_h:
-            seen_norm_titles[norm_h] = event_id
-        if ev_sig:
-            seen_signatures[ev_sig] = event_id
-
-        hist_events[event_id] = {
-            "event_id": event_id,
-            "canonical_url": c_url,
-            "original_headline": headline,
-            "normalized_headline": norm_h,
-            "event_signature": ev_sig,
-            "original_source": item.get("source_name") or item.get("source_id") or "",
-            "publication_time": item.get("published_at_ist") or item.get("published_at") or "",
-            "other_reporting_urls": enriched["other_reporting_urls"],
-            "verification_status": item.get("verification_status", "verified"),
-            "first_seen_date": hist_events.get(event_id, {}).get("first_seen_date", edition_date),
-            "last_seen_date": edition_date,
-        }
-
-    history["events"] = hist_events
-    history["updated_at"] = datetime.now(timezone.utc).isoformat()
-    atomic_write_json(h_path, history)
-    return kept, dropped
+        out["ids"].add(str(event_id))
+        if event.get("link"):
+            out["links"].add(str(event["link"]))
+        key = story_key(event.get("headline_en") or event.get("title") or event.get("headline") or "")
+        if key:
+            out["keys"].add(key)
+    return out
 
 
-def recently_selected(job_id: str, days: int = 3) -> Dict[str, Set[str]]:
-    """Backward-compatible helper for 10_final_news_selection.py."""
-    h_path = STATE_DIR / "news_history.json"
-    history = safe_read_json(h_path, {"events": {}})
-    ids: Set[str] = set()
-    links: Set[str] = set()
-    keys: Set[str] = set()
-    for ev_id, rec in (history.get("events") or {}).items():
-        ids.add(str(ev_id))
-        if rec.get("canonical_url"):
-            links.add(rec["canonical_url"])
-        if rec.get("normalized_headline"):
-            keys.add(rec["normalized_headline"])
-    return {"ids": ids, "links": links, "keys": keys}
+def upsert_memory(event_id: str, event_data: Dict[str, Any]) -> None:
+    """Insert or update a single memory entry."""
+    if not event_id:
+        return
+    memory = load_memory()
+    memory[str(event_id)] = event_data
+    save_memory(memory)
+
+
+def memory_has(event_id: str) -> bool:
+    return str(event_id) in load_memory()
+
+
+def memory_size() -> int:
+    return len(load_memory())
+
+
+# --------------------------------------------------------------------------- #
+# Published Events (Idempotency Ledger)
+# --------------------------------------------------------------------------- #
+def load_published() -> Dict[str, Any]:
+    """
+    Load published events ledger.
+
+    Canonical shape: {"version": 1, "records": {key: {...}}}
+    Legacy list also accepted — migrated to dict.
+    """
+    data = _read_json(_published_path())
+    if data is None:
+        return {"version": 1, "records": {}}
+    if isinstance(data, dict):
+        if "records" not in data:
+            data["records"] = {}
+        return data
+    if isinstance(data, list):
+        out = {"version": 1, "records": {}}
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            key = item.get("key") or item.get("id")
+            if key:
+                out["records"][str(key)] = item
+        logger.info("[store] migrated published list → dict (%d entries)", len(out["records"]))
+        return out
+    return {"version": 1, "records": {}}
+
+
+def save_published(ledger: Dict[str, Any]) -> None:
+    """Save published ledger with lock + atomic write."""
+    if not isinstance(ledger, dict):
+        logger.warning("[store] save_published: not a dict, skipping")
+        return
+    if "records" not in ledger:
+        ledger["records"] = {}
+
+    # Trim oldest if too large
+    records = ledger["records"]
+    if len(records) > MAX_PUBLISHED_ENTRIES:
+        def _sort_key(kv):
+            v = kv[1] if isinstance(kv[1], dict) else {}
+            return v.get("published_at") or v.get("at") or ""
+        sorted_items = sorted(records.items(), key=_sort_key, reverse=True)
+        ledger["records"] = dict(sorted_items[:MAX_PUBLISHED_ENTRIES])
+        logger.info("[store] trimmed published ledger to %d entries",
+                    MAX_PUBLISHED_ENTRIES)
+
+    with _file_lock(_published_path()):
+        _atomic_write_json(_published_path(), ledger)
+
+
+def append_published(record: Dict[str, Any]) -> bool:
+    """
+    Append a published record. Returns True if newly added,
+    False if already present (idempotent).
+    """
+    if not isinstance(record, dict):
+        return False
+    key = record.get("key") or record.get("id")
+    if not key:
+        logger.warning("[store] append_published: no key in record")
+        return False
+
+    ledger = load_published()
+    if key in ledger["records"]:
+        logger.debug("[store] already published: %s", key)
+        return False
+
+    ledger["records"][str(key)] = record
+    save_published(ledger)
+    return True
+
+
+def is_published(key: str) -> bool:
+    return str(key) in load_published().get("records", {})
+
+
+def is_job_published(job_id: str) -> bool:
+    """True when the ledger holds a *live* success receipt for this job_id.
+
+    Distinct from ``is_published(key)``: the ledger key is a hash of
+    (chat_id, job_id, file_hash), so job-level lookups must scan records.
+    A record only counts when it is a non-dry-run success with a positive
+    message_id — the same contract used by pipeline.publication.
+    """
+    from pipeline.publication import positive_message_id
+
+    records = load_published().get("records", {})
+    wanted = str(job_id)
+    return any(
+        isinstance(record, dict)
+        and str(record.get("job_id")) == wanted
+        and record.get("status") == "success"
+        and not record.get("dry_run")
+        and positive_message_id(record.get("message_id"))
+        for record in records.values()
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Source Health Tracking
+# --------------------------------------------------------------------------- #
+def _source_health_path() -> Path:
+    override = os.getenv("ALP_SOURCE_HEALTH_PATH")
+    return Path(override) if override else DEFAULT_SOURCE_HEALTH_PATH
+
+
+def load_source_health() -> Dict[str, Any]:
+    data = _read_json(_source_health_path())
+    if data is None:
+        return {"version": 1, "sources": {}}
+    if isinstance(data, dict):
+        data.setdefault("sources", {})
+        return data
+    return {"version": 1, "sources": {}}
+
+
+def save_source_health(health: Dict[str, Any]) -> None:
+    if not isinstance(health, dict):
+        return
+    health.setdefault("sources", {})
+    with _file_lock(_source_health_path()):
+        _atomic_write_json(_source_health_path(), health)
+
+
+def update_source_health(
+    source_url: str,
+    success: bool,
+    article_count: int = 0,
+    error: Optional[str] = None,
+) -> None:
+    """Track per-source health. Called by agent 03."""
+    health = load_source_health()
+    sources = health.setdefault("sources", {})
+    entry = sources.setdefault(source_url, {
+        "success_count": 0,
+        "failure_count": 0,
+        "consecutive_failures": 0,
+        "last_success_at": None,
+        "last_failure_at": None,
+        "last_error": None,
+        "last_article_count": 0,
+    })
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+
+    if success:
+        entry["success_count"] = int(entry.get("success_count", 0)) + 1
+        entry["consecutive_failures"] = 0
+        entry["last_success_at"] = now
+        entry["last_article_count"] = article_count
+        entry["last_error"] = None
+    else:
+        entry["failure_count"] = int(entry.get("failure_count", 0)) + 1
+        entry["consecutive_failures"] = int(entry.get("consecutive_failures", 0)) + 1
+        entry["last_failure_at"] = now
+        entry["last_error"] = (error or "")[:500]
+
+    save_source_health(health)
+
+
+# --------------------------------------------------------------------------- #
+# Health check / stats
+# --------------------------------------------------------------------------- #
+def stats() -> Dict[str, Any]:
+    """Return store stats — useful for health checks."""
+    mem = load_memory()
+    pub = load_published()
+    health = load_source_health()
+    return {
+        "memory": {
+            "path": str(_memory_path()),
+            "entries": len(mem),
+            "max": MAX_MEMORY_ENTRIES,
+            "exists": _memory_path().exists(),
+        },
+        "published": {
+            "path": str(_published_path()),
+            "entries": len(pub.get("records", {})),
+            "max": MAX_PUBLISHED_ENTRIES,
+            "exists": _published_path().exists(),
+        },
+        "source_health": {
+            "path": str(_source_health_path()),
+            "sources": len(health.get("sources", {})),
+            "exists": _source_health_path().exists(),
+        },
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Smoke test
+# --------------------------------------------------------------------------- #
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    import json
+    print(json.dumps(stats(), indent=2, default=str))
