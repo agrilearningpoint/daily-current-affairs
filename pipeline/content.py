@@ -896,7 +896,8 @@ def build_content(items, job_meta):
     # unreviewed and the edition dies at the QA floor.  When most of the batch
     # failed at once, wait out the soonest provider cooldown (once, capped,
     # within the stage AI budget) and rebuild just the failed entries.
-    if stats["ai_failed"] >= 3 and stats["ai_failed"] * 2 >= len(items):
+    incomplete = [idx for idx, e in enumerate(out) if e.get("translation_incomplete")]
+    if len(incomplete) >= 3 and len(incomplete) * 2 >= max(1, len(out)):
         try:
             from pipeline import ai_router
             import time as _time
@@ -909,16 +910,14 @@ def build_content(items, job_meta):
             if wait_s is None:
                 wait_s = float(os.getenv("ALP_CONTENT_STORM_PAUSE", "120") or 120)
             if 2.0 <= wait_s <= cap and (left is None or wait_s + 60.0 <= left):
-                logger.warning("[Content Builder] %d/%d translations failed in one batch "
-                               "(provider storm) — waiting %.0fs, then retrying the failed entries",
-                               stats["ai_failed"], len(items), wait_s)
+                logger.warning("[Content Builder] %d/%d stories came back without validated Hindi "
+                               "(provider storm) — waiting %.0fs, then retrying those stories",
+                               len(incomplete), len(out), wait_s)
                 _time.sleep(wait_s)
                 retry_stats = {"total_items": 0, "ai_passed": 0, "ai_failed": 0,
                                "deterministic_fallback": 0, "untranslated": 0, "skipped_items": 0}
                 recovered = 0
-                for idx, entry in enumerate(out):
-                    if not entry.get("translation_incomplete"):
-                        continue
+                for idx in incomplete:
                     src = out_sources[idx] if idx < len(out_sources) else None
                     if src is None:
                         continue

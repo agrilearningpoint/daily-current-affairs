@@ -104,10 +104,18 @@ def request_timeout(provider_name: str, task: str = "general") -> float:
 TRANSIENT_STRIKES = int(os.getenv("AI_ROUTER_TRANSIENT_STRIKES", "2"))
 TRANSIENT_COOLDOWN = int(os.getenv("AI_ROUTER_TRANSIENT_COOLDOWN", "600"))
 # Timeouts are far more expensive than 5xx (each costs the full timeout), so a
-# provider that keeps timing out is parked for longer (default 30 min ≈ the run).
+# model that keeps hanging is retired for the rest of the run.
 TIMEOUT_COOLDOWN = int(os.getenv("AI_ROUTER_TIMEOUT_COOLDOWN", "1800"))
+# 2026-11-13: parking the whole *provider* for 30 minutes because two calls
+# timed out cost more capacity than the hang itself — nvidia and llm7 were out
+# for the entire run while the edition starved.  The provider comes back after a
+# short park; the hung model stays retired, so the retry uses a different one.
+PROVIDER_TIMEOUT_COOLDOWN = int(os.getenv("AI_ROUTER_PROVIDER_TIMEOUT_COOLDOWN", "600"))
 RATE_LIMIT_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_COOLDOWN", "120"))
-RATE_LIMIT_MAX_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_MAX_COOLDOWN", "1800"))
+# Free-tier 429s refill per minute, so escalating a repeat offender to 30
+# minutes removed the fleet's biggest contributor (llm7, 1800s on 2026-11-13).
+# Retry-After / Gemini retryDelay is still honoured — it just cannot exceed this.
+RATE_LIMIT_MAX_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_MAX_COOLDOWN", "300"))
 AUTH_COOLDOWN = int(os.getenv("AI_ROUTER_AUTH_COOLDOWN", "86400"))
 MAX_CALLS_PER_HOUR = int(os.getenv("AI_ROUTER_MAX_CALLS_PER_HOUR", "500"))
 CACHE_SIZE = int(os.getenv("AI_ROUTER_CACHE_SIZE", "1000"))
@@ -1006,8 +1014,15 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
         per_model = provider is not None and provider.per_model_quota and len(provider.models) > 1
         key = f"{name}::{provider.model}" if per_model else name
         strikes = _strike(f"{key}:429")
-        cooldown = min(RATE_LIMIT_MAX_COOLDOWN,
-                       max(float(retry_after or 0), RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6))))
+        if retry_after:
+            # The provider said exactly when to come back — honour it verbatim.
+            cooldown = float(retry_after)
+        else:
+            # Blind escalation must stay run-scale: on 2026-11-13 it walked
+            # llm7 (the fleet's biggest contributor) up to a 1800s park, so the
+            # provider was gone for the rest of the edition.
+            cooldown = min(RATE_LIMIT_MAX_COOLDOWN,
+                           RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6)))
         if per_model:
             block(key, cooldown, "rate limited (model quota)")
             if provider.rotate_model():
@@ -1061,9 +1076,9 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
         if _strike(f"{name}:timeout") >= TRANSIENT_STRIKES:
             _strike(f"{name}:timeout", reset=True)
             if provider is not None:
-                provider.mark_disabled("repeated timeouts", TIMEOUT_COOLDOWN)
+                provider.mark_disabled("repeated timeouts", PROVIDER_TIMEOUT_COOLDOWN)
             else:
-                block(name, TIMEOUT_COOLDOWN, "repeated timeouts")
+                block(name, PROVIDER_TIMEOUT_COOLDOWN, "repeated timeouts")
         return False
     if failure == FailureType.TRANSIENT and provider is not None:
         provider.consecutive_transient += 1

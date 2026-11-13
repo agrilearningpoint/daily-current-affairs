@@ -93,7 +93,23 @@ def test_repeated_timeouts_park_provider_for_long_and_persist(monkeypatch):
     ai_router.route("c")
     assert len(calls) == ai_router.TRANSIENT_STRIKES
     _new_stage()
-    assert ai_router.blocked_until("slowco") - time.time() > ai_router.TIMEOUT_COOLDOWN - 60
+    parked = ai_router.blocked_until("slowco") - time.time()
+    assert parked > ai_router.PROVIDER_TIMEOUT_COOLDOWN - 60
+    # 2026-11-13: the park must also stay *shorter than a run*, or one hung
+    # provider is lost for the whole edition (nvidia/llm7 were out for 30 min).
+    assert parked <= ai_router.PROVIDER_TIMEOUT_COOLDOWN
+
+
+def test_repeated_rate_limits_never_park_a_provider_for_the_whole_run(monkeypatch):
+    """llm7 was the fleet's biggest contributor and 429'd into a 1800s park."""
+    p = ai_router.Provider(name="busyco", url="https://b/chat/completions", key="k", model="m")
+    _use(monkeypatch, [p])
+    monkeypatch.setattr(ai_router, "_call_provider", lambda provider, *a, **k: (None, FT.RATE_LIMIT))
+    for probe in "abcdef":                      # escalate the 429 counter hard
+        ai_router.route(probe)
+    parked = ai_router.blocked_until("busyco") - time.time()
+    assert parked <= ai_router.RATE_LIMIT_MAX_COOLDOWN
+    assert ai_router.RATE_LIMIT_MAX_COOLDOWN <= 600   # run-scale, not day-scale
 
 
 def test_requests_timeout_is_classified_as_timeout(monkeypatch):
@@ -581,3 +597,26 @@ def test_content_builder_does_not_retry_when_translations_are_fine(monkeypatch):
     c = content.build_content(_storm_items(6), {"type": "daily"})
     assert not slept
     assert c["translation_stats"]["ai_failed"] == 0
+
+
+def test_content_builder_ignores_a_couple_of_stragglers(monkeypatch):
+    """Only a batch-wide storm justifies the wait; 1-2 stragglers do not."""
+    from pipeline import content
+    import time as _time
+
+    slept = []
+    monkeypatch.setattr(_time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(ai_router, "all_providers_recovery_wait", lambda: 90.0)
+    monkeypatch.setattr(ai_router, "ai_time_left", lambda: 600.0)
+
+    def entry(it, stats):
+        bad = it["event_id"] == "e0"
+        stats["untranslated" if bad else "ai_passed"] += 1
+        return {"event_id": it["event_id"], "translation_incomplete": bad, "needs_review": bad}
+
+    monkeypatch.setattr(content, "_build_entry", entry)
+    monkeypatch.setattr(content, "_prefill_headline_translation_cache", lambda items: None)
+    monkeypatch.setattr(content, "_build_category_one_liners", lambda out: {})
+    c = content.build_content(_storm_items(6), {"type": "daily"})
+    assert not slept
+    assert sum(1 for it in c["items"] if it["translation_incomplete"]) == 1
