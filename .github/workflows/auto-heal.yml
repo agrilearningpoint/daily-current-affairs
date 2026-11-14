@@ -49,11 +49,10 @@ jobs:
         env:
           TARGET_JOB_ID: ${{ github.event.inputs.job_id }}
         run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          from agents import 25_auto_healer as healer  # handled via importlib below
-          PY
+          # agents/25_auto_healer.py cannot be imported with a normal `from agents
+          # import ...` statement: a module name may not start with a digit
+          # (SyntaxError: invalid decimal literal, self-healer runs #1-#4).
+          # importlib loads it by path instead.
           python -c "
           import importlib.util, json, os
           from pathlib import Path
