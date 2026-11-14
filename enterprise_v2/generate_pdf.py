@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AGRI LEARNING POINT – Exam Genius Style Daily Current Affairs PDF Generator
+AGRI LEARNING POINT â€“ Exam Genius Style Daily Current Affairs PDF Generator
 ===========================================================================
 Modern, mobile-first, student-centric current affairs publishing engine.
 Engineered for competitive-exam coaching standards:
@@ -80,7 +80,7 @@ except ImportError:
 
 # --- PATHS & CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PDF_FONT_DIR = os.getenv("PDF_FONT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts"))
+PDF_FONT_DIR = os.getenv("PDF_FONT_DIR", os.path.join(BASE_DIR, "src", "fonts"))
 FONTS_DIR = PDF_FONT_DIR
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -213,7 +213,7 @@ STYLES: Dict[str, ParagraphStyle] = {
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 UNSUPPORTED_SYM_RE = re.compile(
-    r"[►📌📎✂✖️√★◽☆▪️☑️]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]"
+    r"[â–ºðŸ“ŒðŸ“Žâœ‚âœ–ï¸âˆšâ˜…â—½â˜†â–ªï¸â˜‘ï¸]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]"
 )
 
 
@@ -479,7 +479,7 @@ def _bilingual_options(mcq: Dict[str, Any]) -> List[str]:
         hi_val = _hi_or_blank(opts_hi[idx]) if idx < len(opts_hi) else ""
         if not en_val and idx == 4:
             en_val = "None of the above"
-            hi_val = "उपर्युक्त में से कोई नहीं"
+            hi_val = "à¤‰à¤ªà¤°à¥à¤¯à¥à¤•à¥à¤¤ à¤®à¥‡à¤‚ à¤¸à¥‡ à¤•à¥‹à¤ˆ à¤¨à¤¹à¥€à¤‚"
         if en_val and hi_val and hi_val not in en_val:
             combined.append(f"{en_val} / {hi_val}")
         elif en_val:
@@ -665,14 +665,14 @@ def generate_pdf(
 
     # Cover / Edition Intro Banner (compact so Page 1 is substantive and never near-empty)
     cover_lines: List[Flowable] = [
-        Paragraph(f"<b>{ _safe(PDF_TITLE) } — DAILY CURRENT AFFAIRS (BILINGUAL)</b>", STYLES["section_heading"]),
+        Paragraph(f"<b>{ _safe(PDF_TITLE) } â€” DAILY CURRENT AFFAIRS (BILINGUAL)</b>", STYLES["section_heading"]),
         Paragraph(
             f"<b>Edition Date:</b> {_safe(CURRENT_COVER_DATE)} | "
             "<b>Target Exams:</b> IBPS AFO, NABARD, ICAR, UPSSSC AGTA, FCI, Banking &amp; State PCS",
             STYLES["body"],
         ),
         _HindiTextFlowable(
-            "कृषि एवं प्रतियोगी परीक्षाओं के लिए द्विभाषी दैनिक करेंट अफेयर्स और स्टैटिक जीके प्रश्नोत्तरी",
+            "à¤•à¥ƒà¤·à¤¿ à¤à¤µà¤‚ à¤ªà¥à¤°à¤¤à¤¿à¤¯à¥‹à¤—à¥€ à¤ªà¤°à¥€à¤•à¥à¤·à¤¾à¤“à¤‚ à¤•à¥‡ à¤²à¤¿à¤ à¤¦à¥à¤µà¤¿à¤­à¤¾à¤·à¥€ à¤¦à¥ˆà¤¨à¤¿à¤• à¤•à¤°à¥‡à¤‚à¤Ÿ à¤…à¤«à¥‡à¤¯à¤°à¥à¤¸ à¤”à¤° à¤¸à¥à¤Ÿà¥ˆà¤Ÿà¤¿à¤• à¤œà¥€à¤•à¥‡ à¤ªà¥à¤°à¤¶à¥à¤¨à¥‹à¤¤à¥à¤¤à¤°à¥€",
             width=PRINT_W - 24,
             font_size=10.5,
             bold=True,
@@ -703,7 +703,7 @@ def generate_pdf(
             q_hi = _hi_or_blank(m.get("question_hi") or headline_hi)
             q_block.append(Paragraph(f"<b>Ques {q_counter}: {_safe(q_en)}</b>", STYLES["question_en"]))
             if q_hi:
-                q_block.append(_HindiTextFlowable(f"प्रश्न {q_counter}: {q_hi}", width=PRINT_W, font_size=10.8, bold=True))
+                q_block.append(_HindiTextFlowable(f"à¤ªà¥à¤°à¤¶à¥à¤¨ {q_counter}: {q_hi}", width=PRINT_W, font_size=10.8, bold=True))
             opts = _bilingual_options(m)
             for opt_idx, opt_str in enumerate(opts):
                 q_block.append(_option_line(chr(65 + opt_idx), opt_str))
@@ -715,14 +715,14 @@ def generate_pdf(
         else:
             q_block.append(Paragraph(f"<b>Ques {q_counter}: {_safe(headline_en)}</b>", STYLES["question_en"]))
             if headline_hi:
-                q_block.append(_HindiTextFlowable(f"प्रश्न {q_counter}: {headline_hi}", width=PRINT_W, font_size=10.8, bold=True))
+                q_block.append(_HindiTextFlowable(f"à¤ªà¥à¤°à¤¶à¥à¤¨ {q_counter}: {headline_hi}", width=PRINT_W, font_size=10.8, bold=True))
             q_counter += 1
 
         story.append(KeepTogether(q_block))
 
         # 2. Pair-wise Bilingual Explanation (flows naturally across page boundaries without huge white gaps)
         story.append(Paragraph("<b>Explanation:</b>", STYLES["section_heading"]))
-        story.append(_HindiTextFlowable("व्याख्या (मुख्य बिंदु):", width=PRINT_W, font_size=10.5, bold=True))
+        story.append(_HindiTextFlowable("à¤µà¥à¤¯à¤¾à¤–à¥à¤¯à¤¾ (à¤®à¥à¤–à¥à¤¯ à¤¬à¤¿à¤‚à¤¦à¥):", width=PRINT_W, font_size=10.5, bold=True))
 
         # Always include the exact headline_en in the explanation body so 19_pdf_qa.py
         # check_story_coverage finds every selected story's 7-word headline key
@@ -736,7 +736,7 @@ def generate_pdf(
             if sum_en:
                 pts_en = [s.strip() for s in re.split(r"(?<=[.!?])\s+", sum_en) if len(s.strip()) > 15][:5]
             if sum_hi:
-                pts_hi = [s.strip() for s in re.split(r"(?<=[।.!?])\s+", sum_hi) if len(s.strip()) > 10][:5]
+                pts_hi = [s.strip() for s in re.split(r"(?<=[à¥¤.!?])\s+", sum_hi) if len(s.strip()) > 10][:5]
 
         max_pts = max(len(pts_en), len(pts_hi))
         for p_i in range(max_pts):
@@ -755,7 +755,7 @@ def generate_pdf(
                 Paragraph(f"<b>Ques {q_counter}: {_safe(q_en)}</b>", STYLES["question_en"]),
             ]
             if q_hi:
-                extra_block.append(_HindiTextFlowable(f"प्रश्न {q_counter}: {q_hi}", width=PRINT_W, font_size=10.5, bold=True))
+                extra_block.append(_HindiTextFlowable(f"à¤ªà¥à¤°à¤¶à¥à¤¨ {q_counter}: {q_hi}", width=PRINT_W, font_size=10.5, bold=True))
             for opt_idx, opt_str in enumerate(_bilingual_options(extra_m)):
                 extra_block.append(_option_line(chr(65 + opt_idx), opt_str))
             ans_l = _clean_text_for_display(extra_m.get("answer") or extra_m.get("correct_answer") or "A")[:1].upper()
@@ -767,7 +767,7 @@ def generate_pdf(
         gk_pairs = _extract_static_gk_pairs(item)
         if gk_pairs:
             story.append(Paragraph("<b>Static GK:</b>", STYLES["section_heading"]))
-            story.append(_HindiTextFlowable("स्थैतिक सामान्य ज्ञान (Static GK):", width=PRINT_W, font_size=10.2, bold=True))
+            story.append(_HindiTextFlowable("à¤¸à¥à¤¥à¥ˆà¤¤à¤¿à¤• à¤¸à¤¾à¤®à¤¾à¤¨à¥à¤¯ à¤œà¥à¤žà¤¾à¤¨ (Static GK):", width=PRINT_W, font_size=10.2, bold=True))
             for gk_en, gk_hi in gk_pairs[:6]:
                 story.extend(bi_line(gk_en, gk_hi))
 
@@ -795,3 +795,4 @@ def generate_pdf(
 if __name__ == "__main__":
     if len(sys.argv) > 2:
         generate_pdf(sys.argv[1], sys.argv[2])
+
