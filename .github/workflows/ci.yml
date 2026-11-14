@@ -148,7 +148,10 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The suite passed 868 tests; at 15 minutes the job was killed before it
+    # finished and every push reported "Run Tests: cancelled" (2026-11-14,
+    # runs #242-#244), so the gate never actually ran.
+    timeout-minutes: 35
     needs: lint
 
     steps:
@@ -175,7 +178,9 @@ jobs:
       - name: Run tests
         run: |
           if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
-            python -m pytest tests/ -v --maxfail=5 --tb=short
+            # -q, not -v: 868 verbose test lines cost minutes of log I/O and
+            # make the job bump into its timeout.
+            python -m pytest tests/ -q --maxfail=5 --tb=short
           else
             echo "::warning::No tests directory or empty — skipping"
           fi
