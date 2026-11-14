@@ -2133,7 +2133,7 @@
     "checkpoint_run_id": "43438939697"
   },
   "daily_2026-11-14": {
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-11-14",
     "job_type": "daily",
     "job_date": "2026-11-14",
@@ -2142,9 +2142,9 @@
       "start": "2026-11-13T06:00:00+05:30",
       "end": "2026-11-14T06:00:00+05:30"
     },
-    "github_run_id": "43539793727",
+    "github_run_id": "43541155781",
     "status": "running",
-    "updated_at": "2026-11-14T01:19:01.730392+00:00",
+    "updated_at": "2026-11-14T01:32:37.033338+00:00",
     "started_at": "2026-11-14T00:59:59.337630+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-14.json": {
