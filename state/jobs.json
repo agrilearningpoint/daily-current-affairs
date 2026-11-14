@@ -2133,7 +2133,7 @@
     "checkpoint_run_id": "43438939697"
   },
   "daily_2026-11-14": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "daily_2026-11-14",
     "job_type": "daily",
     "job_date": "2026-11-14",
@@ -2142,8 +2142,34 @@
       "start": "2026-11-13T06:00:00+05:30",
       "end": "2026-11-14T06:00:00+05:30"
     },
-    "github_run_id": "43537686007",
+    "github_run_id": "43539793727",
     "status": "running",
-    "updated_at": "2026-11-14T00:59:56.470867+00:00"
+    "updated_at": "2026-11-14T01:19:01.730392+00:00",
+    "started_at": "2026-11-14T00:59:59.337630+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-14.json": {
+        "stage": "01_source_fetch",
+        "sha256": "ad11d475d847c918e19ac9da7400f782fb92cf51c4a69ed780ace4eee55ed53a"
+      },
+      "data/verified/daily_2026-11-14.json": {
+        "stage": "04_fact_verification",
+        "sha256": "3d324f3d6c783b3b00ef2b26ce10e476b333a6d62ebde24a33ab42d4c1fb82e0"
+      },
+      "data/dedup/daily_2026-11-14.json": {
+        "stage": "05_deduplication",
+        "sha256": "1a40c6f9bbe4d834ef68fbbf226981149e299c735c4d041d76e7e1aae7c9143f"
+      },
+      "data/scored/daily_2026-11-14.json": {
+        "stage": "06_news_importance",
+        "sha256": "934c008ad4cc57cc06f06759de55d29a7b885c61506bd8027bd6fdae05ff973b"
+      },
+      "data/selected/daily_2026-11-14.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "9483be75da004eed26e94d25a3a4d95fefb8a8301bf95a6334eca96f08315765"
+      }
+    },
+    "last_success_stage": "11_importance_memory",
+    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 406, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 308, in main\n    items, reserves = read_news_items(path)\n    ^^^^^^^^^^^^^^^\nValueError: too many values to unpack (expected 2)",
+    "failed_stage": "12_content_editor"
   }
 }
