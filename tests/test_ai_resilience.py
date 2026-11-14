@@ -620,3 +620,18 @@ def test_content_builder_ignores_a_couple_of_stragglers(monkeypatch):
     c = content.build_content(_storm_items(6), {"type": "daily"})
     assert not slept
     assert sum(1 for it in c["items"] if it["translation_incomplete"]) == 1
+
+
+def test_a_huge_retry_after_cannot_remove_a_provider_for_the_whole_edition(monkeypatch):
+    """llm7 answered 429 with Retry-After 3318s on 2026-11-14 01:04 — a 15-minute
+    run cannot use a 55-minute park, so it is capped at run scale."""
+    p = ai_router.Provider(name="slowquota", url="https://s/chat/completions", key="k", model="m")
+    _use(monkeypatch, [p])
+    ai_router.report_failure("slowquota", FT.RATE_LIMIT, retry_after=3318, provider=p)
+    parked = ai_router.blocked_until("slowquota") - time.time()
+    assert parked <= ai_router.RETRY_AFTER_CAP
+    assert ai_router.RETRY_AFTER_CAP <= 900          # run-scale, not hour-scale
+    # A sane Retry-After is still honoured verbatim.
+    ai_router._HEALTH["blocks"].clear()
+    ai_router.report_failure("slowquota", FT.RATE_LIMIT, retry_after=120, provider=p)
+    assert 110 < ai_router.blocked_until("slowquota") - time.time() <= 120

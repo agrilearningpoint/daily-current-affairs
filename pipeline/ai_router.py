@@ -116,6 +116,9 @@ RATE_LIMIT_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_COOLDOWN", "120"))
 # minutes removed the fleet's biggest contributor (llm7, 1800s on 2026-11-13).
 # Retry-After / Gemini retryDelay is still honoured — it just cannot exceed this.
 RATE_LIMIT_MAX_COOLDOWN = int(os.getenv("AI_ROUTER_RATE_LIMIT_MAX_COOLDOWN", "300"))
+# An explicit Retry-After is honoured, but never beyond run scale (2026-11-14:
+# llm7 answered 429 with Retry-After 3318s and was lost for the whole edition).
+RETRY_AFTER_CAP = int(os.getenv("AI_ROUTER_RETRY_AFTER_CAP", "900"))
 AUTH_COOLDOWN = int(os.getenv("AI_ROUTER_AUTH_COOLDOWN", "86400"))
 MAX_CALLS_PER_HOUR = int(os.getenv("AI_ROUTER_MAX_CALLS_PER_HOUR", "500"))
 CACHE_SIZE = int(os.getenv("AI_ROUTER_CACHE_SIZE", "1000"))
@@ -1015,8 +1018,12 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
         key = f"{name}::{provider.model}" if per_model else name
         strikes = _strike(f"{key}:429")
         if retry_after:
-            # The provider said exactly when to come back — honour it verbatim.
-            cooldown = float(retry_after)
+            # The provider said when to come back — honour it, but a run only
+            # lasts ~15 minutes, so a 55-minute Retry-After (llm7, 2026-11-14
+            # 01:04) must not remove the fleet's biggest contributor for the
+            # whole edition.  Anything past the cap is treated as "not in this
+            # run" and re-probed at the cap instead.
+            cooldown = min(float(retry_after), RETRY_AFTER_CAP)
         else:
             # Blind escalation must stay run-scale: on 2026-11-13 it walked
             # llm7 (the fleet's biggest contributor) up to a 1800s park, so the
