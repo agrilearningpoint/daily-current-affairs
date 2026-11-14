@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""FINAL NEWS SELECTION AGENT v2 – 25-30 items for 15+ pages"""
+"""FINAL NEWS SELECTION AGENT v2 — 25-30 items for 15+ pages"""
 import logging
 import os
 import re
 
 COMMAND = "Select top 25-30 news items with category diversity."
 RAW_FILE_RE = re.compile(
-    r"(?:\b[\w\-_]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:\^\s*[\w\-_]+\.(?:pdf|docx?|xlsx?)\b)",
+    r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)",
     re.IGNORECASE,
 )
 MASTER_RULE = "Student Value First. Accuracy Before Speed. Quality Before Quantity."
@@ -50,7 +50,7 @@ class Agent:
                 return False
             if re.search(r"\buntitled\b", h, re.I):
                 return False
-            if h.startswith(("-", "–", "—", ":")):
+            if h.startswith(("-", "—", "–", ":")):
                 return False
             if re.match(r"^(?:Department|Ministry)\s+of\s+[A-Za-z\s,&-]+$", h, re.I):
                 return False
@@ -69,19 +69,16 @@ class Agent:
         n_before = len(scored)
         selected = self._diverse_selection(scored, target)
         selected = self._ensure_official(selected, scored, target)
-
         # Reserves: the next-best candidates, used by stage 12 (stories dropped for
         # unreviewed translation) and stage 16 (stories without a valid MCQ) to
         # backfill so the edition still reaches its target count.
-        # Keep at least max(12, target) reserves so stage 12 never runs out of replacements.
-        default_res = max(12, target)
         try:
-            n_res = int(os.getenv("ALP_SELECTION_RESERVES", str(default_res)))
+            n_res = int(os.getenv("ALP_SELECTION_RESERVES", str(max(8, target // 2))))
         except ValueError:
-            n_res = default_res
+            n_res = max(8, target // 2)
         chosen = {id(x) for x in selected}
         reserves = [x for x in scored if id(x) not in chosen][:max(0, n_res)]
-        logging.info(f"[{self.name}] Selected {len(selected)} items (target={target}), "
+        logging.info(f"[{self.name}] selected {len(selected)} items (target={target}), "
                      f"{len(reserves)} reserve(s); {n_before} valid candidates")
         cats = {}
         for item in selected:
@@ -195,8 +192,8 @@ class Agent:
         kept = []
         for x in scored:
             key = story_key(x.get("headline_en") or x.get("title") or "")
-            if (str(x.get("event_id")) in seen["ids"]) or (x.get("link") and x["link"] in seen["links"]) \
-               or (key and key in seen["keys"]):
+            if (str(x.get("event_id")) in seen["ids"] or (x.get("link") and x["link"] in seen["links"])
+                    or (key and key in seen["keys"])):
                 continue
             kept.append(x)
         logging.info(f"[{self.name}] dropped {len(scored) - len(kept)} candidate(s) already "
@@ -258,7 +255,7 @@ class Agent:
         chosen = {id(x) for x in selected}
         pool = [x for x in scored if id(x) not in chosen and is_must_include(x) and rel(x) >= 20]
         out = list(selected)
-        for cand in pool[:want - len(have)]:
+        for cand in pool[: want - len(have)]:
             weak = [x for x in out if not is_must_include(x) and not x.get("agri_focus") and not x.get("banking_focus")]
             if len(out) >= target and weak:
                 out.remove(min(weak, key=rel))
@@ -272,26 +269,19 @@ class Agent:
             cat = item.get("category", "Other")
             by_category.setdefault(cat, []).append(item)
         priority_cats = [
-            "Agriculture & Rural Development",
-            "Economy, Banking & Finance",
-            "National Affairs & Schemes",
-            "Science & Technology",
-            "Environment & Ecology",
-            "International Affairs",
-            "Defense & Security",
-            "Reports & Indices",
-            "Appointments & Persons in News",
-            "Awards & Honours",
-            "Sports",
-            "State Affairs",
-            "Other",
+            "Agriculture", "Banking & Finance", "Economy", "Government Schemes",
+            "National", "International", "Science & Technology", "Environment",
+            "Sports", "Awards & Honours", "Appointments", "Defence", "Education"
         ]
         cat_idx = {cat: 0 for cat in priority_cats}
+        # Category diversity must not promote weak stories over clearly stronger ones:
+        # the round-robin only takes items within reach of the day's best story; the
+        # rest of the edition is filled strictly by relevance.
         rel = lambda x: x.get("student_relevance", x.get("importance_score", 0)) or 0
         try:
-            floor_pct = float(os.getenv("ALP_ROUND_ROBIN_FLOOR", "0.45"))
+            floor_pct = float(os.getenv("ALP_ROUND_ROBIN_FLOOR", "0.6"))
         except ValueError:
-            floor_pct = 0.45
+            floor_pct = 0.6
         floor = floor_pct * max((rel(x) for x in scored), default=0)
         for cat in list(by_category):
             by_category[cat] = [x for x in by_category[cat] if rel(x) >= floor]
@@ -327,9 +317,9 @@ class Agent:
         return not self.context.get("stage_failed")
 
 
-# ==============================================================================
+# =============================================================================
 # STANDALONE ENTRYPOINT (for pipeline integration)
-# ==============================================================================
+# =============================================================================
 if __name__ == "__main__":
     import os
     import sys
@@ -370,7 +360,7 @@ if __name__ == "__main__":
     try:
         _agent = Agent(job_id=_job_id, job_type=_job_type, context=_context)
         _agent.run()
-        print(f"[10] OK – selected_count={_context.get('selected_count', '?')}")
+        print(f"[10] OK — selected_count={_context.get('selected_count', '?')}")
     except SystemExit:
         raise
     except Exception as exc:

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 PDF QA Agent (19)
-=================
+==================
 Final gate-keeper before Telegram publish. Fails the job if PDF is
 unfit for students.
 
@@ -18,22 +18,20 @@ Checks:
 10. Optional: image XObjects present (watermark/logo)
 
 Env:
-  PDF_QA_MIN_PAGES      (default 10)
-  PDF_QA_MAX_PAGES      (default 45)
-  PDF_QA_MIN_HINDI_PCT  (default 5.0)  - % of chars that must be Devanagari
-  PDF_QA_MIN_MCQ_COUNT  (default 10; sparse editions require 1-2 per story)
-  PDF_QA_MIN_STORIES    (default 8; hard error floor for story count)
-  PDF_QA_STRICT         (1 = fail on warnings; 0 = warnings OK)
-  PDF_QA_RENDER_CHECK   (1 = render pages to image for blank detection)
-  PDF_QA_MCQ_VARIETY    (1 = warn on monotonous / repeated MCQs; default 1)
+  PDF_QA_MIN_PAGES       (default 15)
+  PDF_QA_MAX_PAGES       (default 45)
+  PDF_QA_MIN_HINDI_PCT   (default 5.0)  — % of chars that must be Devanagari
+  PDF_QA_MIN_MCQ_COUNT   (default 10; sparse editions require 2 per story)
+  PDF_QA_STRICT          (1 = fail on warnings; 0 = warnings OK)
+  PDF_QA_RENDER_CHECK    (1 = render pages to image for blank detection)
+  PDF_QA_MCQ_VARIETY     (1 = warn on monotonous / repeated MCQs; default 1)
   PDF_QA_STEM_SHARE_WARN (one stem may cover this share of questions; default 0.25)
 
 Exit codes:
-  0 - QA passed
-  1 - QA failed (job should not publish)
-  2 - Config / IO error
+  0 — QA passed
+  1 — QA failed (job should not publish)
+  2 — Config / IO error
 """
-
 from __future__ import annotations
 
 import hashlib
@@ -135,7 +133,7 @@ def open_pdf_document(pdf_path: Path | str):
 
 
 # --------------------------------------------------------------------------- #
-# Logging                                                                     #
+# Logging
 # --------------------------------------------------------------------------- #
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOGS_DIR = REPO_ROOT / "logs"
@@ -153,60 +151,60 @@ logging.basicConfig(
 logger = logging.getLogger("agent.19_pdf_qa")
 
 # --------------------------------------------------------------------------- #
-# Config                                                                      #
+# Config
 # --------------------------------------------------------------------------- #
 OUTPUT_DIR = REPO_ROOT / "output"
 QA_REPORT_DIR = REPO_ROOT / "logs" / "qa"
 QA_REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Release editions are bounded: default minimum lowered to 10 pages so valid
-# 9-14 story daily editions are not rejected when upstream feeds are quieter.
-MIN_PAGES = int(os.getenv("PDF_QA_MIN_PAGES", "10"))
+# Release editions are intentionally bounded: fewer than 15 pages is not a
+# complete daily study pack, while more than 45 pages is too long for a daily
+# revision booklet. Offline fixtures may explicitly lower the minimum.
+MIN_PAGES = int(os.getenv("PDF_QA_MIN_PAGES", "15"))
 MAX_PAGES = int(os.getenv("PDF_QA_MAX_PAGES", "45"))
 MIN_HINDI_PCT = float(os.getenv("PDF_QA_MIN_HINDI_PCT", "3.0"))
-MIN_MCQ_COUNT = int(os.getenv("PDF_QA_MIN_MCQ_COUNT", "8"))
-MIN_STORIES_FLOOR = int(os.getenv("PDF_QA_MIN_STORIES", "8"))
+MIN_MCQ_COUNT = int(os.getenv("PDF_QA_MIN_MCQ_COUNT", "10"))
 STRICT = os.getenv("PDF_QA_STRICT", "0") == "1"
 RENDER_CHECK = os.getenv("PDF_QA_RENDER_CHECK", "1") == "1"
 # Editorial target for a normal daily edition (master spec section 4).
 TARGET_SUBSTANTIVE_PAGES = int(os.getenv("PDF_QA_TARGET_PAGES", "15"))
 # A page with at least this many extractable characters is "substantive"; below
 # this but above the blank threshold is a "near-empty / heading-only" page.
-SUBSTANTIVE_CHARS = int(os.getenv("PDF_QA_SUBSTANTIVE_CHARS", "350"))
-NEAR_EMPTY_CHARS = int(os.getenv("PDF_QA_NEAR_EMPTY_CHARS", "180"))
-# The release bound includes a cover, index and rapid-revision page.
-# Keep the content-loss floor independent so a legitimate edition is
+SUBSTANTIVE_CHARS = int(os.getenv("PDF_QA_SUBSTANTIVE_CHARS", "600"))
+NEAR_EMPTY_CHARS = int(os.getenv("PDF_QA_NEAR_EMPTY_CHARS", "260"))
+# The 15-page release bound includes a cover, index and rapid-revision page.
+# Keep the content-loss floor independent so a legitimate 15-page edition is
 # not rejected merely because those designed pages are not text-dense.
 MIN_SUBSTANTIVE_PAGES = int(os.getenv("PDF_QA_MIN_SUBSTANTIVE_PAGES", "2"))
 
 # --- MCQ variety (warnings only) ---
+# Measured over 18 published editions: 283 questions used just 71 distinct
+# six-word stems, and three templates accounted for ~72% of all questions.
+# Nothing in QA noticed, because the gate only counts questions and duplicates
+# inside one edition.
 VARIETY_CHECK = os.getenv("PDF_QA_MCQ_VARIETY", "1") == "1"
 STEM_WORDS = int(os.getenv("PDF_QA_STEM_WORDS", "6"))
 STEM_SHARE_WARN = float(os.getenv("PDF_QA_STEM_SHARE_WARN", "0.25"))
 STEM_MIN_QUESTIONS = int(os.getenv("PDF_QA_STEM_MIN_QUESTIONS", "8"))
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
-URL_RE = re.compile(r"https?://[^\s>\]\}\"\']+")
+URL_RE = re.compile(r"https?://[^\s\)\]\"']+")
 MCQ_Q_RE = re.compile(
-    r"(?:प्रश्न|Q(?:uestion|ues)?)\s*[\.\:\--]?\s*(\d+)",
-    re.IGNORECASE,
-)
-MCQ_UNNUMBERED_RE = re.compile(
-    r"(?:^|\n)\s*(?:Ques|Question|प्रश्न)\s*:\s*\S+",
+    r"(?:प्रश्न|Q(?:uestion|ues)?)\s*[\.\:\-–]?\s*(\d+)",
     re.IGNORECASE,
 )
 ANSWER_RE = re.compile(
-    r"(?:उत्तर|Answer|Correct\s*Answer|Ans)\s*[\.\:\--]?\s*(?:Option\s*)?[\[\(]?([A-E])[\]\)]?",
+    r"(?:उत्तर|Answer|Correct\s*Answer|Ans)\s*[\.\:\-–]?\s*(?:Option\s*)?[\(\[]?([A-E])[\)\]]?",
     re.IGNORECASE,
 )
 
 
 # --------------------------------------------------------------------------- #
-# Report                                                                      #
+# Report
 # --------------------------------------------------------------------------- #
 @dataclass
 class QAIssue:
-    severity: str  # "error" | "warning" | "info"
+    severity: str       # "error" | "warning" | "info"
     code: str
     message: str
     details: Dict[str, Any] = field(default_factory=dict)
@@ -280,7 +278,7 @@ class QAReport:
 
 
 # --------------------------------------------------------------------------- #
-# Helpers                                                                     #
+# Helpers
 # --------------------------------------------------------------------------- #
 def find_latest_pdf() -> Optional[Path]:
     if not OUTPUT_DIR.exists():
@@ -345,7 +343,13 @@ def detect_blank_pages(doc: "fitz.Document", min_chars: int = 20) -> List[int]:
 
 
 def analyse_page_density(doc: "fitz.Document") -> Tuple[List[int], int, int]:
-    """Return (per-page char counts, substantive page count, min chars on a page)."""
+    """Return (per-page char counts, substantive page count, min chars on a page).
+
+    A page counts as *substantive* when it carries at least ``SUBSTANTIVE_CHARS``
+    extractable characters. This is a measured occupancy proxy that works across
+    PyMuPDF and the pypdf adapter, so a heading-only or near-empty page cannot
+    masquerade as real content (master spec section 11).
+    """
     counts: List[int] = []
     for page in doc:
         try:
@@ -357,27 +361,38 @@ def analyse_page_density(doc: "fitz.Document") -> Tuple[List[int], int, int]:
 
 
 def _normalize_for_coverage(text: str) -> str:
-    """Lower-case, strip markup/punctuation and collapse whitespace."""
+    """Lower-case, strip markup/punctuation and collapse whitespace.
+
+    Used to compare a selected story headline against the extracted PDF text so
+    the comparison survives line wrapping, HTML escaping and symbol-safe
+    substitutions made by the glyph guard.
+    """
     text = re.sub(r"<[^>]+>", " ", text or "")
+    # The display cleaner prints "Rs 5" / "INR 5" as "₹5": compare both spellings alike.
     text = re.sub(r"(?i)\b(?:rs|inr)\b\.?\s*", " ₹", text).replace("₹", " rs ")
     text = re.sub(r"[^0-9A-Za-z\u0900-\u097F]+", " ", text)
     return re.sub(r"\s+", " ", text).lower().strip()
 
 
 def check_story_coverage(report: QAReport, text: str,
-                          selected_items: List[Dict[str, Any]]) -> None:
-    """Verify every selected story actually appears in the PDF."""
+                         selected_items: List[Dict[str, Any]]) -> None:
+    """Verify every selected story actually appears in the PDF.
+
+    This is the layout-independent content-loss gate. It does not care how many
+    pages the edition uses; it fails only when the renderer silently dropped
+    selected stories (the failure mode the master spec calls "content lost").
+    """
     norm = _normalize_for_coverage(text)
     if not norm:
         return
 
     missing: List[str] = []
     total = 0
-    raw_file_re = re.compile(r"(?:\b[\w\-_]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_]+\.(?:pdf|docx?|xlsx?)\b)", re.IGNORECASE)
+    raw_file_re = re.compile(r"(?:\b[\w\-_.]+\.(?:pdf|docx?|xlsx?|csv|pptx)\b)|(?:^\s*[\w\-_.]+\.(?:pdf|docx?|xlsx?)\b)", re.IGNORECASE)
     for it in selected_items:
         headline = it.get("headline_en") or ""
         if raw_file_re.search(headline):
-            continue
+            continue  # Raw file attachments are legitimately filtered at the PDF boundary
         words = _normalize_for_coverage(headline).split()
         if len(words) < 3:
             continue
@@ -393,7 +408,7 @@ def check_story_coverage(report: QAReport, text: str,
     if len(missing) >= threshold:
         report.add("error", "stories_missing_from_pdf",
                    f"{len(missing)}/{total} selected stories not found in the PDF "
-                   f"-- content lost in layout",
+                   f"— content lost in layout",
                    missing=missing[:5], total=total)
     elif missing:
         report.add("warning", "story_missing_from_pdf",
@@ -402,51 +417,47 @@ def check_story_coverage(report: QAReport, text: str,
 
 
 def check_story_count(report: QAReport, edition_count: int, selected_count: int) -> None:
-    """Warn when the edition lost more than 20% of selected stories; only fail with
-    an error when edition_count drops below the hard minimum floor (MIN_STORIES_FLOOR, default 8)."""
+    """Error when the edition lost more than 20% of the selected stories (after
+    reserve backfill), mirroring the story-coverage tolerance."""
     if selected_count <= 0:
         return
-    warn_floor = selected_count - max(2, -(-selected_count // 5)) + 1
-    hard_floor = min(warn_floor, max(1, MIN_STORIES_FLOOR))
-    if edition_count < hard_floor:
+    floor = selected_count - max(2, -(-selected_count // 5)) + 1
+    if edition_count < floor:
         report.add("error", "edition_story_shortfall",
                    f"Edition has {edition_count} stories for {selected_count} selected "
-                   f"(hard floor {hard_floor}) -- reserves could not replace dropped stories",
-                   edition=edition_count, selected=selected_count, floor=hard_floor)
+                   f"(floor {floor}) — reserves could not replace dropped stories",
+                   edition=edition_count, selected=selected_count, floor=floor)
     elif edition_count < selected_count:
         report.add("warning", "edition_story_shortfall",
-                   f"Edition has {edition_count}/{selected_count} selected-story slots filled "
-                   f"(target floor {warn_floor})",
-                   edition=edition_count, selected=selected_count, floor=warn_floor)
+                   f"Edition has {edition_count}/{selected_count} selected-story slots filled",
+                   edition=edition_count, selected=selected_count)
 
 
 def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
     """
     Returns (mcq_count, answer_count, duplicate_count).
-    Supports both numbered ('Q1.', 'प्रश्न 1:') and unnumbered ('Ques:', 'प्रश्न:') MCQ formats.
+    Duplicate = questions whose normalized text appears more than once.
     """
     # --- MCQ count ---
     q_numbers = [int(m.group(1)) for m in MCQ_Q_RE.finditer(text)]
+    # Dedup consecutive or repeat numbers
     unique_q = sorted(set(q_numbers))
     mcq_count = len(unique_q) if unique_q else 0
-    if mcq_count == 0:
-        unnumbered = MCQ_UNNUMBERED_RE.findall(text)
-        mcq_count = max(1, len(unnumbered) // 2) if unnumbered else 0
 
     # --- Answer key count ---
     answer_letters = [m.group(1).upper() for m in ANSWER_RE.finditer(text)]
     answer_count = len(answer_letters)
-    if mcq_count == 0 and answer_count > 0:
-        mcq_count = answer_count
 
     # --- Duplicate question detection ---
+    # Split text into question blocks by "प्रश्न N" / "Q N"
     split_re = re.compile(
-        r"(?:प्रश्न|Q(?:uestion|ues)?)\s*(?:[\.\:\--]?\s*\d+|:\s*)",
+        r"(?:प्रश्न|Q(?:uestion)?)\s*[\.\:\-–]?\s*\d+",
         re.IGNORECASE,
     )
     parts = split_re.split(text)
     normalized: List[str] = []
-    for p in parts[1:]:
+    for p in parts[1:]:   # skip first (before Q1)
+        # Take first ~200 chars after question marker as "question stem"
         stem = re.sub(r"\s+", " ", p[:250]).strip().lower()
         if stem:
             normalized.append(stem)
@@ -462,7 +473,7 @@ def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
 
 
 # --------------------------------------------------------------------------- #
-# Checks                                                                      #
+# Checks
 # --------------------------------------------------------------------------- #
 def check_file(report: QAReport, path: Path) -> None:
     if not path.exists():
@@ -471,11 +482,11 @@ def check_file(report: QAReport, path: Path) -> None:
     report.file_size_bytes = path.stat().st_size
     if report.file_size_bytes < 5000:
         report.add("error", "file_too_small",
-                   f"PDF only {report.file_size_bytes} bytes -- likely empty",
+                   f"PDF only {report.file_size_bytes} bytes — likely empty",
                    size=report.file_size_bytes)
     elif report.file_size_bytes < 20000:
         report.add("warning", "file_small",
-                   f"PDF is only {report.file_size_bytes // 1024} KB -- may be missing content",
+                   f"PDF is only {report.file_size_bytes // 1024} KB — may be missing content",
                    size=report.file_size_bytes)
 
 
@@ -497,6 +508,7 @@ def check_pages(report: QAReport, doc: "fitz.Document") -> None:
                    f"{len(blanks)} suspicious blank page(s): {blanks[:5]}",
                    blank_pages=blanks)
 
+    # Content-aware occupancy: substantive vs near-empty / heading-only pages.
     counts, substantive, min_chars = analyse_page_density(doc)
     report.substantive_pages = substantive
     report.min_page_chars = min_chars
@@ -516,9 +528,10 @@ def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
     report.font_names = fonts
     if not fonts:
         report.add("error", "no_fonts",
-                   "No fonts detected in PDF -- text may not render")
+                   "No fonts detected in PDF — text may not render")
         return
 
+    # Check for Devanagari-capable fonts
     devanagari_hints = ["mukta", "poppins", "noto", "deva", "hind", "sans"]
     has_deva_font = any(
         any(hint in f.lower() for hint in devanagari_hints)
@@ -526,22 +539,29 @@ def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
     )
     if not has_deva_font:
         report.add("warning", "no_devanagari_font",
-                   "No Devanagari-capable font detected -- Hindi may not render",
+                   "No Devanagari-capable font detected — Hindi may not render",
                    fonts=fonts[:10])
+
 
 
 def check_editorial_quality(report: QAReport, text: str) -> None:
     """Editorial quality assurance: prevents placeholder, corrupt, or leaked content."""
+    # 1. Untitled content check
     if re.search(r"\buntitled\b", text, re.IGNORECASE):
         report.add("error", "untitled_content", "PDF contains 'Untitled' headline or placeholder string")
 
+    # 2. Suspected truncated prefix check
     corrupt_matches = re.findall(r"\b(aiwan|ranscript of|inistr)\b", text, re.IGNORECASE)
     if corrupt_matches:
         report.add("warning", "corrupt_prefix", f"PDF contains suspected truncated words: {corrupt_matches}")
 
+    # 3. Broken question template check
     if 'Which ministry / organisation is responsible for implementing "- \'' in text:
         report.add("error", "broken_mcq_template", "PDF contains broken/robotic MCQ template with bare hyphen")
 
+    # Publisher paywall/account UI must never become a study fact. This is an
+    # error (not a warning) so it blocks Telegram publication, including
+    # mojibake variants of a curly apostrophe in "don't".
     paywall_ui = re.search(
         r"(?:active\s+subscription|subscribed\s+with\s+another\s+email|"
         r"need\s+help\s+with\s+your\s+subscription|logout\s+and\s+login\s+with\s+that\s+one)",
@@ -558,7 +578,7 @@ def check_text_content(report: QAReport, text: str) -> None:
     report.total_chars = len(text)
     if report.total_chars < 500:
         report.add("error", "too_little_text",
-                   f"Only {report.total_chars} chars in PDF -- content missing",
+                   f"Only {report.total_chars} chars in PDF — content missing",
                    chars=report.total_chars)
         return
 
@@ -569,7 +589,7 @@ def check_text_content(report: QAReport, text: str) -> None:
     if report.hindi_pct < MIN_HINDI_PCT:
         report.add("error", "insufficient_hindi",
                    f"Only {report.hindi_pct:.1f}% Devanagari chars (min {MIN_HINDI_PCT}%) "
-                   f"-- Hindi content missing",
+                   f"— Hindi content missing",
                    hindi_pct=round(report.hindi_pct, 2),
                    min=MIN_HINDI_PCT)
     elif report.hindi_pct < MIN_HINDI_PCT * 2:
@@ -579,28 +599,35 @@ def check_text_content(report: QAReport, text: str) -> None:
 
 
 def minimum_mcq_count(item_count: int) -> int:
-    """Require at least one validated question per story up to MIN_MCQ_COUNT."""
+    """Require two validated questions per selected story, capped at the normal edition minimum."""
     if item_count < 1:
         return MIN_MCQ_COUNT
-    return min(MIN_MCQ_COUNT, item_count)
+    return min(MIN_MCQ_COUNT, item_count * 2)
 
 
 def minimum_substantive_pages(item_count: int) -> int:
-    """Content-loss floor: about half a page per selected story, capped at the target."""
+    """Content-loss floor: about half a page per selected story, capped at the target.
+
+    Real RSS summaries are shorter than the rich test fixture, so requiring a
+    full page per story would fail legitimate short-summary editions. The floor
+    is therefore deliberately conservative (ceil(n/2), clamped to
+    ``[MIN_PAGES, TARGET_SUBSTANTIVE_PAGES]``): falling below it means the
+    renderer dropped or crushed content, not that it was a quiet news day.
+    """
     if item_count < 1:
         return MIN_SUBSTANTIVE_PAGES
-    half = (item_count + 1) // 2
+    half = (item_count + 1) // 2  # ceil(n / 2)
     return max(MIN_SUBSTANTIVE_PAGES, min(TARGET_SUBSTANTIVE_PAGES, half))
 
 
 def check_page_target(report: QAReport, item_count: int) -> None:
     """Warn when the edition is below the editorial page target; error only on
-    clear content loss (fewer substantive pages than floor)."""
+    clear content loss (fewer substantive pages than selected stories)."""
     floor = minimum_substantive_pages(item_count)
     if report.substantive_pages < floor:
         report.add("error", "insufficient_substantive_pages",
                    f"Only {report.substantive_pages} substantive page(s) for "
-                   f"{item_count} stories (floor {floor}) -- content lost or layout defect",
+                   f"{item_count} stories (floor {floor}) — content lost or layout defect",
                    substantive_pages=report.substantive_pages, floor=floor, items=item_count)
     elif report.substantive_pages < TARGET_SUBSTANTIVE_PAGES:
         report.add("warning", "below_page_target",
@@ -632,6 +659,12 @@ def check_mcqs(report: QAReport, text: str, min_mcq_count: int = MIN_MCQ_COUNT) 
 
 
 def stem_of(question: str, words: int = STEM_WORDS) -> str:
+    """First ``words`` words of a question, lowercased and unpunctuated.
+
+    The template a question came from shows up in its opening words ("which
+    institution or entity is centrally ..."), which is how the monotony in
+    published editions was measured.
+    """
     tokens = re.findall(r"[a-z0-9]+", str(question or "").lower())
     return " ".join(tokens[:words])
 
@@ -650,12 +683,18 @@ def stem_shares(mcqs: List[Dict[str, Any]], words: int = STEM_WORDS) -> List[Tup
 def check_mcq_variety(report: QAReport, mcqs: List[Dict[str, Any]],
                       edition_date: Optional[str] = None,
                       history: Optional[Dict[str, Any]] = None) -> None:
+    """Warn about a monotonous question set and about repeats of earlier editions.
+
+    Warnings only: variety is an editorial quality signal, not a reason to block
+    a correct edition (PDF_QA_STRICT=1 still escalates it, as with every warning).
+    """
     if not VARIETY_CHECK:
         return
     mcqs = [m for m in (mcqs or []) if isinstance(m, dict) and m.get("question_en")]
     if not mcqs:
         return
 
+    # 1. one stem template dominating the edition
     if len(mcqs) >= STEM_MIN_QUESTIONS:
         shares = stem_shares(mcqs)
         top, top_n = shares[0]
@@ -670,12 +709,16 @@ def check_mcq_variety(report: QAReport, mcqs: List[Dict[str, Any]],
                        stem=top, count=top_n, total=len(mcqs), share=round(share, 3),
                        distinct_stems=len(shares), threshold=STEM_SHARE_WARN)
 
+    # 2. questions an earlier edition already printed
     try:
         from pipeline import mcq_history
         if history is None:
+            # Stage 16 has already recorded *this* edition, which is fine:
+            # recent_qkeys ignores entries dated today, so only earlier editions
+            # are compared against.
             history = mcq_history.load()
         repeats = mcq_history.repeats_against(history, mcqs, edition_date, limit=5)
-    except Exception as exc:
+    except Exception as exc:                     # never fail QA over the memory file
         logger.warning("MCQ repeat check skipped: %s", exc)
         return
     report.mcq_repeats = len(repeats)
@@ -683,16 +726,18 @@ def check_mcq_variety(report: QAReport, mcqs: List[Dict[str, Any]],
         sample = repeats[0]["q"][:70]
         report.add("warning", "mcq_repeat_from_earlier_edition",
                    f"{len(repeats)} question(s) were printed by an earlier edition within their "
-                   f"window (e.g. {sample!r}, last seen {repeats[0].get('last_seen')}) -- the "
+                   f"window (e.g. {sample!r}, last seen {repeats[0].get('last_seen')}) — the "
                    f"history filter was relaxed or the bank ran out of phrasings",
                    count=len(repeats), samples=[r["q"][:90] for r in repeats],
                    last_seen=[r.get("last_seen") for r in repeats])
 
-
 HTML_TAG_RE = re.compile(r"<(?:span|div|time|p|br|table|tr|td|b|i|font)\b[^>]*>", re.IGNORECASE)
 
+# Glyph-integrity checks: characters that indicate a missing/unmappable glyph
+# in the PDF text layer. src/generate_pdf.py sanitises these at generation
+# time; if they still appear, the glyph guard has regressed.
 REPLACEMENT_CHAR_RE = re.compile(r"[\uFFFD\u25A1]")
-UNSUPPORTED_SYMBOL_RE = re.compile(r"[►📌📎✂✖️√★◽☆▪️☑️]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]")
+UNSUPPORTED_SYMBOL_RE = re.compile(r"[▶✔✒✖▌→✓★●■☆▪➔✔️]|[\U0001F4CC\U0001F4DD\U0001F3AF\U0001F680\U0001F525\U00002705\U0000274C]")
 
 
 def check_glyph_integrity(report: QAReport, text: str) -> None:
@@ -710,11 +755,19 @@ def check_glyph_integrity(report: QAReport, text: str) -> None:
                    samples=unsupported)
 
 
-BROKEN_MATRA_SAMPLES = ("िमशन", "िवकास", "िकसानों", "कृिष", "िसंचाई", "िदल", "िवभाग")
+# Visible matra-reordering artefacts produced when ReportLab draws Devanagari
+# without shaping (e.g. विषय -> वषिय, स्थैतिक -> स्थैतकि).
+BROKEN_MATRA_SAMPLES = ("वषिय", "मलिते", "महत्वपूरण", "स्थैतकि", "वकिल्प", "बदिु", "वयाख्या")
 
 
 def check_devanagari_shaping(report: QAReport, doc: "fitz.Document", text: str) -> None:
-    """Every visible Devanagari glyph must come from the HarfBuzz-shaped image path."""
+    """Every visible Devanagari glyph must come from the HarfBuzz-shaped image path.
+
+    src/generate_pdf.py draws Hindi as a shaped image plus an *invisible*
+    (render mode 3) text layer.  Visible Devanagari text spans therefore mean a
+    string bypassed render_hindi_flowable/bi_line and went through a plain
+    ReportLab Paragraph, which misplaces the ि matra.
+    """
     broken = [w for w in BROKEN_MATRA_SAMPLES if w in text]
     if broken:
         report.add("error", "broken_devanagari_matras",
@@ -723,7 +776,7 @@ def check_devanagari_shaping(report: QAReport, doc: "fitz.Document", text: str) 
     for idx, page in enumerate(doc, 1):
         trace = getattr(page, "get_texttrace", None)
         if trace is None:
-            return
+            return  # pypdf fallback adapter: render modes unavailable
         try:
             spans = trace()
         except Exception:
@@ -738,7 +791,7 @@ def check_devanagari_shaping(report: QAReport, doc: "fitz.Document", text: str) 
     if pages:
         report.add("error", "unshaped_devanagari",
                    f"Devanagari drawn as plain (unshaped) text on pages {pages[:5]} "
-                   "- route it through render_hindi_flowable/bi_line",
+                   "— route it through render_hindi_flowable/bi_line",
                    pages=pages)
 
 
@@ -751,6 +804,9 @@ def check_html_leakage(report: QAReport, text: str) -> None:
                    samples=leaks[:5])
 
 
+# The public PDF deliberately prints no source URLs (evidence stays in the
+# pipeline data; photos carry an "Image: <source>" credit).  Opt back in to the
+# attribution-URL warning with PDF_QA_EXPECT_SOURCE_URLS=1.
 EXPECT_SOURCE_URLS = os.getenv("PDF_QA_EXPECT_SOURCE_URLS", "0") == "1"
 
 
@@ -759,7 +815,7 @@ def check_urls(report: QAReport, text: str) -> None:
     report.urls_found = len(urls)
     if EXPECT_SOURCE_URLS and len(urls) < 3:
         report.add("warning", "few_source_urls",
-                   f"Only {len(urls)} source URLs found - attribution may be missing",
+                   f"Only {len(urls)} source URLs found — attribution may be missing",
                    count=len(urls))
 
 
@@ -768,22 +824,27 @@ def check_images(report: QAReport, doc: "fitz.Document") -> None:
     report.image_xobjects = count
     if count == 0:
         report.add("warning", "no_images",
-                   "No embedded images found - logo/watermark may be missing")
+                   "No embedded images found — logo/watermark may be missing")
 
 
 def check_photo_count(report: QAReport, items: Optional[List[Dict[str, Any]]]) -> None:
+    """Fewer real news photos than the target (ALP_IMAGE_TARGET, default 10) is
+    logged and recorded as INFO only: a photo shortfall never fails QA, even
+    with PDF_QA_STRICT=1.  Category graphics are not counted as photos."""
     try:
         target = int(os.getenv("ALP_IMAGE_TARGET", "10") or 10)
         real = sum(1 for it in items or [] if isinstance(it, dict) and it.get("image_path")
                    and not it.get("image_placeholder"))
         if real < target:
-            logger.warning("Only %d real news photo(s) in the edition (target %d) -- not blocking", real, target)
+            logger.warning("Only %d real news photo(s) in the edition (target %d) — not blocking", real, target)
             report.add("info", "few_photos", f"{real} real news photos (target {target})", count=real)
-    except Exception as exc:
+    except Exception as exc:  # fail open
         logger.warning("Photo count check skipped: %s", exc)
 
 
 def story_has_body(it: Dict[str, Any]) -> bool:
+    """A story prints at least one bullet besides its headline (period editions:
+    ``summary_pairs``; daily: key points / summary that is not the headline)."""
     def norm(x: Any) -> str:
         return re.sub(r"[^0-9a-z\u0900-\u097f]+", " ", str(x or "").lower()).strip()
     if "summary_pairs" in it:
@@ -797,6 +858,8 @@ def story_has_body(it: Dict[str, Any]) -> bool:
 
 
 def check_story_bodies(report: QAReport, items: Optional[List[Dict[str, Any]]], job_type: str = "") -> None:
+    """Headline-only stories (weekly 2026-11-08 printed 10). Period editions FAIL
+    (error); a daily edition gets a warning (blocking only with PDF_QA_STRICT=1)."""
     empty = [str(it.get("headline_en") or "")[:90] for it in items or []
              if isinstance(it, dict) and not story_has_body(it)]
     if not empty:
@@ -808,6 +871,10 @@ def check_story_bodies(report: QAReport, items: Optional[List[Dict[str, Any]]], 
 
 
 def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
+    """
+    Detect text blocks that extend beyond page bounds.
+    Uses PyMuPDF's text block bounding boxes.
+    """
     overflow_pages: List[int] = []
     for idx, page in enumerate(doc, 1):
         try:
@@ -817,6 +884,7 @@ def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
                 if len(b) < 4:
                     continue
                 x0, y0, x1, y1 = b[:4]
+                # Allow small margin (5pt)
                 if x1 > rect.width + 5 or y1 > rect.height + 5 or x0 < -5 or y0 < -5:
                     overflow_pages.append(idx)
                     break
@@ -829,28 +897,36 @@ def check_visual_overflow(report: QAReport, doc: "fitz.Document") -> None:
                    pages=overflow_pages)
 
 
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
+# Weekly / monthly only: a story line printed again and again means the period
+# builder let a filler sentence or a duplicate event through.  Reported, never
+# blocking (severity "info" + a logged warning, so even PDF_QA_STRICT passes).
 REPEAT_MAX = 2
 _REPEAT_LABELS = ("static gk |", "agri learning point", "telegram:", "page ")
 
 
 def check_repeated_lines(report: QAReport, doc: "fitz.Document", min_len: int = 31,
                          max_repeats: int = REPEAT_MAX) -> List[Tuple[str, int]]:
+    """Lines (> 30 chars) outside the page header/footer that occur more than
+    ``max_repeats`` times in the PDF.  Logs a warning; never fails QA."""
     counts: Dict[str, int] = {}
     try:
         for page in doc:
             height = float(page.rect.height)
             for b in page.get_text("blocks"):
-                if len(b) < 5 or b[1] < 50 or b[3] > height - 50:
+                if len(b) < 5 or b[1] < 50 or b[3] > height - 50:  # running header / footer band
                     continue
                 for line in str(b[4]).splitlines():
                     line = " ".join(line.split())
                     if len(line) < min_len or line.lower().startswith(_REPEAT_LABELS):
                         continue
                     counts[line] = counts.get(line, 0) + 1
-    except Exception as exc:
+    except Exception as exc:  # never let a diagnostic break QA
         logger.warning("Repeated-line check skipped: %s", exc)
         return []
-    reps = sorted([(t, n) for t, n in counts.items() if n > max_repeats], key=lambda x: -x[1])
+    reps = sorted(((t, n) for t, n in counts.items() if n > max_repeats), key=lambda x: -x[1])
     if reps:
         logger.warning("%d line(s) repeat more than %d times in the edition, e.g. %s",
                        len(reps), max_repeats, "; ".join(f"{t[:70]!r} x{n}" for t, n in reps[:5]))
@@ -920,7 +996,7 @@ def print_summary(report: QAReport) -> None:
         pass
     print()
     print("=" * 72)
-    print(f"PDF QA REPORT -- {pass_mark if report.passed else fail_mark}")
+    print(f"PDF QA REPORT — {pass_mark if report.passed else fail_mark}")
     print("=" * 72)
     print(f"File:            {report.pdf_path}")
     print(f"Size:            {report.file_size_bytes // 1024} KB")
@@ -975,6 +1051,10 @@ def main() -> int:
         logger.error("Cannot determine selected-news count for %s: %s", ctx.job_id, exc)
         return 2
 
+    # The edition's final story list is the content artifact (stage 12 backfills
+    # from reserves, stage 16 swaps in reserves for stories without a valid MCQ).
+    # Coverage is checked against that list; a content shortfall versus the
+    # selection (more than 20% fewer stories) is still a content-loss error.
     edition_items = selected_items
     content_path = ctx.find_input("content")
     if content_path is not None:
@@ -996,6 +1076,8 @@ def main() -> int:
     check_story_bodies(report, edition_items, str(getattr(ctx, "job_type", "") or ""))
     check_photo_count(report, edition_items)
 
+    # Variety is checked against the MCQ artifact, not the PDF text: the artifact
+    # carries question type and concept id, and it is what stage 16 validated.
     mcq_path = ctx.find_input("mcq")
     if mcq_path is not None:
         try:
@@ -1009,6 +1091,7 @@ def main() -> int:
     else:
         logger.warning("MCQ variety check skipped: no MCQ artifact for %s", ctx.job_id)
 
+    # Save report
     report_file = ctx.qa_report_path()
     report_file.parent.mkdir(parents=True, exist_ok=True)
     data = report.to_dict()
@@ -1023,10 +1106,10 @@ def main() -> int:
     print_summary(report)
 
     if report.passed:
-        logger.info("✔ PDF QA passed -- safe to publish")
+        logger.info("✔ PDF QA passed — safe to publish")
         return 0
 
-    logger.error("❌ PDF QA failed -- DO NOT publish")
+    logger.error("✘ PDF QA failed — DO NOT publish")
     return 1
 
 
