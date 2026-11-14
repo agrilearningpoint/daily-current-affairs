@@ -2133,7 +2133,7 @@
     "checkpoint_run_id": "43438939697"
   },
   "daily_2026-11-14": {
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "daily_2026-11-14",
     "job_type": "daily",
     "job_date": "2026-11-14",
@@ -2143,8 +2143,8 @@
       "end": "2026-11-14T06:00:00+05:30"
     },
     "github_run_id": "43568213255",
-    "status": "running",
-    "updated_at": "2026-11-14T06:50:27.072365+00:00",
+    "status": "success",
+    "updated_at": "2026-11-14T06:55:53.747552+00:00",
     "started_at": "2026-11-14T00:59:59.337630+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-14.json": {
@@ -2166,10 +2166,29 @@
       "data/selected/daily_2026-11-14.json": {
         "stage": "10_final_news_selection",
         "sha256": "9483be75da004eed26e94d25a3a4d95fefb8a8301bf95a6334eca96f08315765"
+      },
+      "data/content/daily_2026-11-14.json": {
+        "stage": "12_content_editor",
+        "sha256": "d16b093a7ea9b679ec3b67912f3c3bacd64ed9f4432e6aed2dcf52e704092761"
+      },
+      "data/mcq/daily_2026-11-14.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "14d336645064cd159967740ba5df4f0f6cf54ac203b049a15d7d5254b675c8a0"
+      },
+      "output/daily_2026-11-14.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "46e3daddc4b5efd2edaa2aa7e9c33ad1efa10e6d8987a62f152b85682cfb7c75"
+      },
+      "logs/qa/daily_2026-11-14_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "b159f38fa6420846f77fdbd5a421f6a969b118cf1047ead96163173e520048b0"
+      },
+      "logs/qa/daily_2026-11-14_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "5df26ae3b48d7ff07096f06c22819c8cabc6cddf8f75b24a37e45ab0bdb3836d"
       }
     },
-    "last_success_stage": "11_importance_memory",
-    "last_error": "12_content_editor: failed after 3 attempt(s): Traceback (most recent call last):\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 406, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/12_content_editor.py\", line 308, in main\n    items, reserves = read_news_items(path)\n    ^^^^^^^^^^^^^^^\nValueError: too many values to unpack (expected 2)",
-    "failed_stage": "12_content_editor"
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "43568213255"
   }
 }

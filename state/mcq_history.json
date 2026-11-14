@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-13T19:45:19.217385+05:30",
+  "updated": "2026-11-14T12:25:47.907193+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -836,8 +836,8 @@
       "published": true
     },
     "whoannouncestheminimumsupportpricemspfornotifiedcropsinindia": {
-      "count": 2,
-      "last_seen": "2026-11-11",
+      "count": 3,
+      "last_seen": "2026-11-14",
       "type": "concept",
       "concept_id": "msp",
       "q": "Who announces the Minimum Support Price (MSP) for notified crops in India?",
@@ -1306,6 +1306,90 @@
       "type": "llm-schema",
       "q": "Which initiative has been launched by the government with a financial outlay of Rs 200 crore to support new en",
       "published": true
+    },
+    "underprimeministernarendramodisvisionwhichministryextendedab": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Under Prime Minister Narendra Modi's vision, which ministry extended a ban on an unlawful association under th",
+      "published": true
+    },
+    "whichorganizationselectedthenationalruralinfrastructuredevel": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which organization selected the National Rural Infrastructure Development Agency (NRIDA) for the U.P. Medal 20",
+      "published": true
+    },
+    "whichorganizationsbreakthroughsandaerospacemissionswerehighl": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which organization's breakthroughs and aerospace missions were highlighted alongside defence procurements in r",
+      "published": true
+    },
+    "whichunionministryisresponsiblefortheconstitutionofthecommis": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which Union Ministry is responsible for the constitution of the Commission of Inquiry tasked with investigatin",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsindiasforexreservesr": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"India's forex reserves rise by $2.49 billion to $719.55 billio",
+      "published": true
+    },
+    "whichresearchinstitutionscultivarswerehighlightedintheprimem": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which research institution’s cultivars were highlighted in the Prime Minister’s address at the Kisan Tak Bhara",
+      "published": true
+    },
+    "whatincrementalincreaseintherbispolicyreporatedoeconomistsex": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "What incremental increase in the RBI's policy repo rate do economists expect for each of the December and Febr",
+      "published": true
+    },
+    "whichindianministryhostedtheofficialvisitofthebelarusianmini": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which Indian ministry hosted the official visit of the Belarusian Minister of Foreign Affairs?",
+      "published": true
+    },
+    "whichkarnatakaministeraccompaniedprimeministernarendramodion": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which Karnataka minister accompanied Prime Minister Narendra Modi on the inaugural ride of the Bengaluru Metro",
+      "published": true
+    },
+    "whichregulatorybodyapprovedtheappointmentofthenewmdandceooff": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which regulatory body approved the appointment of the new MD and CEO of Fino Payments Bank?",
+      "published": true
+    },
+    "inwhichindianstateweretherecentdevelopmentinitiativesworthov": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "In which Indian state were the recent development initiatives worth over ₹15,600 crore launched?",
+      "published": true
+    },
+    "whichisrocentrewastouredbytherajyasabhasubordinatelegislatio": {
+      "count": 1,
+      "last_seen": "2026-11-14",
+      "type": "llm-schema",
+      "q": "Which ISRO centre was toured by the Rajya Sabha Subordinate Legislation Committee during its Bengaluru visit?",
+      "published": true
     }
   },
   "concepts": {
@@ -1316,8 +1400,8 @@
         "published": true
       },
       "v1": {
-        "count": 2,
-        "last_seen": "2026-11-11",
+        "count": 3,
+        "last_seen": "2026-11-14",
         "published": true
       },
       "v2": {
