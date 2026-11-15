@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-14T12:25:47.907193+05:30",
+  "updated": "2026-11-15T05:53:40.619618+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1390,6 +1390,91 @@
       "type": "llm-schema",
       "q": "Which ISRO centre was toured by the Rajya Sabha Subordinate Legislation Committee during its Bengaluru visit?",
       "published": true
+    },
+    "whichunionministryisthenodalministryresponsibleforimplementi": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which Union Ministry is the nodal ministry responsible for implementing the flagship drinking water initiative",
+      "published": false
+    },
+    "atthehtleadershipsummititwasstatedthatprimeministernarendram": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "At the HT Leadership Summit, it was stated that Prime Minister Narendra Modi is likely to visit the United Sta",
+      "published": false
+    },
+    "whichbodyregulatespaymentsystemsinindiaunderthepaymentandset": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "concept",
+      "concept_id": "upi",
+      "q": "Which body regulates payment systems in India under the Payment and Settlement Systems Act, 2007?",
+      "published": false
+    },
+    "atwhichofficialvenuedidtheuspresidentmeetwiththeprimeministe": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "At which official venue did the US President meet with the Prime Minister of Qatar to discuss the regional con",
+      "published": false
+    },
+    "ymcamadrashaspartneredwithwhichadyarbasedorganizationtosuppo": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "YMCA Madras has partnered with which Adyar-based organization to support its civil services coaching program f",
+      "published": false
+    },
+    "accordingtottvdhinakaranwhatwastheretailinflationrateintamil": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "According to T.T.V. Dhinakaran, what was the retail inflation rate in Tamil Nadu, which he stated ranked first",
+      "published": false
+    },
+    "whichofthefollowingaspectsofthepradhanmantrijanjatiyavikasmi": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which of the following aspects of the Pradhan Mantri Janjatiya Vikas Mission was highlighted in the recent new",
+      "published": false
+    },
+    "accordingtothenewswhichofthefollowingaspectsofitsflagshiphea": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "According to the news, which of the following aspects of its flagship health programmes and initiatives did th",
+      "published": false
+    },
+    "whichinstitutionrecentlyorganizedachildrensdayprogrammetopro": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which institution recently organized a Children's Day Programme to promote experiential science learning?",
+      "published": false
+    },
+    "whichofthefollowingaspectsofthejanjatiyagauravdiwasprogramme": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which of the following aspects of the Janjatiya Gaurav Diwas programme were mentioned in the news report?",
+      "published": false
+    },
+    "whichdepartmentisdesignatedasthenodalagencyfortheunifiedciti": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which department is designated as the nodal agency for the Unified Citizen Data Platform in the Delhi governme",
+      "published": false
+    },
+    "whichofthefollowingwashighlightedasanareaofindiasscientifica": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which of the following was highlighted as an area of India's scientific and healthcare progress during the Wor",
+      "published": false
     }
   },
   "concepts": {
@@ -1415,6 +1500,13 @@
         "count": 1,
         "last_seen": "2026-11-11",
         "published": true
+      }
+    },
+    "upi": {
+      "v2": {
+        "count": 1,
+        "last_seen": "2026-11-15",
+        "published": false
       }
     }
   }
