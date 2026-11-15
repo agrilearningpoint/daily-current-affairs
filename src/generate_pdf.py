@@ -1138,6 +1138,13 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
                 if k_clean and v_clean and not BANNED_STATIC_GK_RE.search(k_clean):
                     _add(f"{k_clean} – {v_clean}", "")
 
+    if len(pairs) < 4:
+        ef_en = _clean_text_for_display(item.get("exam_fact_en", ""))
+        if ef_en and len(ef_en) > 10:
+            hi = _hi_or_blank(item.get("exam_fact_hi", ""))
+            hi_val = hi if hi.startswith("परीक्षा तथ्य") else f"परीक्षा तथ्य – {hi}" if hi else ""
+            _add(f"Exam Fact – {ef_en}", hi_val)
+
     return pairs[:MAX_STATIC_GK_POINTS]
 
 
