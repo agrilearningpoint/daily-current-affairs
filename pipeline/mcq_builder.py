@@ -328,8 +328,99 @@ def org_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def award_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
+    """Award or honour named in the story, distractors from national_awards."""
+    try:
+        from pipeline.static_gk_db import SEMANTIC_OPTION_POOLS
+    except Exception:
+        return None
+    pool = SEMANTIC_OPTION_POOLS.get("national_awards") or []
+    headline = _plain(ci.get("headline_en"))
+    headline_hi = _plain(ci.get("headline_hi"))
+    if not DEVANAGARI_RE.search(headline_hi):
+        return None
+    news = _news_text(ci)
+    low_news = news.lower()
+    low_ev = evidence.lower()
+    for en, hi in pool:
+        short = en.split("(")[0].strip()
+        hit = ""
+        if short.lower() in low_news:
+            hit = short
+        elif en.lower() in low_news:
+            hit = en
+        if not hit:
+            continue
+        correct = (hit, hi)
+        stem_en = _strip_term(headline, {hit, en, short})
+        stem_hi = _strip_term(headline_hi, {short, hi.split("(")[0].strip()})
+        if len(stem_en) < 10 or hit.lower() in stem_en.lower():
+            continue
+        others = [(e2, h2) for e2, h2 in pool if e2 != en and e2.lower() not in low_ev]
+        others = sorted(others, key=lambda o: hashlib.sha1((str(ci.get("event_id")) + o[0]).encode()).hexdigest())
+        e_en, e_hi = _expl_lines(ci)
+        return _make(ci, "award-pool",
+                     'Which prestigious award/honour is featured in the news "%s"?' % _clip(stem_en, 110),
+                     '"%s" — इस समाचार में किस प्रतिष्ठित पुरस्कार/सम्मान का उल्लेख है?' % _clip(stem_hi, 110),
+                     correct, others,
+                     "%s. The honour associated with this event is %s." % (e_en.rstrip("."), hit),
+                     "%s। इस घटनाक्रम से संबंधित सम्मान %s है।" % (e_hi.rstrip("।. "), correct[1]))
+    return None
+
+
+def scheme_pool_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
+    """Scheme or initiative named in the story, distractors from schemes_agri."""
+    try:
+        from pipeline.static_gk_db import SEMANTIC_OPTION_POOLS
+    except Exception:
+        return None
+    pool = SEMANTIC_OPTION_POOLS.get("schemes_agri") or []
+    headline = _plain(ci.get("headline_en"))
+    headline_hi = _plain(ci.get("headline_hi"))
+    if not DEVANAGARI_RE.search(headline_hi):
+        return None
+    news = _news_text(ci)
+    low_news = news.lower()
+    low_ev = evidence.lower()
+    for en, hi in pool:
+        acr = re.search(r"\(([A-Z][A-Za-z-]{1,9})\)", en)
+        short = acr.group(1) if acr else ""
+        full = re.sub(r"\s*\([^)]*\)", "", en).split(",")[0].strip()
+        hit = ""
+        if short and re.search(r"(?<![A-Za-z])" + re.escape(short) + r"(?![A-Za-z])", news):
+            hit = short
+        elif full and full.lower() in low_news:
+            hit = full
+        if not hit:
+            continue
+        correct = (hit, hi)
+        stem_en = _strip_term(headline, {hit, full, short})
+        stem_hi = _strip_term(headline_hi, {short, hi.split("(")[0].strip()})
+        if len(stem_en) < 10 or hit.lower() in stem_en.lower():
+            continue
+        others = []
+        for e2, h2 in pool:
+            if e2 == en:
+                continue
+            a2 = re.search(r"\(([A-Z][A-Za-z-]{1,9})\)", e2)
+            label = a2.group(1) if (short and a2) else re.sub(r"\s*\([^)]*\)", "", e2).split(",")[0].strip()
+            if not label or label.lower() in low_ev:
+                continue
+            others.append((label, h2))
+        others = [o for o in others if o[0] and o[0].lower() != hit.lower()]
+        others = sorted(others, key=lambda o: hashlib.sha1((str(ci.get("event_id")) + o[0]).encode()).hexdigest())
+        e_en, e_hi = _expl_lines(ci)
+        return _make(ci, "scheme-pool",
+                     'Which government scheme/initiative is associated with the news "%s"?' % _clip(stem_en, 110),
+                     '"%s" — यह समाचार किस सरकारी योजना/पहल से संबंधित है?' % _clip(stem_hi, 110),
+                     correct, others,
+                     "%s. The scheme associated with this development is %s." % (e_en.rstrip("."), hit),
+                     "%s। इस घटनाक्रम से संबंधित योजना %s है।" % (e_hi.rstrip("।. "), correct[1]))
+    return None
+
+
 BILINGUAL_TEMPLATES: List[Callable[[Dict[str, Any], str], Optional[Dict[str, Any]]]] = [
-    state_mcq, country_mcq, org_pool_mcq,
+    state_mcq, country_mcq, org_pool_mcq, award_pool_mcq, scheme_pool_mcq,
 ]
 
 
@@ -453,14 +544,25 @@ def _bilingualize(m: Dict[str, Any]) -> Dict[str, Any]:
     """Add Hindi to legacy text options ("EN / हिन्दी") when every option has a known
     Hindi name; numbers and statements are left as they are."""
     opts = [str(o) for o in (m.get("options") or [])]
-    if not opts or any(" / " in o or re.search(r"\d", o) for o in opts):
+    if not opts or any(" / " in o for o in opts):
         return m
     table = _bilingual_lookup()
-    his = [table.get(o.strip()) for o in opts]
+    his = []
+    for o in opts:
+        val = o.strip()
+        h = table.get(val)
+        if not h:
+            for tk, tv in table.items():
+                if tk.lower() == val.lower():
+                    h = tv
+                    break
+        if not h and re.search(r"\d", val):
+            h = val
+        his.append(h)
     if not all(his):
         return m
     out = dict(m)
-    out["options"] = [f"{o} / {h}" for o, h in zip(opts, his)]
+    out["options"] = [f"{o} / {h}" if h != o else o for o, h in zip(opts, his)]
     return out
 
 

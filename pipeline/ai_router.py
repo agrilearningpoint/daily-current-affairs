@@ -464,13 +464,14 @@ class Provider:
         """Switch to the next verified API key (a fresh key = a fresh quota).
 
         Used when every model of the current key is rate-limited (429) or the
-        key itself is out of credit (401/402). Clears this provider's blocks,
-        strikes and today's call counters, and persists the index in the shared
-        health file so every later stage of the run uses the same key."""
+        key itself is out of credit (401/402), or during quota rotation.
+        Clears this provider's blocks, strikes and today's call counters,
+        and persists the index in the shared health file so every later stage
+        uses the same key."""
         with self._lock:
-            if self.key_idx + 1 >= len(self.key_pool):
+            if len(self.key_pool) <= 1:
                 return False
-            self.key_idx += 1
+            self.key_idx = (self.key_idx + 1) % len(self.key_pool)
             self.key = self.key_pool[self.key_idx]
             self.disabled_until = 0.0
             self.consecutive_transient = 0
@@ -479,7 +480,7 @@ class Provider:
             idx, name, total = self.key_idx, self.name, len(self.key_pool)
         _clear_provider_quota_state(name)
         _save_key_index(name, idx)
-        logger.info("[Router] %s switched to API key %d/%d (previous key exhausted)",
+        logger.info("[Router] %s switched to API key %d/%d (quota rotation)",
                     name, idx + 1, total)
         return True
 
@@ -667,7 +668,7 @@ def _choose_live_model(provider: Provider, available: List[str], exclude: set[st
     if provider.name in _PREFERRED_ONLY:
         return None
     text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|gemini|gemma|nemotron|flash)", m, re.I)
-                   and not _NON_TEXT_MODEL.search(m)]
+                   and not _NON_TEXT_MODEL.search(m) and not re.search(r"\ballam\b", m, re.I)]
     return sorted(text_models or candidates)[0]
 
 
@@ -1032,6 +1033,9 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
                            RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6)))
         if per_model:
             block(key, cooldown, "rate limited (model quota)")
+            # Multi-key pools (Gemini 1-7, Groq 1-2): rotate key immediately to get a fresh quota
+            if provider is not None and len(provider.key_pool) > 1 and provider.rotate_key():
+                return True
             if provider.rotate_model():
                 return True
             # Every model of this key is out: a fresh key means a fresh quota.

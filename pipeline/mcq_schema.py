@@ -194,11 +194,39 @@ def normalize_item_mcq(data: Dict[str, Any], item: Dict[str, Any]) -> Optional[D
 def _in_text(needle: str, text: str) -> bool:
     if not needle or not text:
         return False
-    n, t = needle.lower(), text.lower()
+    n, t = needle.lower().strip(), text.lower()
     if n in t:
         return True
-    # Numbers may be written 1,250 vs 1250 in the source.
-    return bool(re.search(r"\d", n)) and n.replace(",", "") in t.replace(",", "")
+    # Currency and number normalization: "₹312 crore" vs "312 crore"
+    n_clean = re.sub(r"[₹$€£\s,]+", " ", n).strip()
+    t_clean = re.sub(r"[₹$€£\s,]+", " ", t).strip()
+    if n_clean and n_clean in t_clean:
+        return True
+    # Numbers comparison: 1,250 vs 1250
+    digits_n = re.findall(r"\d+(?:\.\d+)?", n)
+    if digits_n and all(d in t_clean for d in digits_n):
+        return True
+    # Sub-names in parentheses: "Shah Rukh Khan (Jawan)" -> "Shah Rukh Khan"
+    sub_names = re.findall(r"\(([^)]+)\)", n)
+    for sn in sub_names:
+        if len(sn) >= 3 and (sn in t or sn in t_clean):
+            return True
+    main_name = re.sub(r"\([^)]+\)", "", n).strip()
+    if len(main_name) >= 4 and (main_name in t or main_name in t_clean):
+        return True
+    # Strip leading common articles
+    core_name = re.sub(r"^(?:the|a|an)\s+", "", main_name).strip()
+    if len(core_name) >= 4 and (core_name in t or core_name in t_clean):
+        return True
+    # Acronyms (e.g. DoSJE, DGDE, CACP, CCI, DRDO)
+    acronyms = re.findall(r"\b[A-Z]{2,}\b", needle)
+    if acronyms and any(a.lower() in t for a in acronyms):
+        return True
+    # If all significant words of needle are in text
+    sig_words = [w for w in re.findall(r"[a-z0-9]{3,}", n) if w not in {"the", "and", "for", "with", "from", "that", "this"}]
+    if len(sig_words) >= 2 and all(w in t for w in sig_words):
+        return True
+    return False
 
 
 def _option_hi_ok(en: str, hi: str) -> bool:

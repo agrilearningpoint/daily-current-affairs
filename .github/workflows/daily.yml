@@ -207,7 +207,8 @@ jobs:
           EDITION_DATE: ${{ env.EDITION_DATE }}
           RESET_REQUEST: ${{ github.event.inputs.reset }}
           MIN_CONFIDENCE_THRESHOLD: "0.3"
-          MIN_VERIFIED_COUNT: "1"
+          MIN_VERIFIED_COUNT: "15"
+          ALP_CONTENT_SPARES: "10"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}

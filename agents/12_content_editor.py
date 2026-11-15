@@ -322,9 +322,9 @@ def main() -> int:
 
     target = len(items)
     try:
-        spares = max(0, int(os.getenv("ALP_CONTENT_SPARES", "3")))
+        spares = max(0, int(os.getenv("ALP_CONTENT_SPARES", "10")))
     except ValueError:
-        spares = 3
+        spares = 10
     strict = not dry_run and not allow_fallback
 
     def _clean(entries):
@@ -356,21 +356,23 @@ def main() -> int:
                     rounds, len(clean), target)
 
     # Production resilience: unreviewed translations are dropped as long as at least
-    # MIN_VERIFIED_COUNT clean verified items remain (reserves already backfilled).
+    # target clean verified items remain (reserves already backfilled).
     min_required = int(os.getenv("MIN_VERIFIED_COUNT", "5"))
+    floor_required = max(min_required, target)
     # Never un-flag a story whose Hindi was not produced by a validated AI
     # translation: in strict mode its Hindi fields still hold English, and
     # stripping the flag would publish that silently (all-providers-down case).
     strippable = [it for it in flagged if not it.get("translation_incomplete")]
     untranslated = [it for it in flagged if it.get("translation_incomplete")]
-    if flagged and len(clean) < min_required:
-        logger.warning("[Content Editor] Too few items without review flag (%d < %d); stripping the "
+    if flagged and len(clean) < floor_required:
+        needed = floor_required - len(clean)
+        logger.warning("[Content Editor] Clean items short of target (%d < %d); stripping the "
                        "provenance flag from %d item(s) with complete Hindi; %d item(s) with "
-                       "untranslated Hindi stay excluded", len(clean), min_required,
-                       len(strippable), len(untranslated))
-        for item in strippable:
+                       "untranslated Hindi stay excluded", len(clean), floor_required,
+                       min(needed, len(strippable)), len(untranslated))
+        for item in strippable[:needed]:
             item["needs_review"] = False
-        clean = clean + strippable
+            clean.append(item)
     elif flagged:
         logger.warning("[Content Editor] Dropped %d unreviewed item(s); proceeding with %d verified clean items",
                        len(flagged), len(clean))
@@ -386,7 +388,7 @@ def main() -> int:
     if len(clean) < target:
         logger.warning("[Content Editor] only %d/%d stories after reserve backfill", len(clean), target)
     content["items"] = clean[:target]
-    content["reserve_items"] = clean[target:target + spares]
+    content["reserve_items"] = clean[target:]
     from pipeline.content import refresh_content_summaries
     refresh_content_summaries(content)
 

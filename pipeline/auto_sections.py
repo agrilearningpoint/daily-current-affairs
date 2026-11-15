@@ -380,20 +380,20 @@ def _valid_hindi(en: str, hi: str) -> bool:
 # --------------------------------------------------------------------------- #
 AGRI_GK_EXTRA: Dict[str, List[Tuple[str, str]]] = {
     "CACP": [
-        ("The Commission for Agricultural Costs and Prices (CACP), set up in 1965, recommends Minimum Support Prices (MSP).",
-         "कृषि लागत एवं मूल्य आयोग (CACP), जिसकी स्थापना 1965 में हुई थी, न्यूनतम समर्थन मूल्य (MSP) की सिफारिश करता है।"),
+        ("The Commission for Agricultural Costs and Prices (CACP), set up in 1965, recommends Minimum Support Prices (MSP) for 22 mandated crops.",
+         "कृषि लागत एवं मूल्य आयोग (CACP), जिसकी स्थापना 1965 में हुई थी, 22 अधिसूचित फसलों के लिए न्यूनतम समर्थन मूल्य (MSP) की सिफारिश करता है।"),
     ],
     "PMKISAN": [
         ("PM-KISAN was launched on 24 February 2019; eligible farmers get ₹6,000 a year in three instalments of ₹2,000.",
          "पीएम-किसान योजना 24 फरवरी 2019 को शुरू हुई; पात्र किसानों को ₹2,000 की तीन किस्तों में प्रति वर्ष ₹6,000 मिलते हैं।"),
     ],
     "PMFBY": [
-        ("Pradhan Mantri Fasal Bima Yojana (PMFBY) was launched in 2016; farmers pay 2% premium for Kharif and 1.5% for Rabi crops.",
-         "प्रधानमंत्री फसल बीमा योजना (PMFBY) 2016 में शुरू हुई; किसान खरीफ फसलों के लिए 2% और रबी फसलों के लिए 1.5% प्रीमियम देते हैं।"),
+        ("Pradhan Mantri Fasal Bima Yojana (PMFBY) was launched in 2016; farmers pay 2% premium for Kharif, 1.5% for Rabi, and 5% for commercial/horticultural crops.",
+         "प्रधानमंत्री फसल बीमा योजना (PMFBY) 2016 में शुरू हुई; किसान खरीफ के लिए 2%, रबी के लिए 1.5% तथा वाणिज्यिक/बागवानी फसलों के लिए 5% प्रीमियम देते हैं।"),
     ],
     "PMMSY": [
-        ("Pradhan Mantri Matsya Sampada Yojana (PMMSY) was launched in 2020 for the development of the fisheries sector.",
-         "प्रधानमंत्री मत्स्य संपदा योजना (PMMSY) मत्स्य पालन क्षेत्र के विकास के लिए 2020 में शुरू की गई थी।"),
+        ("Pradhan Mantri Matsya Sampada Yojana (PMMSY) was launched in 2020 for the sustainable development of the fisheries sector.",
+         "प्रधानमंत्री मत्स्य संपदा योजना (PMMSY) मत्स्य पालन क्षेत्र के सतत विकास के लिए 2020 में शुरू की गई थी।"),
     ],
     "NDDB": [
         ("The National Dairy Development Board (NDDB) was set up in 1965 and is headquartered at Anand, Gujarat.",
@@ -403,6 +403,22 @@ AGRI_GK_EXTRA: Dict[str, List[Tuple[str, str]]] = {
         ("The National Agriculture Market (e-NAM) electronic trading portal was launched on 14 April 2016.",
          "राष्ट्रीय कृषि बाजार (e-NAM) इलेक्ट्रॉनिक व्यापार पोर्टल 14 अप्रैल 2016 को शुरू किया गया था।"),
     ],
+    "AIF": [
+        ("The Agriculture Infrastructure Fund (AIF) is a ₹1 lakh crore financing facility launched in 2020 to build post-harvest management infrastructure.",
+         "कृषि अवसंरचना कोष (AIF) फसल कटाई उपरांत प्रबंधन अवसंरचना निर्माण हेतु 2020 में शुरू ₹1 लाख करोड़ का वित्तीय सुविधा कोष है।"),
+    ],
+    "PMKSY": [
+        ("Pradhan Mantri Krishi Sinchayee Yojana (PMKSY) was launched in 2015 with the vision of 'Har Khet Ko Pani' and 'Per Drop More Crop'.",
+         "प्रधानमंत्री कृषि सिंचाई योजना (PMKSY) 2015 में 'हर खेत को पानी' और 'प्रति बूंद अधिक फसल' के दृष्टिकोण के साथ शुरू हुई थी।"),
+    ],
+    "SOILHEALTH": [
+        ("The Soil Health Card Scheme was launched on 19 February 2015 at Suratgarh, Rajasthan, with the motto 'Swasth Dhara, Khet Hara'.",
+         "मृदा स्वास्थ्य कार्ड योजना 19 फरवरी 2015 को सूरतगढ़, राजस्थान में 'स्वस्थ धरा, खेत हरा' के ध्येय वाक्य के साथ शुरू की गई थी।"),
+    ],
+    "KCC": [
+        ("The Kisan Credit Card (KCC) scheme was introduced in 1998 on the recommendations of the R.V. Gupta Committee to provide timely credit to farmers.",
+         "किसानों को समय पर ऋण उपलब्ध कराने हेतु आर.वी. गुप्ता समिति की सिफारिशों पर 1998 में किसान क्रेडिट कार्ड (KCC) योजना शुरू की गई थी।"),
+    ],
 }
 _AGRI_GK_TRIGGERS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\b(?:msp|minimum\s+support\s+price|procurement|kharif|rabi)\b", re.I), "CACP"),
@@ -411,6 +427,10 @@ _AGRI_GK_TRIGGERS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\b(?:fisheries|fish|aquaculture|pmmsy|matsya)\b", re.I), "PMMSY"),
     (re.compile(r"\b(?:dairy|milk|nddb)\b", re.I), "NDDB"),
     (re.compile(r"\b(?:e-?nam|mandi|agri(?:cultural)?\s+market)\b", re.I), "ENAM"),
+    (re.compile(r"\b(?:aif|infrastructure\s+fund|post-?harvest|cold\s+storage|warehouse)\b", re.I), "AIF"),
+    (re.compile(r"\b(?:pmksy|irrigation|sinchayee|water|per\s+drop)\b", re.I), "PMKSY"),
+    (re.compile(r"\b(?:soil|soil\s+health|fertili[sz]er|urea)\b", re.I), "SOILHEALTH"),
+    (re.compile(r"\b(?:kcc|kisan\s+credit|credit\s+card|crop\s+loan)\b", re.I), "KCC"),
 ]
 _AGRI_DB_KEYS = ("ICAR", "IARI", "NABARD", "FCI", "APEDA", "NAFED", "MOA", "FAO")
 
