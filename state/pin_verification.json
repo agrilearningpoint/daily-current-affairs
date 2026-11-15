@@ -450,6 +450,15 @@
       "file_sha256": "f4d9fedbd4260f1218028ff5451bbe2080897b9b77aa49887e94683828791533",
       "status": "verified",
       "verified_at": "2026-11-15T07:39:07.515449+00:00"
+    },
+    "9c8b6f165fd6c9359869c61f": {
+      "job_id": "weekly_2026-11-15",
+      "chat_id": "-1004485392227",
+      "message_id": 223,
+      "pinned_message_id": 223,
+      "file_sha256": "4cf93d567262748b574baf9d7da41152c891ad8476b2e64f1b3b6c18a8e5fe3e",
+      "status": "verified",
+      "verified_at": "2026-11-15T09:44:23.789970+00:00"
     }
   }
 }

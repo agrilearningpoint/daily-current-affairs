@@ -471,6 +471,16 @@
       "file": "daily_2026-11-15.pdf",
       "published_at": "2026-11-15T07:39:05.871051+00:00",
       "status": "success"
+    },
+    "db74951d415da0462607a7eb": {
+      "job_id": "weekly_2026-11-15",
+      "chat_id": "-1004485392227",
+      "message_id": 223,
+      "file_hash": "4cf93d567262748b",
+      "file_sha256": "4cf93d567262748b574baf9d7da41152c891ad8476b2e64f1b3b6c18a8e5fe3e",
+      "file": "weekly_2026-11-15.pdf",
+      "published_at": "2026-11-15T09:44:22.439339+00:00",
+      "status": "success"
     }
   }
 }
