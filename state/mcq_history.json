@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-15T15:59:04.914531+05:30",
+  "updated": "2026-11-15T17:21:34.257794+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1769,6 +1769,111 @@
       "last_seen": "2026-11-15",
       "type": "llm-schema",
       "q": "Under the initiative implemented across the National Capital Region starting October 1, how many Automated Num",
+      "published": true
+    },
+    "whatweresammaancapitalstotalexpensesintheseptemberquarterq2f": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "What were Sammaan Capital's total expenses in the September quarter (Q2 FY27) as per the regulatory filing?",
+      "published": true
+    },
+    "underwhichunionministrydoestheprimeministerdhandhaanyakrishi": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Under which Union Ministry does the Prime Minister Dhan-Dhaanya Krishi Yojana (PMDDKY) operate?",
+      "published": true
+    },
+    "accordingtotheexternalaffairsministerthenegotiationsforthepr": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "According to the External Affairs Minister, the negotiations for the proposed bilateral trade pact are approac",
+      "published": true
+    },
+    "worlddiabetesdaywascommemoratedwiththeactiveinvolvementofthe": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "World Diabetes Day was commemorated with the active involvement of the Indian diaspora in which European count",
+      "published": true
+    },
+    "whichflagshipinitiativelaunchedadecadeagowasrecentlythesubje": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which flagship initiative, launched a decade ago, was recently the subject of a government defense regarding a",
+      "published": true
+    },
+    "whichcountryisassociatedwiththefollowingbilateralinternation": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "place-country",
+      "q": "Which country is associated with the following bilateral/international development: \"shifting rhetoric, Trump ",
+      "published": true
+    },
+    "inwhichcitywastheglobalspiritualpalaceretreatcentreinaugurat": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "In which city was the 'Global Spiritual Palace' retreat centre inaugurated during the launch of the 'Spiritual",
+      "published": true
+    },
+    "whichministryorganizedtheexhibitionofartisansproductsatthe45": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which ministry organized the exhibition of artisans' products at the 45th India International Trade Fair?",
+      "published": true
+    },
+    "onwhichdateisjanjatiyagauravdiwasobservedannuallytocommemora": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "On which date is Janjatiya Gaurav Diwas observed annually to commemorate tribal heritage and freedom fighters?",
+      "published": true
+    },
+    "whichnodaldepartmenthasissuedthenotificationregardingtheinte": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which nodal department has issued the notification regarding the integration of Aadhaar-based data collection ",
+      "published": true
+    },
+    "whichministrylaunchedtheruralhousingschemethatrecentlysawana": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which ministry launched the rural housing scheme that recently saw an announcement of five lakh houses for Odi",
+      "published": true
+    },
+    "howmanyautomatednumberplaterecognitioncamerasarescheduledtob": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "How many Automated Number Plate Recognition cameras are scheduled to be installed across petrol pumps in the f",
+      "published": true
+    },
+    "whichinitiativeishighlightedforpoweringthenationsdigitallear": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which initiative is highlighted for powering the nation's digital learning ecosystem?",
+      "published": true
+    },
+    "whichportalorplatformservesastheoverarchingyouthdevelopmentm": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which portal or platform serves as the overarching youth development mechanism described in the official relea",
+      "published": true
+    },
+    "accordingtotherecentannouncementsregardingindiasforeigntrade": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "According to the recent announcements regarding India's foreign trade targets, what is the projected value of ",
       "published": true
     }
   },
