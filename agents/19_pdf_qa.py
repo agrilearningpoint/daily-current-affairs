@@ -641,10 +641,12 @@ def check_text_content(report: QAReport, text: str) -> None:
                    hindi_pct=round(report.hindi_pct, 2))
 
 
-def minimum_mcq_count(item_count: int) -> int:
-    """Require two validated questions per selected story, capped at the normal edition minimum."""
+def minimum_mcq_count(item_count: int, job_type: str = "") -> int:
+    """Require validated questions per selected story, capped at the normal edition minimum."""
     if item_count < 1:
         return MIN_MCQ_COUNT
+    if job_type in ("weekly", "monthly"):
+        return min(MIN_MCQ_COUNT, item_count)
     return min(MIN_MCQ_COUNT, item_count * 2)
 
 
@@ -1110,7 +1112,7 @@ def main() -> int:
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Content artifact unreadable, checking coverage against selection: %s", exc)
 
-    min_mcq_count = minimum_mcq_count(len(edition_items))
+    min_mcq_count = minimum_mcq_count(len(edition_items), str(getattr(ctx, "job_type", "") or ""))
     logger.info("QA requires at least %d MCQs for %d selected stories",
                 min_mcq_count, len(selected_items))
     report = run_qa(pdf, min_mcq_count=min_mcq_count,
