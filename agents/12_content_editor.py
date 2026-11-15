@@ -336,7 +336,7 @@ def main() -> int:
     clean = _clean(content["items"])
     flagged = [it for it in content["items"] if strict and it.get("needs_review")]
     rounds = 0
-    while reserves and len(clean) < target + spares and rounds < 3:
+    while reserves and len(clean) < target + spares and rounds < 6:
         need = target + spares - len(clean)
         take = need + (2 if len(clean) < target else 0)  # small margin only when short of target
         batch, reserves = reserves[:take], reserves[take:]

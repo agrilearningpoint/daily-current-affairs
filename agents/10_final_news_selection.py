@@ -73,9 +73,9 @@ class Agent:
         # unreviewed translation) and stage 16 (stories without a valid MCQ) to
         # backfill so the edition still reaches its target count.
         try:
-            n_res = int(os.getenv("ALP_SELECTION_RESERVES", str(max(8, target // 2))))
+            n_res = int(os.getenv("ALP_SELECTION_RESERVES", str(max(20, target))))
         except ValueError:
-            n_res = max(8, target // 2)
+            n_res = max(20, target)
         chosen = {id(x) for x in selected}
         reserves = [x for x in scored if id(x) not in chosen][:max(0, n_res)]
         logging.info(f"[{self.name}] selected {len(selected)} items (target={target}), "

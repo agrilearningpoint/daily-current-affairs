@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from pipeline.store import STATE_DIR, atomic_write_json, safe_read_json
+from enterprise_v2.store import STATE_DIR, atomic_write_json, safe_read_json
 
 HEALING_LOG_PATH = STATE_DIR / "healing_history.json"
 MAX_REPAIR_ATTEMPTS = int(os.getenv("ALP_MAX_HEAL_BUDGET", "3"))
