@@ -43,6 +43,12 @@ DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 NONE_OF_ABOVE_RE = re.compile(r"none of (the )?(above|these)|all of (the )?(above|these)|उपर्युक्त में से कोई नहीं|इनमें से कोई नहीं", re.I)
 MIN_EXPLANATION, MAX_EXPLANATION = 4, 5
 MIN_STATIC_GK, MAX_STATIC_GK = 4, 6
+PHRASE_RECOG_RE = re.compile(
+    r"\b(?:explicitly\s+mentioned|phrase\s+appeared|word\s+mentioned|mentioned\s+in\s+the\s+PIB\s+release|"
+    r"as\s+stated\s+verbatim|which\s+term\s+is\s+used\s+in\s+the\s+release)\b",
+    re.I,
+)
+URL_RE = re.compile(r"https?://\S+|www\.\S+", re.I)
 
 PROMPT_TEMPLATE = """You write one bilingual (English + Hindi) competitive-exam MCQ for an Indian current-affairs booklet.
 Use ONLY facts stated in NEWS. Do not add facts that are not in NEWS, except Static GK about the
@@ -61,13 +67,18 @@ Rules:
 - question: one clear question; it must NOT contain the answer. Do NOT ask for a word or number that is in the
   headline, and do not copy the headline's key noun into the question. Prefer a static/conceptual fact about the
   scheme or body (who recommends/implements/regulates it) or a detail from the NEWS text that the headline lacks.
+  NEVER write phrase-recognition questions (e.g. "Which component is explicitly mentioned in the PIB release...",
+  "Which phrase appeared in the release..."). Test substantive facts: outlays, figures, growth rates, implementing
+  ministries, policies, schemes, or scientific significance.
+  For domestic Indian governance/ministerial news, NEVER ask "which country is involved?" with India as an option.
 - distractors: real, related entities of the same kind (other real ministries, bodies, States, schemes). Never
   invent person names. Never give a person a post (minister, governor, chairman...) unless VERIFIED OFFICEHOLDERS
   lists them in it. Percentages must be plausible (never above 100% for a share).
 - options: exactly 5, all of the same kind (all names, all numbers, ...), all different. The correct option text
   must be copied exactly from NEWS (or be the well-known body for a static fact, e.g. MSP -> CACP). Never use "None of the above" / "All of the above".
-- Hindi: natural exam-style Devanagari. Keep numbers, ₹ amounts, acronyms and proper nouns accurate.
-- explanation: 4 or 5 full sentences, each with its Hindi translation.
+- Hindi: natural exam-style Devanagari. Keep numbers, ₹ amounts, acronyms and proper nouns accurate. Ensure correct
+  Hindi grammar (never write broken constructs like "ने में").
+- explanation: 4 or 5 full sentences, each with its Hindi translation. NEVER include raw URLs (http://, https://, www.).
 - static_gk: 4 to 6 short label/value facts in English and Hindi.
 - theme: 1-3 words grouping this story with similar ones (e.g. "Loans", "MoU", "Appointments", "Awards", "Agriculture").
 - one_liner: one exam-ready sentence summarising the story, English and Hindi.
@@ -248,6 +259,12 @@ def schema_errors(m: Dict[str, Any], source_text: str) -> List[str]:
     errs: List[str] = []
     opts = [str(o or "").strip() for o in (m.get("options") or [])]
     his = [str(h or "").strip() for h in (m.get("options_hi") or [])]
+    q_en = str(m.get("question_en") or "")
+    if PHRASE_RECOG_RE.search(q_en):
+        errs.append("schema: phrase-recognition question not allowed; test substantive facts")
+    expl_text = str(m.get("explanation_en") or "") + " " + str(m.get("explanation_hi") or "")
+    if URL_RE.search(expl_text):
+        errs.append("schema: raw URL in explanation")
     if len(opts) != 5:
         errs.append("schema: exactly 5 options required")
     if len({o.lower() for o in opts}) != len(opts) or any(not o for o in opts):

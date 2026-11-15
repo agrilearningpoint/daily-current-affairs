@@ -1069,13 +1069,24 @@ def _extract_explanation_points(item: Dict[str, Any], mcq: Dict[str, Any]) -> Li
     return pairs[:MAX_EXPLANATION_POINTS]
 
 
+BANNED_STATIC_GK_RE = re.compile(
+    r"\b(?:key statutory bodies|implementing ministries|financial outlays|macroeconomic indicators|"
+    r"key crop statistics|multilateral summits|defence procurements|ecological conservation treaties|"
+    r"national and international sports championships|key entities, regulatory authorities|"
+    r"pib headquarters|press information bureau|government of india established|president of india presents)\b|"
+    r"^(?:fact \d|key name|first/unique)\s*–",
+    re.I,
+)
+
+
 def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]] = None) -> List[Tuple[str, str]]:
     """Up to 6 Static GK pairs as ('Label – Value', 'लेबल – मान').
 
     Source order: the MCQ's ``static_gk`` (LLM schema: label/value in EN+HI),
-    ``item['static_gk_pairs']`` (verified pairs from pipeline.static_gk_db), and
-    only as a fallback the ``static_facts`` dict.  Private keys (``_static_gk_pairs``
-    and anything starting with ``_``) are never printed.
+    ``item['static_gk_pairs']`` (verified pairs from pipeline.static_gk_db),
+    and verified lookups for named entities.  Private keys and generic category
+    blurbs/boilerplate are strictly filtered out.  If no genuine factual pairs
+    are verified, returns [] so the box is omitted rather than filled with noise.
     """
     pairs: List[Tuple[str, str]] = []
     seen: set = set()
@@ -1085,6 +1096,8 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
         if not en_c or en_c.lower() in seen or len(pairs) >= MAX_STATIC_GK_POINTS:
             return
         if en_c.startswith("[") or en_c.startswith("("):  # stringified list/tuple
+            return
+        if BANNED_STATIC_GK_RE.search(en_c):
             return
         seen.add(en_c.lower())
         pairs.append((en_c, _hi_or_blank(hi)))
@@ -1104,6 +1117,16 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
         elif isinstance(p, str):
             _add(p, "")
 
+    # Look up verified entity facts from static_gk_db if pairs are sparse
+    if len(pairs) < 3:
+        try:
+            from pipeline.static_gk_db import lookup_static_gk_for_text
+            story_text = f"{item.get('headline_en', '')} {item.get('summary_en', '')}"
+            for db_en, db_hi in lookup_static_gk_for_text(story_text):
+                _add(db_en, db_hi)
+        except Exception:
+            pass
+
     if not pairs:
         sf = item.get("static_facts") or {}
         if isinstance(sf, dict):
@@ -1112,14 +1135,8 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
                     continue
                 k_clean = _clean_text_for_display(k)
                 v_clean = _clean_text_for_display(v)
-                if k_clean and v_clean:
+                if k_clean and v_clean and not BANNED_STATIC_GK_RE.search(k_clean):
                     _add(f"{k_clean} – {v_clean}", "")
-
-    if len(pairs) < 4:
-        ef_en = _clean_text_for_display(item.get("exam_fact_en", ""))
-        if ef_en and len(ef_en) > 15:
-            hi = _hi_or_blank(item.get("exam_fact_hi", ""))
-            _add(f"Exam Fact – {ef_en}", f"परीक्षा तथ्य – {hi}" if hi else "")
 
     return pairs[:MAX_STATIC_GK_POINTS]
 
@@ -1344,53 +1361,19 @@ def _unit_photo_block(it: Dict[str, Any]) -> List[Flowable]:
         return []  # a bad photo must never break the edition
 
 
-def _news_in_pictures_story(units) -> List[Flowable]:
-    """'News in Pictures | चित्रों में खबरें': three-column photo cards, each linked to its story unit."""
-    if not PDF_PHOTO_GALLERY:
-        return []
-    cards_src = [(i, it) for i, (it, _ms) in enumerate(units, 1) if _real_photo_path(it)]
-    if len(cards_src) < PDF_GALLERY_MIN:
-        return []
-    ncol = 3
+def _build_gallery_table(cards_slice: List[Any], ncol: int) -> Table:
     gap = 8 * pt
     col_w = (PRINT_W - gap * (ncol - 1)) / float(ncol)
     inner = col_w - 10 * pt
-    head_st = STYLES["gallery_head"]
-    hi_st = STYLES["toc_hi"]
-    tag_st = STYLES["gallery_tag"]
-    cap_st = _caption_style(TA_LEFT)
-
-    def _short(t: str, n: int) -> str:
-        return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + "…"
-
-    cards = []
-    for n, it in cards_src:
-        try:
-            en = _short(_clean_text_for_display(it.get("headline_en", "")), 88)
-            hi = _short(_hi_or_blank(it.get("headline_hi", "")), 80)
-            kids: List[Flowable] = [NewsPhoto(_real_photo_path(it), inner, 92 * pt, align="center", box_w=inner),
-                                    Spacer(inner, 3 * pt),
-                                    Paragraph(f"{_safe(str(it.get('category', 'National')).upper())}  •  Q{n}  ›", tag_st),
-                                    Paragraph(_safe(en), head_st)]
-            if hi:
-                kids.append(text_flowable(hi, hi_st, width=inner))
-            credit = _photo_credit(it)
-            if credit:
-                kids.append(Paragraph(f"<i>{_safe(credit)}</i>", cap_st))
-            # The WHOLE card (photo + headlines) is one tap target -> story unit n.
-            cards.append([LinkTo(Stack(kids, gap=1.5 * pt), f"u{n}", full_width=True)])
-        except Exception:
-            continue
-    if len(cards) < PDF_GALLERY_MIN:
-        return []
-    real = len(cards)
-    while len(cards) % ncol:
-        cards.append([Spacer(inner, 1)])
+    real = len(cards_slice)
+    padded = list(cards_slice)
+    while len(padded) % ncol:
+        padded.append([Spacer(inner, 1)])
     rows = []
-    for i in range(0, len(cards), ncol):
+    for i in range(0, len(padded), ncol):
         row: List[Any] = []
         for j in range(ncol):
-            row.append(cards[i + j])
+            row.append(padded[i + j])
             if j < ncol - 1:
                 row.append("")
         rows.append(row)
@@ -1402,17 +1385,103 @@ def _news_in_pictures_story(units) -> List[Flowable]:
     grid = Table(rows, colWidths=widths)
     styles_ = [("VALIGN", (0, 0), (-1, -1), "TOP"),
                ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-               ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-               ("LEFTPADDING", (1, 0), (1, -1), 0), ("RIGHTPADDING", (1, 0), (1, -1), 0),
-               ("LEFTPADDING", (3, 0), (3, -1), 0), ("RIGHTPADDING", (3, 0), (3, -1), 0)]
+               ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 6)]
+    for c_idx in range(1, ncol * 2 - 1, 2):
+        styles_.extend([("LEFTPADDING", (c_idx, 0), (c_idx, -1), 0),
+                        ("RIGHTPADDING", (c_idx, 0), (c_idx, -1), 0)])
     for k in range(real):
         r, c = divmod(k, ncol)
         styles_.append(("BOX", (c * 2, r), (c * 2, r), 0.6, COLORS["card_border"]))
     grid.setStyle(TableStyle(styles_))
-    return [Anchor("pics", "News in Pictures | चित्रों में खबरें", 0),
-            Paragraph("<b>NEWS IN PICTURES</b>", STYLES["oneliner_title"]),
-            text_flowable("चित्रों में खबरें  •  पूरी खबर के लिए फोटो या शीर्षक पर टैप करें", STYLES["cover_super"]),
-            Spacer(PRINT_W, 8 * pt), grid, PageBreak()]
+    return grid
+
+
+def _news_in_pictures_story(units) -> List[Flowable]:
+    """'News in Pictures | चित्रों में खबरें': responsive, balanced photo cards.
+
+    Cards are balanced across pages so no page is left nearly empty (e.g. 8 cards
+    are arranged as 4 on page 1 and 4 on page 2 in balanced 2x2 grids, never
+    6 on page 1 and an orphan 2 on page 2).
+    """
+    if not PDF_PHOTO_GALLERY:
+        return []
+    cards_src = [(i, it) for i, (it, _ms) in enumerate(units, 1) if _real_photo_path(it)]
+    if len(cards_src) < PDF_GALLERY_MIN:
+        return []
+
+    head_st = STYLES["gallery_head"]
+    hi_st = STYLES["toc_hi"]
+    tag_st = STYLES["gallery_tag"]
+    cap_st = _caption_style(TA_LEFT)
+
+    def _short(t: str, n: int) -> str:
+        return t if len(t) <= n else t[:n].rsplit(" ", 1)[0] + "…"
+
+    # Determine optimal column layout
+    n_total = len(cards_src)
+    use_2col = (n_total <= 4) or (n_total in (7, 8))
+    default_ncol = 2 if use_2col else 3
+    col_w = (PRINT_W - (8 * pt) * (default_ncol - 1)) / float(default_ncol)
+    inner = col_w - 10 * pt
+    photo_h = 105 * pt if default_ncol == 2 else 92 * pt
+
+    cards = []
+    for n, it in cards_src:
+        try:
+            en = _short(_clean_text_for_display(it.get("headline_en", "")), 88)
+            hi = _short(_hi_or_blank(it.get("headline_hi", "")), 80)
+            kids: List[Flowable] = [NewsPhoto(_real_photo_path(it), inner, photo_h, align="center", box_w=inner),
+                                    Spacer(inner, 3 * pt),
+                                    Paragraph(f"{_safe(str(it.get('category', 'National')).upper())}  •  Q{n}  ›", tag_st),
+                                    Paragraph(_safe(en), head_st)]
+            if hi:
+                kids.append(text_flowable(hi, hi_st, width=inner))
+            credit = _photo_credit(it)
+            if credit:
+                kids.append(Paragraph(f"<i>{_safe(credit)}</i>", cap_st))
+            cards.append([LinkTo(Stack(kids, gap=1.5 * pt), f"u{n}", full_width=True)])
+        except Exception:
+            continue
+    if len(cards) < PDF_GALLERY_MIN:
+        return []
+
+    out: List[Flowable] = [
+        Anchor("pics", "News in Pictures | चित्रों में खबरें", 0),
+        Paragraph("<b>NEWS IN PICTURES</b>", STYLES["oneliner_title"]),
+        text_flowable("चित्रों में खबरें  •  पूरी खबर के लिए फोटो या शीर्षक पर टैप करें", STYLES["cover_super"]),
+        Spacer(PRINT_W, 8 * pt),
+    ]
+
+    n = len(cards)
+    if n <= 6:
+        ncol = 2 if n <= 4 else 3
+        out.append(_build_gallery_table(cards, ncol))
+        out.append(PageBreak())
+    elif n <= 8:
+        # Two balanced pages: 4 cards on page 1 (2x2) and remainder on page 2 (2x2)
+        p1_cards = cards[:4]
+        p2_cards = cards[4:]
+        out.append(_build_gallery_table(p1_cards, 2))
+        out.append(PageBreak())
+        out.append(Paragraph("<b>NEWS IN PICTURES (Continued)</b>", STYLES["oneliner_title"]))
+        out.append(text_flowable("चित्रों में खबरें (क्रमशः)  •  पूरी खबर के लिए फोटो पर टैप करें", STYLES["cover_super"]))
+        out.append(Spacer(PRINT_W, 8 * pt))
+        out.append(_build_gallery_table(p2_cards, 2))
+        out.append(PageBreak())
+    else:
+        # 9 or 10 cards: 6 on page 1 (3x2), remainder on page 2 (2 or 3 cols)
+        p1_cards = cards[:6]
+        p2_cards = cards[6:]
+        out.append(_build_gallery_table(p1_cards, 3))
+        out.append(PageBreak())
+        out.append(Paragraph("<b>NEWS IN PICTURES (Continued)</b>", STYLES["oneliner_title"]))
+        out.append(text_flowable("चित्रों में खबरें (क्रमशः)  •  पूरी खबर के लिए फोटो पर टैप करें", STYLES["cover_super"]))
+        out.append(Spacer(PRINT_W, 8 * pt))
+        ncol2 = 2 if len(p2_cards) <= 4 else 3
+        out.append(_build_gallery_table(p2_cards, ncol2))
+        out.append(PageBreak())
+
+    return out
 
 
 def _join_us_box() -> Flowable:
@@ -1593,19 +1662,34 @@ def _row_table(cells: List[Any], widths: List[float], style_cmds: List[Tuple], m
 def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowable]:
     """Clickable contents page: every MCQ topic (EN + HI) and every section.
 
-    Each topic is ONE link covering its whole row (number + English + Hindi), at
-    least MIN_TAP_PT tall, so a thumb tap anywhere on the row works on phones."""
+    When up to 16 units are present, compact typography and dynamic padding keep
+    the entire Table of Contents cleanly on Page 2, preventing an orphan near-empty
+    page.  When >16 units are present, the index is split evenly across two balanced
+    pages.
+    """
     TOC_LINK_KEYS.clear()
     out: List[Flowable] = [Anchor("contents", "Contents | विषय-सूची", 0)]
     out.append(Paragraph("<b>TODAY'S CONTENTS</b>", STYLES["oneliner_title"]))
     out.append(text_flowable("आज की विषय-सूची  •  किसी भी विषय पर टैप करें", STYLES["cover_super"]))
-    out.append(Spacer(PRINT_W, 8 * pt))
-    num_w = 40 * pt
+    out.append(Spacer(PRINT_W, 5 * pt))
+    num_w = 38 * pt
     txt_w = PRINT_W - num_w - 14 * pt
     st_en, st_hi, st_num = STYLES["toc_en"], STYLES["toc_hi"], STYLES["toc_num"]
+
+    n_units = len(units)
+    is_split = n_units > 16
+    split_at = (n_units + 1) // 2 if is_split else n_units
+    row_min_h = 24 * pt if n_units <= 16 else MIN_TAP_PT
+
     for i, (it, _ms) in enumerate(units, 1):
-        en = _clean_text_for_display(it.get("headline_en", ""))
-        hi = _hi_or_blank(it.get("headline_hi", ""))
+        if is_split and i == split_at + 1:
+            out.append(PageBreak())
+            out.append(Paragraph("<b>TODAY'S CONTENTS (Continued)</b>", STYLES["oneliner_title"]))
+            out.append(text_flowable("आज की विषय-सूची (क्रमशः)  •  किसी भी विषय पर टैप करें", STYLES["cover_super"]))
+            out.append(Spacer(PRINT_W, 5 * pt))
+
+        en = clip_words(_clean_text_for_display(it.get("headline_en", "")), 82)
+        hi = clip_words(_hi_or_blank(it.get("headline_hi", "")), 75)
         cell: List[Flowable] = [Paragraph(_safe(en), st_en)]
         if hi:
             cell.append(text_flowable(hi, st_hi, width=txt_w, bg=COLORS["white"] if i % 2 else HexColor("#F3F7FC")))
@@ -1614,14 +1698,11 @@ def _toc_story(units, content: Dict[str, Any], date_display: str) -> List[Flowab
             ("BACKGROUND", (1, 0), (1, 0), COLORS["white"] if i % 2 else HexColor("#F3F7FC")),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LINEBELOW", (0, 0), (-1, -1), 0.5, COLORS["border_light"]),
-            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (0, 0), 2), ("LEFTPADDING", (1, 0), (1, 0), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ], min_h=MIN_TAP_PT)
+            ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING", (0, 0), (0, 0), 2), ("LEFTPADDING", (1, 0), (1, 0), 7), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ], min_h=row_min_h)
         out.append(LinkTo(row, f"u{i}", full_width=True))
-    # The cover's INSIDE strip already links every section anchor (pics / agri /
-    # qb / ol_en), so a second chip grid here only duplicated navigation - and
-    # when the contents list filled its page the grid overflowed onto a page
-    # that was ~85% empty (2026-11-11 QA: near_empty_pages [3]).
+
     TOC_LINK_KEYS.update(f"u{i}" for i in range(1, len(units) + 1))
     out.append(PageBreak())
     return out
@@ -1754,15 +1835,34 @@ def _unit_theme(item: Dict[str, Any], mcq: Dict[str, Any]) -> str:
     return theme or "National"
 
 
+def _clean_one_liner_str(text: Any) -> str:
+    s = _clean_text_for_display(text)
+    if not s:
+        return ""
+    # Strip leading >>
+    s = re.sub(r"^\s*>>\s*", "", s)
+    # Strip (Key: ...)
+    s = re.sub(r"\s*\(Key\s*:[^)]*\)", "", s, flags=re.I)
+    # Strip generic boilerplate
+    s = re.sub(r"\s*(?:encompasses|outlines its)\s+implementing\s+ministries.*", "", s, flags=re.I)
+    return s.strip()
+
+
 def _one_liner_for(item: Dict[str, Any], mcq: Dict[str, Any], content: Dict[str, Any]) -> Tuple[str, str]:
     ol = (mcq or {}).get("one_liner") or {}
     if isinstance(ol, dict) and ol.get("en"):
-        return _clean_text_for_display(ol.get("en")), _hi_or_blank(ol.get("hi"))
+        en_clean = _clean_one_liner_str(ol.get("en"))
+        hi_clean = _clean_one_liner_str(ol.get("hi"))
+        if en_clean:
+            return en_clean, hi_clean
     for row in content.get("one_liners") or []:
         if isinstance(row, dict) and row.get("event_id") and row.get("event_id") == item.get("event_id"):
-            return _clean_text_for_display(row.get("text_en")), _hi_or_blank(row.get("text_hi"))
-    return (_clean_text_for_display(re.sub(r"^\s*>>\s*", "", str(item.get("headline_en", "")))),
-            _hi_or_blank(re.sub(r"^\s*>>\s*", "", str(item.get("headline_hi", "")))))
+            en_clean = _clean_one_liner_str(row.get("text_en"))
+            hi_clean = _clean_one_liner_str(row.get("text_hi"))
+            if en_clean:
+                return en_clean, hi_clean
+    return (_clean_one_liner_str(item.get("headline_en", "")),
+            _clean_one_liner_str(item.get("headline_hi", "")))
 
 
 def _plan_headline_boxes(units, content) -> Dict[int, RoundedBox]:
@@ -2371,6 +2471,10 @@ def _generate_pdf_once(
     card_bg = COLORS["card_bg"]
 
     for u_idx, (it, unit_mcqs) in enumerate(units):
+        if u_idx > 0:
+            from reportlab.platypus import CondPageBreak
+            story.append(CondPageBreak(280 * pt))
+
         cat = str(it.get("category", "National")).upper()
         headline_en = _clean_text_for_display(it.get("headline_en", ""))
         static_pairs = _extract_static_gk_pairs(it, unit_mcqs[0])
@@ -2403,7 +2507,17 @@ def _generate_pdf_once(
             if not first_in_unit:
                 block.append(Spacer(PRINT_W, 8 * pt))
             if first_in_unit:
-                block += [unit_anchor, pill, Spacer(PRINT_W, 6 * pt)]
+                src_dict = it.get("source") if isinstance(it.get("source"), dict) else {}
+                src_name = _clean_text_for_display(src_dict.get("name") or it.get("source_name") or "")
+                pub_date = _clean_text_for_display(it.get("published_at") or it.get("date") or "")
+                if pub_date and len(pub_date) >= 10:
+                    pub_date = pub_date[:10]
+                src_line = f"Source: {src_name}" + (f"  •  {pub_date}" if pub_date else "") if src_name else ""
+                block += [unit_anchor, pill]
+                if src_line:
+                    block.append(Spacer(PRINT_W, 2 * pt))
+                    block.append(Paragraph(f"<i>{_safe(src_line)}</i>", STYLES["caption"]))
+                block.append(Spacer(PRINT_W, 4 * pt))
                 block += _unit_photo_block(it)
             block.append(text_flowable(f"Q{q_idx}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{q_idx}.</b> {_safe(q_en)}"))
             q_hi = _hi_or_blank(m.get("question_hi", ""))

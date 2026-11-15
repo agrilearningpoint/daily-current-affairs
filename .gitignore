@@ -77,6 +77,7 @@ logs/
 *.orig
 *.rej
 ~*
+scratch/
 
 # -----------------------------------------------------------------------------
 # Generated data / output (regenerated on each run)
@@ -94,6 +95,9 @@ state/backups/
 state/archive/
 state/locks/
 state/metrics/
+state/incidents/
+state/remediation_plans/
+state/feed_cache/
 state/migration_report.json
 state/jobs.json.corrupt.*
 state/*.tmp

@@ -103,6 +103,9 @@ def _strip_term(text: str, terms: Iterable[str]) -> str:
     # A stem must not end on a dangling preposition after the answer was removed
     # ("Official visit of Foreign Secretary to" -> "Official visit of Foreign Secretary").
     out = re.sub(r"\s+(?:to|in|of|at|for|from|with|by|on|and|the)$", "", out, flags=re.I)
+    # A stem must not begin with a dangling postposition/preposition after subject removal
+    out = re.sub(r"^(?:ने|को|से|के|की|का|में|पर)\s+", "", out)
+    out = re.sub(r"^(?:to|in|of|at|for|from|with|by|on|and|the)\s+", "", out, flags=re.I)
     return out.strip(" ,;:-–—")
 
 
@@ -117,23 +120,33 @@ def _sentences(t: Any) -> List[str]:
 
 def _expl_lines(ci: Dict[str, Any]) -> Tuple[str, str]:
     """First story sentence that says more than the headline (EN) and its Hindi pair.
-    Falls back to the first key point / the headline."""
+    Falls back to the first key point / the headline. Strips raw URLs and fixes broken grammar."""
     from pipeline.mcq_quality import explanation_is_headline_only
     head = _plain(ci.get("headline_en"))
     kps_en = [p for p in (ci.get("key_points_en") or []) if _ws(p)]
     kps_hi = [p for p in (ci.get("key_points_hi") or []) if _ws(p)]
     en = _ws(kps_en[0]) if kps_en else head
     hi = _ws(kps_hi[0]) if kps_hi and DEVANAGARI_RE.search(kps_hi[0]) else _plain(ci.get("headline_hi"))
+
+    def _sanitize(t_en: str, t_hi: str) -> Tuple[str, str]:
+        # Strip raw URLs
+        t_en = re.sub(r"https?://\S+|www\.\S+", "", t_en).strip(" ,;:-–—")
+        t_hi = re.sub(r"https?://\S+|www\.\S+", "", t_hi).strip(" ,;:-–—")
+        # Fix broken Hindi grammar
+        t_hi = re.sub(r"\bने\s+में\b", "में", t_hi)
+        t_hi = re.sub(r"\bने\s+को\b", "को", t_hi)
+        return _ws(t_en), _ws(t_hi)
+
     if not explanation_is_headline_only(en, head, ""):
-        return en, hi
+        return _sanitize(en, hi)
     pool_en = [(_ws(p), i) for i, p in enumerate(kps_en)]
     for key in ("summary_en", "detailed_explanation_en", "exam_fact_en"):
         pool_en += [(x, -1) for x in _sentences(ci.get(key))]
     for cand, i in pool_en:
         if cand and not explanation_is_headline_only(cand, head, ""):
             h = _ws(kps_hi[i]) if 0 <= i < len(kps_hi) and DEVANAGARI_RE.search(kps_hi[i]) else hi
-            return cand.rstrip("."), h
-    return en, hi
+            return _sanitize(cand.rstrip("."), h)
+    return _sanitize(en, hi)
 
 
 def _news_text(ci: Dict[str, Any]) -> str:
@@ -209,6 +222,16 @@ def _place_mcq(ci: Dict[str, Any], evidence: str, table: Dict[str, str], aliases
         canon, surface = _find_named(evidence, table, aliases)
     if not canon:
         return None
+
+    # Domestic Indian governance guard: NEVER generate country_mcq with "India" as
+    # correct option against foreign distractors for domestic Indian news/events.
+    if mtype == "place-country" and canon == "India":
+        return None
+    if mtype == "place-country":
+        full_text = f"{headline} {evidence}"
+        if re.search(r"\b(?:Union\s+Minister|Dr\.?\s*Jitendra\s*Singh|PIB\s*Delhi|New\s*Delhi|Ministry\s*of)\b", full_text, re.I):
+            return None
+
     mentioned = _all_named(evidence, table, aliases)
     hi_name = table[canon]
     stem_en = _strip_term(headline, {surface, canon} | {a for a, c in aliases.items() if c == canon})
@@ -231,19 +254,23 @@ def _place_mcq(ci: Dict[str, Any], evidence: str, table: Dict[str, str], aliases
 def state_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
     return _place_mcq(
         ci, evidence, INDIAN_STATES, STATE_ALIASES, "place-state",
-        'The news "{stem}" is related to which State / Union Territory?',
-        '"{stem}" — यह समाचार किस राज्य / केंद्र शासित प्रदेश से संबंधित है?',
+        'Which State / Union Territory is associated with the following development: "{stem}"?',
+        '"{stem}" — यह घटनाक्रम किस राज्य / केंद्र शासित प्रदेश से संबंधित है?',
         "{point}. The development reported relates to {val}.",
-        "{point}। यह समाचार {val} से संबंधित है।",
+        "{point}। यह घटनाक्रम {val} से संबंधित है।",
     )
 
 
 def country_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
+    # Guard: domestic Indian event should not generate country_mcq
+    headline = _plain(ci.get("headline_en"))
+    if re.search(r"\b(?:Union\s+Minister|Dr\.?\s*Jitendra\s*Singh|New\s+Delhi|Cabinet|Prime\s+Minister|GoI|Government\s+of\s+India)\b", headline, re.I):
+        return None
     return _place_mcq(
         ci, evidence, COUNTRIES, COUNTRY_ALIASES, "place-country",
-        'The news "{stem}" involves which country?',
-        '"{stem}" — यह समाचार किस देश से संबंधित है?',
-        "{point}. The country involved in this development is {val}.",
+        'Which country is associated with the following bilateral/international development: "{stem}"?',
+        '"{stem}" — यह घटनाक्रम किस देश से संबंधित है?',
+        "{point}. The country associated with this development is {val}.",
         "{point}। इस घटनाक्रम से संबंधित देश {val} है।",
     )
 

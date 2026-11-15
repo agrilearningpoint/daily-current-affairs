@@ -429,9 +429,47 @@ def extract_static_facts(item):
     return facts
 
 
+HINDI_EDITORIAL_CORRECTIONS = [
+    (re.compile(r"(?<![\u0900-\u097F])पतंजली(?![\u0900-\u097F])"), "पतंजलि"),
+    (re.compile(r"\bपीएम\s*ई[- ]?ड्राइव\b", re.I), "पीएम ई-ड्राइव"),
+    (re.compile(r"\bPM\s*E[- ]?DRIVE\b", re.I), "पीएम ई-ड्राइव (PM E-DRIVE)"),
+    (re.compile(r"(?<![\u0900-\u097F])ने\s+में(?![\u0900-\u097F])"), "में"),
+    (re.compile(r"(?<![\u0900-\u097F])ने\s+को(?![\u0900-\u097F])"), "को"),
+    (re.compile(r"डॉ\.\s*जितेंद्र\s*सिंह\s+ने\s+में"), "डॉ. जितेंद्र सिंह ने"),
+    (re.compile(r"प्रधानमंत्री\s+धन-धान्य\s+कृषि\s+योजना"), "प्रधानमंत्री धन-धान्य कृषि योजना"),
+    (re.compile(r"जलशक्ति\s+मंत्रालय"), "जल शक्ति मंत्रालय"),
+    (re.compile(r"ICAR\s*-\s*भारतीय"), "भारतीय कृषि अनुसंधान परिषद (ICAR) -"),
+]
+
+
+def clean_hindi_editorial(text: str) -> str:
+    if not text:
+        return ""
+    out = str(text)
+    for pat, repl in HINDI_EDITORIAL_CORRECTIONS:
+        out = pat.sub(repl, out)
+    return out
+
+
 def exam_fact(item):
     item = item or {}
-    return EXAM_HINTS.get(item.get("category", ""), EXAM_HINT_DEFAULT)
+    cand = str(item.get("exam_fact_en") or "").strip()
+    if cand and not any(phrase.lower() in cand.lower() for phrase in [
+        "key statutory bodies", "implementing ministries", "macroeconomic indicators",
+        "key crop statistics", "key entities, regulatory"
+    ]):
+        return cand
+    try:
+        from pipeline.static_gk_db import lookup_static_gk_for_text
+        pairs = lookup_static_gk_for_text(str(item.get("headline_en") or "") + " " + str(item.get("raw_facts") or ""))
+        if pairs:
+            return f"{pairs[0][0]}: {pairs[0][1]}"
+    except Exception:
+        pass
+    kps = item.get("key_points_en") or []
+    if kps:
+        return str(kps[0])
+    return ""
 
 
 # --------------------------------------------------------------------------- #
@@ -661,6 +699,7 @@ def _track(stats, flags, method):
 
 def _translate_tracked(text, task, stats, flags):
     hindi, method, _conf = translate_with_ai_or_fallback(text, task=task)
+    hindi = clean_hindi_editorial(hindi)
     _track(stats, flags, method)
     return hindi
 
@@ -777,14 +816,13 @@ def _build_category_one_liners(items: List[Dict[str, Any]]) -> List[Dict[str, An
         en = _plain_headline(it.get("headline_en", ""))
         hi = _plain_headline(it.get("headline_hi", ""))
         cat = it.get("category") or "National"
-        # Never use private keys such as "_static_gk_pairs" (a list of tuples)
-        # as the one-liner's key fact - it printed raw Python into the PDF.
-        fact = next((v for k, v in (it.get("static_facts") or {}).items()
-                     if isinstance(k, str) and not k.startswith("_") and isinstance(v, (str, int, float))), "")
         if en and hi:
+            en = re.sub(r"\s*\(Key\s*:[^)]*\)", "", en).strip()
+            hi = re.sub(r"\s*\(Key\s*:[^)]*\)", "", hi).strip()
+            hi = clean_hindi_editorial(hi)
             one_liners.append({
                 "category": cat,
-                "text_en": en + (f" (Key: {fact})" if fact else ""),
+                "text_en": en,
                 "text_hi": hi,
                 "event_id": it.get("event_id", ""),
             })

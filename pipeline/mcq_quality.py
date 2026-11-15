@@ -355,6 +355,13 @@ MISSING_NUM_RE = re.compile(
     r"|\b(?:of|to|by|at|from)\s+(?:of|to|by)\s", re.I)
 PERSON_RE = re.compile(r"^(?:Dr|Mr|Ms|Mrs|Shri|Smt|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z]\.?[a-z]*){0,3}$")
 _PCT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:%|per\s*cent|percent)", re.I)
+PHRASE_RECOG_RE = re.compile(
+    r"\b(?:explicitly\s+mentioned|phrase\s+appeared|word\s+mentioned|mentioned\s+in\s+the\s+PIB\s+release|"
+    r"as\s+stated\s+verbatim|which\s+term\s+is\s+used\s+in\s+the\s+release)\b",
+    re.I,
+)
+URL_RE = re.compile(r"https?://\S+|www\.\S+", re.I)
+HINDI_BROKEN_RE = re.compile(r"(?<![\u0900-\u097F])(?:ने\s+में|ने\s+को)(?![\u0900-\u097F])")
 _STOP = set("""a an the of to in on for and or by with from at as is are was were be been its it this that
 these those has have had will would can could per cent percent crore lakh rs india indian govt government
 news reported report reports reporting verified source official according as per figure development
@@ -393,6 +400,12 @@ def quality_errors(m: Dict[str, Any], ci: Optional[Dict[str, Any]] = None, evide
         errs.append("placeholder text (Fact N / Key: / blank)")
     if MISSING_NUM_RE.search(q_en):
         errs.append("question stem has a missing number")
+    if PHRASE_RECOG_RE.search(q_en):
+        errs.append("phrase-recognition question stem: tests press-release phrasing instead of exam facts")
+    if any(URL_RE.search(t) for t in (m.get("explanation_en") or "", m.get("explanation_hi") or "")):
+        errs.append("raw URL found in explanation")
+    if any(HINDI_BROKEN_RE.search(t) for t in (m.get("question_hi") or "", m.get("explanation_hi") or "")):
+        errs.append("broken Hindi grammar construct detected (e.g. 'ने में')")
     canon = [re.sub(r"[^a-z0-9%.]", "", o.lower()) for o in opts_en]
     if len(set(canon)) != len(canon) or any(not c for c in canon):
         errs.append("duplicate or empty options")
@@ -403,6 +416,11 @@ def quality_errors(m: Dict[str, Any], ci: Optional[Dict[str, Any]] = None, evide
             errs.append("percentage option above 100%")
 
     low_ev = evidence.lower()
+    # Guard: domestic Indian event should not ask country MCQ with India as option
+    if m.get("type") == "place-country" or (option_type(answer) == "country" and answer.lower() == "india"):
+        if re.search(r"\b(?:union\s+minister|dr\.?\s*jitendra\s*singh|pib\s*delhi|new\s*delhi|ministry\s*of)\b", low_ev + " " + q_en.lower()):
+            errs.append("domestic Indian event should not ask country MCQ with India as option")
+
     for i, o in enumerate(opts_en):
         if i == idx:
             continue

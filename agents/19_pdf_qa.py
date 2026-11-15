@@ -457,6 +457,9 @@ def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
     parts = split_re.split(text)
     normalized: List[str] = []
     for p in parts[1:]:   # skip first (before Q1)
+        # Only check blocks that are actual MCQs (have options [A-D]), ignoring TOC entries
+        if not re.search(r"\b[A-D]\s*[\).]", p[:600]):
+            continue
         # Take first ~200 chars after question marker as "question stem"
         stem = re.sub(r"\s+", " ", p[:250]).strip().lower()
         if stem:
@@ -475,7 +478,8 @@ def compute_mcq_stats(text: str) -> Tuple[int, int, int]:
 # --------------------------------------------------------------------------- #
 # Checks
 # --------------------------------------------------------------------------- #
-def check_file(report: QAReport, path: Path) -> None:
+def check_file(report: QAReport, path: Path | str) -> None:
+    path = Path(path)
     if not path.exists():
         report.add("error", "file_missing", f"PDF not found: {path}")
         return
@@ -522,6 +526,25 @@ def check_pages(report: QAReport, doc: "fitz.Document") -> None:
                    f"{len(near_empty)} near-empty/heading-only page(s): {near_empty[:5]}",
                    near_empty_pages=near_empty)
 
+    # Check for unbalanced Table of Contents
+    toc_pages = []
+    gallery_pages = []
+    for idx, page in enumerate(doc, 1):
+        try:
+            ptxt = page.get_text("text")
+            if "TABLE OF CONTENTS" in ptxt.upper() or "विषय सूची" in ptxt:
+                toc_pages.append((idx, len(ptxt.strip())))
+            if "NEWS IN PICTURES" in ptxt.upper() or "चित्रों में समाचार" in ptxt:
+                gallery_pages.append((idx, len(ptxt.strip())))
+        except Exception:
+            pass
+    if len(toc_pages) > 1 and toc_pages[-1][1] < 350:
+        report.add("warning", "unbalanced_toc_page",
+                   f"Table of Contents spilled onto page {toc_pages[-1][0]} with only {toc_pages[-1][1]} chars")
+    if len(gallery_pages) > 1 and gallery_pages[-1][1] < 350:
+        report.add("warning", "unbalanced_gallery_page",
+                   f"News in Pictures spilled onto page {gallery_pages[-1][0]} with only {gallery_pages[-1][1]} chars")
+
 
 def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
     fonts = extract_fonts(doc)
@@ -558,6 +581,26 @@ def check_editorial_quality(report: QAReport, text: str) -> None:
     # 3. Broken question template check
     if 'Which ministry / organisation is responsible for implementing "- \'' in text:
         report.add("error", "broken_mcq_template", "PDF contains broken/robotic MCQ template with bare hyphen")
+
+    # 4. Banned boilerplate filler check
+    boilerplate_filler_re = re.compile(
+        r"(?:Key\s+statutory\s+bodies,\s+constitutional\s+appointments|"
+        r"Implementing\s+ministries,\s+financial\s+outlays|"
+        r"PIB\s+Headquarters\s*–\s*New\s+Delhi|"
+        r"Government\s+of\s+India\s+Established\s*–\s*1947)",
+        re.I,
+    )
+    bp_match = boilerplate_filler_re.search(text)
+    if bp_match:
+        report.add("error", "boilerplate_filler", f"PDF contains banned boilerplate filler: '{bp_match.group(0)}'")
+
+    # 5. Phrase recognition question check
+    if re.search(r"\bexplicitly\s+mentioned\s+in\s+the\s+PIB\s+release\b", text, re.I):
+        report.add("warning", "phrase_recognition_mcq", "PDF contains phrase-recognition question stem")
+
+    # 6. Broken Hindi grammar check
+    if re.search(r"\bने\s+में\b", text):
+        report.add("warning", "broken_hindi_grammar", "PDF contains broken Hindi grammar construct ('ने में')")
 
     # Publisher paywall/account UI must never become a study fact. This is an
     # error (not a warning) so it blocks Telegram publication, including
@@ -936,10 +979,11 @@ def check_repeated_lines(report: QAReport, doc: "fitz.Document", min_len: int = 
     return reps
 
 
-def run_qa(pdf_path: Path, min_mcq_count: int = MIN_MCQ_COUNT,
+def run_qa(pdf_path: Path | str, min_mcq_count: int = MIN_MCQ_COUNT,
            item_count: Optional[int] = None,
            selected_items: Optional[List[Dict[str, Any]]] = None,
            job_type: str = "") -> QAReport:
+    pdf_path = Path(pdf_path)
     report = QAReport(
         pdf_path=str(pdf_path),
         checked_at=datetime.now(timezone.utc).isoformat(),

@@ -477,6 +477,80 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "TRAI पारदर्शिता सुनिश्चित करने और उपभोक्ता अधिकारों की रक्षा के लिए भारत में दूरसंचार सेवाओं और टैरिफ का नियमन करता है।"),
         ]
     },
+    "PM_EDRIVE": {
+        "name_en": "PM Electric Drive Revolution in Innovative Vehicle Enhancement (PM E-DRIVE)",
+        "name_hi": "पीएम ई-ड्राइव योजना (PM E-DRIVE Scheme)",
+        "facts": [
+            ("The PM E-DRIVE scheme was approved with a financial outlay of ₹10,900 crore over a two-year period.",
+             "पीएम ई-ड्राइव योजना को दो वर्षों की अवधि के लिए ₹10,900 करोड़ के वित्तीय परिव्यय के साथ अनुमोदित किया गया है।"),
+            ("The PM E-DRIVE scheme is implemented by the Ministry of Heavy Industries to accelerate EV adoption.",
+             "इलेक्ट्रिक वाहनों को बढ़ावा देने के लिए पीएम ई-ड्राइव योजना का कार्यान्वयन भारी उद्योग मंत्रालय द्वारा किया जाता है।"),
+            ("PM E-DRIVE replaced the earlier FAME-II (Faster Adoption and Manufacturing of Electric Vehicles) scheme.",
+             "पीएम ई-ड्राइव योजना ने पूर्ववर्ती फेम-II (FAME-II) योजना का स्थान लिया है।"),
+            ("The scheme provides upfront subsidies for electric two-wheelers, three-wheelers, ambulances, and EV charging infrastructure.",
+             "यह योजना इलेक्ट्रिक दोपहिया, तिपहिया, एम्बुलेंस और चार्जिंग इंफ्रास्ट्रक्चर के लिए अग्रिम सब्सिडी प्रदान करती है।"),
+        ]
+    },
+    "PMDDKY": {
+        "name_en": "Prime Minister Dhan-Dhaanya Krishi Yojana (PMDDKY)",
+        "name_hi": "प्रधानमंत्री धन-धान्य कृषि योजना (PMDDKY)",
+        "facts": [
+            ("The PMDDKY scheme operates under the Ministry of Agriculture & Farmers Welfare, Government of India.",
+             "प्रधानमंत्री धन-धान्य कृषि योजना (PMDDKY) भारत सरकार के कृषि एवं किसान कल्याण मंत्रालय के अधीन संचालित होती है।"),
+            ("PMDDKY promotes crop diversification, sustainable farming practices, and enhanced farm-level value addition.",
+             "PMDDKY फसल विविधीकरण, टिकाऊ कृषि पद्धतियों और खेत-स्तर पर मूल्य संवर्धन को बढ़ावा देती है।"),
+            ("The scheme aims to enhance farmer income and ensure long-term soil health and nutritional security.",
+             "इस योजना का मुख्य उद्देश्य किसानों की आय में वृद्धि करना और दीर्घकालिक मृदा स्वास्थ्य व पोषण सुरक्षा सुनिश्चित करना है।"),
+        ]
+    },
+    "NFA": {
+        "name_en": "National Film Awards",
+        "name_hi": "राष्ट्रीय फिल्म पुरस्कार (National Film Awards)",
+        "facts": [
+            ("The National Film Awards were first instituted in 1954 to honour excellence in Indian cinematic art.",
+             "भारतीय सिनेमा में उत्कृष्टता को सम्मानित करने के लिए राष्ट्रीय फिल्म पुरस्कार पहली बार 1954 में स्थापित किए गए थे।"),
+            ("The National Film Awards are administered by the National Film Development Corporation (NFDC) under the Ministry of Information and Broadcasting.",
+             "राष्ट्रीय फिल्म पुरस्कार सूचना एवं प्रसारण मंत्रालय के अधीन राष्ट्रीय फिल्म विकास निगम (NFDC) द्वारा आयोजित किए जाते हैं।"),
+            ("The Dadasaheb Phalke Award is India's highest award in the field of cinema, presented annually at the National Film Awards.",
+             "दादासाहेब फाल्के पुरस्कार सिनेमा के क्षेत्र में भारत का सर्वोच्च पुरस्कार है, जो राष्ट्रीय फिल्म पुरस्कार समारोह में प्रतिवर्ष प्रदान किया जाता है।"),
+            ("The President of India confers the National Film Awards at the official ceremony in New Delhi.",
+             "भारत के राष्ट्रपति नई दिल्ली में आधिकारिक समारोह में राष्ट्रीय फिल्म पुरस्कार प्रदान करते हैं।"),
+        ]
+    },
+    "PMAYG": {
+        "name_en": "Pradhan Mantri Awaas Yojana - Gramin (PMAY-G)",
+        "name_hi": "प्रधानमंत्री आवास योजना - ग्रामीण (PMAY-G)",
+        "facts": [
+            ("PMAY-G was launched on 20 November 2016 by the Ministry of Rural Development, replacing the Indira Awaas Yojana.",
+             "ग्रामीण विकास मंत्रालय द्वारा इंदिरा आवास योजना के स्थान पर 20 नवंबर 2016 को PMAY-G का शुभारंभ किया गया था।"),
+            ("The core objective of PMAY-G is to provide pucca houses with basic amenities to all eligible houseless and kutcha households in rural India.",
+             "PMAY-G का मुख्य उद्देश्य ग्रामीण भारत के सभी पात्र बेघर और कच्चे मकान वाले परिवारों को बुनियादी सुविधाओं से युक्त पक्का मकान उपलब्ध कराना है।"),
+            ("The unit assistance under PMAY-G is shared between Central and State governments in the ratio 60:40 (plain areas) and 90:10 (NE and Himalayan States).",
+             "PMAY-G के तहत वित्तीय सहायता केंद्र और राज्य सरकारों के बीच 60:40 (मैदानी क्षेत्र) तथा 90:10 (पूर्वोत्तर एवं हिमालयी राज्य) के अनुपात में साझा की जाती है।"),
+        ]
+    },
+    "PATANJALI": {
+        "name_en": "Patanjali / Ancient Indian Philosophy & Heritage",
+        "name_hi": "महर्षि पतंजलि / भारतीय दर्शन एवं धरोहर",
+        "facts": [
+            ("Maharishi Patanjali is the revered ancient Indian sage and author of the Yoga Sutras and the Mahabhasya.",
+             "महर्षि पतंजलि योग सूत्र और महाभाष्य के रचयिता तथा भारतीय दर्शन के पूज्य मनीषी हैं।"),
+            ("Patanjali's Yoga Sutras form the foundational classical text of Raja Yoga and the Ashtanga Yoga philosophy.",
+             "पतंजलि के योग सूत्र राजयोग और अष्टांग योग दर्शन के मूल शास्त्रीय आधार ग्रंथ हैं।"),
+        ]
+    },
+    "JAL_SHAKTI": {
+        "name_en": "Ministry of Jal Shakti",
+        "name_hi": "जल शक्ति मंत्रालय (Ministry of Jal Shakti)",
+        "facts": [
+            ("The Ministry of Jal Shakti was created in May 2019 by merging the Ministry of Water Resources and the Ministry of Drinking Water and Sanitation.",
+             "जल संसाधन मंत्रालय और पेयजल एवं स्वच्छता मंत्रालय का विलय करके मई 2019 में जल शक्ति मंत्रालय का गठन किया गया था।"),
+            ("The Ministry of Jal Shakti implements flagship programmes including Jal Jeevan Mission and Namami Gange.",
+             "जल शक्ति मंत्रालय जल जीवन मिशन और नमामि गंगे जैसी प्रमुख योजनाओं का कार्यान्वयन करता है।"),
+            ("The headquarters of the Ministry of Jal Shakti is located at Shram Shakti Bhawan, New Delhi.",
+             "जल शक्ति मंत्रालय का मुख्यालय श्रम शक्ति भवन, नई दिल्ली में स्थित है।"),
+        ]
+    },
 }
 
 # Distractor Semantic Pools for 5-Option Bilingual MCQs
@@ -623,6 +697,12 @@ def lookup_static_gk_for_text(text: str) -> List[Tuple[str, str]]:
         ("FSSAI", "FSSAI"), ("FOOD SAFETY AND STANDARDS", "FSSAI"),
         ("CCI", "CCI"), ("COMPETITION COMMISSION OF INDIA", "CCI"),
         ("TRAI", "TRAI"), ("TELECOM REGULATORY AUTHORITY", "TRAI"),
+        ("PM E-DRIVE", "PM_EDRIVE"), ("PM-EDRIVE", "PM_EDRIVE"), ("E-DRIVE", "PM_EDRIVE"),
+        ("PMDDKY", "PMDDKY"), ("DHAN-DHAANYA", "PMDDKY"), ("DHAN DHAANYA", "PMDDKY"), ("DHAN DHANYA", "PMDDKY"),
+        ("NATIONAL FILM AWARDS", "NFA"), ("FILM AWARDS", "NFA"), ("DADASAHEB PHALKE", "NFA"),
+        ("PMAY-G", "PMAYG"), ("PMAYG", "PMAYG"), ("PRADHAN MANTRI AWAS YOJANA", "PMAYG"), ("PRADHAN MANTRI AWAAS YOJANA", "PMAYG"),
+        ("PATANJALI", "PATANJALI"), ("पतंजलि", "PATANJALI"),
+        ("JAL SHAKTI", "JAL_SHAKTI"), ("MINISTRY OF JAL SHAKTI", "JAL_SHAKTI"),
     ]
 
     for needle, key in matches:
@@ -951,6 +1031,27 @@ STATIC_GK_LOOKUP: Dict[str, Dict[str, str]] = {
         "full_name": "Telecom Regulatory Authority of India",
         "established": "20 February 1997",
         "headquarters": "New Delhi",
+    },
+    "PM_EDRIVE": {
+        "full_name": "PM Electric Drive Revolution in Innovative Vehicle Enhancement",
+        "ministry": "Ministry of Heavy Industries",
+        "outlay": "₹10,900 crore",
+    },
+    "PMDDKY": {
+        "full_name": "Prime Minister Dhan-Dhaanya Krishi Yojana",
+        "ministry": "Ministry of Agriculture & Farmers Welfare",
+        "objective": "Crop diversification and sustainable farming income",
+    },
+    "NFA": {
+        "full_name": "National Film Awards",
+        "established": "1954",
+        "administered_by": "National Film Development Corporation (NFDC), Ministry of I&B",
+        "highest_award": "Dadasaheb Phalke Award",
+    },
+    "PMAYG": {
+        "full_name": "Pradhan Mantri Awaas Yojana - Gramin",
+        "launched": "20 November 2016",
+        "ministry": "Ministry of Rural Development",
     },
 }
 
