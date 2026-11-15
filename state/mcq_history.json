@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-15T13:09:05.883595+05:30",
+  "updated": "2026-11-15T15:59:04.914531+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1664,6 +1664,111 @@
       "last_seen": "2026-11-15",
       "type": "llm-schema",
       "q": "Which regulatory authority is responsible for approving shareholding acquisitions in Indian companies?",
+      "published": true
+    },
+    "whichregulatorsmonetarypolicyreviewsarementionedinthesammaan": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which regulator's monetary policy reviews are mentioned in the Sammaan Capital Q2 FY27 results report?",
+      "published": true
+    },
+    "whichofthefollowingmetricsarementionedalongsideexternaltrade": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which of the following metrics are mentioned alongside external trade performance in the macroeconomic data re",
+      "published": true
+    },
+    "whichindianofficialsaidthattheindiaustradenegotiationsareatt": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which Indian official said that the India‑US trade negotiations are at the “finishing line”?",
+      "published": true
+    },
+    "thenewsdrjitendrasinghcelebratesworlddiabetesdaywithenthusia": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "place-country",
+      "q": "The news \"Dr. Jitendra Singh Celebrates World Diabetes Day with Enthusiastic Participation of Indian Diaspora ",
+      "published": true
+    },
+    "whichdepartmenthaspartneredwiththedirectorategeneralofdefenc": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which department has partnered with the Directorate General of Defence Estates (DGDE) to extend senior citizen",
+      "published": true
+    },
+    "whichregulatoryauthoritygaveitsapprovalforrasmalailimitedsac": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which regulatory authority gave its approval for Rasmalai Limited's acquisition of shares in Yatharth Hospital",
+      "published": true
+    },
+    "whichcomponentisexplicitlymentionedinthepibreleaseaboutthepm": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which component is explicitly mentioned in the PIB release about the PM E-DRIVE Scheme?",
+      "published": true
+    },
+    "whichinitiativewasrecentlylaunchedbyunionministerdrvirendrak": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which initiative was recently launched by Union Minister Dr Virendra Kumar to strengthen intergenerational bon",
+      "published": true
+    },
+    "whichdepartmentactsasthenodalagencyforthenewlynotifiedunifie": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which department acts as the nodal agency for the newly notified Unified Citizen Data Platform project in Delh",
+      "published": true
+    },
+    "whichministryshowcasedartisansproductsatthe45thindiainternat": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which ministry showcased artisans' products at the 45th India International Trade Fair 2026?",
+      "published": true
+    },
+    "whichcrossborderweeklytrainservicehasbeenapprovedbyindianrai": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which cross-border weekly train service has been approved by Indian Railways to connect a pilgrimage site in N",
+      "published": true
+    },
+    "whichstatewasrecentlyallottedfivelakhhousesunderthepradhanma": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which state was recently allotted five lakh houses under the Pradhan Mantri Awas Yojana - Gramin (PMAY-G)?",
+      "published": true
+    },
+    "accordingtotheofficialreleasedetailsassociatedwiththebilater": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "According to the official release details associated with the bilateral discussions, the discussions mentioned",
+      "published": true
+    },
+    "alongwithmacroeconomicindicatorsandgdpestimateswhichspecific": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Along with macroeconomic indicators and GDP estimates, which specific metric is highlighted in the latest econ",
+      "published": true
+    },
+    "undertheinitiativeimplementedacrossthenationalcapitalregions": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Under the initiative implemented across the National Capital Region starting October 1, how many Automated Num",
       "published": true
     }
   },
