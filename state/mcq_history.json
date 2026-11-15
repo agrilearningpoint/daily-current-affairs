@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-15T05:53:40.619618+05:30",
+  "updated": "2026-11-15T12:35:15.674742+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1475,6 +1475,91 @@
       "type": "llm-schema",
       "q": "Which of the following was highlighted as an area of India's scientific and healthcare progress during the Wor",
       "published": false
+    },
+    "inwhichyearwasthejaljeevanmissionlaunched": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "concept",
+      "concept_id": "jjm",
+      "q": "In which year was the Jal Jeevan Mission launched?",
+      "published": false
+    },
+    "whichinstitutionsfellowshipsandhonorswererecentlypresentedby": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which institution's fellowships and honors were recently presented by the President of India for the years 202",
+      "published": false
+    },
+    "accordingtotheexternalaffairsministerindiaandtheusarenearing": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "According to the External Affairs Minister, India and the US are nearing the completion of negotiations for a ",
+      "published": false
+    },
+    "thenewswithshiftingrhetorictrumpleaveswasiainlimboaboutpatha": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "place-country",
+      "q": "The news \"With shifting rhetoric, Trump leaves W Asia in limbo about path ahead\" involves which country?",
+      "published": false
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinprimeministerdh": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Prime Minister Dhan-Dhaanya Krishi Yojana ()\"?",
+      "published": false
+    },
+    "whichnationwidecampaignwasrecentlylaunchedbyunionministerdrv": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which nationwide campaign was recently launched by Union Minister Dr Virendra Kumar to strengthen intergenerat",
+      "published": false
+    },
+    "whichinitiativeencompassesimplementingministriesfinancialout": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which initiative encompasses implementing ministries, financial outlays, target demographics, and flagship obj",
+      "published": false
+    },
+    "whichcentralministryshowcaseditsflagshiphealthcareprogrammes": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which central ministry showcased its flagship healthcare programmes, financial outlays, and target demographic",
+      "published": false
+    },
+    "onwhichdateisjanjatiyagauravdiwasobservedwiththeprimeministe": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "On which date is Janjatiya Gaurav Diwas observed, with the Prime Minister scheduled to participate in the prog",
+      "published": false
+    },
+    "whichdepartmentactsasthenodalagencyforissuingthenotification": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which department acts as the nodal agency for issuing the notification regarding the integration of Aadhaar-ba",
+      "published": false
+    },
+    "whichorganizationsbreakthroughsandscientificinnovationswereh": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which organization's breakthroughs and scientific innovations were highlighted alongside aerospace missions du",
+      "published": false
+    },
+    "whichflagshipprogramlaunchedadecadeagowasrecentlythesubjecto": {
+      "count": 1,
+      "last_seen": "2026-11-15",
+      "type": "llm-schema",
+      "q": "Which flagship program, launched a decade ago, was recently the subject of a debate regarding the utilization ",
+      "published": false
     }
   },
   "concepts": {
@@ -1500,6 +1585,11 @@
         "count": 1,
         "last_seen": "2026-11-11",
         "published": true
+      },
+      "v2": {
+        "count": 1,
+        "last_seen": "2026-11-15",
+        "published": false
       }
     },
     "upi": {
