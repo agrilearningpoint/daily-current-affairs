@@ -726,7 +726,8 @@ class ExamGeniusCanvas(canvas.Canvas):
         self.drawPath(p, stroke=0, fill=1)
         self.setFillColor(HexColor("#103F7B")); self.setFont(FONT_BOLD, 22)
         self.drawCentredString(w / 2, h - 68, "AGRI LEARNING POINT")
-        self.setFont(FONT_SEMI, 14); self.drawCentredString(w / 2, h - 98, "Presents")
+        self.setFont(FONT_BOLD, 13); self.setFillColor(HexColor("#E51D3E"))
+        self.drawCentredString(w / 2, h - 92, "BY SATYAM SIR & TEAM")
         self.setFillColor(HexColor("#0953A2")); self.setFont(FONT_BOLD, 31)
         for y, line in ((h - 154, "AGRI"), (h - 198, "CURRENT"), (h - 242, "AFFAIRS")):
             self.drawCentredString(w / 2, y, line)
@@ -802,9 +803,9 @@ class ExamGeniusCanvas(canvas.Canvas):
             goto_link(self, "contents", px - 10, h - 50 * pt + 4, right_m + 8, h - 4)
             self.setFont(FONT_SEMI, FS_FOOTER)
             self.setFillColor(HexColor("#103F7B"))
-            self.drawRightString(px - 14, header_y, "AGTA • IBPS AFO • ICAR • NABARD")
+            self.drawRightString(px - 14, header_y, "BY SATYAM SIR & TEAM  •  AGTA • AFO")
         else:
-            self.drawRightString(right_m, header_y, "AGTA • IBPS AFO • ICAR • NABARD • PCS")
+            self.drawRightString(right_m, header_y, "BY SATYAM SIR & TEAM  •  AGTA • AFO • ICAR • NABARD")
 
         # Top hairline divider.
         self.setStrokeColor(HexColor("#B6DDF7"))
@@ -2045,6 +2046,8 @@ class MagazineCover(Flowable):
         # ---- Masthead ----------------------------------------------------
         c.setFillColor(COVER_RED); c.setFont(FONT_BOLD, FS_TABLE)
         c.drawString(M, H - 30, "AGRI LEARNING POINT")
+        c.setFillColor(COVER_NAVY); c.setFont(FONT_BOLD, 8.5)
+        c.drawString(M + c.stringWidth("AGRI LEARNING POINT", FONT_BOLD, FS_TABLE) + 8, H - 30, "•  BY SATYAM SIR & TEAM")
         c.setFillColor(COVER_MUTED); c.setFont(FONT_SEMI, FS_FOOTER)
         c.drawRightString(W - M, H - 30, "DAILY EDITION  •  BILINGUAL (HINDI + ENGLISH)")
         c.setFillColor(COVER_NAVY); c.setFont(FONT_BOLD, FS_MAIN_TITLE)
@@ -2062,9 +2065,9 @@ class MagazineCover(Flowable):
         c.setStrokeColor(COVER_NAVY); c.setLineWidth(2.2); c.line(M, H - 78, W - M, H - 78)
         c.setStrokeColor(COVER_RED); c.setLineWidth(0.8); c.line(M, H - 82, W - M, H - 82)
         c.setFillColor(COVER_MUTED); c.setFont(FONT_SEMI, FS_FOOTER)
-        c.drawString(M, H - 96, "For UPSSSC AGTA  •  IBPS AFO  •  NABARD  •  ICAR  •  FCI  •  UPSC & State PCS")
+        c.drawString(M, H - 96, "Agriculture & Competitive Exam Preparation  •  BY SATYAM SIR & TEAM")
         n_q = sum(len(ms) for _it, ms in units)
-        c.drawRightString(W - M, H - 96, f"{len(units)} stories  •  {n_q} MCQs")
+        c.drawRightString(W - M, H - 96, f"UPSSSC AGTA • IBPS AFO • ICAR  •  {len(units)} stories  •  {n_q} MCQs")
 
         # ---- Hero (top story) -----------------------------------------------
         hero_idx = 0
@@ -2207,8 +2210,8 @@ class MagazineCover(Flowable):
             x += pw + gap
         c.setFillColor(COVER_NAVY); c.rect(0, 0, W, 40, stroke=0, fill=1)
         c.setFillColor(COLORS["white"]); c.setFont(FONT_SEMI, FS_FOOTER)
-        c.drawCentredString(W / 2, 22, "Verified from PIB, ministries, RBI, ISRO, IMD & national dailies  •  "
-                                        "Every story has a 5-option MCQ, explanation & Static GK")
+        c.drawCentredString(W / 2, 22, "Agri Learning Point  •  BY SATYAM SIR & TEAM  •  "
+                                        "Verified from PIB, ministries, RBI, ISRO, IMD & national dailies")
         c.setFillColor(HexColor("#93C5FD"))
         c.drawCentredString(W / 2, 9, "Tap any headline to jump to the story  •  INDEX button on every page")
 

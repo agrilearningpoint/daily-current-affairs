@@ -417,6 +417,66 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "भारत और पाकिस्तान 9 जून 2017 को अस्ताना शिखर सम्मेलन में SCO के पूर्ण स्थायी सदस्य बने।"),
         ]
     },
+    "CACP": {
+        "name_en": "Commission for Agricultural Costs and Prices (CACP)",
+        "name_hi": "कृषि लागत एवं मूल्य आयोग (CACP)",
+        "facts": [
+            ("The Commission for Agricultural Costs and Prices (CACP) was established in January 1965 to advise on price policy for agricultural commodities.",
+             "कृषि लागत एवं मूल्य आयोग (CACP) की स्थापना कृषि जिंसों के लिए मूल्य नीति पर सलाह देने हेतु जनवरी 1965 में हुई थी।"),
+            ("CACP recommends Minimum Support Prices (MSP) for 22 mandated agricultural crops and Fair and Remunerative Price (FRP) for sugarcane.",
+             "CACP 22 अधिसूचित कृषि फसलों के लिए न्यूनतम समर्थन मूल्य (MSP) तथा गन्ने के लिए उचित और लाभकारी मूल्य (FRP) की सिफारिश करता है।"),
+            ("CACP is an attached office of the Ministry of Agriculture & Farmers Welfare, headquartered in New Delhi.",
+             "CACP कृषि एवं किसान कल्याण मंत्रालय का एक संलग्न कार्यालय है, जिसका मुख्यालय नई दिल्ली में है।"),
+        ]
+    },
+    "NDDB": {
+        "name_en": "National Dairy Development Board (NDDB)",
+        "name_hi": "राष्ट्रीय डेयरी विकास बोर्ड (NDDB)",
+        "facts": [
+            ("The National Dairy Development Board (NDDB) was founded in 1965 by Dr. Verghese Kurien to promote dairy cooperatives.",
+             "राष्ट्रीय डेयरी विकास बोर्ड (NDDB) की स्थापना 1965 में डेयरी सहकारी समितियों को बढ़ावा देने के लिए डॉ. वर्गीज कुरियन द्वारा की गई थी।"),
+            ("NDDB is headquartered at Anand, Gujarat.",
+             "NDDB का मुख्यालय आणंद, गुजरात में स्थित है।"),
+            ("NDDB spearheaded 'Operation Flood' (White Revolution), making India the largest milk producer in the world.",
+             "NDDB ने 'ऑपरेशन फ्लड' (श्वेत क्रांति) का नेतृत्व किया, जिससे भारत दुनिया का सबसे बड़ा दूध उत्पादक देश बना।"),
+        ]
+    },
+    "FSSAI": {
+        "name_en": "Food Safety and Standards Authority of India (FSSAI)",
+        "name_hi": "भारतीय खाद्य सुरक्षा एवं मानक प्राधिकरण (FSSAI)",
+        "facts": [
+            ("The Food Safety and Standards Authority of India (FSSAI) was established under the Food Safety and Standards Act, 2006.",
+             "भारतीय खाद्य सुरक्षा एवं मानक प्राधिकरण (FSSAI) की स्थापना खाद्य सुरक्षा और मानक अधिनियम, 2006 के तहत की गई थी।"),
+            ("FSSAI functions as an autonomous statutory body under the Ministry of Health and Family Welfare, headquartered in New Delhi.",
+             "FSSAI स्वास्थ्य एवं परिवार कल्याण मंत्रालय के तहत एक स्वायत्त वैधानिक निकाय के रूप में कार्य करता है और इसका मुख्यालय नई दिल्ली में है।"),
+            ("FSSAI regulates the manufacture, storage, distribution, sale and import of food to ensure wholesome food for human consumption.",
+             "FSSAI मानव उपभोग के लिए पौष्टिक भोजन सुनिश्चित करने हेतु खाद्य निर्माण, भंडारण, वितरण, बिक्री और आयात का नियमन करता है।"),
+        ]
+    },
+    "CCI": {
+        "name_en": "Competition Commission of India (CCI)",
+        "name_hi": "भारतीय प्रतिस्पर्धा आयोग (CCI)",
+        "facts": [
+            ("The Competition Commission of India (CCI) was established on 14 October 2003 under the Competition Act, 2002.",
+             "भारतीय प्रतिस्पर्धा आयोग (CCI) की स्थापना प्रतिस्पर्धा अधिनियम, 2002 के तहत 14 अक्टूबर 2003 को हुई थी।"),
+            ("CCI is headquartered in New Delhi and functions under the Ministry of Corporate Affairs.",
+             "CCI का मुख्यालय नई दिल्ली में स्थित है और यह कॉर्पोरेट कार्य मंत्रालय के अधीन कार्य करता है।"),
+            ("CCI prevents practices having adverse effect on competition, promotes fair competition, and protects consumer interests.",
+             "CCI प्रतिस्पर्धा पर प्रतिकूल प्रभाव डालने वाली प्रथाओं को रोकता है, निष्पक्ष प्रतिस्पर्धा को बढ़ावा देता है और उपभोक्ताओं के हितों की रक्षा करता है।"),
+        ]
+    },
+    "TRAI": {
+        "name_en": "Telecom Regulatory Authority of India (TRAI)",
+        "name_hi": "भारतीय दूरसंचार विनियामक प्राधिकरण (TRAI)",
+        "facts": [
+            ("The Telecom Regulatory Authority of India (TRAI) was established on 20 February 1997 by the TRAI Act, 1997.",
+             "भारतीय दूरसंचार विनियामक प्राधिकरण (TRAI) की स्थापना 20 फरवरी 1997 को TRAI अधिनियम, 1997 द्वारा की गई थी।"),
+            ("TRAI is headquartered in New Delhi.",
+             "TRAI का मुख्यालय नई दिल्ली में स्थित है।"),
+            ("TRAI regulates telecommunication services and tariffs in India to ensure transparency and protect consumer rights.",
+             "TRAI पारदर्शिता सुनिश्चित करने और उपभोक्ता अधिकारों की रक्षा के लिए भारत में दूरसंचार सेवाओं और टैरिफ का नियमन करता है।"),
+        ]
+    },
 }
 
 # Distractor Semantic Pools for 5-Option Bilingual MCQs
@@ -558,6 +618,11 @@ def lookup_static_gk_for_text(text: str) -> List[Tuple[str, str]]:
         ("ISRO", "ISRO"), ("DRDO", "DRDO"), ("SPORTS AUTHORITY OF INDIA", "SAI"), ("SAI", "SAI"),
         ("SIOFA", "SIOFA"), ("AIIA", "AIIA"), ("AYURVEDA", "AIIA"),
         ("BIMSTEC", "BIMSTEC"), ("SCO", "SCO"),
+        ("CACP", "CACP"), ("COMMISSION FOR AGRICULTURAL COSTS", "CACP"),
+        ("NDDB", "NDDB"), ("NATIONAL DAIRY DEVELOPMENT BOARD", "NDDB"),
+        ("FSSAI", "FSSAI"), ("FOOD SAFETY AND STANDARDS", "FSSAI"),
+        ("CCI", "CCI"), ("COMPETITION COMMISSION OF INDIA", "CCI"),
+        ("TRAI", "TRAI"), ("TELECOM REGULATORY AUTHORITY", "TRAI"),
     ]
 
     for needle, key in matches:
@@ -838,6 +903,53 @@ STATIC_GK_LOOKUP: Dict[str, Dict[str, str]] = {
     "FCI": {
         "full_name": "Food Corporation of India",
         "established": "14 January 1965",
+        "headquarters": "New Delhi",
+    },
+    "CACP": {
+        "full_name": "Commission for Agricultural Costs and Prices",
+        "established": "January 1965",
+        "headquarters": "New Delhi",
+        "ministry": "Ministry of Agriculture & Farmers Welfare",
+    },
+    "NDDB": {
+        "full_name": "National Dairy Development Board",
+        "established": "1965",
+        "headquarters": "Anand, Gujarat",
+        "founder": "Dr. Verghese Kurien",
+    },
+    "NAFED": {
+        "full_name": "National Agricultural Cooperative Marketing Federation of India",
+        "established": "2 October 1958",
+        "headquarters": "New Delhi",
+    },
+    "IARI": {
+        "full_name": "ICAR-Indian Agricultural Research Institute",
+        "established": "1905",
+        "headquarters": "New Delhi",
+    },
+    "SEBI": {
+        "full_name": "Securities and Exchange Board of India",
+        "established": "12 April 1992",
+        "headquarters": "Mumbai, Maharashtra",
+    },
+    "IRDAI": {
+        "full_name": "Insurance Regulatory and Development Authority of India",
+        "established": "1999",
+        "headquarters": "Hyderabad, Telangana",
+    },
+    "FSSAI": {
+        "full_name": "Food Safety and Standards Authority of India",
+        "established": "5 September 2008",
+        "headquarters": "New Delhi",
+    },
+    "CCI": {
+        "full_name": "Competition Commission of India",
+        "established": "14 October 2003",
+        "headquarters": "New Delhi",
+    },
+    "TRAI": {
+        "full_name": "Telecom Regulatory Authority of India",
+        "established": "20 February 1997",
         "headquarters": "New Delhi",
     },
 }

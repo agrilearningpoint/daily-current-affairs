@@ -17,25 +17,27 @@ from typing import Any, Dict, List
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 BRANDING_CONFIG: Dict[str, Any] = {
-    # Cover Page Top & Hero Text
+    # Brand Identity & Team
     "brand_title_upper": "AGRI LEARNING POINT",
+    "team_branding": "BY SATYAM SIR & TEAM",
+    "tagline": "Agriculture & Competitive Exam Preparation",
     "presents_text": "Presents",
     "cover_hero_lines": ["AGRI", "CURRENT", "AFFAIRS"],
     "bilingual_tag": "In Bilingual",
-    "bottom_tagline": "Achieve Success with Agri Learning Point - Your Ultimate Guide to Agriculture & Govt. Exams !",
+    "bottom_tagline": "Achieve Success with Agri Learning Point • BY SATYAM SIR & TEAM — Your Ultimate Guide to Agriculture & Govt. Exams!",
 
     # Cover Page 5 Exam Pill Badges (Matching Demo PDF style)
     "cover_exam_badges": [
-        {"label": "UPSC / PCS", "icon": "pillar"},
+        {"label": "UPSSSC AGTA", "icon": "pillar"},
         {"label": "IBPS AFO", "icon": "bank"},
         {"label": "NABARD", "icon": "leaf"},
         {"label": "ICAR / JRF", "icon": "user"},
-        {"label": "STATE AGRI", "icon": "state"},
+        {"label": "STATE PCS / FCI", "icon": "state"},
     ],
 
     # Content Page Curved Top Header Banner
     "header_line_1": "No. 1 PLATFORM FOR AGRI & GOVT. EXAMS",
-    "header_line_2": "IBPS AFO | NABARD | ICAR | AGTA | BANKING | SSC",
+    "header_line_2": "UPSSSC AGTA | IBPS AFO | ICAR | NABARD | FCI | STATE PCS",
     "header_link_text": "t.me/agrilearningpoint",
     "header_link_url": "https://t.me/agrilearningpoint",
 

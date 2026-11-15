@@ -1399,6 +1399,7 @@ def renumber_mcqs(mcqs):
 
 def validate_mcqs(mcqs, content_items):
     from pipeline.mcq_quality import known_mapping_supports, quality_errors
+    from pipeline.mcq_schema import _in_text
     src_by_event, ci_by_event = {}, {}
     for c in content_items or []:
         src_by_event[c.get("event_id")] = _evidence_text(c)
@@ -1425,18 +1426,7 @@ def validate_mcqs(mcqs, content_items):
             base_correct = correct.split(" / ")[0].strip()
 
             def _in_src(needle: str, text: str) -> bool:
-                if not needle or not text:
-                    return False
-                if needle in text or needle.lower() in text.lower():
-                    return True
-                sub_names = re.findall(r"\(([^)]+)\)", needle)
-                for sn in sub_names:
-                    if sn in text or sn.lower() in text.lower():
-                        return True
-                main_name = re.sub(r"\([^)]+\)", "", needle).strip()
-                if len(main_name) > 4 and (main_name in text or main_name.lower() in text.lower()):
-                    return True
-                return False
+                return _in_text(needle, text)
 
             if (not _in_src(base_correct, src_text) and not _in_src(correct, src_text)
                     and not known_mapping_supports(m.get("question_en") or "", base_correct)):
