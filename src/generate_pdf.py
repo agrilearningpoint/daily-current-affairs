@@ -1074,7 +1074,7 @@ BANNED_STATIC_GK_RE = re.compile(
     r"key crop statistics|multilateral summits|defence procurements|ecological conservation treaties|"
     r"national and international sports championships|key entities, regulatory authorities|"
     r"pib headquarters|press information bureau|government of india established|president of india presents)\b|"
-    r"^(?:fact \d|key name|first/unique)\s*–",
+    r"^(?:key name|first/unique)\s*–",
     re.I,
 )
 

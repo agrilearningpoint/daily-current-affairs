@@ -501,6 +501,16 @@
       "file": "daily_2026-11-15.pdf",
       "published_at": "2026-11-15T11:51:34.244224+00:00",
       "status": "success"
+    },
+    "daily_2026-11-15|-1004485392227|87b658b7f9b9c58c": {
+      "job_id": "daily_2026-11-15",
+      "chat_id": "-1004485392227",
+      "message_id": 227,
+      "file_hash": "87b658b7f9b9c58c",
+      "file_sha256": "1291bb4df238b73dd1f4de881ddf70fd92fd5bffca128f29aee15dd7aa2fd7cf",
+      "file": "daily_2026-11-15_phase2.pdf",
+      "published_at": "2026-11-15T11:49:52.677499+00:00",
+      "status": "success"
     }
   }
 }

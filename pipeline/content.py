@@ -469,7 +469,13 @@ def exam_fact(item):
     kps = item.get("key_points_en") or []
     if kps:
         return str(kps[0])
-    return ""
+    summary = str(item.get("summary_en") or "").strip()
+    if summary:
+        return summary
+    headline = _plain_headline(item.get("headline_en") or "").strip()
+    if headline:
+        return headline
+    return "Key exam fact"
 
 
 # --------------------------------------------------------------------------- #
@@ -849,6 +855,7 @@ def _build_entry(it, stats):
         return None
 
     kps = sanitize_lines(extract_key_points(work), title, it.get("source_name", ""))
+    work["key_points_en"] = kps
     sf = extract_static_facts(work)
     ef = exam_fact(work)
 
@@ -944,10 +951,13 @@ def build_content(items, job_meta):
             # Providers still parked → wait for the soonest expiry.  Already
             # recovered (the storm passed while the batch was in flight) →
             # short fixed pause so per-minute quotas refill before the retry.
-            wait_s = ai_router.all_providers_recovery_wait()
-            if wait_s is None:
-                wait_s = float(os.getenv("ALP_CONTENT_STORM_PAUSE", "120") or 120)
-            if 2.0 <= wait_s <= cap and (left is None or wait_s + 60.0 <= left):
+            if not ai_router._get_providers():
+                wait_s = None
+            else:
+                wait_s = ai_router.all_providers_recovery_wait()
+                if wait_s is None:
+                    wait_s = float(os.getenv("ALP_CONTENT_STORM_PAUSE", "120") or 120)
+            if wait_s is not None and 2.0 <= wait_s <= cap and (left is None or wait_s + 60.0 <= left):
                 logger.warning("[Content Builder] %d/%d stories came back without validated Hindi "
                                "(provider storm) — waiting %.0fs, then retrying those stories",
                                len(incomplete), len(out), wait_s)

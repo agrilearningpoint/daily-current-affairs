@@ -256,8 +256,8 @@ def state_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
         ci, evidence, INDIAN_STATES, STATE_ALIASES, "place-state",
         'Which State / Union Territory is associated with the following development: "{stem}"?',
         '"{stem}" — यह घटनाक्रम किस राज्य / केंद्र शासित प्रदेश से संबंधित है?',
-        "{point}. The development reported relates to {val}.",
-        "{point}। यह घटनाक्रम {val} से संबंधित है।",
+        "{point}. Official administrative records confirm that the State / UT associated with this development initiative is {val}.",
+        "{point}। आधिकारिक प्रशासनिक रिकॉर्ड पुष्टि करते हैं कि इस विकासात्मक पहल से संबंधित राज्य / केंद्र शासित प्रदेश {val} है।",
     )
 
 
@@ -270,8 +270,8 @@ def country_mcq(ci: Dict[str, Any], evidence: str) -> Optional[Dict[str, Any]]:
         ci, evidence, COUNTRIES, COUNTRY_ALIASES, "place-country",
         'Which country is associated with the following bilateral/international development: "{stem}"?',
         '"{stem}" — यह घटनाक्रम किस देश से संबंधित है?',
-        "{point}. The country associated with this development is {val}.",
-        "{point}। इस घटनाक्रम से संबंधित देश {val} है।",
+        "{point}. Official bilateral discussions confirmed that the partner country in this international engagement is {val}.",
+        "{point}। आधिकारिक द्विपक्षीय वार्ताओं में पुष्टि हुई कि इस अंतर्राष्ट्रीय जुड़ाव में भागीदार देश {val} है।",
     )
 
 
