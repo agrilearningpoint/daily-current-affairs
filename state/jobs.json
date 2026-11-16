@@ -2298,7 +2298,7 @@
     "checkpoint_run_id": "43700531750"
   },
   "daily_2026-11-16": {
-    "run_attempts": 1,
+    "run_attempts": 2,
     "job_id": "daily_2026-11-16",
     "job_type": "daily",
     "job_date": "2026-11-16",
@@ -2308,8 +2308,8 @@
       "end": "2026-11-16T05:44:58.338586+05:30"
     },
     "github_run_id": "43782476066",
-    "status": "running",
-    "updated_at": "2026-11-16T00:48:46.535666+00:00",
+    "status": "success",
+    "updated_at": "2026-11-16T00:48:59.788715+00:00",
     "started_at": "2026-11-16T00:15:01.248393+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-16.json": {
@@ -2347,10 +2347,14 @@
       "logs/qa/daily_2026-11-16_qa.json": {
         "stage": "19_pdf_qa",
         "sha256": "f9eff90f445d1535b5b36b9fb134c90a32656e66a44da0dfb7c1add27c666f9c"
+      },
+      "logs/qa/daily_2026-11-16_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "38fae0cead4c93c65e02dd191d493f816214e0cd9c3b00e57198251327d61443"
       }
     },
-    "last_success_stage": "19_pdf_qa",
+    "last_success_stage": "24_final_health_audit",
     "publish_not_before": "2026-11-16T06:00:00+05:30",
-    "checkpoint_run_id": "43779189938"
+    "checkpoint_run_id": "43782476066"
   }
 }
