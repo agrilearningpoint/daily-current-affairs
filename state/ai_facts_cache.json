@@ -20,6 +20,17 @@
       "verified_on": "2026-11-10",
       "verified_at": "2026-11-10T00:00:00+00:00",
       "method": "serper+official-page+llm"
+    },
+    "chief of the army staff": {
+      "post": "Chief of the Army Staff",
+      "name": "Upendra Dwivedi",
+      "since": null,
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2272460&reg=3&lang=1",
+      "second_source": "https://newsonair.gov.in/lt-gen-dhiraj-seth-appointed-as-chief-of-army-staff-with-effect-from-june-30-2026/",
+      "verified_on": "2026-11-16",
+      "verified_at": "2026-11-16T00:00:00+00:00",
+      "method": "serper+official-page+llm"
     }
-  }
+  },
+  "updated": "2026-11-16"
 }

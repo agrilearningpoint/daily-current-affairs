@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-15T17:21:34.257794+05:30",
+  "updated": "2026-11-16T05:56:13.464588+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1875,6 +1875,111 @@
       "type": "llm-schema",
       "q": "According to the recent announcements regarding India's foreign trade targets, what is the projected value of ",
       "published": true
+    },
+    "besidestherbiwhichagencymustreceiveacyberincidentreportfromp": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Besides the RBI, which agency must receive a cyber‑incident report from payment firms within six hours?",
+      "published": false
+    },
+    "whichproductcategorywashighlightedasamajorcontributortoindia": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Which product category was highlighted as a major contributor to India's export growth in October?",
+      "published": false
+    },
+    "whichgovernmentdepartmenthasprolongedtheaforementionedtrades": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Which government department has prolonged the aforementioned trade support initiative under the Export Promoti",
+      "published": false
+    },
+    "duringajanjatiyagauravdiwasprogrammethebirthanniversaryofwhi": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "During a Janjatiya Gaurav Diwas programme, the birth anniversary of which tribal icon was marked in Jhobat?",
+      "published": false
+    },
+    "whichorganizationisorganizingthe3rdnationalconferenceoncyber": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Which organization is organizing the 3rd National Conference on Cyber Security, Digital Forensics & Intelligen",
+      "published": false
+    },
+    "whichagencywarnedthatthedepressionoverthebayofbengalcouldint": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Which agency warned that the depression over the Bay of Bengal could intensify into a severe cyclonic storm?",
+      "published": false
+    },
+    "accordingtotherecentstatementsregardingbilateraleconomicdisc": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "According to the recent statements regarding bilateral economic discussions, during which month did India and ",
+      "published": false
+    },
+    "accordingtothearticlewhichofthefollowingishighlightedasatarg": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "According to the article, which of the following is highlighted as a target to achieve higher productivity per",
+      "published": false
+    },
+    "whichregulatorybodyhasinitiatedaworkinggrouptobolstertheinno": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Which regulatory body has initiated a working group to bolster the Innovators Growth Platform for startups alo",
+      "published": false
+    },
+    "whenistheoctoberwpiinflationdatascheduledtobereleasedasperth": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "When is the October WPI inflation data scheduled to be released as per the article?",
+      "published": false
+    },
+    "inwhichstatewasthejanjatiyagauravdiwasprogrammeattendedbythe": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "In which state was the Janjatiya Gaurav Diwas programme attended by the Prime Minister held?",
+      "published": false
+    },
+    "wherewerethefloraltributespaidtobhagwanbirsamundabythedignit": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "Where were the floral tributes paid to Bhagwan Birsa Munda by the dignitaries mentioned in the news?",
+      "published": false
+    },
+    "accordingtotheunionhealthministrysnationalhealthaccountsrele": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "According to the Union Health Ministry's National Health Accounts release, what was the total government healt",
+      "published": false
+    },
+    "whatisthenationalityofthemultinationalcompanyelsewedyelectri": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "What is the nationality of the multinational company ElSewedy Electric mentioned in the meeting?",
+      "published": false
+    },
+    "accordingtorecentreportswhohastakenchargeasthecommanderorchi": {
+      "count": 1,
+      "last_seen": "2026-11-16",
+      "type": "llm-schema",
+      "q": "According to recent reports, who has taken charge as the commander or chief of the Baloch Liberation Army afte",
+      "published": false
     }
   },
   "concepts": {
