@@ -96,16 +96,21 @@ def _strip_term(text: str, terms: Iterable[str]) -> str:
     out = text
     for t in sorted((t for t in terms if t), key=len, reverse=True):
         if t:
+            # Also clean preceding preposition if term is preceded by in/at/from/to/for/near/across
+            out = re.sub(r"(?:\b(?:in|at|from|to|for|near|across|around)\s+)?(?<![A-Za-z\u0900-\u097F])" + re.escape(t) + r"(?:'s|’s)?(?![A-Za-z])", "", out, flags=re.I)
             out = re.sub(r"(?<![A-Za-z\u0900-\u097F])" + re.escape(t) + r"(?:'s|’s)?(?![A-Za-z])", "", out, flags=re.I)
     out = re.sub(r"\s+([,.;:])", r"\1", out)
     out = re.sub(r"\s*\|.*$", "", out)  # "... | The Hindu Editorial" publisher suffix
     out = re.sub(r"\s{2,}", " ", out).strip(" ,;:-–—'\"‘’")
+    # Collapse double prepositions left behind like 'in to', 'with to', 'for to', etc.
+    out = re.sub(r"\b(?:in|at|from|to|for|with|by|on|of|across)\s+(?:to|in|of|at|for|from|with|by|on)\b", " ", out, flags=re.I)
+    out = re.sub(r"\s{2,}", " ", out).strip(" ,;:-–—'\"‘’")
     # A stem must not end on a dangling preposition after the answer was removed
     # ("Official visit of Foreign Secretary to" -> "Official visit of Foreign Secretary").
-    out = re.sub(r"\s+(?:to|in|of|at|for|from|with|by|on|and|the)$", "", out, flags=re.I)
+    out = re.sub(r"\s+(?:to|in|of|at|for|from|with|by|on|and|the|across)$", "", out, flags=re.I)
     # A stem must not begin with a dangling postposition/preposition after subject removal
     out = re.sub(r"^(?:ने|को|से|के|की|का|में|पर)\s+", "", out)
-    out = re.sub(r"^(?:to|in|of|at|for|from|with|by|on|and|the)\s+", "", out, flags=re.I)
+    out = re.sub(r"^(?:to|in|of|at|for|from|with|by|on|and|the|across)\s+", "", out, flags=re.I)
     return out.strip(" ,;:-–—")
 
 

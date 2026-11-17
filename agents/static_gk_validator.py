@@ -589,6 +589,19 @@ def check_line(en: str, hi: str, facts: Sequence[Fact], *, story_text: str = "",
     """Decide keep / replace / drop for one bilingual Static GK line. May raise (callers fail open)."""
     en = str(en or "")
     hi = str(hi or "")
+    if re.search(r"\b(?:Country\s*[-–]\s*India|Capital\s*[-–]\s*New Delhi|Official language\s*[-–]\s*Hindi|"
+                 r"Year of independence\s*[-–]\s*1947|देश\s*[-–]\s*भारत|राजधानी\s*[-–]\s*नई दिल्ली|"
+                 r"स्वतंत्रता वर्ष\s*[-–]\s*1947|आधिकारिक भाषा\s*[-–]\s*हिन्दी)\b", f"{en} {hi}", re.I):
+        return Verdict("drop", reason="generic national boilerplate in static GK")
+    try:
+        from pipeline.static_gk_db import ACRONYM_DISAMBIGUATION
+        for acr, meta in ACRONYM_DISAMBIGUATION.items():
+            if re.search(r"\b" + re.escape(acr) + r"\b", f"{en} {story_text}"):
+                for forbidden in meta.get("forbidden_expansions", []):
+                    if re.search(r"\b" + re.escape(forbidden) + r"\b", en, re.I):
+                        return Verdict("drop", reason=f"acronym collision: {acr} cannot be associated with {forbidden}")
+    except Exception:
+        pass
     if is_stale_latest(en, hi, year):
         return Verdict("drop", reason="stale year presented as current/latest")
     orgs = _ACTIVE_ORGS if orgs is None else orgs
@@ -723,6 +736,18 @@ def check_row(row: Dict[str, Any], facts: Sequence[Fact], *, story_text: str = "
     """MCQ schema row {label_en, value_en, label_hi, value_hi}. Returns (action, new_row, verdict)."""
     le, ve = str(row.get("label_en") or ""), str(row.get("value_en") or "")
     lh, vh = str(row.get("label_hi") or ""), str(row.get("value_hi") or "")
+    if (le.lower().strip() in ("country", "capital", "year of independence", "official language") and
+        ve.lower().strip() in ("india", "new delhi", "1947", "hindi")):
+        return "drop", dict(row), Verdict("drop", reason="generic national boilerplate in static GK")
+    try:
+        from pipeline.static_gk_db import ACRONYM_DISAMBIGUATION
+        for acr, meta in ACRONYM_DISAMBIGUATION.items():
+            if re.search(r"\b" + re.escape(acr) + r"\b", f"{le} {ve} {story_text}"):
+                for forbidden in meta.get("forbidden_expansions", []):
+                    if re.search(r"\b" + re.escape(forbidden) + r"\b", f"{le} {ve}", re.I):
+                        return "drop", dict(row), Verdict("drop", reason=f"acronym collision: {acr} cannot be associated with {forbidden}")
+    except Exception:
+        pass
     en = f"{le} – {ve}" if le and ve else (le or ve)
     hi = f"{lh} – {vh}" if lh and vh else (lh or vh)
     if _ACTIVE_ORGS and not is_stale_latest(en, hi, year):

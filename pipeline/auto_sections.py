@@ -602,3 +602,36 @@ def trim_quick_bites(content: Dict[str, Any], keep: int) -> int:
     order = {id(b): i for i, b in enumerate(bites)}
     content["quick_bites"] = sorted(kept, key=lambda b: order[id(b)])
     return len(content["quick_bites"])
+
+
+def generate_distinct_one_liner(story: Dict[str, Any]) -> Tuple[str, str]:
+    """Generate a distinct, high-yield rapid revision statement from story data (not a verbatim headline copy)."""
+    if not isinstance(story, dict):
+        return ("", "")
+
+    ef_en = str(story.get("exam_fact_en") or "").strip()
+    ef_hi = str(story.get("exam_fact_hi") or "").strip()
+    h_en = str(story.get("headline_en") or "").lstrip("> ").strip()
+    clean_h = re.sub(r"^\s*>>\s*", "", h_en).strip()
+
+    if ef_en and ef_en.lower() != clean_h.lower() and len(ef_en) <= 140:
+        return (ef_en, ef_hi)
+
+    pairs = story.get("static_gk_pairs") or []
+    if pairs and isinstance(pairs, list):
+        first = pairs[0]
+        if isinstance(first, (list, tuple)) and len(first) >= 2 and len(first[0]) <= 140:
+            return (str(first[0]), str(first[1]))
+
+    nums = story.get("important_numbers") or []
+    if len(clean_h) > 120:
+        m = re.split(r"\s*[-–:;]\s*|\s+to\s+|\s+for\s+", clean_h)
+        if m and 30 <= len(m[0]) <= 125:
+            condensed = m[0].strip()
+            if nums and nums[0] not in condensed and len(f"{condensed} ({nums[0]})") <= 135:
+                condensed = f"{condensed} ({nums[0]})"
+            hi = str(story.get("headline_hi") or "").lstrip("> ").strip()
+            return (condensed, hi[:140])
+
+    return (clean_h[:135], str(story.get("headline_hi") or "").lstrip("> ")[:140])
+

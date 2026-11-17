@@ -48,6 +48,11 @@ PHRASE_RECOG_RE = re.compile(
     r"as\s+stated\s+verbatim|which\s+term\s+is\s+used\s+in\s+the\s+release)\b",
     re.I,
 )
+AGENCY_STEM_RE = re.compile(
+    r"\b(?:Which\s+(?:news\s+agency|media\s+outlet|newspaper|television\s+channel|broadcaster)\s+(?:reported|published|covered|carried|broadcast(?:ed)?)|"
+    r"किस\s+(?:समाचार\s+एजेंसी|अखबार|मीडिया|चैनल)\s+ने)\b",
+    re.I,
+)
 URL_RE = re.compile(r"https?://\S+|www\.\S+", re.I)
 
 PROMPT_TEMPLATE = """You write one bilingual (English + Hindi) competitive-exam MCQ for an Indian current-affairs booklet.
@@ -70,6 +75,8 @@ Rules:
   NEVER write phrase-recognition questions (e.g. "Which component is explicitly mentioned in the PIB release...",
   "Which phrase appeared in the release..."). Test substantive facts: outlays, figures, growth rates, implementing
   ministries, policies, schemes, or scientific significance.
+  NEVER write news-agency or media-identification questions (e.g. "Which news agency reported the launch...").
+  Test the scheme, outlay, nodal ministry, target beneficiary, or policy significance instead.
   For domestic Indian governance/ministerial news, NEVER ask "which country is involved?" with India as an option.
 - distractors: real, related entities of the same kind (other real ministries, bodies, States, schemes). Never
   invent person names. Never give a person a post (minister, governor, chairman...) unless VERIFIED OFFICEHOLDERS
@@ -262,9 +269,20 @@ def schema_errors(m: Dict[str, Any], source_text: str) -> List[str]:
     q_en = str(m.get("question_en") or "")
     if PHRASE_RECOG_RE.search(q_en):
         errs.append("schema: phrase-recognition question not allowed; test substantive facts")
+    if AGENCY_STEM_RE.search(q_en) or (m.get("question_hi") and AGENCY_STEM_RE.search(str(m.get("question_hi")))):
+        errs.append("schema: news agency / media outlet identification questions are prohibited; test substantive facts")
     expl_text = str(m.get("explanation_en") or "") + " " + str(m.get("explanation_hi") or "")
     if URL_RE.search(expl_text):
         errs.append("schema: raw URL in explanation")
+    try:
+        from pipeline.static_gk_db import ACRONYM_DISAMBIGUATION
+        for acr, meta in ACRONYM_DISAMBIGUATION.items():
+            if re.search(r"\b" + re.escape(acr) + r"\b", q_en) or re.search(r"\b" + re.escape(acr) + r"\b", expl_text):
+                for forbidden in meta.get("forbidden_expansions", []):
+                    if re.search(r"\b" + re.escape(forbidden) + r"\b", expl_text, re.I):
+                        errs.append(f"schema: acronym collision: {acr} cannot be associated with '{forbidden}'")
+    except Exception:
+        pass
     if len(opts) != 5:
         errs.append("schema: exactly 5 options required")
     if len({o.lower() for o in opts}) != len(opts) or any(not o for o in opts):

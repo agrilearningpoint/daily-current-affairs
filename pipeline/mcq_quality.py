@@ -143,6 +143,62 @@ KNOWN_MAPPINGS: List[Dict[str, Any]] = [
                      ("APEDA", "एपीडा (APEDA)"), ("Central Warehousing Corporation (CWC)", "केंद्रीय भंडारण निगम (CWC)")]},
 ]
 
+DANGLING_PREP_RE = re.compile(
+    r"\b(?:in\s+to|with\s+to|for\s+to|of\s+to|about\s+to|from\s+to)\b|"
+    r"\b(?:in|on|at|to|for|with|by|and|or|of|across)\s*[?]?$|"
+    r'\b(?:in|on|at|to|for|with|by|and|or|of|across)\s*:\s*"|'
+    r':\s*"[^"]*\bin\s+to\b',
+    re.I
+)
+
+
+def question_has_grammatical_defect(q: str) -> bool:
+    """Check if question stem has dangling prepositions or broken syntax."""
+    if not q or not isinstance(q, str):
+        return True
+    s = q.strip()
+    if DANGLING_PREP_RE.search(s):
+        return True
+    if re.search(r"\b[A-Za-z]+\s*…\s*\??$", s) and len(s) < 80:
+        return True
+    return False
+
+
+def numbers_dimensionally_consistent(question: str, options: List[str]) -> bool:
+    """Check that options match the numerical dimension asked in question."""
+    if not question or not options:
+        return True
+    q_lower = question.lower()
+    is_count_query = any(k in q_lower for k in ["how many", "count", "number of", "total farmers", "how much farmers"])
+    is_percentage_query = any(k in q_lower for k in ["percent", "percentage", "rate", "share", "proportion"])
+
+    has_percent_options = sum(bool(re.search(r"%|\bper\s*cent\b", str(o), re.I)) for o in options)
+    has_count_options = sum(bool(re.search(r"\b(?:lakh|crore|million|billion|thousand)\b|\b\d{1,4}\b", str(o), re.I)) for o in options)
+
+    if is_count_query and not is_percentage_query:
+        if has_percent_options >= 3:
+            return False
+    if is_percentage_query and not is_count_query:
+        if has_percent_options == 0 and has_count_options >= 3:
+            return False
+    return True
+
+
+def question_grounded_in_story(question: str, story: Dict[str, Any]) -> bool:
+    """Check if question is meaningfully grounded in the story, not generic historical filler."""
+    if not question or not story:
+        return False
+    q_lower = question.lower()
+    h_lower = str(story.get("headline_en") or "").lower()
+
+    if re.search(r"\b(?:when\s+was|established|founded|founding\s+year|in\s+which\s+year\s+was)\b", q_lower):
+        if "icar" in q_lower or "indian council of agricultural research" in q_lower:
+            if any(k in h_lower for k in ["training", "workshop", "symposium", "inaugurated", "program", "programme"]):
+                if "established" not in h_lower and "founding" not in h_lower:
+                    return False
+    return True
+
+
 
 def _base(o: Any) -> str:
     return str(o or "").split(" / ")[0].strip()

@@ -27,6 +27,60 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "ICAR भारत में कृषि अनुसंधान और शिक्षा के समन्वय, मार्गदर्शन और प्रबंधन के लिए सर्वोच्च निकाय है।"),
         ]
     },
+    "CCPA": {
+        "name_en": "Central Consumer Protection Authority (CCPA)",
+        "name_hi": "केंद्रीय उपभोक्ता संरक्षण प्राधिकरण (CCPA)",
+        "facts": [
+            ("The Central Consumer Protection Authority (CCPA) was established under Section 10 of the Consumer Protection Act, 2019 (effective 24 July 2020).",
+             "केंद्रीय उपभोक्ता संरक्षण प्राधिकरण (CCPA) की स्थापना उपभोक्ता संरक्षण अधिनियम, 2019 की धारा 10 के तहत 24 जुलाई 2020 को की गई थी।"),
+            ("CCPA functions under the Department of Consumer Affairs, Ministry of Consumer Affairs, Food and Public Distribution.",
+             "CCPA उपभोक्ता मामले, खाद्य एवं सार्वजनिक वितरण मंत्रालय के उपभोक्ता मामले विभाग के अंतर्गत कार्य करता है।"),
+            ("CCPA is headquartered in New Delhi and is headed by a Chief Commissioner.",
+             "CCPA का मुख्यालय नई दिल्ली में स्थित है और इसका नेतृत्व मुख्य आयुक्त द्वारा किया जाता है।"),
+            ("CCPA is empowered to regulate matters relating to violation of consumer rights, unfair trade practices and false or misleading advertisements.",
+             "CCPA को उपभोक्ता अधिकारों के उल्लंघन, अनुचित व्यापार प्रथाओं और भ्रामक विज्ञापनों के मामलों को विनियमित करने का अधिकार प्राप्त है।"),
+            ("CCPA can impose penalties up to ₹10 lakh on manufacturers/endorsers for false advertisements (up to ₹50 lakh for subsequent violations) and order product recalls.",
+             "CCPA भ्रामक विज्ञापनों के लिए ₹10 लाख तक (दोबारा उल्लंघन पर ₹50 लाख तक) का जुर्माना लगा सकता है और खतरनाक उत्पादों को वापस लेने का आदेश दे सकता है।"),
+        ]
+    },
+    "PESO": {
+        "name_en": "Petroleum and Explosives Safety Organization (PESO) / Chief Controller of Explosives",
+        "name_hi": "पेट्रोलियम एवं विस्फोटक सुरक्षा संगठन (PESO) / मुख्य विस्फोटक नियंत्रक",
+        "facts": [
+            ("PESO was established in 1898 and functions under DPIIT, Ministry of Commerce and Industry.",
+             "PESO की स्थापना 1898 में हुई थी और यह वाणिज्य एवं उद्योग मंत्रालय के DPIIT के अधीन कार्य करता है।"),
+            ("PESO is headed by the Chief Controller of Explosives (CCE) and is headquartered in Nagpur, Maharashtra.",
+             "PESO का नेतृत्व मुख्य विस्फोटक नियंत्रक (CCE) करते हैं और इसका मुख्यालय नागपुर, महाराष्ट्र में स्थित है।"),
+            ("PESO administers the Explosives Act, 1884, and the Petroleum Act, 1934, regulating manufacture, import, storage, and transport of hazardous substances.",
+             "PESO विस्फोटक अधिनियम, 1884 और पेट्रोलियम अधिनियम, 1934 का प्रशासन करता है।"),
+        ]
+    },
+    "IEPFA": {
+        "name_en": "Investor Education and Protection Fund Authority (IEPFA)",
+        "name_hi": "निवेशक शिक्षा और संरक्षण निधि प्राधिकरण (IEPFA)",
+        "facts": [
+            ("IEPFA was established on 7 September 2016 under Section 125 of the Companies Act, 2013.",
+             "IEPFA की स्थापना कंपनी अधिनियम, 2013 की धारा 125 के तहत 7 सितंबर 2016 को हुई थी।"),
+            ("IEPFA functions under the Ministry of Corporate Affairs, Government of India.",
+             "IEPFA भारत सरकार के कॉर्पोरेट कार्य मंत्रालय के अंतर्गत कार्य करता है।"),
+            ("IEPFA is headquartered in New Delhi with the Secretary, Ministry of Corporate Affairs serving as its ex-officio Chairperson.",
+             "IEPFA का मुख्यालय नई दिल्ली में है और कॉर्पोरेट कार्य मंत्रालय के सचिव इसके पदेन अध्यक्ष होते हैं।"),
+            ("IEPFA promotes investor awareness and manages refunds of unclaimed shares, dividends, and matured deposits.",
+             "IEPFA निवेशक जागरूकता को बढ़ावा देता है और बिना दावे वाले शेयरों, लाभांशों और परिपक्व जमाओं की वापसी का प्रबंधन करता है।"),
+        ]
+    },
+    "ICGEB": {
+        "name_en": "International Centre for Genetic Engineering and Biotechnology (ICGEB)",
+        "name_hi": "अंतर्राष्ट्रीय आनुवंशिक इंजीनियरिंग एवं जैव प्रौद्योगिकी केंद्र (ICGEB)",
+        "facts": [
+            ("ICGEB was conceived by UNIDO in 1983 and became fully autonomous in 1994.",
+             "ICGEB की स्थापना UNIDO द्वारा 1983 में की गई थी और यह 1994 में पूरी तरह स्वायत्त निकाय बना।"),
+            ("ICGEB operates three component laboratories in Trieste (Italy), New Delhi (India), and Cape Town (South Africa).",
+             "ICGEB की तीन प्रमुख प्रयोगशालाएं ट्रिएस्टे (इटली), नई दिल्ली (भारत) और केप टाउन (दक्षिण अफ्रीका) में संचालित हैं।"),
+            ("In India, ICGEB works in close cooperation with the Department of Biotechnology (DBT), Ministry of Science and Technology.",
+             "भारत में ICGEB विज्ञान एवं प्रौद्योगिकी मंत्रालय के जैव प्रौद्योगिकी विभाग (DBT) के साथ निकट समन्वय में कार्य करता है।"),
+        ]
+    },
     "IARI": {
         "name_en": "ICAR-Indian Agricultural Research Institute (IARI)",
         "name_hi": "ICAR-भारतीय कृषि अनुसंधान संस्थान (IARI)",
@@ -703,6 +757,13 @@ def lookup_static_gk_for_text(text: str) -> List[Tuple[str, str]]:
         ("PMAY-G", "PMAYG"), ("PMAYG", "PMAYG"), ("PRADHAN MANTRI AWAS YOJANA", "PMAYG"), ("PRADHAN MANTRI AWAAS YOJANA", "PMAYG"),
         ("PATANJALI", "PATANJALI"), ("पतंजलि", "PATANJALI"),
         ("JAL SHAKTI", "JAL_SHAKTI"), ("MINISTRY OF JAL SHAKTI", "JAL_SHAKTI"),
+        ("CENTRAL CONSUMER PROTECTION AUTHORITY", "CCPA"), ("CCPA", "CCPA"),
+        ("EXPORTERSINDIA", "CCPA"), ("CONSUMER PROTECTION ACT", "CCPA"),
+        ("PETROLEUM AND EXPLOSIVES SAFETY", "PESO"), ("PESO", "PESO"),
+        ("CHIEF CONTROLLER OF EXPLOSIVES", "PESO"),
+        ("INVESTOR EDUCATION AND PROTECTION FUND", "IEPFA"), ("IEPFA", "IEPFA"),
+        ("NIVESHAK SHIVIR", "IEPFA"),
+        ("ICGEB", "ICGEB"), ("INTERNATIONAL CENTRE FOR GENETIC ENGINEERING", "ICGEB"),
     ]
 
     for needle, key in matches:
@@ -719,6 +780,58 @@ def lookup_static_gk_for_text(text: str) -> List[Tuple[str, str]]:
                 break
 
     return results
+
+
+# Authoritative Disambiguation Matrix to prevent acronym collision and false institutional attribution
+ACRONYM_DISAMBIGUATION: Dict[str, Dict[str, Any]] = {
+    "CCPA": {
+        "full_en": "Central Consumer Protection Authority",
+        "full_hi": "केंद्रीय उपभोक्ता संरक्षण प्राधिकरण",
+        "parent_ministry_en": "Ministry of Consumer Affairs, Food and Public Distribution",
+        "parent_ministry_hi": "उपभोक्ता मामले, खाद्य एवं सार्वजनिक वितरण मंत्रालय",
+        "governing_act_en": "Consumer Protection Act, 2019",
+        "governing_act_hi": "उपभोक्ता संरक्षण अधिनियम, 2019",
+        "headquarters": "New Delhi",
+        "forbidden_expansions": [
+            "Chief Controller of Explosives",
+            "Explosives Act",
+            "Ministry of Home Affairs",
+        ],
+    },
+    "PESO": {
+        "full_en": "Petroleum and Explosives Safety Organization",
+        "full_hi": "पेट्रोलियम एवं विस्फोटक सुरक्षा संगठन",
+        "parent_ministry_en": "Ministry of Commerce and Industry (DPIIT)",
+        "parent_ministry_hi": "वाणिज्य एवं उद्योग मंत्रालय (DPIIT)",
+        "governing_act_en": "Explosives Act, 1884 and Petroleum Act, 1934",
+        "governing_act_hi": "विस्फोटक अधिनियम, 1884 और पेट्रोलियम अधिनियम, 1934",
+        "headquarters": "Nagpur, Maharashtra",
+        "forbidden_expansions": [
+            "Central Consumer Protection Authority",
+            "Consumer Protection Act",
+        ],
+    },
+    "IEPFA": {
+        "full_en": "Investor Education and Protection Fund Authority",
+        "full_hi": "निवेशक शिक्षा और संरक्षण निधि प्राधिकरण",
+        "parent_ministry_en": "Ministry of Corporate Affairs",
+        "parent_ministry_hi": "कॉर्पोरेट कार्य मंत्रालय",
+        "governing_act_en": "Companies Act, 2013 (Section 125)",
+        "governing_act_hi": "कंपनी अधिनियम, 2013 (धारा 125)",
+        "headquarters": "New Delhi",
+        "forbidden_expansions": [],
+    },
+    "ICGEB": {
+        "full_en": "International Centre for Genetic Engineering and Biotechnology",
+        "full_hi": "अंतर्राष्ट्रीय आनुवंशिक इंजीनियरिंग एवं जैव प्रौद्योगिकी केंद्र",
+        "parent_ministry_en": "Autonomous UN-system institution; in India supported by DBT",
+        "parent_ministry_hi": "संयुक्त राष्ट्र प्रणाली का स्वायत्त निकाय; भारत में DBT द्वारा समर्थित",
+        "headquarters": "Trieste (Italy), New Delhi (India), Cape Town (South Africa)",
+        "governing_act_en": "UNIDO / ICGEB Statutes (1983)",
+        "governing_act_hi": "यूनीडो / ICGEB संविधियां (1983)",
+        "forbidden_expansions": [],
+    },
+}
 
 
 # --- EXAM GENIUS BILINGUAL EXTENSIONS ---

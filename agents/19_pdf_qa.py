@@ -602,6 +602,39 @@ def check_editorial_quality(report: QAReport, text: str) -> None:
     if re.search(r"\bने\s+में\b", text):
         report.add("warning", "broken_hindi_grammar", "PDF contains broken Hindi grammar construct ('ने में')")
 
+    # 7. Media outlet / news agency question check (P1 defect)
+    agency_stem_re = re.compile(
+        r"\b(?:Which\s+(?:news\s+agency|media\s+outlet|portal|newspaper|publication)|"
+        r"किस\s+(?:समाचार\s+एजेंसी|मीडिया\s+आउटलेट|अखबार))\s+(?:reported|published|covered|carried|broadcast(?:ed)?|ने\s+रिपोर्ट\s+किया)",
+        re.IGNORECASE,
+    )
+    ag_match = agency_stem_re.search(text)
+    if ag_match:
+        report.add("error", "agency_recognition_mcq", f"PDF contains forbidden news-agency recognition question stem: '{ag_match.group(0)}'")
+
+    # 8. Generic country / national boilerplate in Static GK (P0 defect)
+    generic_country_re = re.compile(
+        r"(?:Country\s*[\-–—]\s*India|Capital\s*[\-–—]\s*New\s+Delhi|Year\s+of\s+independence\s*[\-–—]\s*1947)",
+        re.IGNORECASE,
+    )
+    gc_match = generic_country_re.search(text)
+    if gc_match:
+        report.add("error", "generic_country_static_gk", f"PDF contains generic country/national boilerplate in Static GK: '{gc_match.group(0)}'")
+
+    # 9. CCPA acronym collision check (P0 defect)
+    if re.search(r"\bCCPA\b", text) and re.search(r"\b(?:Chief\s+Controller\s+of\s+Explosives|Explosives\s+Act)\b", text, re.IGNORECASE):
+        report.add("error", "ccpa_acronym_collision", "PDF conflates CCPA (Central Consumer Protection Authority) with Chief Controller of Explosives")
+
+    # 10. Dangling double preposition check (P1 defect)
+    dangling_prep = re.search(r"\b(?:in|at|from|to|for|near|across|around)\s+to\s+[A-Z]", text)
+    if dangling_prep:
+        report.add("error", "dangling_preposition_in_mcq", f"PDF contains dangling double preposition syntax defect: '{dangling_prep.group(0)}'")
+
+    # 11. Explanation dateline / timestamp leakage check (P1 defect)
+    dateline_leak = re.search(r"\bUpdated\s*[-–—]\s*[A-Za-z]+\s+\d{1,2},\s+\d{4}\b", text, re.IGNORECASE)
+    if dateline_leak:
+        report.add("error", "explanation_dateline_leakage", f"PDF contains unstripped news dateline/timestamp: '{dateline_leak.group(0)}'")
+
     # Publisher paywall/account UI must never become a study fact. This is an
     # error (not a warning) so it blocks Telegram publication, including
     # mojibake variants of a curly apostrophe in "don't".

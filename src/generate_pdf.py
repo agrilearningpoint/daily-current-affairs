@@ -1073,7 +1073,10 @@ BANNED_STATIC_GK_RE = re.compile(
     r"\b(?:key statutory bodies|implementing ministries|financial outlays|macroeconomic indicators|"
     r"key crop statistics|multilateral summits|defence procurements|ecological conservation treaties|"
     r"national and international sports championships|key entities, regulatory authorities|"
-    r"pib headquarters|press information bureau|government of india established|president of india presents)\b|"
+    r"pib headquarters|press information bureau|government of india established|president of india presents|"
+    r"country\s*[-–]\s*india|capital\s*[-–]\s*new delhi|official language\s*[-–]\s*hindi|"
+    r"year of independence\s*[-–]\s*1947|देश\s*[-–]\s*भारत|राजधानी\s*[-–]\s*नई दिल्ली|"
+    r"स्वतंत्रता वर्ष\s*[-–]\s*1947|आधिकारिक भाषा\s*[-–]\s*हिन्दी)\b|"
     r"^(?:key name|first/unique)\s*–",
     re.I,
 )
@@ -1104,6 +1107,11 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
 
     for g in (mcq or {}).get("static_gk") or []:
         if isinstance(g, dict) and g.get("label_en") and g.get("value_en"):
+            lbl = str(g.get("label_en") or "").lower().strip()
+            val = str(g.get("value_en") or "").lower().strip()
+            if (lbl in ("country", "capital", "year of independence", "official language") and
+                val in ("india", "new delhi", "1947", "hindi")):
+                continue
             hi = ""
             if g.get("label_hi") and g.get("value_hi"):
                 hi = f"{g['label_hi']} – {g['value_hi']}"
@@ -1368,6 +1376,19 @@ def _unit_photo_block(it: Dict[str, Any]) -> List[Flowable]:
         return []  # a bad photo must never break the edition
 
 
+def _calculate_gallery_grid(n: int) -> Tuple[int, int]:
+    """Calculate balanced (columns, rows) for n cards to prevent orphan empty slots."""
+    if n <= 2:
+        return (n, 1)
+    if n in (3, 4, 5):
+        return (2, 2)
+    if n == 6:
+        return (3, 2)
+    if n in (7, 8):
+        return (2, 2)
+    return (3, (n + 2) // 3)
+
+
 def _build_gallery_table(cards_slice: List[Any], ncol: int) -> Table:
     gap = 8 * pt
     col_w = (PRINT_W - gap * (ncol - 1)) / float(ncol)
@@ -1461,7 +1482,13 @@ def _news_in_pictures_story(units) -> List[Flowable]:
 
     n = len(cards)
     if n <= 6:
-        ncol = 2 if n <= 4 else 3
+        if n == 5:
+            # 5 cards in 3 cols leaves an awkward orphan slot on row 2;
+            # selecting the top 4 verified photo cards renders a clean balanced 2x2 grid.
+            cards = cards[:4]
+            ncol = 2
+        else:
+            ncol = 2 if n <= 4 else 3
         out.append(_build_gallery_table(cards, ncol))
         out.append(PageBreak())
     elif n <= 8:

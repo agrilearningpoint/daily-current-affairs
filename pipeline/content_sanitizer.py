@@ -113,3 +113,35 @@ def raw_word_count(item) -> int:
 
 def is_shallow(item) -> bool:
     return raw_word_count(item) < SHALLOW_RAW_WORDS
+
+
+DATELINE_RE = re.compile(
+    r"^(?:Updated|Published|Posted|Reported)?\s*[-–:]*\s*"
+    r"(?:[A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]+,?\s+\d{4})?\s*"
+    r"(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*(?:IST|UTC|GMT)?)?\s*[-–:]*\s*"
+    r"(?:[A-Za-z\s]+[-–:])?\s*",
+    re.I
+)
+
+TRAILING_CONCLUSION_RE = re.compile(
+    r"\s*(?:Therefore|Hence|Thus|As a result|So),?\s+(?:Option\s+[A-E]|.*?\s+is\s+the\s+correct\s+answer)[.!]?\s*$|"
+    r"\s*(?:अतः|इसलिए|इस प्रकार),?\s+(?:विकल्प\s+[A-E]|.*?\s+सही\s+उत्तर\s+है)[.।]?\s*$",
+    re.I
+)
+
+
+def clean_explanation_text(text: str) -> str:
+    """Scrub news timestamps, datelines, raw URLs and empty conclusion boilerplate."""
+    if not text or not isinstance(text, str):
+        return ""
+    t = text.strip()
+    # Strip explicit datelines like 'Updated - November 17, 2026 12:59 am IST - Bengaluru'
+    t = re.sub(
+        r"^(?:Updated|Published)?\s*[-–:]*\s*[A-Za-z]+\s+\d{1,2},\s*\d{4}\s*\d{1,2}:\d{2}\s*(?:am|pm)\s*IST\s*[-–:]*\s*[A-Za-z]+\s*",
+        "", t, flags=re.I
+    ).strip()
+    t = DATELINE_RE.sub("", t).strip()
+    t = TRAILING_CONCLUSION_RE.sub("", t).strip()
+    t = re.sub(r"https?://\S+|www\.\S+", "", t).strip()
+    return t
+
