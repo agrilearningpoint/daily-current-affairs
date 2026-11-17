@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-16T06:18:53.286337+05:30",
+  "updated": "2026-11-17T08:48:44.546890+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1979,6 +1979,111 @@
       "last_seen": "2026-11-16",
       "type": "llm-schema",
       "q": "According to recent reports, who has taken charge as the commander or chief of the Baloch Liberation Army afte",
+      "published": true
+    },
+    "whichstateunionterritoryisassociatedwiththefollowingdevelopm": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "place-state",
+      "q": "Which State / Union Territory is associated with the following development: \"IEPFA and SEBI to Organize ‘Nives",
+      "published": true
+    },
+    "unionhomeministershriamitshahrecentlyvisitedtheregionaloffic": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Union Home Minister Shri Amit Shah recently visited the Regional Office of which administrative authority loca",
+      "published": true
+    },
+    "whatisthekeyfigurefinancialoutlayassociatedwithelninoimpactd": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "static-number",
+      "q": "What is the key figure / financial outlay associated with: \"El Nino impact drives record surge in crop insuran",
+      "published": true
+    },
+    "whereistheheadquartersoftheinternationalcentreforgeneticengi": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Where is the headquarters of the International Centre for Genetic Engineering and Biotechnology (ICGEB) locate",
+      "published": true
+    },
+    "wherewasthesportingeventheldwherethenationalcontingentsecure": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Where was the sporting event held where the national contingent secured its opening top-podium finish through ",
+      "published": true
+    },
+    "whichnewsagencyreportedthelaunchoftheagriwelfareportal": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Which news agency reported the launch of the Agri Welfare Portal?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsindiasinvestmentsinu": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"India's investments in US treasuries up $38.4 billion in June-",
+      "published": true
+    },
+    "underthesanfranciscodeclarationwhichsetofsectorsareidentifie": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Under the San Francisco Declaration, which set of sectors are identified as vulnerable areas for AI and critic",
+      "published": true
+    },
+    "whichnewsagencyreportedthecabinetsapprovalofthesemicon20sche": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Which news agency reported the Cabinet's approval of the Semicon 2.0 scheme?",
+      "published": true
+    },
+    "whichdigitalpaymentsystemofegyptwashighlightedassharingacomm": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Which digital payment system of Egypt was highlighted as sharing a common vision with India's UPI during the f",
+      "published": true
+    },
+    "whenwastheindiancouncilofagriculturalresearchicarestablished": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "When was the Indian Council of Agricultural Research (ICAR) established?",
+      "published": true
+    },
+    "inwhichcityistheeducationalinstitutionwheretheiconictowerwas": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "In which city is the educational institution where the Iconic Tower was recently inaugurated located?",
+      "published": true
+    },
+    "whichauthorityimposedapenaltyof20lakhonexportersindiacomforo": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Which authority imposed a penalty of ₹20 lakh on ExportersIndia.com for online listing of certain explosive ch",
+      "published": true
+    },
+    "whichorganizationwrotetofinanceministernirmalasitharamanseek": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "Which organization wrote to Finance Minister Nirmala Sitharaman seeking a reduction in GST on air purifiers?",
+      "published": true
+    },
+    "accordingtodrpkmishrasstatementwhichgroupishighlightedasthec": {
+      "count": 1,
+      "last_seen": "2026-11-17",
+      "type": "llm-schema",
+      "q": "According to Dr P K Mishra's statement, which group is highlighted as the custodians and innovators of India's",
       "published": true
     }
   },
