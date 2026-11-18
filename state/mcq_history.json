@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-17T08:48:44.546890+05:30",
+  "updated": "2026-11-18T08:14:52.931572+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -2084,6 +2084,111 @@
       "last_seen": "2026-11-17",
       "type": "llm-schema",
       "q": "According to Dr P K Mishra's statement, which group is highlighted as the custodians and innovators of India's",
+      "published": true
+    },
+    "whichministerreleasedthethirdadvanceestimatesofindiashorticu": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which minister released the third advance estimates of India's horticulture production for the fiscal year 202",
+      "published": true
+    },
+    "whichgovernmententitylaunchedtheinauguralgloballeadershippro": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which government entity launched the inaugural Global Leadership Programme in Defence Governance and Public Ad",
+      "published": true
+    },
+    "whichministryisresponsiblefortheconductofindiasforeignrelati": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which ministry is responsible for the conduct of India's foreign relations as noted in the context of internat",
+      "published": true
+    },
+    "theinstitutecelebratingitsgoldenjubileeisaconstituentofwhich": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "The institute celebrating its Golden Jubilee is a constituent of which national research council?",
+      "published": true
+    },
+    "whichcountryjoinedleaditasitsnewestcountrymemberalongsidethe": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which country joined LeadIT as its newest Country Member alongside the launch of the latest version at COP31?",
+      "published": true
+    },
+    "inwhichstatewasthekhetbachaoabhiyanrecentlyundertakenbytheun": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "In which state was the 'Khet Bachao Abhiyan' recently undertaken by the Union Ministry of Agriculture & Farmer",
+      "published": true
+    },
+    "underwhichlegislationwastheagriculturalandprocessedfoodprodu": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Under which legislation was the Agricultural and Processed Food Products Export Development Authority (APEDA) ",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewswheatsowingdown15sof": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Wheat sowing down 15% so far; overall rabi crops coverage fall",
+      "published": true
+    },
+    "accordingtomarketreportswhatkeyfactoralongwithimprovingasset": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "According to market reports, what key factor along with improving asset quality and renewed foreign investor i",
+      "published": true
+    },
+    "whattypeofoutlookdidmoodysassigntoglobalbanksfortheyear2027": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "What type of outlook did Moody's assign to global banks for the year 2027?",
+      "published": true
+    },
+    "whichstatesoverallfarmingandruralsectorgrowthreceivedafinanc": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which state's overall farming and rural sector growth received a financial approval of over ₹350 crore from th",
+      "published": true
+    },
+    "whichorganizationisresponsiblefororganizingtheitexportawards": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which organization is responsible for organizing the IT Export Awards?",
+      "published": true
+    },
+    "whichcityishostingthefourtheditionoftheministerialdialoguein": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which city is hosting the fourth edition of the ministerial dialogue involving the Indian Defence Minister and",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsrequestforinformalgu": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Request for Informal Guidance by way of an Interpretive Letter",
+      "published": true
+    },
+    "whichcityhostedtheeventwheretheearthshotprizewinnerswerecele": {
+      "count": 1,
+      "last_seen": "2026-11-18",
+      "type": "llm-schema",
+      "q": "Which city hosted the event where the Earthshot Prize winners were celebrated by British royals?",
       "published": true
     }
   },
