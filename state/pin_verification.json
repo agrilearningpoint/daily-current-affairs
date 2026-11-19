@@ -504,6 +504,15 @@
       "file_sha256": "8c979516b841c3bb01ea20e6386d592e57d5f6bd4f367f2d950cda5d27e059ae",
       "status": "verified",
       "verified_at": "2026-11-18T02:44:55.013210+00:00"
+    },
+    "daily_2026-11-19": {
+      "job_id": "daily_2026-11-19",
+      "chat_id": "-1004485392227",
+      "message_id": 240,
+      "pinned_message_id": 240,
+      "file_sha256": "0d47eb230078e34f25f577804bf3bc295a9345b5700a48162efe314f2f21655b",
+      "status": "verified",
+      "verified_at": "2026-11-19T11:55:34.989375"
     }
   }
 }
