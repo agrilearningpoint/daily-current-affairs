@@ -2478,19 +2478,11 @@
   "daily_2026-11-19": {
     "job_id": "daily_2026-11-19",
     "job_type": "daily",
-    "status": "running",
+    "status": "success",
     "created_at": "2026-11-19T11:55:34.989375",
-    "updated_at": "2026-11-19T07:43:20.016701+00:00",
+    "updated_at": "2026-11-19T11:55:34.989375",
     "last_success_stage": "24_final_health_audit",
     "failed_stage": null,
-    "retry_count": 0,
-    "run_attempts": 0,
-    "job_date": "2026-11-19",
-    "dry_run": false,
-    "window": {
-      "start": "2026-11-18T06:00:00+05:30",
-      "end": "2026-11-19T06:00:00+05:30"
-    },
-    "github_run_id": "44481728499"
+    "retry_count": 0
   }
 }
