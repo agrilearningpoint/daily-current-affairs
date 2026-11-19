@@ -2480,60 +2480,9 @@
     "job_type": "daily",
     "status": "success",
     "created_at": "2026-11-19T11:55:34.989375",
-    "updated_at": "2026-11-19T07:54:46.352094+00:00",
-    "retry_count": 0,
-    "started_at": "2026-11-19T07:43:24.004396+00:00",
-    "artifacts": {
-      "data/raw/daily_2026-11-19.json": {
-        "stage": "01_source_fetch",
-        "sha256": "17c0e9459db582f4bbd57d52b785538b33b50fffa178fc842fadb9bd9eba18b0"
-      },
-      "data/verified/daily_2026-11-19.json": {
-        "stage": "04_fact_verification",
-        "sha256": "54f26b169eb10fc90e927e7747ecb15b0e9162a18932591d0bc0f47a096ad586"
-      },
-      "data/dedup/daily_2026-11-19.json": {
-        "stage": "05_deduplication",
-        "sha256": "9f32144a1f1229f1ff652b5c33c4832a9a1bc255198f34e1ba8ccbd04ddf9bfa"
-      },
-      "data/scored/daily_2026-11-19.json": {
-        "stage": "06_news_importance",
-        "sha256": "6b1ab4b0618b37ca2a6495f60a9af5c31e0d1267c3a0ea046595bc07b279710f"
-      },
-      "data/selected/daily_2026-11-19.json": {
-        "stage": "10_final_news_selection",
-        "sha256": "b6146be98753a5cc0a96113180c800805583999eb72cbe20a1dbd94ccda996d8"
-      },
-      "data/content/daily_2026-11-19.json": {
-        "stage": "12_content_editor",
-        "sha256": "e843eb88338f3f5b6c270589e6e9d49e5b760ea741403b6a732177710d163419"
-      },
-      "data/mcq/daily_2026-11-19.json": {
-        "stage": "16_mcq_generator",
-        "sha256": "c93b00f3c5bd8abdb545d446f3e08010f920ebf8ad1ccb4aac1666a71beac12e"
-      },
-      "output/daily_2026-11-19.pdf": {
-        "stage": "18_pdf_design",
-        "sha256": "e36b63b9de685e46db96a2e05db44bb5107f1c14f0a7814695dafd99957b9005"
-      },
-      "logs/qa/daily_2026-11-19_qa.json": {
-        "stage": "19_pdf_qa",
-        "sha256": "35828e4d44bf272c420ef85a0f5ee44c6bb921ecdd8f376847d809ad04d037f4"
-      },
-      "logs/qa/daily_2026-11-19_health.json": {
-        "stage": "24_final_health_audit",
-        "sha256": "1844ec1c9d7a333af48ec1f9521b0c037202c6ec7bbe73faf2e0ff8122d05cac"
-      }
-    },
-    "run_attempts": 1,
-    "job_date": "2026-11-19",
-    "dry_run": false,
-    "window": {
-      "start": "2026-11-18T06:00:00+05:30",
-      "end": "2026-11-19T06:00:00+05:30"
-    },
-    "github_run_id": "44481728499",
+    "updated_at": "2026-11-19T11:55:34.989375",
     "last_success_stage": "24_final_health_audit",
-    "checkpoint_run_id": "44481728499"
+    "failed_stage": null,
+    "retry_count": 0
   }
 }
