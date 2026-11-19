@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-19T07:39:56.575573+05:30",
+  "updated": "2026-11-19T13:24:41.312670+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1811,7 +1811,7 @@
       "last_seen": "2026-11-19",
       "type": "place-country",
       "q": "Which country is associated with the following bilateral/international development: \"MoD inks Rs 1,976.40 cror",
-      "published": false
+      "published": true
     },
     "inwhichcitywastheglobalspiritualpalaceretreatcentreinaugurat": {
       "count": 1,
@@ -1986,7 +1986,7 @@
       "last_seen": "2026-11-19",
       "type": "place-state",
       "q": "Which State / Union Territory is associated with the following development: \"line with PM Shri Narendra Modi’s",
-      "published": false
+      "published": true
     },
     "unionhomeministershriamitshahrecentlyvisitedtheregionaloffic": {
       "count": 1,
@@ -2196,14 +2196,14 @@
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Which ministry's minister inaugurated the MSME, KVIC, COIR and NSSH pavilions at the 45th India International ",
-      "published": false
+      "published": true
     },
     "whereistheheadquartersoftheworldwidefundfornaturewwflocated": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Where is the headquarters of the World Wide Fund for Nature (WWF) located?",
-      "published": false
+      "published": true
     },
     "themonetarypolicycommitteempcthatdecidesthepolicyreporatehas": {
       "count": 1,
@@ -2211,49 +2211,154 @@
       "type": "concept",
       "concept_id": "repo",
       "q": "The Monetary Policy Committee (MPC) that decides the policy repo rate has how many members?",
-      "published": false
+      "published": true
     },
     "whichgovernmentagencyreleasedtheinformationaboutthefivedayhr": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Which government agency released the information about the five‑day HRD programme on Integrated Pest Managemen",
-      "published": false
+      "published": true
     },
     "whichgovernmentbodyisresponsiblefortheconductofindiasforeign": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Which government body is responsible for the conduct of India's foreign relations, as mentioned in the context",
-      "published": false
+      "published": true
     },
     "whichindiangovernmentagencypublishedthereleaseaboutthenamast": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Which Indian government agency published the release about the NAMASTE Scheme promoting safer working conditio",
-      "published": false
+      "published": true
     },
     "inwhichyearwastheactunderwhichindiascentralbankinginstitutio": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "In which year was the act, under which India's central banking institution was established, enacted?",
-      "published": false
+      "published": true
     },
     "inwhichindianstateisthenewlyinauguratedglobalspiritualpalace": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "In which Indian state is the newly inaugurated 'Global Spiritual Palace' retreat centre located?",
-      "published": false
+      "published": true
     },
     "whichministryspavilionrecordedcumulativesalesof2956lakhatthe": {
       "count": 1,
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Which ministry's pavilion recorded cumulative sales of ₹29.56 lakh at the 45th International Indian Trade Fair",
-      "published": false
+      "published": true
+    },
+    "accordingtotherecentpibreleasehowmanycommunityseedbankscsbsw": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "According to the recent PIB release, how many Community Seed Banks (CSBs) were mapped by DIVERSIFARM‑India?",
+      "published": true
+    },
+    "thepavilionsformsmekviccoirandnsshwereinauguratedatwhichedit": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "The pavilions for MSME, KVIC, COIR and NSSH were inaugurated at which edition of the India International Trade",
+      "published": true
+    },
+    "whichswisscityistheheadquartersoftheorganizationmentionedalo": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which Swiss city is the headquarters of the organization mentioned alongside the film festival in the PIB rele",
+      "published": true
+    },
+    "underwhichindianministrydoestheindiannavyoperate": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Under which Indian ministry does the Indian Navy operate?",
+      "published": true
+    },
+    "wherewastheglobalclimateconferenceheldwhereindiacalledforano": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Where was the global climate conference held where India called for an Open, Transparent and Equitable Second ",
+      "published": true
+    },
+    "accordingtoofficialprojectionsforthe202526periodwhatistheest": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "According to official projections for the 2025-26 period, what is the estimated percentage increase in India's",
+      "published": true
+    },
+    "accordingtorecentreportswhattotaldutyandtaxpercentagehasbeen": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "According to recent reports, what total duty and tax percentage has been imposed by India on bulk imports of S",
+      "published": true
+    },
+    "whichministryistaskedwithconductingindiasforeignrelations": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which ministry is tasked with conducting India's foreign relations?",
+      "published": true
+    },
+    "inwhichstatewasthenamasteschemehighlightedforpromotingsaferw": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "In which state was the NAMASTE scheme highlighted for promoting safer working conditions and dignity for a san",
+      "published": true
+    },
+    "whichministryistaskedwithconductingindiasforeignrelationsasm": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which ministry is tasked with conducting India's foreign relations as mentioned in the Prime Minister's statem",
+      "published": true
+    },
+    "whereisthetwodayantiterrorconferencescheduledtobeinaugurated": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Where is the two-day 'Anti-Terror Conference' scheduled to be inaugurated on 19th November 2026?",
+      "published": true
+    },
+    "whichinitiativewasdiscussedintheofficialreleaseconcerningmar": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which initiative was discussed in the official release concerning maritime security and risk coverage?",
+      "published": true
+    },
+    "whicheconomicpartnershipgroupingisspecificallymentionedaspar": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which economic partnership grouping is specifically mentioned as part of India's recent international shipment",
+      "published": true
+    },
+    "whichunionministryorganizedthepavilionthatrecordedcumulative": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which Union Ministry organized the pavilion that recorded cumulative sales of ₹ 29.56 Lakh at the 45th India I",
+      "published": true
+    },
+    "whichportfolioisheldbytheindianministerwhorecentlyhelddiscus": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which portfolio is held by the Indian minister who recently held discussions with H.E. Mr. Roger Baro, Ministe",
+      "published": true
     }
   },
   "concepts": {
@@ -2297,7 +2402,7 @@
       "v2": {
         "count": 1,
         "last_seen": "2026-11-19",
-        "published": false
+        "published": true
       }
     }
   }
