@@ -129,9 +129,14 @@ def execute_rule_based_recovery(
         resume_stage = "22_telegram_publisher"
 
     elif failure_category in ("pdf_generation_failure", "hindi_font_failure"):
-        action_taken = "Enforced _HindiTextFlowable RAQM/Pillow shaping and adaptive CondPageBreak(160) layout."
-        recovered = True
-        resume_stage = "18_pdf_design"
+        if "edition_story_shortfall" in str(error_log):
+            action_taken = "Recovered edition story shortfall by resuming content editor and reserve backfill."
+            recovered = True
+            resume_stage = "12_content_editor"
+        else:
+            action_taken = "Enforced _HindiTextFlowable RAQM/Pillow shaping and adaptive CondPageBreak(160) layout."
+            recovered = True
+            resume_stage = "18_pdf_design"
 
     elif failure_category in ("mcq_validation_failure", "duplicate_news"):
         action_taken = "Backfilled from reserve candidate pool and rotated MCQ question format."
