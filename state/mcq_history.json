@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-18T08:14:52.931572+05:30",
+  "updated": "2026-11-19T07:39:56.575573+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1807,11 +1807,11 @@
       "published": true
     },
     "whichcountryisassociatedwiththefollowingbilateralinternation": {
-      "count": 1,
-      "last_seen": "2026-11-15",
+      "count": 2,
+      "last_seen": "2026-11-19",
       "type": "place-country",
-      "q": "Which country is associated with the following bilateral/international development: \"shifting rhetoric, Trump ",
-      "published": true
+      "q": "Which country is associated with the following bilateral/international development: \"MoD inks Rs 1,976.40 cror",
+      "published": false
     },
     "inwhichcitywastheglobalspiritualpalaceretreatcentreinaugurat": {
       "count": 1,
@@ -1982,11 +1982,11 @@
       "published": true
     },
     "whichstateunionterritoryisassociatedwiththefollowingdevelopm": {
-      "count": 1,
-      "last_seen": "2026-11-17",
+      "count": 2,
+      "last_seen": "2026-11-19",
       "type": "place-state",
-      "q": "Which State / Union Territory is associated with the following development: \"IEPFA and SEBI to Organize ‘Nives",
-      "published": true
+      "q": "Which State / Union Territory is associated with the following development: \"line with PM Shri Narendra Modi’s",
+      "published": false
     },
     "unionhomeministershriamitshahrecentlyvisitedtheregionaloffic": {
       "count": 1,
@@ -2190,6 +2190,70 @@
       "type": "llm-schema",
       "q": "Which city hosted the event where the Earthshot Prize winners were celebrated by British royals?",
       "published": true
+    },
+    "whichministrysministerinauguratedthemsmekviccoirandnsshpavil": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which ministry's minister inaugurated the MSME, KVIC, COIR and NSSH pavilions at the 45th India International ",
+      "published": false
+    },
+    "whereistheheadquartersoftheworldwidefundfornaturewwflocated": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Where is the headquarters of the World Wide Fund for Nature (WWF) located?",
+      "published": false
+    },
+    "themonetarypolicycommitteempcthatdecidesthepolicyreporatehas": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "concept",
+      "concept_id": "repo",
+      "q": "The Monetary Policy Committee (MPC) that decides the policy repo rate has how many members?",
+      "published": false
+    },
+    "whichgovernmentagencyreleasedtheinformationaboutthefivedayhr": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which government agency released the information about the five‑day HRD programme on Integrated Pest Managemen",
+      "published": false
+    },
+    "whichgovernmentbodyisresponsiblefortheconductofindiasforeign": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which government body is responsible for the conduct of India's foreign relations, as mentioned in the context",
+      "published": false
+    },
+    "whichindiangovernmentagencypublishedthereleaseaboutthenamast": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which Indian government agency published the release about the NAMASTE Scheme promoting safer working conditio",
+      "published": false
+    },
+    "inwhichyearwastheactunderwhichindiascentralbankinginstitutio": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "In which year was the act, under which India's central banking institution was established, enacted?",
+      "published": false
+    },
+    "inwhichindianstateisthenewlyinauguratedglobalspiritualpalace": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "In which Indian state is the newly inaugurated 'Global Spiritual Palace' retreat centre located?",
+      "published": false
+    },
+    "whichministryspavilionrecordedcumulativesalesof2956lakhatthe": {
+      "count": 1,
+      "last_seen": "2026-11-19",
+      "type": "llm-schema",
+      "q": "Which ministry's pavilion recorded cumulative sales of ₹29.56 lakh at the 45th International Indian Trade Fair",
+      "published": false
     }
   },
   "concepts": {
@@ -2227,6 +2291,13 @@
         "count": 1,
         "last_seen": "2026-11-15",
         "published": true
+      }
+    },
+    "repo": {
+      "v2": {
+        "count": 1,
+        "last_seen": "2026-11-19",
+        "published": false
       }
     }
   }
