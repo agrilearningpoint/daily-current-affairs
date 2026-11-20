@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-19T13:24:41.312670+05:30",
+  "updated": "2026-11-20T07:33:12.528155+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -2358,6 +2358,111 @@
       "last_seen": "2026-11-19",
       "type": "llm-schema",
       "q": "Which portfolio is held by the Indian minister who recently held discussions with H.E. Mr. Roger Baro, Ministe",
+      "published": true
+    },
+    "inwhichyearwastheindiancouncilofagriculturalresearchicaresta": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "In which year was the Indian Council of Agricultural Research (ICAR) established?",
+      "published": true
+    },
+    "whichsectorwashighlightedastheprimarybeneficiaryoftherecordf": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which sector was highlighted as the primary beneficiary of the record FPI inflows in early November?",
+      "published": true
+    },
+    "wherewasthe2ndworkinggroupontradeandinvestmentmeetingbetween": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Where was the 2nd Working Group on Trade and Investment Meeting between India and Indonesia held?",
+      "published": true
+    },
+    "whichstateisassociatedwiththerecentlyapprovedfourlaningproje": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which state is associated with the recently approved four-laning project of NH-22 involving an outlay of Rs 3,",
+      "published": true
+    },
+    "whichdivisionundertheministryofeducationrecentlysignedamemor": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which division under the Ministry of Education recently signed a Memorandum of Understanding with the CSIR-Tra",
+      "published": true
+    },
+    "whichautonomousbodyundertheministryofroadtransportandhighway": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which autonomous body under the Ministry of Road Transport and Highways clarified that the vehicle‑insurance r",
+      "published": true
+    },
+    "accordingtotheannouncementabouttheupcominginaugurationofanew": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "According to the announcement about the upcoming inauguration of a new international forum, which Indian minis",
+      "published": true
+    },
+    "atwhichmilestoneeditionoftheannualgeneralmeetingandannualcon": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "At which milestone edition of the Annual General Meeting and Annual Convention did Prime Minister Narendra Mod",
+      "published": true
+    },
+    "whichcentralgovernmentschemewasusedtostrengthentheoccupation": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which central government scheme was used to strengthen the occupational safety and dignity of sanitation worke",
+      "published": true
+    },
+    "accordingtothereportbywhatpercentagedidthetelecomcompanysbra": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "According to the report, by what percentage did the telecom company's brand value increase?",
+      "published": true
+    },
+    "whichministryhasproposedtheamendmenttothenewdrugsandclinical": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which ministry has proposed the amendment to the New Drugs and Clinical Trials Rules, 2019 to bring certain dr",
+      "published": true
+    },
+    "whatisthetotalfinancialoutlayapprovedforthetelecommunication": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "What is the total financial outlay approved for the telecommunication device production initiative launched to",
+      "published": true
+    },
+    "the23rdsessionofthebilateraleconomiccooperationcommissioninv": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "The 23rd Session of the bilateral economic cooperation commission involving India was recently co-chaired by U",
+      "published": true
+    },
+    "whichministryrevisedtheguidelinesfortheschemethatoffersairfa": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "llm-schema",
+      "q": "Which ministry revised the guidelines for the scheme that offers airfare reimbursement to exporters?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewspondicherryuniversit": {
+      "count": 1,
+      "last_seen": "2026-11-20",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Pondicherry University and sign MoU to carry out an Advanced R",
       "published": true
     }
   },
