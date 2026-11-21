@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-20T07:33:12.528155+05:30",
+  "updated": "2026-11-21T07:23:24.114676+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -2463,6 +2463,111 @@
       "last_seen": "2026-11-20",
       "type": "org-pool",
       "q": "Which organisation is associated with the news \"Pondicherry University and sign MoU to carry out an Advanced R",
+      "published": true
+    },
+    "whichgovernmentportalpublishedthereleasetitledfromindianfiel": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which government portal published the release titled “From Indian Fields to Global Markets: Agri-Exports Gathe",
+      "published": true
+    },
+    "whichcomponentswerespecificallymentionedascontributingtothed": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which component(s) were specifically mentioned as contributing to the decline in India's foreign exchange rese",
+      "published": true
+    },
+    "whereisthescheduleddatausersconferenceonthenewseriesofmacroe": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Where is the scheduled Data Users Conference on the New Series of macroeconomic indicators and indices to be h",
+      "published": true
+    },
+    "inassociationwithwhichinstitutionwasthemargazhifestivalorgan": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "In association with which institution was the Margazhi festival organised by the Chennai Kendra?",
+      "published": true
+    },
+    "whichministryofthegovernmentofindiaisresponsibleforconductin": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which ministry of the Government of India is responsible for conducting India's foreign relations and issued t",
+      "published": true
+    },
+    "inwhichcitywasthecountrysfirstindigenoush5n1avianinfluenzaim": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "In which city was the country’s first indigenous H5N1 avian influenza immunization product dedicated to the na",
+      "published": true
+    },
+    "whichindianleadersharedanarticleontransformativeinitiativest": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which Indian leader shared an article on transformative initiatives to enhance farmers’ prosperity and strengt",
+      "published": true
+    },
+    "atwhichacademicinstitutionsannualconvocationdidtheunionminis": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "At which academic institution's Annual Convocation did the Union Minister of Commerce and Industry highlight t",
+      "published": true
+    },
+    "whichorganizationpartneredwithmicrosoftandthesamhitacollecti": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which organization partnered with Microsoft and the Samhita-Collective Good Foundation alongside the Atal Inno",
+      "published": true
+    },
+    "whichindividualholdingthepositionofinsapresidenthasbeenappoi": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which individual holding the position of INSA President has been appointed to the United Nations’ 10-Member Gr",
+      "published": true
+    },
+    "whichstatetopsfarmerassistancethroughcashtransfersinthefy27p": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which state tops farmer assistance through cash transfers in the FY27 projection?",
+      "published": true
+    },
+    "underwhichlegislativeenactmentwasthecentralbankinginstitutio": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Under which legislative enactment was the central banking institution of India established in 1935?",
+      "published": true
+    },
+    "consumptionoflakhdaladroughtresistantlegumesoldduringthefood": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Consumption of lakh dal, a drought-resistant legume sold during the food crisis of the mid-1960s, was associat",
+      "published": true
+    },
+    "whichcountryscabinetrecentlyapprovedaformalbidtojointhebrics": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which country's cabinet recently approved a formal bid to join the BRICS grouping, with India expressing suppo",
+      "published": true
+    },
+    "whichstatutorybodytooksuomotucognizanceoftheincidentinvolvin": {
+      "count": 1,
+      "last_seen": "2026-11-21",
+      "type": "llm-schema",
+      "q": "Which statutory body took suo motu cognizance of the incident involving the transport of a woman's and her dau",
       "published": true
     }
   },

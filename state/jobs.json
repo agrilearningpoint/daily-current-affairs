@@ -2545,7 +2545,7 @@
     "checkpoint_run_id": "44656608234"
   },
   "daily_2026-11-21": {
-    "run_attempts": 0,
+    "run_attempts": 1,
     "job_id": "daily_2026-11-21",
     "job_type": "daily",
     "job_date": "2026-11-21",
@@ -2555,7 +2555,52 @@
       "end": "2026-11-21T06:00:00+05:30"
     },
     "github_run_id": "44851650973",
-    "status": "running",
-    "updated_at": "2026-11-21T01:41:59.465778+00:00"
+    "status": "success",
+    "updated_at": "2026-11-21T01:53:29.223326+00:00",
+    "started_at": "2026-11-21T01:42:03.017157+00:00",
+    "artifacts": {
+      "data/raw/daily_2026-11-21.json": {
+        "stage": "01_source_fetch",
+        "sha256": "204882ee8724345243da1980fd5325c2c9d32a7ea688a4a0312339cad1d83118"
+      },
+      "data/verified/daily_2026-11-21.json": {
+        "stage": "04_fact_verification",
+        "sha256": "ef52fb60ecc3ada898803adef83aa7c4f3f5bfbfe8b08cd6c4e893dd51f9cca8"
+      },
+      "data/dedup/daily_2026-11-21.json": {
+        "stage": "05_deduplication",
+        "sha256": "fd0333ad6fb7ff8b5fdee3032f784e324f1ca4c15f1ceb2d6e5efcbacbcf7bc7"
+      },
+      "data/scored/daily_2026-11-21.json": {
+        "stage": "06_news_importance",
+        "sha256": "d507afc2716619e8a70834e79881af375fcf4464d781f0cda4a8afd9b1617109"
+      },
+      "data/selected/daily_2026-11-21.json": {
+        "stage": "10_final_news_selection",
+        "sha256": "7127642a0a869e90e49ee54725638c80fda0ebc07ef7ae3ab6a3a324a5c9421c"
+      },
+      "data/content/daily_2026-11-21.json": {
+        "stage": "12_content_editor",
+        "sha256": "35679c043e3446e2ecbc784db2ac2107ecd261a03a71d9ec036cc4a5c853f123"
+      },
+      "data/mcq/daily_2026-11-21.json": {
+        "stage": "16_mcq_generator",
+        "sha256": "0bb92144fe5dd45bd02674fa757bc57bac91285df3da229b74c8da985603fe30"
+      },
+      "output/daily_2026-11-21.pdf": {
+        "stage": "18_pdf_design",
+        "sha256": "e63bd00df33c8ce0165646f95d2052329e83b1eefa9f311c546f74d8c6902095"
+      },
+      "logs/qa/daily_2026-11-21_qa.json": {
+        "stage": "19_pdf_qa",
+        "sha256": "4923eed0330e53e221a80a5bcf9f77917ad73d6b17298b0c1254a2f3233c8732"
+      },
+      "logs/qa/daily_2026-11-21_health.json": {
+        "stage": "24_final_health_audit",
+        "sha256": "17968d29000b29e70f656908e63c57693e536edfa891ca0aa875024729709f49"
+      }
+    },
+    "last_success_stage": "24_final_health_audit",
+    "checkpoint_run_id": "44851650973"
   }
 }
