@@ -341,7 +341,7 @@ def send_document(
     # Context manager ensures file handle is closed even on exception
     with open(doc_path, "rb") as f:
         files = {"document": (doc_path.name, f, "application/pdf")}
-        r = requests.post(_api_url("sendDocument"), data=data, files=files, timeout=120)
+        r = requests.post(_api_url("sendDocument"), data=data, files=files, timeout=300)
     return _handle_response(r, "sendDocument")
 
 
