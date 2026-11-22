@@ -23,7 +23,7 @@ tenacity==9.1.2
 python-dotenv==1.1.1
 
 # PDF generation, Hindi font support and rendering
-reportlab==4.4.3
+reportlab==4.5.1
 Pillow==11.3.0
 PyMuPDF==1.26.3
 uharfbuzz>=0.56.0
