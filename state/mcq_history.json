@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-21T07:23:24.114676+05:30",
+  "updated": "2026-11-22T06:17:31.565785+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -2568,6 +2568,111 @@
       "last_seen": "2026-11-21",
       "type": "llm-schema",
       "q": "Which statutory body took suo motu cognizance of the incident involving the transport of a woman's and her dau",
+      "published": true
+    },
+    "whichglobalfinancialinstitutionsreportdidtheprimeministercit": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which global financial institution's report did the Prime Minister cite while speaking at the IIT Kharagpur pl",
+      "published": true
+    },
+    "whichinitiativehasbeenintroducedtofostertheexpansionofhouseh": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which initiative has been introduced to foster the expansion of household piped gas networks across the countr",
+      "published": true
+    },
+    "inwhichdistrictofbihardidtheprimeministerinaugurateandlayfou": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "In which district of Bihar did the Prime Minister inaugurate and lay foundation stones for development project",
+      "published": true
+    },
+    "whichgovernmentalbodyofindiaisresponsiblefortheconductofthec": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which governmental body of India is responsible for the conduct of the country's foreign relations, as highlig",
+      "published": true
+    },
+    "duringthenationalcancergridannualmeeting2026thelaunchofncgvi": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "During the National Cancer Grid Annual Meeting 2026, the launch of NCG VISHWAS emphasized integrating screenin",
+      "published": true
+    },
+    "whichministryreleasedthedatashowinga30increaseinthecountryst": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which ministry released the data showing a 30% increase in the country's total seed exports?",
+      "published": true
+    },
+    "whichprofessionalgroupwasspecificallymentionedasvolunteering": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which professional group was specifically mentioned as volunteering to assist MSMEs under the AIPC Tamil Nadu ",
+      "published": true
+    },
+    "whichindiangovernmentbodyisresponsiblefortheconductofindiasf": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which Indian government body is responsible for the conduct of India's foreign relations as noted in the conte",
+      "published": true
+    },
+    "whichspecificvaccinationcampaignachievedthemilestoneofadmini": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which specific vaccination campaign achieved the milestone of administering 1 Crore doses in less than nine mo",
+      "published": true
+    },
+    "whenwastheapexagriculturalresearchcouncilmentionedinthenewse": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "When was the apex agricultural research council mentioned in the news established?",
+      "published": true
+    },
+    "accordingtothereportbywhatpercentagedidsilverpricesdeclineov": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "According to the report, by what percentage did silver prices decline over the past six months?",
+      "published": true
+    },
+    "whatisthetotalfinancialoutlayapprovedforthepmedrivescheme": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "What is the total financial outlay approved for the PM E-DRIVE scheme?",
+      "published": true
+    },
+    "whichbilateralagreementtalkswereadvancedduringtherecenttenda": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "Which bilateral agreement talks were advanced during the recent ten-day discussions between India and Canada t",
+      "published": true
+    },
+    "accordingtotherecentdecisionbythekolhapurdistrictcooperative": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "According to the recent decision by the Kolhapur District Cooperative Milk Producers' Union, what is the durat",
+      "published": true
+    },
+    "howmanymemorandumsofunderstandingmouswereexchangedbythenatio": {
+      "count": 1,
+      "last_seen": "2026-11-22",
+      "type": "llm-schema",
+      "q": "How many Memorandums of Understanding (MoUs) were exchanged by the National Institute of Social Defence (NISD)",
       "published": true
     }
   },
