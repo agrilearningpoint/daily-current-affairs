@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-15T02:59:53.599407+00:00",
+  "generated_at": "2026-11-22T17:26:30.257637+00:00",
   "stuck_running": [],
   "recent_failed_final": [
-    "daily_2026-11-15"
+    "weekly_2026-11-22"
   ],
   "actions": [
     {
-      "job_id": "daily_2026-11-15",
+      "job_id": "weekly_2026-11-22",
       "action": "retry"
     }
   ],
