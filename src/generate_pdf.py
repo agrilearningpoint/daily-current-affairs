@@ -43,7 +43,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, KeepTogether, HRFlowable, Image, Flowable
+    PageBreak, CondPageBreak, KeepTogether, HRFlowable, Image, Flowable
 )
 
 from PIL import Image as PILImage, ImageDraw, ImageFont, features as PILFeatures
@@ -1075,9 +1075,11 @@ BANNED_STATIC_GK_RE = re.compile(
     r"national and international sports championships|key entities, regulatory authorities|"
     r"pib headquarters|press information bureau|government of india established|president of india presents|"
     r"country\s*[-–]\s*india|capital\s*[-–]\s*new delhi|official language\s*[-–]\s*hindi|"
+    r"currency\s*[-–]\s*(?:indian\s+rupee|inr|₹)|headquarters\s*[-–]\s*new delhi|"
     r"year of independence\s*[-–]\s*1947|देश\s*[-–]\s*भारत|राजधानी\s*[-–]\s*नई दिल्ली|"
-    r"स्वतंत्रता वर्ष\s*[-–]\s*1947|आधिकारिक भाषा\s*[-–]\s*हिन्दी)\b|"
-    r"^(?:key name|first/unique)\s*–",
+    r"मुद्रा\s*[-–]\s*भारतीय\s+रुपया|स्वतंत्रता वर्ष\s*[-–]\s*1947|आधिकारिक भाषा\s*[-–]\s*हिन्दी|"
+    r"fact\s*[1-9]\s*[-–]|key name\s*[-–]|first/unique\s*[-–])\b|"
+    r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|around\s+Rs\.?|लागत\s+लगभग\s+रुपये?|रुपये\s*)$",
     re.I,
 )
 
@@ -1085,11 +1087,11 @@ BANNED_STATIC_GK_RE = re.compile(
 def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]] = None) -> List[Tuple[str, str]]:
     """Up to 6 Static GK pairs as ('Label – Value', 'लेबल – मान').
 
-    Source order: the MCQ's ``static_gk`` (LLM schema: label/value in EN+HI),
-    ``item['static_gk_pairs']`` (verified pairs from pipeline.static_gk_db),
-    and verified lookups for named entities.  Private keys and generic category
-    blurbs/boilerplate are strictly filtered out.  If no genuine factual pairs
-    are verified, returns [] so the box is omitted rather than filled with noise.
+    Strict Priority Order:
+    1. Verified entity facts from pipeline.static_gk_db (authoritative database).
+    2. Item's verified static_gk_pairs.
+    3. Supplement from MCQ's static_gk only if genuine, non-generic, and non-filler.
+    Never outputs bare Fact 1/2/3, generic capital/currency facts, or truncated sentences.
     """
     pairs: List[Tuple[str, str]] = []
     seen: set = set()
@@ -1102,22 +1104,24 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
             return
         if BANNED_STATIC_GK_RE.search(en_c):
             return
+        clean_tail = re.sub(r"[.!?।|\s]+$", "", en_c).strip()
+        if re.search(r"\b(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|around\s+Rs\.?|Rs\.?|₹)$", clean_tail, re.I):
+            return
         seen.add(en_c.lower())
         pairs.append((en_c, _hi_or_blank(hi)))
 
-    for g in (mcq or {}).get("static_gk") or []:
-        if isinstance(g, dict) and g.get("label_en") and g.get("value_en"):
-            lbl = str(g.get("label_en") or "").lower().strip()
-            val = str(g.get("value_en") or "").lower().strip()
-            if (lbl in ("country", "capital", "year of independence", "official language") and
-                val in ("india", "new delhi", "1947", "hindi")):
-                continue
-            hi = ""
-            if g.get("label_hi") and g.get("value_hi"):
-                hi = f"{g['label_hi']} – {g['value_hi']}"
-            _add(f"{g['label_en']} – {g['value_en']}", hi)
+    # 1. Primary: Look up verified entity facts from static_gk_db
+    try:
+        from pipeline.static_gk_db import lookup_static_gk_for_text
+        story_text = f"{item.get('headline_en', '')} {item.get('summary_en', '')} {item.get('raw_facts', '')}"
+        for db_en, db_hi in lookup_static_gk_for_text(story_text):
+            _add(db_en, db_hi)
+    except Exception:
+        pass
 
-    for p in item.get("static_gk_pairs") or []:
+    # 2. Check item's static_gk_pairs (direct or inside static_facts)
+    curated_pairs = item.get("static_gk_pairs") or (item.get("static_facts") or {}).get("_static_gk_pairs") or []
+    for p in curated_pairs:
         if isinstance(p, dict):
             _add(p.get("en", ""), p.get("hi", ""))
         elif isinstance(p, (list, tuple)) and p:
@@ -1125,33 +1129,34 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
         elif isinstance(p, str):
             _add(p, "")
 
-    # Look up verified entity facts from static_gk_db if pairs are sparse
-    if len(pairs) < 3:
-        try:
-            from pipeline.static_gk_db import lookup_static_gk_for_text
-            story_text = f"{item.get('headline_en', '')} {item.get('summary_en', '')}"
-            for db_en, db_hi in lookup_static_gk_for_text(story_text):
-                _add(db_en, db_hi)
-        except Exception:
-            pass
-
-    if not pairs:
-        sf = item.get("static_facts") or {}
-        if isinstance(sf, dict):
-            for k, v in sf.items():
-                if not isinstance(k, str) or k.startswith("_") or not isinstance(v, (str, int, float)):
+    # 3. Supplement from MCQ schema static_gk only if still sparse (< 4 pairs)
+    if len(pairs) < 4:
+        for g in (mcq or {}).get("static_gk") or []:
+            if isinstance(g, dict) and g.get("label_en") and g.get("value_en"):
+                lbl = str(g.get("label_en") or "").lower().strip()
+                val = str(g.get("value_en") or "").lower().strip()
+                # Strict ban on generic filler
+                if any(w in lbl for w in ("capital", "currency", "language", "independence", "pmo", "prime minister's office")):
                     continue
-                k_clean = _clean_text_for_display(k)
-                v_clean = _clean_text_for_display(v)
-                if k_clean and v_clean and not BANNED_STATIC_GK_RE.search(k_clean):
-                    _add(f"{k_clean} – {v_clean}", "")
+                if any(w in val for w in ("new delhi", "indian rupee", "hindi and english")):
+                    continue
+                hi = ""
+                if g.get("label_hi") and g.get("value_hi"):
+                    hi = f"{g['label_hi']} – {g['value_hi']}"
+                _add(f"{g['label_en']} – {g['value_en']}", hi)
 
+    # 4. Optional Exam Fact only if complete, non-dangling, and not headline echo
     if len(pairs) < 4:
         ef_en = _clean_text_for_display(item.get("exam_fact_en", ""))
-        if ef_en and len(ef_en) > 10:
-            hi = _hi_or_blank(item.get("exam_fact_hi", ""))
-            hi_val = hi if hi.startswith("परीक्षा तथ्य") else f"परीक्षा तथ्य – {hi}" if hi else ""
-            _add(f"Exam Fact – {ef_en}", hi_val)
+        clean_headline = _clean_text_for_display(re.sub(r"^\s*(?:>>|>)\s*", "", item.get("headline_en", "")))
+        if ef_en and len(ef_en) > 15 and not BANNED_STATIC_GK_RE.search(ef_en):
+            # Must not be a verbatim echo of headline
+            if ef_en.strip().lower() != clean_headline.strip().lower():
+                hi = _hi_or_blank(item.get("exam_fact_hi", ""))
+                clean_hi_tail = re.sub(r"[.!?।|\s]+$", "", hi).strip()
+                if not re.search(r"(?:लागत\s+लगभग\s+रुपये?|रुपये\s*)$", clean_hi_tail):
+                    hi_val = hi if hi.startswith("परीक्षा तथ्य") else f"परीक्षा तथ्य – {hi}" if hi else ""
+                    _add(f"Exam Fact – {ef_en}", hi_val)
 
     return pairs[:MAX_STATIC_GK_POINTS]
 
@@ -1769,7 +1774,7 @@ def _agri_corner_story(content: Dict[str, Any]) -> List[Flowable]:
         ("BACKGROUND", (0, 0), (-1, -1), AGRI_GREEN),
         ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
-    out: List[Flowable] = [PageBreak(), Anchor("agri", "Agriculture Corner | कृषि कॉर्नर", 0), band,
+    out: List[Flowable] = [CondPageBreak(PAGE_H * 0.45), Anchor("agri", "Agriculture Corner | कृषि कॉर्नर", 0), band,
                            Spacer(PRINT_W, 8 * pt)]
     num_st = ParagraphStyle("AgriEN", parent=STYLES["bullet_en"])
     for n, x in enumerate(items, 1):
@@ -1798,7 +1803,7 @@ def _quick_bites_story(content: Dict[str, Any]) -> List[Flowable]:
     bites = [b for b in (content.get("quick_bites") or []) if isinstance(b, dict) and _clean_text_for_display(b.get("en"))]
     if not bites:
         return []
-    out: List[Flowable] = [PageBreak(), Anchor("qb", "Quick Bites | क्विक बाइट्स", 0),
+    out: List[Flowable] = [CondPageBreak(PAGE_H * 0.45), Anchor("qb", "Quick Bites | क्विक बाइट्स", 0),
                            Paragraph("<b>QUICK BITES: Other Important News</b>", STYLES["oneliner_title"]),
                            text_flowable("क्विक बाइट्स: अन्य महत्वपूर्ण समाचार", STYLES["oneliner_title"]),
                            Spacer(PRINT_W, 8 * pt)]
@@ -1883,18 +1888,37 @@ def _clean_one_liner_str(text: Any) -> str:
 
 
 def _one_liner_for(item: Dict[str, Any], mcq: Dict[str, Any], content: Dict[str, Any]) -> Tuple[str, str]:
+    headline_clean = _clean_one_liner_str(re.sub(r"^\s*(?:>>|>)\s*", "", item.get("headline_en", ""))).lower()
+    
+    # 1. Check explicit one_liner in mcq
     ol = (mcq or {}).get("one_liner") or {}
     if isinstance(ol, dict) and ol.get("en"):
         en_clean = _clean_one_liner_str(ol.get("en"))
         hi_clean = _clean_one_liner_str(ol.get("hi"))
-        if en_clean:
+        if en_clean and en_clean.lower() != headline_clean and len(en_clean) >= 25:
             return en_clean, hi_clean
+
+    # 2. Check content-level one_liners
     for row in content.get("one_liners") or []:
         if isinstance(row, dict) and row.get("event_id") and row.get("event_id") == item.get("event_id"):
-            en_clean = _clean_one_liner_str(row.get("text_en"))
-            hi_clean = _clean_one_liner_str(row.get("text_hi"))
-            if en_clean:
+            en_clean = _clean_one_liner_str(row.get("text_en") or row.get("en", ""))
+            hi_clean = _clean_one_liner_str(row.get("text_hi") or row.get("hi", ""))
+            if en_clean and en_clean.lower() != headline_clean and len(en_clean) >= 25:
                 return en_clean, hi_clean
+
+    # 3. Derive rapid-revision point from summary/key points to avoid headline echo
+    summary_en = _clean_one_liner_str(item.get("summary_en", ""))
+    summary_hi = _clean_one_liner_str(item.get("summary_hi", ""))
+    if summary_en and summary_en.lower() != headline_clean and len(summary_en) >= 30:
+        first_s_en = summary_en.split(". ")[0].rstrip(".") + "."
+        first_s_hi = summary_hi.split("। ")[0].rstrip("।") + "।" if summary_hi else ""
+        return first_s_en, first_s_hi
+
+    kps_en = item.get("key_points_en") or []
+    kps_hi = item.get("key_points_hi") or []
+    if kps_en and len(kps_en[0]) >= 30 and kps_en[0].lower() != headline_clean:
+        return _clean_one_liner_str(kps_en[0]), _clean_one_liner_str(kps_hi[0] if kps_hi else "")
+
     return (_clean_one_liner_str(item.get("headline_en", "")),
             _clean_one_liner_str(item.get("headline_hi", "")))
 
@@ -2507,7 +2531,7 @@ def _generate_pdf_once(
     for u_idx, (it, unit_mcqs) in enumerate(units):
         if u_idx > 0:
             from reportlab.platypus import CondPageBreak
-            story.append(CondPageBreak(280 * pt))
+            story.append(CondPageBreak(220 * pt))
 
         cat = str(it.get("category", "National")).upper()
         headline_en = _clean_text_for_display(it.get("headline_en", ""))
@@ -2526,8 +2550,6 @@ def _generate_pdf_once(
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         ]))
         first_in_unit = True
-        # The anchor travels inside the unit's first KeepTogether block, so a link
-        # never lands on the previous page when the block is pushed to a new page.
         unit_anchor = Anchor(f"u{u_idx + 1}", f"Q{u_idx + 1}. {clip_words(headline_en, 70)}", 1 if PDF_SHOW_TOC else 0)
 
         for m in unit_mcqs:
@@ -2537,9 +2559,8 @@ def _generate_pdf_once(
             q_counter += 1
             q_idx = q_counter
 
-            block: List[Flowable] = []
             if not first_in_unit:
-                block.append(Spacer(PRINT_W, 8 * pt))
+                story.append(Spacer(PRINT_W, 8 * pt))
             if first_in_unit:
                 src_dict = it.get("source") if isinstance(it.get("source"), dict) else {}
                 src_name = _clean_text_for_display(src_dict.get("name") or it.get("source_name") or "")
@@ -2547,24 +2568,29 @@ def _generate_pdf_once(
                 if pub_date and len(pub_date) >= 10:
                     pub_date = pub_date[:10]
                 src_line = f"Source: {src_name}" + (f"  •  {pub_date}" if pub_date else "") if src_name else ""
-                block += [unit_anchor, pill]
+                
+                header_elements: List[Flowable] = [unit_anchor, pill]
                 if src_line:
-                    block.append(Spacer(PRINT_W, 2 * pt))
-                    block.append(Paragraph(f"<i>{_safe(src_line)}</i>", STYLES["caption"]))
-                block.append(Spacer(PRINT_W, 4 * pt))
-                block += _unit_photo_block(it)
-            block.append(text_flowable(f"Q{q_idx}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{q_idx}.</b> {_safe(q_en)}"))
+                    header_elements.append(Spacer(PRINT_W, 2 * pt))
+                    header_elements.append(Paragraph(f"<i>{_safe(src_line)}</i>", STYLES["caption"]))
+                header_elements.append(Spacer(PRINT_W, 4 * pt))
+                header_elements += _unit_photo_block(it)
+                story.extend(header_elements)
+
+            # Keep only Question + options + answer together (prevents 500pt orphan block)
+            ques_block: List[Flowable] = []
+            ques_block.append(text_flowable(f"Q{q_idx}. {q_en}", STYLES["ques_en"], markup=f"<b>Q{q_idx}.</b> {_safe(q_en)}"))
             q_hi = _hi_or_blank(m.get("question_hi", ""))
             if q_hi:
-                block.append(Spacer(PRINT_W, 2 * pt))
-                block.append(text_flowable(f"प्रश्न {q_idx}: {q_hi}", STYLES["ques_hi"]))
-            block.append(Spacer(PRINT_W, 4 * pt))
+                ques_block.append(Spacer(PRINT_W, 2 * pt))
+                ques_block.append(text_flowable(f"प्रश्न {q_idx}: {q_hi}", STYLES["ques_hi"]))
+            ques_block.append(Spacer(PRINT_W, 4 * pt))
 
             options = _bilingual_options(m)
             for ltr, (o_en, o_hi) in zip(_LETTERS, options):
-                block.append(_option_line(ltr, o_en, o_hi))
-                block.append(Spacer(PRINT_W, 1.5 * pt))
-            block.append(Spacer(PRINT_W, 4 * pt))
+                ques_block.append(_option_line(ltr, o_en, o_hi))
+                ques_block.append(Spacer(PRINT_W, 1.5 * pt))
+            ques_block.append(Spacer(PRINT_W, 4 * pt))
 
             correct_ltr = str(m.get("correct") or "").strip().upper()
             if correct_ltr not in _LETTERS[:len(options)]:
@@ -2577,9 +2603,8 @@ def _generate_pdf_once(
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]))
-            block.append(ans)
-            # Question + options + answer never split across pages.
-            story.append(KeepTogether(block))
+            ques_block.append(ans)
+            story.append(KeepTogether(ques_block))
             story.append(Spacer(PRINT_W, 6 * pt))
             answer_key.append((q_idx, correct_ltr, it))
 

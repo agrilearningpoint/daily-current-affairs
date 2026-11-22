@@ -605,6 +605,154 @@ ENTITY_STATIC_DB: Dict[str, Dict[str, Any]] = {
              "जल शक्ति मंत्रालय का मुख्यालय श्रम शक्ति भवन, नई दिल्ली में स्थित है।"),
         ]
     },
+    "NISD": {
+        "name_en": "National Institute of Social Defence (NISD)",
+        "name_hi": "राष्ट्रीय सामाजिक रक्षा संस्थान (NISD)",
+        "facts": [
+            ("The National Institute of Social Defence (NISD) is an autonomous body under the Ministry of Social Justice and Empowerment.",
+             "राष्ट्रीय सामाजिक रक्षा संस्थान (NISD) सामाजिक न्याय एवं अधिकारिता मंत्रालय के तहत एक स्वायत्त निकाय है।"),
+            ("NISD is headquartered in New Delhi and acts as the apex training and research institute in the field of social defence.",
+             "NISD का मुख्यालय नई दिल्ली में स्थित है और यह सामाजिक रक्षा के क्षेत्र में सर्वोच्च प्रशिक्षण एवं अनुसंधान संस्थान के रूप में कार्य करता है।"),
+            ("NISD focuses on senior citizen welfare, drug abuse prevention (NAPDDR), and rehabilitation of marginalized communities.",
+             "NISD वरिष्ठ नागरिक कल्याण, मादक द्रव्यों के सेवन की रोकथाम (NAPDDR) और हाशिए पर मौजूद वर्गों के पुनर्वास पर ध्यान केंद्रित करता है।"),
+        ]
+    },
+    "ICAR_CIWA": {
+        "name_en": "ICAR-Central Institute for Women in Agriculture (ICAR-CIWA)",
+        "name_hi": "भाकृअनुप-केंद्रीय कृषि महिला संस्थान (ICAR-CIWA)",
+        "facts": [
+            ("ICAR-Central Institute for Women in Agriculture (ICAR-CIWA) is headquartered in Bhubaneswar, Odisha.",
+             "भाकृअनुप-केंद्रीय कृषि महिला संस्थान (ICAR-CIWA) का मुख्यालय भुवनेश्वर, ओडिशा में स्थित है।"),
+            ("ICAR-CIWA was established in 1996 as the first institution in Asia dedicated exclusively to gender-related research in agriculture.",
+             "ICAR-CIWA की स्थापना 1996 में कृषि में लैंगिक अनुसंधान के लिए समर्पित एशिया के पहले संस्थान के रूप में की गई थी।"),
+            ("ICAR-CIWA functions under the Indian Council of Agricultural Research (ICAR), Ministry of Agriculture and Farmers Welfare.",
+             "ICAR-CIWA कृषि एवं किसान कल्याण मंत्रालय के भारतीय कृषि अनुसंधान परिषद (ICAR) के अंतर्गत कार्य करता है।"),
+            ("The institute focuses on participatory research, technology assessment, and drudgery reduction for farm women.",
+             "यह संस्थान महिला किसानों के लिए सहभागी अनुसंधान, प्रौद्योगिकी मूल्यांकन और श्रम-कठिनाई (drudgery) को कम करने पर केंद्रित है।"),
+        ]
+    },
+    "PNGRB": {
+        "name_en": "Petroleum and Natural Gas Regulatory Board (PNGRB)",
+        "name_hi": "पेट्रोलियम और प्राकृतिक गैस विनियामक बोर्ड (PNGRB)",
+        "facts": [
+            ("The Petroleum and Natural Gas Regulatory Board (PNGRB) was constituted under the PNGRB Act, 2006.",
+             "पेट्रोलियम और प्राकृतिक गैस विनियामक बोर्ड (PNGRB) का गठन PNGRB अधिनियम, 2006 के तहत किया गया था।"),
+            ("PNGRB functions under the Ministry of Petroleum and Natural Gas and is headquartered in New Delhi.",
+             "PNGRB पेट्रोलियम और प्राकृतिक गैस मंत्रालय के अंतर्गत कार्य करता है और इसका मुख्यालय नई दिल्ली में स्थित है।"),
+            ("PNGRB regulates refining, transportation, distribution, and marketing of petroleum products and natural gas, including City Gas Distribution (CGD) networks.",
+             "PNGRB पेट्रोलियम उत्पादों और प्राकृतिक गैस (सिटी गैस वितरण - CGD नेटवर्क सहित) के शोधन, परिवहन, वितरण और विपणन को नियंत्रित करता है।"),
+        ]
+    },
+    "CERVAVAC": {
+        "name_en": "CERVAVAC / HPV Vaccine / Cancer Grid",
+        "name_hi": "सर्वावैक (CERVAVAC) / एचपीवी टीका / कैंसर ग्रिड",
+        "facts": [
+            ("CERVAVAC is India's first indigenous quadrivalent Human Papillomavirus (qHPV) vaccine for cervical cancer prevention.",
+             "CERVAVAC सर्वाइकल कैंसर की रोकथाम के लिए भारत का पहला स्वदेशी क्वाड्रिवेलेंट ह्यूमन पैपिलोमावायरस (qHPV) टीका है।"),
+            ("CERVAVAC was jointly developed by the Serum Institute of India (SII) and the Department of Biotechnology (DBT).",
+             "CERVAVAC को सीरम इंस्टीट्यूट ऑफ इंडिया (SII) और जैव प्रौद्योगिकी विभाग (DBT) द्वारा संयुक्त रूप से विकसित किया गया था।"),
+            ("The vaccine confers protection against HPV types 16, 18, 6, and 11, which cause the vast majority of cervical cancer cases.",
+             "यह टीका HPV प्रकार 16, 18, 6 और 11 के खिलाफ सुरक्षा प्रदान करता है, जो सर्वाइकल कैंसर के अधिकांश मामलों के लिए जिम्मेदार हैं।"),
+        ]
+    },
+    "VAISHALI_PROJECTS": {
+        "name_en": "Vaishali Development Projects / Nitish Setu",
+        "name_hi": "वैशाली विकास परियोजनाएं / नीतीश सेतु",
+        "facts": [
+            ("The 9.76-km six-lane bridge named 'Nitish Setu' over the Ganga connects Bidupur in Vaishali to Kachchi Dargah in Patna.",
+             "गंगा नदी पर 9.76 किमी लंबा छह-लेन पुल 'नीतीश सेतु' वैशाली के बिदुपुर को पटना के कच्ची दरगाह से जोड़ता है।"),
+            ("Vaishali is historically celebrated as the capital of the Licchavi republic, one of the earliest known constitutional republics in world history.",
+             "वैशाली ऐतिहासिक रूप से लिच्छवी गणराज्य की राजधानी के रूप में प्रसिद्ध है, जिसे विश्व इतिहास के सबसे प्रारंभिक ज्ञात गणराज्यों में से एक माना जाता है।"),
+            ("Lord Mahavira was born at Kundagram in Vaishali, and Lord Buddha delivered his last sermon at Kolhua, Vaishali.",
+             "भगवान महावीर का जन्म वैशाली के कुंडाग्राम में हुआ था और भगवान बुद्ध ने अपना अंतिम उपदेश वैशाली के कोल्हुआ में दिया था।"),
+        ]
+    },
+    "GOKUL_DAIRY": {
+        "name_en": "Kolhapur Milk Union (Gokul) / Dairy Sector",
+        "name_hi": "कोल्हापुर दुग्ध संघ (गोकुल) / डेयरी क्षेत्र",
+        "facts": [
+            ("The Kolhapur District Cooperative Milk Producers Union (brand name 'Gokul') was established in 1963 in Maharashtra.",
+             "कोल्हापुर जिला सहकारी दुग्ध उत्पादक संघ ('गोकुल' ब्रांड) की स्थापना 1963 में महाराष्ट्र में हुई थी।"),
+            ("The National Dairy Development Board (NDDB) was established in 1965 in Anand, Gujarat, under Dr. Verghese Kurien.",
+             "राष्ट्रीय डेयरी विकास बोर्ड (NDDB) की स्थापना 1965 में आणंद, गुजरात में डॉ. वर्गीज कुरियन के नेतृत्व में हुई थी।"),
+            ("India is the world's largest milk producer, contributing over 24% of global milk output following Operation Flood (1970).",
+             "ऑपरेशन फ्लड (1970) के बाद से भारत विश्व का सबसे बड़ा दूध उत्पादक देश है, जो वैश्विक दुग्ध उत्पादन में 24% से अधिक का योगदान देता है।"),
+        ]
+    },
+    "SEED_EXPORTS": {
+        "name_en": "Seed Industry / National Seeds Corporation (NSC)",
+        "name_hi": "बीज उद्योग / राष्ट्रीय बीज निगम (NSC)",
+        "facts": [
+            ("The National Seeds Corporation (NSC) was established in March 1963 under the Ministry of Agriculture and Farmers Welfare.",
+             "राष्ट्रीय बीज निगम (NSC) की स्थापना मार्च 1963 में कृषि एवं किसान कल्याण मंत्रालय के तहत की गई थी।"),
+            ("The Seeds Act, 1966 regulates the quality and certification of seeds sold for agricultural purposes in India.",
+             "बीज अधिनियम, 1966 भारत में कृषि उपयोग के लिए बेचे जाने वाले बीजों की गुणवत्ता और प्रमाणीकरण को नियंत्रित करता है।"),
+            ("India has harmonized its seed standards with OECD Seed Schemes to boost international seed trade and exports.",
+             "भारत ने अंतरराष्ट्रीय बीज व्यापार और निर्यात को बढ़ावा देने के लिए अपने बीज मानकों को OECD बीज योजनाओं के साथ समन्वित किया है।"),
+        ]
+    },
+    "IIT_KHARAGPUR": {
+        "name_en": "IIT Kharagpur & World Bank",
+        "name_hi": "आईआईटी खड़गपुर एवं विश्व बैंक",
+        "facts": [
+            ("IIT Kharagpur was established in 1951 at the historic Hijli Detention Camp as India's first Indian Institute of Technology.",
+             "आईआईटी खड़गपुर की स्थापना 1951 में ऐतिहासिक हिजली डिटेंशन कैंप में भारत के पहले भारतीय प्रौद्योगिकी संस्थान के रूप में हुई थी।"),
+            ("IIT Kharagpur was inaugurated by Education Minister Maulana Abul Kalam Azad and declared an Institute of National Importance under the IIT Act, 1961.",
+             "आईआईटी खड़गपुर का उद्घाटन शिक्षा मंत्री मौलाना अबुल कलाम आज़ाद ने किया था और इसे आईआईटी अधिनियम 1961 के तहत राष्ट्रीय महत्व का संस्थान घोषित किया गया था।"),
+            ("The World Bank was established in July 1944 at the Bretton Woods Conference and is headquartered in Washington, D.C.",
+             "विश्व बैंक की स्थापना जुलाई 1944 में ब्रेटन वुड्स सम्मेलन में हुई थी और इसका मुख्यालय वाशिंगटन, डी.सी. में स्थित है।"),
+        ]
+    },
+    "MSME_SECTOR": {
+        "name_en": "MSME Sector in India",
+        "name_hi": "भारत में एमएसएमई क्षेत्र",
+        "facts": [
+            ("The Micro, Small and Medium Enterprises Development (MSMED) Act was enacted in 2006 to promote and develop MSMEs in India.",
+             "भारत में एमएसएमई को बढ़ावा देने और विकसित करने के लिए 2006 में सूक्ष्म, लघु और मध्यम उद्यम विकास (MSMED) अधिनियम पारित किया गया था।"),
+            ("Under the revised July 2020 composite criteria: Micro (Investment <= ₹1 Cr, Turnover <= ₹5 Cr); Small (Investment <= ₹10 Cr, Turnover <= ₹50 Cr); Medium (Investment <= ₹50 Cr, Turnover <= ₹250 Cr).",
+             "जुलाई 2020 के संशोधित समग्र मानदंडों के तहत: सूक्ष्म (निवेश <= ₹1 करोड़, टर्नओवर <= ₹5 करोड़); लघु (निवेश <= ₹10 करोड़, टर्नओवर <= ₹50 करोड़); मध्यम (निवेश <= ₹50 करोड़, टर्नओवर <= ₹250 करोड़)।"),
+            ("The MSME sector contributes approximately 30% to India's GDP and accounts for nearly 45% of India's total exports.",
+             "एमएसएमई क्षेत्र भारत के सकल घरेलू उत्पाद में लगभग 30% का योगदान देता है और भारत के कुल निर्यात में लगभग 45% हिस्सेदारी रखता है।"),
+        ]
+    },
+    "COMMODITY_MARKETS": {
+        "name_en": "Commodity Derivatives & Precious Metals Markets",
+        "name_hi": "कमोडिटी डेरिवेटिव्स एवं कीमती धातु बाजार",
+        "facts": [
+            ("The Multi Commodity Exchange of India (MCX) was established in November 2003 and is headquartered in Mumbai, Maharashtra.",
+             "मल्टी कमोडिटी एक्सचेंज ऑफ इंडिया (MCX) की स्थापना नवंबर 2003 में हुई थी और इसका मुख्यालय मुंबई, महाराष्ट्र में स्थित है।"),
+            ("Commodity derivatives trading in India is regulated by SEBI since September 2015 following the merger of the Forward Markets Commission (FMC).",
+             "वायदा बाजार आयोग (FMC) के विलय के बाद सितंबर 2015 से भारत में कमोडिटी डेरिवेटिव्स ट्रेडिंग सेबी (SEBI) द्वारा विनियमित है।"),
+            ("India is among the world's largest consumers and importers of physical silver and gold, traded on domestic bullion bourses.",
+             "भारत भौतिक चांदी और सोने के दुनिया के सबसे बड़े उपभोक्ताओं और आयातकों में से एक है, जिसका कारोबार घरेलू बुलियन एक्सचेंजों पर होता है।"),
+        ]
+    },
+    "INDIA_CANADA_TRADE": {
+        "name_en": "India-Canada Bilateral Economic & Agricultural Trade",
+        "name_hi": "भारत-कनाडा द्विपक्षीय आर्थिक एवं कृषि व्यापार",
+        "facts": [
+            ("India and Canada negotiate the Comprehensive Economic Partnership Agreement (CEPA) and Early Progress Trade Agreement (EPTA) to expand bilateral trade.",
+             "भारत और कनाडा द्विपक्षीय व्यापार बढ़ाने के लिए व्यापक आर्थिक साझेदारी समझौते (CEPA) और प्रारंभिक प्रगति व्यापार समझौते (EPTA) पर बातचीत कर रहे हैं।"),
+            ("Canada is one of India's primary overseas suppliers of agricultural pulses (notably yellow peas and lentils) as well as potash fertilizers.",
+             "कनाडा कृषि दालों (विशेष रूप से पीली मटर और मसूर) के साथ-साथ पोटाश उर्वरकों का भारत का एक प्रमुख विदेशी आपूर्तिकर्ता है।"),
+            ("Bilateral merchandise and services trade between India and Canada exceeds $10 billion annually across critical minerals, agriculture, and IT sectors.",
+             "भारत और कनाडा के बीच महत्वपूर्ण खनिजों, कृषि और आईटी क्षेत्रों में द्विपक्षीय वस्तु और सेवा व्यापार सालाना 10 अरब डॉलर से अधिक है।"),
+        ]
+    },
+    "NETHERLANDS_BILATERAL": {
+        "name_en": "India-Netherlands Strategic Partnership",
+        "name_hi": "भारत-नीदरलैंड्स रणनीतिक साझेदारी",
+        "facts": [
+            ("Diplomatic relations between India and the Kingdom of the Netherlands were established in 1947, marking over 75 years of bilateral ties.",
+             "भारत और नीदरलैंड्स के बीच 1947 में राजनयिक संबंध स्थापित हुए थे, जो 75 से अधिक वर्षों के द्विपक्षीय संबंधों का प्रतीक हैं।"),
+            ("India and the Netherlands established a Strategic Partnership on Water in April 2021 focusing on clean river missions, flood management, and urban water reuse.",
+             "भारत और नीदरलैंड्स ने अप्रैल 2021 में स्वच्छ नदी मिशन, बाढ़ प्रबंधन और शहरी जल पुनर्चक्रण पर केंद्रित 'जल पर रणनीतिक साझेदारी' की स्थापना की।"),
+            ("The Netherlands hosts Indo-Dutch Centres of Excellence (CoE) in Agriculture for polyhouse vegetables, floriculture, and dairy technology.",
+             "नीदरलैंड्स पॉलीहाउस सब्जियों, पुष्पकृषि और डेयरी प्रौद्योगिकी के लिए भारत में इंडो-डच सेंटर ऑफ एक्सीलेंस (CoE) का संचालन करता है।"),
+            ("The International Court of Justice (ICJ) and Permanent Court of Arbitration (PCA) are headquartered at the Peace Palace in The Hague, Netherlands.",
+             "अंतर्राष्ट्रीय न्यायालय (ICJ) और स्थायी मध्यस्थता न्यायालय (PCA) हेग, नीदरलैंड्स में पीस पैलेस में स्थित हैं।"),
+        ]
+    },
 }
 
 # Distractor Semantic Pools for 5-Option Bilingual MCQs
@@ -764,6 +912,18 @@ def lookup_static_gk_for_text(text: str) -> List[Tuple[str, str]]:
         ("INVESTOR EDUCATION AND PROTECTION FUND", "IEPFA"), ("IEPFA", "IEPFA"),
         ("NIVESHAK SHIVIR", "IEPFA"),
         ("ICGEB", "ICGEB"), ("INTERNATIONAL CENTRE FOR GENETIC ENGINEERING", "ICGEB"),
+        ("NATIONAL INSTITUTE OF SOCIAL DEFENCE", "NISD"), ("NISD", "NISD"),
+        ("ICAR-CIWA", "ICAR_CIWA"), ("CIWA", "ICAR_CIWA"), ("CENTRAL INSTITUTE FOR WOMEN IN AGRICULTURE", "ICAR_CIWA"),
+        ("PNGRB", "PNGRB"), ("DOMESTIC PNG", "PNGRB"), ("PIPED NATURAL GAS", "PNGRB"), ("PNG CONNECTIONS", "PNGRB"),
+        ("HPV", "CERVAVAC"), ("CERVAVAC", "CERVAVAC"), ("CERVICAL CANCER", "CERVAVAC"), ("NCG VISHWAS", "CERVAVAC"),
+        ("VAISHALI", "VAISHALI_PROJECTS"), ("NITISH SETU", "VAISHALI_PROJECTS"), ("34,470", "VAISHALI_PROJECTS"),
+        ("GOKUL", "GOKUL_DAIRY"), ("KOLHAPUR DISTRICT COOPERATIVE", "GOKUL_DAIRY"),
+        ("SEED EXPORT", "SEED_EXPORTS"), ("SEED EXPORTS", "SEED_EXPORTS"), ("SEEDS ACT", "SEED_EXPORTS"),
+        ("IIT KHARAGPUR", "IIT_KHARAGPUR"), ("KHARAGPUR", "IIT_KHARAGPUR"), ("BREAK LIMITS", "IIT_KHARAGPUR"),
+        ("MSME", "MSME_SECTOR"), ("MSMES", "MSME_SECTOR"), ("AIPC", "MSME_SECTOR"),
+        ("SILVER", "COMMODITY_MARKETS"), ("METALS", "COMMODITY_MARKETS"), ("MCX", "COMMODITY_MARKETS"), ("BULLION", "COMMODITY_MARKETS"),
+        ("CANADA", "INDIA_CANADA_TRADE"), ("CEPA", "INDIA_CANADA_TRADE"), ("EPTA", "INDIA_CANADA_TRADE"),
+        ("NETHERLANDS", "NETHERLANDS_BILATERAL"), ("BERENDSEN", "NETHERLANDS_BILATERAL"), ("DICK SCHOOF", "NETHERLANDS_BILATERAL"),
     ]
 
     for needle, key in matches:

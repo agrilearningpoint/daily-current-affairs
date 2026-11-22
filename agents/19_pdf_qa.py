@@ -649,6 +649,28 @@ def check_editorial_quality(report: QAReport, text: str) -> None:
                    "PDF contains publisher subscription/account UI text",
                    sample=paywall_ui.group(0))
 
+    # 12. Truncated / dangling sentence check (P0 critical defect)
+    dangling_sentence_re = re.compile(
+        r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|costing\s+Rs\.?|around\s+Rs\.?|"
+        r"लागत\s+लगभग\s+रुपये?|रुपये\s*(?:\n|$))",
+        re.IGNORECASE
+    )
+    ds_match = dangling_sentence_re.search(text)
+    if ds_match:
+        report.add("error", "truncated_dangling_sentence",
+                   f"PDF contains truncated sentence ending mid-thought: '{ds_match.group(0).strip()}'")
+
+    # 13. Meaningless Static GK Fact 1 or empty key check (P1 defect)
+    static_filler_re = re.compile(
+        r"(?:•\s*Fact\s*1\s*[-–—]\s*₹|•\s*Exam\s*Fact\s*[-–—]\s*.*worth\s+around\s+Rs|"
+        r"•\s*[-–—]\s*(?:New\s+Delhi|Indian\s+Rupee)|Currency\s*[-–—]\s*Indian\s+Rupee)",
+        re.IGNORECASE
+    )
+    sf_match = static_filler_re.search(text)
+    if sf_match:
+        report.add("error", "static_gk_filler_defect",
+                   f"PDF contains meaningless Fact 1 or generic currency filler in Static GK: '{sf_match.group(0).strip()}'")
+
 
 def check_text_content(report: QAReport, text: str) -> None:
     report.total_chars = len(text)

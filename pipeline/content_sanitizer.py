@@ -46,10 +46,40 @@ _TERMINALS = (".", "!", "?", "…", "।", '"', "'", ")")
 SHALLOW_RAW_WORDS = 20
 
 
-def clip_dangling(text: str) -> str:
+DANGLING_SENTENCE_ENDINGS = re.compile(
+    r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|costing\s+Rs\.?|around\s+Rs\.?|"
+    r"\b(?:Rs|₹)\.?|\b(?:at|in|on|with|by|for|of|to|and|the|a|an)\s*|"
+    r"लागत\s+लगभग\s+रुपये?|लगभग\s+रुपये?|रुपये\s*|के\s+लिए\s*|में\s*|को\s*|और\s*)$",
+    re.IGNORECASE
+)
+
+
+def repair_dangling_sentence(text: str, fallback_title: str = "") -> str:
+    """Detects and repairs truncated sentences ending with dangling currencies, prepositions, or incomplete thoughts."""
+    if not text:
+        return ""
+    t = str(text).strip()
+    clean_tail = re.sub(r"[.!?।|\s]+$", "", t).strip()
+    if DANGLING_SENTENCE_ENDINGS.search(clean_tail):
+        if fallback_title and len(fallback_title) > 25:
+            # Reconstruct from complete title
+            clean_fb = re.sub(r"^\s*(?:>>|>)\s*", "", fallback_title).strip()
+            return clean_fb.rstrip(".") + "."
+        repaired = DANGLING_SENTENCE_ENDINGS.sub("", clean_tail).strip()
+        if len(repaired) > 25:
+            return repaired.rstrip(".,") + "."
+        elif fallback_title:
+            return fallback_title.strip()
+    return t
+
+
+def clip_dangling(text: str, fallback_title: str = "") -> str:
     """Never print a sentence that stops mid-thought: cut at the last complete
-    sentence when that keeps most of the line, otherwise mark the truncation."""
+    sentence when that keeps most of the line, otherwise repair or mark the truncation."""
     t = (text or "").strip()
+    if not t:
+        return ""
+    t = repair_dangling_sentence(t, fallback_title)
     if len(t) < 40 or t.endswith(_TERMINALS):
         return t
     idx = t.rfind(". ")

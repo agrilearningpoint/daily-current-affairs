@@ -411,14 +411,8 @@ def extract_static_facts(item):
     item = item or {}
     src = _norm_ws(_plain_headline(item.get("headline_en")) + " | " + (item.get("raw_facts") or ""))
     facts = {}
-    for i, n in enumerate(_clean_nums(src)[:3]):
-        facts["Fact %d" % (i + 1)] = n
-    firsts = re.findall(r"[^.;|]{0,60}\bFirst[- ][^.;|]{0,60}", src, re.I)
-    if firsts and _norm_ws(firsts[0]):
-        facts["First/Unique"] = _clip(firsts[0], 120)
-    ents = [e for e in _extract_entities(src) if len(e) > 4][:2]
-    if ents:
-        facts["Key Name"] = ", ".join(ents)      # display only - never used as an MCQ answer
+    # Do NOT dump raw numbers as Fact 1, Fact 2 without entity context.
+    # Instead, lookup curated entity static GK from static_gk_db
     try:
         from pipeline.static_gk_db import lookup_static_gk_for_text
         gk_pairs = lookup_static_gk_for_text(src)
@@ -454,27 +448,34 @@ def clean_hindi_editorial(text: str) -> str:
 def exam_fact(item):
     item = item or {}
     cand = str(item.get("exam_fact_en") or "").strip()
+    from pipeline.content_sanitizer import repair_dangling_sentence
+    headline = _plain_headline(item.get("headline_en") or "").strip()
+    
     if cand and not any(phrase.lower() in cand.lower() for phrase in [
         "key statutory bodies", "implementing ministries", "macroeconomic indicators",
         "key crop statistics", "key entities, regulatory"
     ]):
+        cand = repair_dangling_sentence(cand, headline)
         return cand
     try:
         from pipeline.static_gk_db import lookup_static_gk_for_text
         pairs = lookup_static_gk_for_text(str(item.get("headline_en") or "") + " " + str(item.get("raw_facts") or ""))
         if pairs:
-            return f"{pairs[0][0]}: {pairs[0][1]}"
+            return f"{pairs[0][0]}"
     except Exception:
         pass
     kps = item.get("key_points_en") or []
     if kps:
-        return str(kps[0])
+        repaired = repair_dangling_sentence(str(kps[0]), headline)
+        if len(repaired) > 20:
+            return repaired
     summary = str(item.get("summary_en") or "").strip()
     if summary:
-        return summary
-    headline = _plain_headline(item.get("headline_en") or "").strip()
+        repaired = repair_dangling_sentence(summary, headline)
+        if len(repaired) > 20:
+            return repaired
     if headline:
-        return headline
+        return repair_dangling_sentence(headline)
     return "Key exam fact"
 
 

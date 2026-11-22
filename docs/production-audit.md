@@ -1,141 +1,90 @@
-# Production Architecture & Pipeline Audit — daily-current-affairs
-
-**Audit Date:** 2026-11-17  
-**Auditor:** Principal Python Architect / SRE / QA Lead  
-**Baseline Artifact:** `daily_2026-11-17.pdf` (34 pages, SHA-256: `ed544c065b7ae8797b4243aea03a81b98b8f404b2b547a9ae68a4d38f2890f12`)  
-**Target Audience:** UPSSSC AGTA, IBPS AFO, ICAR T-3/T-4, ICAR JRF, NABARD, FCI, and State Agriculture Examinations  
-**Brand:** Agri Learning Point • BY SATYAM SIR & TEAM  
+# PRODUCTION AUDIT REPORT — AGRI LEARNING POINT
+**Date:** 2026-11-22  
+**Baseline Reference Edition:** `daily_2026-11-22.pdf` (Original SHA256: `312ef6b817557fa3d0b75c554fe29e1f8d841d5dd44f6c7056eb2e579d2950dc`)  
+**Auditor:** Principal AI Systems Architect & QA Lead
 
 ---
 
-## 1. Pipeline Dependency Mapping & Stage Contracts
+## 1. Executive Summary
+An exhaustive audit of the Agri Learning Point production codebase and the primary reference PDF `daily_2026-11-22.pdf` was conducted. While the pipeline successfully published the edition on 22 November 2026 via GitHub Actions, deep inspection revealed several high-severity defects that compromise editorial quality, exam relevance, and mobile reading experience.
 
-The production pipeline executes 18 registered stages sequentially, coordinated by `main.py` through `DAILY_STAGES`:
+---
 
-```
-00_model_orchestrator
-       │
-01_source_fetch ─────────────► data/raw/daily_YYYY-MM-DD.json
-       │
-04_fact_verification ───────► data/verified/daily_YYYY-MM-DD.json
-       │
-05_deduplication ────────────► data/dedup/daily_YYYY-MM-DD.json
-       │
-06_news_importance ──────────► data/scored/daily_YYYY-MM-DD.json
-       │
-07_student_domain_relevance ─► [Annotates domain exam relevance]
-       │
-10_final_news_selection ─────► data/selected/daily_YYYY-MM-DD.json (15 items)
-       │
-11_importance_memory ────────► state/importance_memory.json
-       │
-12_content_editor ───────────► data/content/daily_YYYY-MM-DD.json
-       │
-16_mcq_generator ────────────► data/mcq/daily_YYYY-MM-DD.json
-       │
-17_mcq_validator ────────────► [Validates 5 options, answer key, Devanagari]
-       │
-17b_auto_sections ───────────► [Quick Bites & Agriculture Corner in content]
-       │
-17c_static_gk_validator ─────► [Validates officeholders & static facts]
-       │
-18_pdf_design ───────────────► output/daily_YYYY-MM-DD.pdf
-       │
-19_pdf_qa ───────────────────► logs/qa/daily_YYYY-MM-DD_qa.json
-       │
-22_telegram_publisher ───────► [Sends PDF to Telegram supergroup]
-       │
-23_telegram_pin_verifier ────► state/pin_verification.json
-       │
-24_final_health_audit ───────► logs/qa/daily_YYYY-MM-DD_health.json
-```
+## 2. Defects Identified in `daily_2026-11-22.pdf`
 
-### Detailed Stage Contracts
-
-| Stage | Module | Critical? | Inputs | Outputs | Failure Mode & Recovery |
+| Defect ID | Severity | Page(s) | Description | Root Cause | Responsible Module |
 |---|---|---|---|---|---|
-| **00** | `agents/00_model_orchestrator.py` | Yes | Environment / Providers | Router status | Fails fast if no valid LLM provider or fallback exists |
-| **01** | `pipeline/01_source_fetch.py` | Yes | RSS/GNews feeds, PIB | `data/raw/*.json` | Network retries, tier-1/tier-2 official source registry |
-| **04** | `agents/04_fact_verification.py` | Yes | `data/raw/*.json` | `data/verified/*.json` | Verifies claims, drops unverified headlines |
-| **05** | `agents/05_deduplication.py` | Yes | `data/verified/*.json` | `data/dedup/*.json` | Semantic & lexical fingerprint deduplication |
-| **06** | `agents/06_news_importance.py` | Yes | `data/dedup/*.json` | `data/scored/*.json` | Scores 0-100 based on exam & policy significance |
-| **07** | `agents/07_student_domain_relevance.py` | Yes | `data/scored/*.json` | Annotated scored items | Boosts agriculture, rural development, finance, schemes |
-| **10** | `agents/10_final_news_selection.py` | Yes | `data/scored/*.json` | `data/selected/*.json` | Selects exactly 15 top stories (min 4 agriculture) |
-| **11** | `agents/11_importance_memory.py` | Yes | `data/selected/*.json` | `state/importance_memory.json` | Cross-edition deduplication & event history |
-| **12** | `agents/12_content_editor.py` | Yes | `data/selected/*.json` | `data/content/*.json` | Bilingual editorial generation (EN+HI), exam takeaways |
-| **16** | `agents/16_mcq_generator.py` | Yes | `data/content/*.json` | `data/mcq/*.json` | LLM schema generation with deterministic template fallback |
-| **17** | `agents/17_mcq_validator.py` | Yes | `data/mcq/*.json` | Validated MCQs | Fail-closed gate: 5 options, source text grounding |
-| **17b** | `agents/17b_auto_sections.py` | No (Daily) | `data/content/*.json` | Enriched content | Quick Bites & Agriculture Corner generation (fail-soft) |
-| **17c** | `agents/17c_static_gk_validator.py` | No | `data/content/*.json`, `data/mcq/*.json` | Atomically updated JSON | Strict officeholder check against `config/current_facts.json` |
-| **18** | `agents/18_pdf_design.py` | Yes | Content & MCQ JSON | `output/*.pdf` | ReportLab + HarfBuzz Devanagari 2-pass compilation |
-| **19** | `agents/19_pdf_qa.py` | Yes | Generated PDF | QA JSON report | 8-layer release gate: structural, density, character thresholds |
-| **22** | `agents/22_telegram_publisher.py` | Yes | Generated PDF | Sent Telegram msg | Uploads document to group, records message ID |
-| **23** | `agents/23_telegram_pin_verifier.py` | Yes | Telegram msg ID | Pinned confirmation | Pins message in supergroup, logs status |
-| **24** | `agents/24_final_health_audit.py` | Yes | All stage logs | Audit summary | Validates entire run integrity before job completion |
+| **DEF-01** | **P0 (Critical)** | Page 9 & 35 | Incomplete truncated sentence: *"dedicates to the nation development projects worth around Rs."* and in Hindi *"परियोजनाओं को, जिनकी लागत लगभग रुपये"* | Truncated feed summary from external source scraper was accepted without sentence completeness validation. | `pipeline/content.py`, `pipeline/content_sanitizer.py`, `agents/19_pdf_qa.py` |
+| **DEF-02** | **P1 (Major)** | Page 9 | Static GK label/value meaningless: `Fact 1 – ₹34,470 crore` without entity context or explanation. | `extract_static_facts()` dumps raw regex numbers as `Fact 1` when curated Static GK is missing. | `pipeline/content.py`, `src/generate_pdf.py` |
+| **DEF-03** | **P1 (Major)** | Page 9 & 15 | Generic MCQ question angle & duplicate question in same edition: Q4 and Q8 both ask *"Which governmental body of India is responsible for the conduct of the country's foreign relations? Answer: MEA"* despite Q4 being about the 1st SCO Civilisational Dialogue Forum. | LLM fallback prompt defaults to generic nodal ministry questions; no intra-edition concept deduplication gate exists. | `pipeline/mcq_schema.py`, `agents/16_mcq_generator.py`, `agents/17_mcq_validator.py` |
+| **DEF-04** | **P2 (Visual/Layout)** | Page 20 & 29 | Massive empty whitespace (over 70% blank page): Page 20 contains only Q10 Static GK; Page 29 contains only Q15 explanation remainder and a headline copy. | Overly large `KeepTogether` block enclosing header + photo + question + options + answer (~500pt) forces page breaks prematurely. | `src/generate_pdf.py` |
+| **DEF-05** | **P1 (Editorial)** | Page 21 & 23 | Static GK filler & empty keys: Q11 and Q12 display empty keys with generic filler (`Indian Rupee (₹)`, `New Delhi`, `Hindi and English`). | Fallback static GK extraction outputs dictionary values with empty label strings. | `pipeline/content.py`, `src/generate_pdf.py`, `pipeline/static_gk_db.py` |
+| **DEF-06** | **P1 (Editorial)** | Page 29 | Headline copy presented as Static GK: `Exam Fact – NISD Exchanges 23 MoUs with Universities and Institutions...` | When curated Static GK is missing, `exam_fact` falls back to the headline string. | `pipeline/content.py`, `src/generate_pdf.py` |
+| **DEF-07** | **P1 (Educational)** | Page 30 | Agriculture Corner lacks educational depth: contains 6 raw headlines and 2 generic facts instead of structured exam learning cards. | `agents/17b_auto_sections.py` only collects raw headlines for Agriculture Corner. | `agents/17b_auto_sections.py`, `src/generate_pdf.py` |
+| **DEF-08** | **P2 (Editorial)** | Page 34 & 35 | One-Liners duplicate main story headlines word-for-word rather than providing rapid revision points. | One-liner generation defaults to story summary/headline without distinct prompt objective. | `pipeline/content.py`, `src/generate_pdf.py` |
+| **DEF-09** | **P1 (Editorial)** | Page 1 & 2 | Editorial story ranking not prioritized by exam & agricultural importance: top story Q1 is a general speech rather than national seed export growth or regional ICAR fair. | Selection stage orders stories primarily by fetch time/general importance score rather than exam & domain relevance. | `agents/10_final_news_selection.py`, `pipeline/content.py` |
 
 ---
 
-## 2. Root Cause Analysis of 17 November 2026 Baseline Defects
+## 3. End-to-End Pipeline Stage Mapping
 
-Inspection of `output/daily_2026-11-17.pdf` (34 pages) revealed the following concrete root causes:
-
-### 1. Factual Acronym Collision (Q13 / Page 21-22) — P0 Critical
-- **Defect:** Story 13 reports CCPA penalising ExportersIndia.com for listing hazardous chemicals (ammonium nitrate, PETN, picric acid). The MCQ explanation and Static GK expand CCPA as "Chief Controller of Explosives", assign its parent ministry as "Ministry of Home Affairs", and governing Act as "Explosives Act, 1884".
-- **Root Cause:** CCPA in government releases is the **Central Consumer Protection Authority** (established under the Consumer Protection Act, 2019, under the Ministry of Consumer Affairs, Food & Public Distribution). The LLM associated "explosives" in the headline with "explosives controller", hallucinating the wrong expansion. Neither `agents/17_mcq_validator.py` nor `agents/17c_static_gk_validator.py` had an entity acronym verification layer to trap acronym collisions.
-- **Remediation:** Implement an authoritative entity/acronym registry in `pipeline/static_gk_db.py` and strict acronym collision validation in `agents/static_gk_validator.py` and `agents/19_pdf_qa.py`.
-
-### 2. Broken Question Syntax & Dangling Prepositions (Q1 / Page 4) — P1 Major
-- **Defect:** `Q1. Which State / Union Territory is associated with the following development: "IEPFA and SEBI to Organize ‘Niveshak Shivir’ in to Empower Investors and Simplify Grievance Redressal and…"?`
-- **Root Cause:** Deterministic headline substitution in `pipeline/mcq_builder.py` truncated `"in New Delhi to Empower"` into `"in to Empower"`, producing a grammatically broken, dangling preposition question.
-- **Remediation:** Enhance question grammar and semantic cleaning in `pipeline/mcq_builder.py` and `pipeline/content.py` to prevent broken token splits and validate natural phrasing.
-
-### 3. Numerical Conflation in Crop Insurance Question (Q3 / Page 6-7) — P1 Major
-- **Defect:** Q3 asks: `What is the key figure / financial outlay associated with: "El Nino impact drives record surge in crop insurance registrations across"?` Options: 180%, 135%, 21 per cent, 45%. But the story text describes 37.5 lakh farmers in Kharif 2026 vs 20.91 lakh in Kharif 2025.
-- **Root Cause:** A generic numerical regex picked percentages from unrelated sentences, testing numbers that conflicted with the actual core metric of the article (farmer registrations).
-- **Remediation:** Anchor numerical MCQs to the specific metric tested (registrations vs outlays vs growth rates) and prohibit cross-context number insertion.
-
-### 4. Trivial News Agency Recognition Questions (Q6 & Q9 / Pages 11 & 16) — P1 Major
-- **Defect:** Q6: `Which news agency reported the launch of the Agri Welfare Portal?` (Answer: DD News). Q9: `Which news agency reported the Cabinet's approval of the Semicon 2.0 scheme?` (Answer: DD News).
-- **Root Cause:** The LLM was instructed to test only facts in NEWS; seeing `"Source: DD News"`, it repeatedly fell back to trivial agency-identification questions.
-- **Remediation:** Add an explicit prohibition against agency-identification stems (`\bWhich news agency reported\b`, `\bWhich media outlet reported\b`) across prompts and validators. MCQs must test scheme outlays, implementing ministries, objectives, and policy significance.
-
-### 5. News vs Historical GK Disconnect (Q11 / Page 18-19) — P1 Major
-- **Defect:** Story 11 is about "Sustainable Natural Resource Management Training", but the MCQ asks `When was the Indian Council of Agricultural Research (ICAR) established?`
-- **Root Cause:** When an article lacks clear quantitative data, the generator replaced the entire question with a generic institutional establishment date, completely ignoring the news event.
-- **Remediation:** Ensure the MCQ tests the substantive news event (training mandate, target domain, sustainable agriculture) while delegating historical founding dates to the Static GK box.
-
-### 6. Generic Country Boilerplate Static GK (Page 26) — P2 Quality Defect
-- **Defect:** Page 26 Static GK: `Country – India`, `Capital – New Delhi`, `Official language – Hindi`, `Year of independence – 1947`.
-- **Root Cause:** LLM hallucinated generic national facts when unable to find entity-specific institutional facts, and `_extract_static_gk_pairs` only filtered category blurbs, not national boilerplate.
-- **Remediation:** Add strict filter patterns for generic national facts (`Country – India`, `Capital – New Delhi`, `Year of Independence`) across `pipeline/mcq_schema.py`, `pipeline/static_gk_db.py`, and `src/generate_pdf.py`.
-
-### 7. Verbatim Headline Copying in Explanations & One-Liners (Pages 4-26, 33-34) — P2 Quality Defect
-- **Defect:** Explanations repeated article timestamps (`Updated - November 17, 2026 12:59 am IST - Bengaluru...`) and copied verbatim headlines into One-Liners.
-- **Root Cause:** Missing timestamp scrubbing in `pipeline/content.py` and lack of rapid-revision synthesis in `agents/17b_auto_sections.py`.
-- **Remediation:** Implement regex filters for datelines and timestamps, and enforce distinct learning takeaways in One-Liners.
-
-### 8. Whitespace Imbalance in News in Pictures (Page 3) — P2 Visual Defect
-- **Defect:** 5 cards in a 3-column grid produced 3 cards on Row 1 and 2 cards on Row 2 with a large blank gap on the bottom right.
-- **Root Cause:** Column count calculation `ncol = 2 if n <= 4 else 3` selected 3 columns for 5 cards instead of a balanced grid or selecting the top 4 verified photos.
-- **Remediation:** Update layout algorithm in `src/generate_pdf.py` so that 5 cards are balanced or structured without orphan slots.
+```
+[01_source_fetch] (RSS, PIB, GNews, Official Feeds)
+       │
+       ▼
+[04_fact_verification] (Claim extraction, official domain cross-check)
+       │
+       ▼
+[05_deduplication] (URL hash, Title similarity, Event cluster dedup)
+       │
+       ▼
+[06_news_importance] (Scoring: Scope, Authority, Economic impact)
+       │
+       ▼
+[07_student_domain_relevance] (AGTA, AFO, ICAR syllabus keyword matching)
+       │
+       ▼
+[10_final_news_selection] (Top 15 stories + 10 reserve candidates)
+       │
+       ▼
+[12_content_editor] (Bilingual headline, summary, key points, explanation)
+       │
+       ▼
+[16_mcq_generator] (Reference MCQ schema, 5 options, bilingual explanation)
+       │
+       ▼
+[17_mcq_validator] (Deterministic rules, polarity, answer traceability)
+       │
+       ▼
+[17b_auto_sections] (Agriculture Corner, Quick Bites, One-Liners)
+       │
+       ▼
+[17c_static_gk_validator] (Strict officeholders & stale facts checking)
+       │
+       ▼
+[18_pdf_design] (ReportLab, Mukta/Poppins HarfBuzz Devanagari shaping)
+       │
+       ▼
+[19_pdf_qa] (9 Release Gates: Text integrity, QA score >= 90)
+       │
+       ▼
+[22_telegram_publisher] (Telegram Bot API document dispatch)
+       │
+       ▼
+[23_telegram_pin_verifier] (Supergroup message pin confirmation)
+       │
+       ▼
+[24_final_health_audit] (End-of-day health state verification)
+```
 
 ---
 
-## 3. Corrective Architecture Blueprint
-
-1. **Entity & Acronym Validation Layer:**
-   - Central registry in `pipeline/static_gk_db.py` mapping acronyms to authoritative full names, parent ministries, governing Acts, and headquarters.
-   - Validation stage in `agents/static_gk_validator.py` and release gate in `agents/19_pdf_qa.py`.
-2. **Advanced MCQ Engine:**
-   - 18 exam question types supported in `pipeline/mcq_schema.py` and `pipeline/mcq_builder.py`.
-   - Strict semantic validation forbidding agency questions, dangling prepositions, and headline verbatim stems.
-3. **Smart Contextual Static GK:**
-   - Automatic lookup of verified entity facts from `pipeline/static_gk_db.py`.
-   - Complete ban on generic country boilerplate (India/New Delhi/1947).
-4. **Distinct Rapid-Revision Sections:**
-   - Quick Bites = secondary news briefs.
-   - One-Liners = distilled high-yield facts (Dates, Outlays, Acts, Ministries).
-   - Agriculture Corner = exam-oriented concepts (Agronomy, Schemes, ICAR institutes).
-5. **PDF Visual Balance & Multi-Layer QA:**
-   - Responsive, gap-free gallery layouts.
-   - 8-layer QA gate failing release on critical factual contradictions or broken answer keys.
+## 4. Immediate Remediation Action Plan
+1. Implement `tests/test_nov22_defects.py` to reproduce all 9 defects deterministically.
+2. Fix sentence completeness and sanitize truncated feeds in `pipeline/content.py` and `pipeline/content_sanitizer.py`.
+3. Eliminate `Fact 1` raw dumps and empty key static GK filler in `src/generate_pdf.py` and `pipeline/static_gk_db.py`.
+4. Fix SCO Civilisational Dialogue MCQ and enforce intra-edition MCQ concept deduplication.
+5. Upgrade layout engine in `src/generate_pdf.py` to prevent orphaned pages and huge whitespace on Pages 20 and 29.
+6. Upgrade Agriculture Corner with structured exam learning cards.
+7. Upgrade rapid-revision One-Liners to be distinct from story headlines.
+8. Enforce QA Gate in `agents/19_pdf_qa.py` to fail-closed on any dangling sentence endings.
