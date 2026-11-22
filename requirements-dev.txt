@@ -12,7 +12,7 @@
 # -----------------------------------------------------------------------------
 pytest==8.3.3                  # Test framework
 pytest-cov==5.0.0              # Coverage reporting
-pytest-mock==3.14.0            # Mocking utilities
+pytest-mock==3.16.0            # Mocking utilities
 pytest-asyncio==0.24.0         # Async test support
 pytest-timeout==2.3.1          # Test timeout guard
 
