@@ -2672,9 +2672,9 @@
       "start": "2026-11-16T00:00:00+05:30",
       "end": "2026-11-22T23:59:59.999999+05:30"
     },
-    "github_run_id": "45010386924",
-    "status": "failed",
-    "updated_at": "2026-11-22T10:04:10.948540+00:00",
+    "github_run_id": "45049465689",
+    "status": "running",
+    "updated_at": "2026-11-22T17:27:12.167920+00:00",
     "started_at": "2026-11-22T10:02:24.834764+00:00",
     "artifacts": {},
     "last_success_stage": "00_model_orchestrator",
