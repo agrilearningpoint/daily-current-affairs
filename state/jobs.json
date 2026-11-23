@@ -2663,7 +2663,7 @@
     "checkpoint_run_id": "44967415158"
   },
   "weekly_2026-11-22": {
-    "run_attempts": 3,
+    "run_attempts": 4,
     "job_id": "weekly_2026-11-22",
     "job_type": "weekly",
     "job_date": "2026-11-22",
@@ -2673,13 +2673,13 @@
       "end": "2026-11-22T23:59:59.999999+05:30"
     },
     "github_run_id": "45104323979",
-    "status": "running",
-    "updated_at": "2026-11-23T03:10:54.414221+00:00",
-    "started_at": "2026-11-22T22:43:03.327940+00:00",
+    "status": "failed",
+    "updated_at": "2026-11-23T03:12:30.848564+00:00",
+    "started_at": "2026-11-23T03:10:58.242460+00:00",
     "artifacts": {},
-    "checkpoint_run_id": "45079181158",
+    "checkpoint_run_id": "45104323979",
     "last_success_stage": "00_model_orchestrator",
-    "last_error": "20_weekly_editor: failed after 3 attempt(s):          ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 237, in main\n    return build(get_context())\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_builder.py\", line 2024, in build\n    result = build_period(ctx.job_type, ctx.job_date, editions, dates)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_builder.py\", line 1983, in build_period\n    raise ValueError(f\"{job_type} {job_date}: {qa['bullets_missing_hi']} of {qa['bullets_expected']} story \"\nValueError: weekly 2026-11-22: 9 of 63 story bullets have no clean Hindi (14% > allowed); edition not built",
+    "last_error": "20_weekly_editor: failed after 3 attempt(s):          ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 237, in main\n    return build(get_context())\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_builder.py\", line 2024, in build\n    result = build_period(ctx.job_type, ctx.job_date, editions, dates)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_builder.py\", line 1983, in build_period\n    raise ValueError(f\"{job_type} {job_date}: {qa['bullets_missing_hi']} of {qa['bullets_expected']} story \"\nValueError: weekly 2026-11-22: 7 of 63 story bullets have no clean Hindi (11% > allowed); edition not built",
     "failed_stage": "20_weekly_editor"
   },
   "daily_2026-11-23": {
