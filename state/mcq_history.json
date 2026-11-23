@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-22T06:17:31.565785+05:30",
+  "updated": "2026-11-23T06:49:13.944535+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1982,10 +1982,10 @@
       "published": true
     },
     "whichstateunionterritoryisassociatedwiththefollowingdevelopm": {
-      "count": 2,
-      "last_seen": "2026-11-19",
+      "count": 3,
+      "last_seen": "2026-11-23",
       "type": "place-state",
-      "q": "Which State / Union Territory is associated with the following development: \"line with PM Shri Narendra Modi’s",
+      "q": "Which State / Union Territory is associated with the following development: \"500 mn lifted out of poverty, but",
       "published": true
     },
     "unionhomeministershriamitshahrecentlyvisitedtheregionaloffic": {
@@ -2673,6 +2673,97 @@
       "last_seen": "2026-11-22",
       "type": "llm-schema",
       "q": "How many Memorandums of Understanding (MoUs) were exchanged by the National Institute of Social Defence (NISD)",
+      "published": true
+    },
+    "whichregulatoryframeworkispunjabnationalbankexpectedtomigrat": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which regulatory framework is Punjab National Bank expected to migrate to from 1 April 2027, triggering an add",
+      "published": true
+    },
+    "whichassociationwrotetothefinanceministerrequestingthattheba": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which association wrote to the Finance Minister requesting that the basic customs duty on primary aluminium be",
+      "published": true
+    },
+    "whichinstitutehostedthefivedayhrdprogrammeonintegratedpestma": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which institute hosted the five‑day HRD programme on Integrated Pest Management in Nagpur?",
+      "published": true
+    },
+    "whichjudicialbodydeliveredthejudgmenton18november2026thatimp": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which judicial body delivered the judgment on 18 November 2026 that imposed a 1‑km construction restriction ar",
+      "published": true
+    },
+    "whichindianministryistaskedwithhandlingthecountrysforeignrel": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which Indian ministry is tasked with handling the country's foreign relations?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsgopublicorstayprivat": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Go public or stay private: Tata Sons gears up for decision thi",
+      "published": true
+    },
+    "whichautonomousbodyresponsibleforpublicbroadcastinglaunchedt": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which autonomous body responsible for public broadcasting launched the first script‑pitching initiative “Page ",
+      "published": true
+    },
+    "whichministryisresponsibleforannouncingthejointlogofortheind": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which ministry is responsible for announcing the joint logo for the India‑Japan Year of Shared Horizons 2027?",
+      "published": true
+    },
+    "whichorganizationhasbeenassignedtheresponsibilitytoacquireth": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which organization has been assigned the responsibility to acquire the 997 acres of land in Singur?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsbondmarketsignalssof": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Bond market signals softer tightening as crude prices retreat\"",
+      "published": true
+    },
+    "inwhichmonthhasorbitaidscheduleditssatelliterefuellingdemons": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "In which month has OrbitAID scheduled its satellite refuelling demonstration?",
+      "published": true
+    },
+    "whichministrydoesthepetroleumplanningandanalysiscellppacbelo": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which ministry does the Petroleum Planning and Analysis Cell (PPAC) belong to?",
+      "published": true
+    },
+    "whichchineseagencyestablishedaworkinggroupunderitschiefcheny": {
+      "count": 1,
+      "last_seen": "2026-11-23",
+      "type": "llm-schema",
+      "q": "Which Chinese agency established a working group under its chief Chen Yixin to acquire and smuggle advanced se",
       "published": true
     }
   },

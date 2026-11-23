@@ -592,6 +592,16 @@
       "published_at": "2026-11-22T09:19:41.033757+00:00",
       "status": "success",
       "pinned": true
+    },
+    "0e0e07c8dcc1e030784357ce": {
+      "job_id": "daily_2026-11-23",
+      "chat_id": "-1004485392227",
+      "message_id": 254,
+      "file_hash": "6756a71405e582b5",
+      "file_sha256": "6756a71405e582b508265d9a3b3c84a62b9add7fcc588e387d51b7594d1981e4",
+      "file": "daily_2026-11-23.pdf",
+      "published_at": "2026-11-23T01:19:13.935532+00:00",
+      "status": "success"
     }
   }
 }
