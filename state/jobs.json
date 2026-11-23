@@ -2681,5 +2681,19 @@
     "last_success_stage": "00_model_orchestrator",
     "last_error": "20_weekly_editor: failed after 3 attempt(s):          ^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/agents/20_weekly_editor.py\", line 237, in main\n    return build(get_context())\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_builder.py\", line 2024, in build\n    result = build_period(ctx.job_type, ctx.job_date, editions, dates)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/daily-current-affairs/daily-current-affairs/pipeline/period_builder.py\", line 1983, in build_period\n    raise ValueError(f\"{job_type} {job_date}: {qa['bullets_missing_hi']} of {qa['bullets_expected']} story \"\nValueError: weekly 2026-11-22: 9 of 63 story bullets have no clean Hindi (14% > allowed); edition not built",
     "failed_stage": "20_weekly_editor"
+  },
+  "daily_2026-11-23": {
+    "run_attempts": 0,
+    "job_id": "daily_2026-11-23",
+    "job_type": "daily",
+    "job_date": "2026-11-23",
+    "dry_run": false,
+    "window": {
+      "start": "2026-11-22T06:00:00+05:30",
+      "end": "2026-11-23T06:00:00+05:30"
+    },
+    "github_run_id": "45092408445",
+    "status": "running",
+    "updated_at": "2026-11-23T01:04:50.331393+00:00"
   }
 }
