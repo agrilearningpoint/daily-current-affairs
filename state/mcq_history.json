@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-23T06:49:13.944535+05:30",
+  "updated": "2026-11-24T10:41:26.750176+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -2764,6 +2764,111 @@
       "last_seen": "2026-11-23",
       "type": "llm-schema",
       "q": "Which Chinese agency established a working group under its chief Chen Yixin to acquire and smuggle advanced se",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsspcutsindiafy28gdpfo": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"S&P cuts India FY28 GDP forecast to 7%, expects rate hike in D",
+      "published": true
+    },
+    "whichauthorityapprovedthers33660croreplantodevelop100industr": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which authority approved the Rs 33,660 crore plan to develop 100 industrial parks?",
+      "published": true
+    },
+    "whichministryisresponsibleforconductingindiasforeignrelation": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which ministry is responsible for conducting India’s foreign relations?",
+      "published": true
+    },
+    "whichministryisthenodalministryforthenationalhpvvaccinationc": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which ministry is the nodal ministry for the National HPV Vaccination campaign that achieved administering ove",
+      "published": true
+    },
+    "whatistheproposeddurationoftheaitransformationschemethatnass": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "What is the proposed duration of the AI transformation scheme that Nasscom has recommended for the Union Budge",
+      "published": true
+    },
+    "thecabinetapprovedschemeaimstoscaleupwhichtypeofproduction": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "The Cabinet‑approved scheme aims to scale up which type of production?",
+      "published": true
+    },
+    "whichindianministryistaskedwithconductingthecountrysforeignr": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which Indian ministry is tasked with conducting the country's foreign relations?",
+      "published": true
+    },
+    "thegvamentionedinthereportpertainstowhichsectoroftheindianec": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "The GVA mentioned in the report pertains to which sector of the Indian economy?",
+      "published": true
+    },
+    "whatistheprimarycommoditytargetedbythemissionforaatmanirbhar": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "What is the primary commodity targeted by the Mission for Aatmanirbharta?",
+      "published": true
+    },
+    "whichschemeprovidesinsurancecovertofarmersagainstcroplossdue": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which scheme provides insurance cover to farmers against crop loss due to natural calamities?",
+      "published": true
+    },
+    "whatisthetotalfinancialoutlayannouncedfortheschemeaimedatboo": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "What is the total financial outlay announced for the scheme aimed at boosting mobile phone manufacturing in In",
+      "published": true
+    },
+    "whichindianministryisresponsibleforconductingindiasforeignre": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which Indian ministry is responsible for conducting India's foreign relations as mentioned in the news?",
+      "published": true
+    },
+    "whichsectorsstockswerereportedtohaveledthemarketdeclineonnov": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which sector's stocks were reported to have led the market decline on November 23, 2024?",
+      "published": true
+    },
+    "whichjudicialbodyapprovedtheonetimesettlementschemeforthepay": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "llm-schema",
+      "q": "Which judicial body approved the one-time settlement scheme for the payment default case?",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsdraftcommercialbanks": {
+      "count": 1,
+      "last_seen": "2026-11-24",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Draft - (Commercial Banks - Responsible Business Conduct) Fift",
       "published": true
     }
   },
