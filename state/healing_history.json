@@ -106,6 +106,22 @@
       "attempt": 3,
       "resume_stage": "18_pdf_design",
       "action_taken": "Enforced _HindiTextFlowable RAQM/Pillow shaping and adaptive CondPageBreak(160) layout."
+    },
+    {
+      "job_id": "weekly_2026-11-22",
+      "timestamp": "2026-11-25T08:57:51.472399+00:00",
+      "category": "github_actions_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
+    },
+    {
+      "job_id": "daily_2026-11-25",
+      "timestamp": "2026-11-25T08:57:51.474169+00:00",
+      "category": "pdf_generation_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
     }
   ],
   "budgets": {
