@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-24T10:41:26.750176+05:30",
+  "updated": "2026-11-25T09:22:23.645298+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -1814,11 +1814,11 @@
       "published": true
     },
     "inwhichcitywastheglobalspiritualpalaceretreatcentreinaugurat": {
-      "count": 1,
-      "last_seen": "2026-11-15",
+      "count": 2,
+      "last_seen": "2026-11-25",
       "type": "llm-schema",
       "q": "In which city was the 'Global Spiritual Palace' retreat centre inaugurated during the launch of the 'Spiritual",
-      "published": true
+      "published": false
     },
     "whichministryorganizedtheexhibitionofartisansproductsatthe45": {
       "count": 1,
@@ -1982,11 +1982,11 @@
       "published": true
     },
     "whichstateunionterritoryisassociatedwiththefollowingdevelopm": {
-      "count": 3,
-      "last_seen": "2026-11-23",
+      "count": 4,
+      "last_seen": "2026-11-25",
       "type": "place-state",
-      "q": "Which State / Union Territory is associated with the following development: \"500 mn lifted out of poverty, but",
-      "published": true
+      "q": "Which State / Union Territory is associated with the following development: \"Contract awarded to ITI Ltd. for ",
+      "published": false
     },
     "unionhomeministershriamitshahrecentlyvisitedtheregionaloffic": {
       "count": 1,
@@ -2129,11 +2129,11 @@
       "published": true
     },
     "underwhichlegislationwastheagriculturalandprocessedfoodprodu": {
-      "count": 1,
-      "last_seen": "2026-11-18",
+      "count": 2,
+      "last_seen": "2026-11-25",
       "type": "llm-schema",
       "q": "Under which legislation was the Agricultural and Processed Food Products Export Development Authority (APEDA) ",
-      "published": true
+      "published": false
     },
     "whichorganisationisassociatedwiththenewswheatsowingdown15sof": {
       "count": 1,
@@ -2809,11 +2809,11 @@
       "published": true
     },
     "whichindianministryistaskedwithconductingthecountrysforeignr": {
-      "count": 1,
-      "last_seen": "2026-11-24",
+      "count": 2,
+      "last_seen": "2026-11-25",
       "type": "llm-schema",
       "q": "Which Indian ministry is tasked with conducting the country's foreign relations?",
-      "published": true
+      "published": false
     },
     "thegvamentionedinthereportpertainstowhichsectoroftheindianec": {
       "count": 1,
@@ -2870,6 +2870,83 @@
       "type": "org-pool",
       "q": "Which organisation is associated with the news \"Draft - (Commercial Banks - Responsible Business Conduct) Fift",
       "published": true
+    },
+    "whereisthenationalmilkday2026scheduledtobehostedalongwiththe": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "Where is the National Milk Day 2026 scheduled to be hosted along with the dedication of major dairy and livest",
+      "published": false
+    },
+    "whenwastheapexdevelopmentbankmentionedinthegoaruralconferenc": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "When was the apex development bank mentioned in the Goa rural conference news established?",
+      "published": false
+    },
+    "whichministryofthegovernmentofindiaistaskedwithconductingind": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "Which ministry of the Government of India is tasked with conducting India's foreign relations?",
+      "published": false
+    },
+    "whichorganisationisassociatedwiththenewsapprovessbimftoacqui": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"approves SBI MF to acquire up to 9.99% stake in South Indian B",
+      "published": false
+    },
+    "whichorganisationisassociatedwiththenewsiifclipogovttopartsa": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"IIFCL IPO: Govt to part sale stake, company to issue fresh sha",
+      "published": false
+    },
+    "accordingtothereporthowmanyindianstateshavedeclareddroughtin": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "According to the report, how many Indian states have declared drought in certain parts because of the deficien",
+      "published": false
+    },
+    "underwhichlegislativeenactmentwasthebodyresponsibleforflaggi": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "Under which legislative enactment was the body responsible for flagging off the export shipment from Farrukhab",
+      "published": false
+    },
+    "whatistheapprovedpriceperquintalforcultivatorsofthesweetcrop": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "What is the approved price per quintal for cultivators of the sweet crop for the 2026-27 season?",
+      "published": false
+    },
+    "whichseniorbjpleaderwasreportedtohavegreetedthesadchiefwitha": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "Which senior BJP leader was reported to have greeted the SAD chief with a 'CM' gesture during the alliance rev",
+      "published": false
+    },
+    "whichofthefollowingfooditemsisreportedtohaveexperiencedapric": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "Which of the following food items is reported to have experienced a price rise due to higher feed and fodder c",
+      "published": false
+    },
+    "intheopeninggameofthetournamentheldingenevawhichspecificdefe": {
+      "count": 1,
+      "last_seen": "2026-11-25",
+      "type": "llm-schema",
+      "q": "In the opening game of the tournament held in Geneva, which specific defensive opening strategy did Indian gra",
+      "published": false
     }
   },
   "concepts": {
