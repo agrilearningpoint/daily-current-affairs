@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-25T09:22:23.645298+05:30",
+  "updated": "2026-11-26T08:41:35.372376+05:30",
   "questions": {
     "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
       "count": 1,
@@ -2947,6 +2947,111 @@
       "type": "llm-schema",
       "q": "In the opening game of the tournament held in Geneva, which specific defensive opening strategy did Indian gra",
       "published": false
+    },
+    "whichentityapprovedthe64314croreallocationforconstructing223": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which entity approved the ₹643.14 crore allocation for constructing 223 bridges in Madhya Pradesh?",
+      "published": true
+    },
+    "whatisthetotalfinancialoutlayapprovedbythecabinetfortheconti": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "What is the total financial outlay approved by the Cabinet for the continuation of the Postal Operations Schem",
+      "published": true
+    },
+    "whatistheestimatedcostapprovedbythecabinetforthedevelopmento": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "What is the estimated cost approved by the Cabinet for the development of the new aviation infrastructure proj",
+      "published": true
+    },
+    "inwhichdistrictoftamilnaduwasthebirdfluoutbreakconfirmedlead": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "In which district of Tamil Nadu was the bird flu outbreak confirmed, leading to a drop in wholesale commodity ",
+      "published": true
+    },
+    "whichministryisthenodalministryforthejaljeevanmission20": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which ministry is the nodal ministry for the Jal Jeevan Mission 2.0?",
+      "published": true
+    },
+    "theadvisoryreleasedbytheministryofwomenandchilddevelopmentpe": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "The advisory released by the Ministry of Women and Child Development pertains to which observance?",
+      "published": true
+    },
+    "whichunionministermadethestatementaboutthedeclineinindiasext": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which Union minister made the statement about the decline in India's extreme poverty rate?",
+      "published": true
+    },
+    "whichconstitutionalbodygaveitsapprovalforthenewlyannouncedru": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which constitutional body gave its approval for the newly announced rural development scheme with a multi‑bill",
+      "published": true
+    },
+    "howmanydecisionswereapprovedbythebiharcabinetinthatmeeting": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "How many decisions were approved by the Bihar Cabinet in that meeting?",
+      "published": true
+    },
+    "whichproductcategorieshaveemergedaskeygrowthdriversforindian": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which product categories have emerged as key growth drivers for Indian sellers participating in Amazon's Globa",
+      "published": true
+    },
+    "whatisthetotaloutlayapprovedbythecabinetforthesecondcontaine": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "What is the total outlay approved by the Cabinet for the second container terminal at Kamarajar Port?",
+      "published": true
+    },
+    "whichspecificinitiativeshavebeengivenafiveyearextensionbythe": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which specific initiatives have been given a five-year extension by the Union Cabinet to modernise the postal ",
+      "published": true
+    },
+    "accordingtotherecentregulatoryproposaltradingmembersmaybeper": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "According to the recent regulatory proposal, trading members may be permitted to release funds to eligible cli",
+      "published": true
+    },
+    "atwhichinternationalartexhibitiondidtheindiapavilionreceivet": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "At which international art exhibition did the India Pavilion receive the Visitors’ Lion for Best National Pavi",
+      "published": true
+    },
+    "whichcountryscabinetrecentlyapprovedabidtojoinbricsreceiving": {
+      "count": 1,
+      "last_seen": "2026-11-26",
+      "type": "llm-schema",
+      "q": "Which country's cabinet recently approved a bid to join BRICS, receiving support from India's External Affairs",
+      "published": true
     }
   },
   "concepts": {
