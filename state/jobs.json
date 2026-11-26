@@ -2873,5 +2873,19 @@
     "last_error": "19_pdf_qa: failed after 3 attempt(s):             15\nAnswer markers:  16\nDuplicate Qs:    0\nDistinct stems:  14 (6-word prefixes)\nURLs:            0\nImages:          399\nBlank pages:     none\nSubstantive pgs: 34 (min page chars 289)\nNear-empty pgs:  [35]\n\n--- Issues ---\n  [WARN] [near_empty_pages] 1 near-empty/heading-only page(s): [35]\n  [ERROR] [explanation_dateline_leakage] PDF contains unstripped news dateline/timestamp: 'Updated - November 25, 2026'\n  [WARN] [title_only_stories] 1 headline-only story (no body/bullets), e.g. '>> NABARD Goa Organises State Rural Development Conference in Goa; Estimates Credit Potent'\n  [INFO] [few_photos] 7 real news photos (target 10)\n========================================================================\n\n2026-11-25 09:48:47 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa",
     "checkpoint_run_id": "45588800534"
+  },
+  "daily_2026-11-26": {
+    "run_attempts": 0,
+    "job_id": "daily_2026-11-26",
+    "job_type": "daily",
+    "job_date": "2026-11-26",
+    "dry_run": false,
+    "window": {
+      "start": "2026-11-25T06:00:00+05:30",
+      "end": "2026-11-26T06:00:00+05:30"
+    },
+    "github_run_id": "45746010041",
+    "status": "running",
+    "updated_at": "2026-11-26T03:00:04.878245+00:00"
   }
 }
