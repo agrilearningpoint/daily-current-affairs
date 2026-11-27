@@ -26,6 +26,7 @@ import logging
 import os
 import re
 import threading
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -45,18 +46,20 @@ def _mask(text: str) -> str:
 
 
 class _Service:
-    """Run-scoped guard for one keyed API: key lookup, call budget, off-switch."""
+    """Run-scoped guard for one keyed API: key lookup, call budget, pacing, off-switch."""
 
-    def __init__(self, name: str, env: str, default_budget: int):
+    def __init__(self, name: str, env: str, default_budget: int, default_min_interval: float = 0.0):
         self.name = name
         self.env = env
         self.default_budget = default_budget
+        self.default_min_interval = default_min_interval
         self._lock = threading.Lock()
         self.reset()
 
     def reset(self) -> None:
         self.calls = 0
         self.off_reason = ""
+        self.last_call_at = 0.0
 
     @property
     def key(self) -> str:
@@ -68,6 +71,33 @@ class _Service:
             return int(os.getenv(f"ALP_{self.name.upper()}_MAX_CALLS", "") or self.default_budget)
         except ValueError:
             return self.default_budget
+
+    @property
+    def min_interval(self) -> float:
+        if os.getenv("ALP_DISCOVERY_NO_SLEEP") == "1":
+            return 0.0
+        raw = os.getenv(f"ALP_{self.name.upper()}_MIN_INTERVAL", "").strip()
+        if raw:
+            try:
+                return max(0.0, float(raw))
+            except ValueError:
+                return self.default_min_interval
+        # Under pytest without an explicit override, skip wall-clock waits so unit tests stay fast.
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return 0.0
+        return self.default_min_interval
+
+    def pace(self) -> None:
+        """Pause between consecutive calls so 1 req/s or burst limits (GNews 429) never trip."""
+        gap = self.min_interval
+        if gap <= 0:
+            return
+        with self._lock:
+            if self.last_call_at > 0:
+                wait = self.last_call_at + gap - time.monotonic()
+                if wait > 0:
+                    time.sleep(wait)
+            self.last_call_at = time.monotonic()
 
     def enabled(self) -> bool:
         return bool(self.key) and not self.off_reason
@@ -105,10 +135,10 @@ class _Service:
                 "budget": self.budget, "off_reason": self.off_reason}
 
 
-SERPER = _Service("serper", "SERPER_API_KEY", 25)
-GNEWS = _Service("gnews", "GNEWS_API_KEY", 4)
-NEWSDATA = _Service("newsdata", "NEWSDATA_API_KEY", 3)
-JINA = _Service("jina", "JINA_API_KEY", 20)
+SERPER = _Service("serper", "SERPER_API_KEY", 25, default_min_interval=1.5)
+GNEWS = _Service("gnews", "GNEWS_API_KEY", 4, default_min_interval=12.0)
+NEWSDATA = _Service("newsdata", "NEWSDATA_API_KEY", 3, default_min_interval=4.0)
+JINA = _Service("jina", "JINA_API_KEY", 20, default_min_interval=1.0)
 _SERVICES = (SERPER, GNEWS, NEWSDATA, JINA)
 _SERVICE_ENV = {s.name: s.env for s in _SERVICES}
 
@@ -129,6 +159,7 @@ def _get(service: _Service, url: str, *, params=None, headers=None, json_body=No
     """One guarded request. Returns the 200 response or None (already logged)."""
     if not service.take():
         return None
+    service.pace()
     try:
         if method == "POST":
             r = requests.post(url, headers=headers, json=json_body, timeout=timeout or _TIMEOUT)

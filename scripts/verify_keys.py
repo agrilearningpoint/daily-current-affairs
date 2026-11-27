@@ -114,17 +114,21 @@ def guarded(fn: Callable[[], Result]) -> Result:
 
 def preferred(provider: str) -> Tuple[str, ...]:
     try:
-        from pipeline.ai_router import _PREFERRED_MODELS
-        return tuple(_PREFERRED_MODELS.get(provider, ()))
+        from pipeline import ai_router
+        if os.getenv("ALP_MODEL_AUTO_DISCOVERY", "1") == "1":
+            for p in ai_router._build_default_providers():
+                if p.name == provider and p.models:
+                    return tuple(p.models)
+        return tuple(ai_router._PREFERRED_MODELS.get(provider, ()))
     except Exception:
         return ()
 
 
 def chat(url: str, key: str, models: Tuple[str, ...], extra_headers: Optional[dict] = None,
          timeout: float = TIMEOUT) -> Result:
-    """Tiny OpenAI-compatible chat; a 404/410 moves to the next model (max 3)."""
+    """Tiny OpenAI-compatible chat; a 404/410/429 moves to the next free model (max 4)."""
     last: Result = ("FAIL", None, "no model to try")
-    for model in [m for m in models if m][:3]:
+    for model in [m for m in models if m][:4]:
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
         headers.update(extra_headers or {})
         r = requests.post(url, headers=headers, timeout=timeout, json={
@@ -134,6 +138,9 @@ def chat(url: str, key: str, models: Tuple[str, ...], extra_headers: Optional[di
             last = ("FAIL", r.status_code, f"model {model} retired/not found")
             continue
         status, code, reason = classify(r, f"model {model} answered")
+        if code == 429:
+            last = (status, code, f"{model}: {reason}")
+            continue
         return status, code, reason if status != "FAIL" else f"{model}: {reason}"
     return last
 

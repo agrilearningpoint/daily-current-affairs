@@ -150,8 +150,14 @@ jobs:
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'auto' }}
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'auto' }}
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL || 'auto' }}
+          COHERE_MODEL: ${{ vars.COHERE_MODEL || 'auto' }}
+          LLM7_MODEL: ${{ vars.LLM7_MODEL || 'auto' }}
+          HUGGINGFACE_MODEL: ${{ vars.HUGGINGFACE_MODEL || 'auto' }}
+          ALP_LLM: "auto"
           # "auto" = provider catalogue se live free model khud chuna jaata hai (pipeline/ai_router.py)
           ALP_MODEL_AUTO_DISCOVERY: "1"
+          ALP_AI_CALL_INTERVAL: "1.5"
+          ALP_GNEWS_MIN_INTERVAL: "15"
           ALP_TRANSLATION_WAIT_BUDGET: "300"
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
           # publish=false (manual dispatch only) parks the edition before 22_telegram_publisher.

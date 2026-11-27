@@ -58,8 +58,9 @@ def test_nvidia_default_endpoint_and_model(monkeypatch):
                   if provider.name == "nvidia")
 
     assert nvidia.url == "https://integrate.api.nvidia.com/v1/chat/completions"
-    assert nvidia.model == "meta/llama-3.2-90b-vision-instruct"  # "auto" default
-    assert nvidia.models == ["meta/llama-3.2-90b-vision-instruct"]
+    assert nvidia.model == "meta/llama-3.3-70b-instruct"  # "auto" default
+    assert nvidia.models[0] == "meta/llama-3.3-70b-instruct"
+    assert "meta/llama-3.2-90b-vision-instruct" not in nvidia.models
 
 
 def test_pollinations_configured_endpoint_and_model(monkeypatch):
@@ -233,14 +234,14 @@ def test_legacy_nvidia_helper_uses_openai_compatible_transport(monkeypatch):
     def post(url, *, headers, json, timeout):
         assert url == "https://integrate.api.nvidia.com/v1/chat/completions"
         assert headers["Authorization"] == f"Bearer {secret}"
-        assert json["model"] == "meta/llama-3.2-90b-vision-instruct"
+        assert json["model"] == "meta/llama-3.3-70b-instruct"
         assert json["messages"] == [{"role": "user", "content": "Say hello"}]
         assert timeout == 60
         return Response()
 
     monkeypatch.setattr(requests, "post", post)
     assert llm_helper.call_nvidia("Say hello") == (
-        "Hello", "nvidia/meta/llama-3.2-90b-vision-instruct"
+        "Hello", "nvidia/meta/llama-3.3-70b-instruct"
     )
 
 

@@ -52,11 +52,18 @@ def test_siliconflow_base_url_override_is_honoured(monkeypatch):
 def test_auto_picks_live_preferred_model_and_skips_retired(monkeypatch):
     provider = ai_router.Provider(name="nvidia", url="https://x/v1/chat/completions", key="k",
                                   model="meta/llama-3.3-70b-instruct")
-    live = ["nvidia/nemotron-3-super-120b-a12b", "openai/gpt-oss-20b", "nvidia/nemotron-3.5-embed-1b"]
-    # NVIDIA is preferred-only: nothing reviewed is advertised → no pick.
-    assert ai_router._choose_live_model(provider, live) is None
-    live.append("meta/llama-3.2-90b-vision-instruct")
-    assert ai_router._choose_live_model(provider, live) == "meta/llama-3.2-90b-vision-instruct"
+    # Retired (meta/llama-3.2-90b-vision-instruct, openai/gpt-oss-20b) and embed
+    # models must never be chosen, while live active NIM instruct/nemotron models
+    # are discovered automatically and ranked best-first.
+    live = ["meta/llama-3.2-90b-vision-instruct", "openai/gpt-oss-20b",
+            "nvidia/nemotron-3.5-embed-1b", "nvidia/nemotron-3-super-120b-a12b"]
+    assert ai_router._choose_live_model(provider, live) == "nvidia/nemotron-3-super-120b-a12b"
+    live.append("meta/llama-3.3-70b-instruct")
+    assert ai_router._choose_live_model(provider, live) == "meta/llama-3.3-70b-instruct"
+    # Even when preferred models are exhausted, retired vision model is still rejected.
+    assert ai_router._choose_live_model(
+        provider, live, {"meta/llama-3.3-70b-instruct", "nvidia/nemotron-3-super-120b-a12b"}
+    ) is None
 
 
 def test_openrouter_catalogue_is_free_only():

@@ -5,12 +5,17 @@ on:
     # GitHub cron is best-effort (2026-11-03: the 04:05 IST cron fired at 09:09 IST),
     # so several idempotent triggers are used. Every run resolves the same IST
     # edition date, resumes from checkpoints, and a completed edition is a no-op.
-    # Generation (02:00-04:00 IST). Stage 22 is gated by ALP_PUBLISH_NOT_BEFORE,
-    # so an early finish parks the job as "awaiting_publish" (green run).
-    - cron: "30 20 * * *"   # 02:00 IST
-    - cron: "0 21 * * *"    # 02:30 IST
-    - cron: "30 21 * * *"   # 03:00 IST
-    - cron: "30 22 * * *"   # 04:00 IST
+    # Overnight staggered build (01:00-05:30 IST). Each wave advances the next
+    # stage smoothly; if a cron runs late or manually via dispatch, catch-up runs
+    # immediately through any past gates. Stage 22 stays gated until 06:00 IST.
+    - cron: "30 19 * * *"   # 01:00 IST — Wave 1: model orchestrator + initial source fetch + GNews wave 1
+    - cron: "10 20 * * *"   # 01:40 IST — Wave 2: GNews wave 2 slow collection (after facts refresh)
+    - cron: "30 20 * * *"   # 02:00 IST — Wave 3: GNews wave 3 + fact verification + dedup
+    - cron: "0 21 * * *"    # 02:30 IST — Wave 4: importance + relevance + final selection
+    - cron: "30 21 * * *"   # 03:00 IST — Wave 5: bilingual content editor
+    - cron: "30 22 * * *"   # 04:00 IST — Wave 6: MCQ generator + validator + quick bites + static GK
+    - cron: "30 23 * * *"   # 05:00 IST — Wave 7: PDF design + PDF QA (parks awaiting_publish)
+    - cron: "0 0 * * *"     # 05:30 IST — Wave 8: pre-publish buffer / PDF QA catch-up
     # Publish window (06:00-06:40 IST): resumes the parked edition and sends it;
     # also generates from scratch if every earlier trigger was dropped.
     - cron: "30 0 * * *"    # 06:00 IST
@@ -244,8 +249,19 @@ jobs:
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'auto' }}
           NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'auto' }}
           MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL || 'auto' }}
+          COHERE_MODEL: ${{ vars.COHERE_MODEL || 'auto' }}
+          LLM7_MODEL: ${{ vars.LLM7_MODEL || 'auto' }}
+          HUGGINGFACE_MODEL: ${{ vars.HUGGINGFACE_MODEL || 'auto' }}
+          ALP_LLM: "auto"
           # "auto" = provider catalogue se live free model khud chuna jaata hai (pipeline/ai_router.py)
           ALP_MODEL_AUTO_DISCOVERY: "1"
+          ALP_AI_CALL_INTERVAL: "1.5"
+          ALP_GNEWS_MIN_INTERVAL: "15"
+          ALP_NEWSDATA_MIN_INTERVAL: "5"
+          ALP_SERPER_MIN_INTERVAL: "2"
+          ALP_INTER_STAGE_PAUSE: "15"
+          ALP_GNEWS_TOPUP: ${{ github.event_name == 'schedule' && '1' || '0' }}
+          ALP_STAGE_GATES: ${{ github.event_name == 'schedule' && '04_fact_verification=02:00,06_news_importance=02:30,12_content_editor=03:00,16_mcq_generator=04:00,18_pdf_design=05:00' || '' }}
           ALP_TRANSLATION_WAIT_BUDGET: "300"
           ALP_ALLOW_EDITION_REVISION: ${{ github.event.inputs.allow_revision == 'true' && '1' || '0' }}
           # Scheduled runs have no inputs -> '0' (strict). Only an explicit dispatch opts in.

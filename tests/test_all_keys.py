@@ -224,13 +224,13 @@ def test_410_retires_the_nvidia_model_and_rotates(monkeypatch):
 def test_discovery_never_picks_an_eol_or_retired_nvidia_model():
     nvidia = ai_router.Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
                                 key="k", model="not-listed")
-    live = ["01-ai/yi-large", "meta/llama-3.1-8b-instruct", "abc/some-chat-model",
-            "openai/gpt-oss-20b", "meta/llama-guard-4-12b"]
-    # Only EOL / hanging / unreviewed / moderation models advertised: no pick at all.
+    live = ["01-ai/yi-large", "meta/llama-3.1-8b-instruct", "meta/llama-3.2-90b-vision-instruct",
+            "openai/gpt-oss-20b", "meta/llama-guard-4-12b", "nvidia/nemotron-3.5-embed-1b"]
+    # Only EOL / hanging / retired / moderation / embed models advertised: no pick at all.
     assert ai_router._choose_live_model(nvidia, live) is None
-    live.append("meta/llama-3.2-90b-vision-instruct")
-    assert ai_router._choose_live_model(nvidia, live) == "meta/llama-3.2-90b-vision-instruct"
-    ai_router.block("nvidia::meta/llama-3.2-90b-vision-instruct", 3600, "410 earlier in the run")
+    live.append("meta/llama-3.3-70b-instruct")
+    assert ai_router._choose_live_model(nvidia, live) == "meta/llama-3.3-70b-instruct"
+    ai_router.block("nvidia::meta/llama-3.3-70b-instruct", 3600, "410 earlier in the run")
     assert ai_router._choose_live_model(nvidia, live) is None
 
 

@@ -532,16 +532,20 @@ _PREFERRED_MODELS = {
     # openai/gpt-oss-120b verified 200 on 2026-11-03.
     "groq": ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"),
     "generic-openai": ("gpt-4o-mini",),
-    # openrouter.ai/api/v1/models: zero-price ":free" variants only.
-    "openrouter": ("google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
-                   "google/gemma-4-26b-a4b-it:free", "nvidia/nemotron-3.5-lightning:free",
-                   "openrouter/free"),
-    # docs.mistral.ai models overview (free Experiment plan).
-    "mistral": ("mistral-small-latest", "ministral-8b-latest", "mistral-large-latest"),
-    # integrate.api.nvidia.com: the ONLY model verified working on this key
-    # (2026-11-03, ~10s). openai/gpt-oss-20b hangs, the others answer 404/410.
-    # NVIDIA is preferred-only, so discovery never picks anything else.
-    "nvidia": ("meta/llama-3.2-90b-vision-instruct",),
+    # openrouter.ai/api/v1/models: openrouter/free auto-router first (picks any
+    # working free model dynamically without single-upstream 429), followed by
+    # verified zero-price ":free" text models.
+    "openrouter": ("openrouter/free", "google/gemma-4-31b-it:free",
+                   "nvidia/nemotron-3-ultra-550b-a55b:free", "google/gemma-4-26b-a4b-it:free",
+                   "nvidia/nemotron-3.5-lightning:free", "meta-llama/llama-3.3-70b-instruct:free"),
+    # docs.mistral.ai models overview (free Experiment plan, ~1 req/s).
+    "mistral": ("mistral-small-latest", "ministral-8b-latest", "ministral-3b-latest",
+                "mistral-medium-latest", "open-mistral-nemo", "mistral-large-latest"),
+    # integrate.api.nvidia.com: active free evaluation text/instruct models first;
+    # live /v1/models discovery automatically rotates past any retired 410 model.
+    "nvidia": ("meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct",
+               "nvidia/nemotron-3-super-120b-a12b", "qwen/qwen2.5-72b-instruct",
+               "mistralai/mistral-small-24b-instruct", "google/gemma-2-27b-it"),
     # text.pollinations.ai/openai/models advertises only "openai-fast", while the
     # chat endpoint also serves "openai" (verified 200 on 2026-11-10, Hindi output
     # was correct). The catalogue is therefore not trusted for discovery.
@@ -564,15 +568,18 @@ _PREFERRED_MODELS = {
 # Models a provider still lists but no longer serves (end of life → HTTP 410).
 # Discovery never picks these; a fresh 410 adds the model to the run's health file.
 _RETIRED_MODELS = {
-    "nvidia": ("meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct", "meta/llama3-8b-instruct",
+    "nvidia": ("meta/llama-3.2-90b-vision-instruct", "meta/llama-3.1-8b-instruct",
+               "meta/llama-3.1-70b-instruct", "meta/llama3-8b-instruct",
                "meta/llama3-70b-instruct", "mistralai/mistral-7b-instruct-v0.2",
+               "01-ai/yi-large",
                # hangs past every timeout on this key (2026-11-03)
                "openai/gpt-oss-20b"),
     "gemini": ("gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"),
 }
-# Providers whose catalogue lists many paid / retired models: pick only from the
-# reviewed preference list, never the alphabetical "any text model" fallback.
-_PREFERRED_ONLY = {"nvidia", "huggingface", "llm7", "cohere", "pollinations", "siliconflow"}
+# Providers whose catalogue lists many paid / unverified endpoints: keep strictly
+# on the reviewed preference list. OpenRouter uses _FREE_ONLY live discovery, and
+# NVIDIA dynamically picks active instruct/text NIM models via live discovery.
+_PREFERRED_ONLY = {"huggingface", "llm7", "cohere", "pollinations", "siliconflow"}
 # Free-only providers: never select a model that bills per token.
 _FREE_ONLY = {"openrouter"}
 # Providers whose /models listing is not usable for discovery (non-OpenAI shape,
@@ -581,7 +588,7 @@ _FREE_ONLY = {"openrouter"}
 # answers 402 FREE_LIMIT for, while "openai" works (2026-11-10).
 _NO_DISCOVERY = {"llm7", "cohere", "pollinations"}
 _NON_TEXT_MODEL = re.compile(
-    r"(?:embed|rerank|guard|safety|moderation|vision|-vl|audio|image|tts|transcribe|"
+    r"(?:embed|rerank|guard|safety|moderation|vision|-vl|pixtral|voxtral|shield|audio|image|tts|transcribe|"
     r"whisper|live|lyria|veo|robotics|omni|parse|reward|ocr|clip|orpheus|detector)",
     re.I,
 )
@@ -654,6 +661,23 @@ def _is_retired(provider_name: str, model: str) -> bool:
     return model in _RETIRED_MODELS.get(provider_name, ()) or is_blocked(f"{provider_name}::{model}")
 
 
+def _is_candidate_text_model(provider_name: str, model: str) -> bool:
+    """True when a live catalogue ID is safe for automatic free text/JSON calls."""
+    if not model or _is_retired(provider_name, model) or _NON_TEXT_MODEL.search(model):
+        return False
+    if re.search(r"\ballam\b", model, re.I):
+        return False
+    if provider_name == "gemini":
+        # Only free-tier Gemini Flash/Flash-Lite models; avoid Pro/Gemma/exp variants without systemInstruction
+        return bool(re.search(r"^gemini-[\d.]+-flash", model, re.I))
+    if provider_name == "nvidia":
+        # Restrict NIM fallback to vetted open instruct/chat families; skip niche/untrusted checkpoints
+        return bool(re.search(r"^(?:meta|nvidia|mistralai|qwen|google|microsoft)/.*(?:instruct|nemotron|gemma|qwen)", model, re.I))
+    if provider_name == "openrouter":
+        return model.endswith(":free") or model == "openrouter/free"
+    return bool(re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|ministral|gemini|gemma|nemotron|flash)", model, re.I))
+
+
 def _choose_live_model(provider: Provider, available: List[str], exclude: set[str] | None = None) -> str | None:
     exclude = exclude or set()
     candidates = [m for m in available if m and m not in exclude and not _is_retired(provider.name, m)]
@@ -667,16 +691,26 @@ def _choose_live_model(provider: Provider, available: List[str], exclude: set[st
             return preferred
     if provider.name in _PREFERRED_ONLY:
         return None
-    text_models = [m for m in candidates if re.search(r"(?:instruct|chat|gpt|llama|qwen|mistral|gemini|gemma|nemotron|flash)", m, re.I)
-                   and not _NON_TEXT_MODEL.search(m) and not re.search(r"\ballam\b", m, re.I)]
-    return sorted(text_models or candidates)[0]
+    text_models = [m for m in candidates if _is_candidate_text_model(provider.name, m)]
+    if text_models:
+        return sorted(text_models)[0]
+    if provider.name == "nvidia":
+        return None
+    return sorted(candidates)[0]
 
 
 def _rotation_order(provider: Provider, live: List[str]) -> List[str]:
-    """Current model first, then the remaining preferred models still advertised."""
+    """Current model first, preferred live models next, then live free text models."""
     order = [provider.model]
     for model in _PREFERRED_MODELS.get(provider.name, ()):
         if model not in order and (not live or model in live) and not _is_retired(provider.name, model):
+            order.append(model)
+    if live and provider.name not in _PREFERRED_ONLY:
+        # Append extra live free text models so a provider never exhausts all models prematurely.
+        extras = sorted(m for m in live if m not in order and _is_candidate_text_model(provider.name, m))
+        for model in extras:
+            if len(order) >= 12:
+                break
             order.append(model)
     return order
 
@@ -869,10 +903,10 @@ def _build_default_providers() -> List[Provider]:
 
     mistral_key = os.getenv("MISTRAL_API_KEY")
     if mistral_key:
-        # Free Experiment plan ≈ 1 request/second.
+        # Free Experiment plan ≈ 1 request/second (leave slight buffer -> 1.2s).
         add(Provider(name="mistral", url="https://api.mistral.ai/v1/chat/completions",
                      key=mistral_key, model=_env_model("MISTRAL_MODEL", "mistral"),
-                     priority=40, rpm_limit=60, rpd_limit=5000, min_interval=1.1))
+                     priority=40, rpm_limit=30, rpd_limit=5000, min_interval=1.2))
 
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if openrouter_key:
@@ -987,8 +1021,37 @@ def current_model(name: str) -> Optional[str]:
     return provider.model if provider is not None else None
 
 
+_AI_PACE_LOCK = threading.Lock()
+_LAST_AI_CALL = [0.0]
+
+
+def _pace_ai_call() -> None:
+    """Optional global pacing between AI requests (ALP_AI_CALL_INTERVAL seconds).
+
+    Spreads calls gently across overnight runs to avoid bursting free-tier TPM limits.
+    """
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return
+    try:
+        interval = float(os.getenv("ALP_AI_CALL_INTERVAL", "0") or 0.0)
+    except ValueError:
+        interval = 0.0
+    if interval <= 0:
+        return
+    left = ai_time_left()
+    if left is not None and left <= interval:
+        return
+    with _AI_PACE_LOCK:
+        now = time.time()
+        wait = _LAST_AI_CALL[0] + interval - now
+        if wait > 0:
+            time.sleep(min(wait, interval))
+        _LAST_AI_CALL[0] = time.time()
+
+
 def note_call(name: str) -> None:
     """Count a request made outside route() (translator) against quotas + spacing."""
+    _pace_ai_call()
     provider = find_provider(name)
     if provider is not None:
         provider.throttle()
@@ -1004,6 +1067,9 @@ def report_success(name: str, provider: Optional[Provider] = None) -> None:
     _strike(f"{name}:timeout", reset=True)
 
 
+_MODEL_ROTATE_ON_429 = {"openrouter", "mistral", "nvidia"}
+
+
 def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
                    provider: Optional[Provider] = None) -> bool:
     """Apply the router's cooldown policy for a failure seen anywhere.
@@ -1016,7 +1082,8 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
     provider = provider or find_provider(name)
     if failure == FailureType.RATE_LIMIT:
         per_model = provider is not None and provider.per_model_quota and len(provider.models) > 1
-        key = f"{name}::{provider.model}" if per_model else name
+        rotate_upstream = provider is not None and provider.name in _MODEL_ROTATE_ON_429 and len(provider.models) > 1
+        key = f"{name}::{provider.model}" if (per_model or rotate_upstream) else name
         strikes = _strike(f"{key}:429")
         if retry_after:
             # The provider said when to come back — honour it, but a run only
@@ -1031,12 +1098,12 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
             # provider was gone for the rest of the edition.
             cooldown = min(RATE_LIMIT_MAX_COOLDOWN,
                            RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6)))
-        if per_model:
+        if per_model or rotate_upstream:
             block(key, cooldown, "rate limited (model quota)")
             # Multi-key pools (Gemini 1-7, Groq 1-2): rotate key immediately to get a fresh quota
             if provider is not None and len(provider.key_pool) > 1 and provider.rotate_key():
                 return True
-            if provider.rotate_model():
+            if provider.rotate_model(force=rotate_upstream):
                 return True
             # Every model of this key is out: a fresh key means a fresh quota.
             if provider.rotate_key():
@@ -1366,6 +1433,7 @@ def route(
                     break
 
                 logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
+                _pace_ai_call()
                 provider.throttle()
                 provider.record_call()
 

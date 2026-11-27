@@ -48,6 +48,18 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          ALP_MODEL_AUTO_DISCOVERY: "1"
+          ALP_LLM: "auto"
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'auto' }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'auto' }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'auto' }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL || 'auto' }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'auto' }}
+          COHERE_MODEL: ${{ vars.COHERE_MODEL || 'auto' }}
+          LLM7_MODEL: ${{ vars.LLM7_MODEL || 'auto' }}
+          HUGGINGFACE_MODEL: ${{ vars.HUGGINGFACE_MODEL || 'auto' }}
+          POLLINATIONS_MODEL: ${{ vars.POLLINATIONS_MODEL || 'auto' }}
+          SILICONFLOW_MODEL: ${{ vars.SILICONFLOW_MODEL || 'auto' }}
         run: |
           # One pass only (each check spends a little free quota); the same
           # table goes to the log and to the run summary.

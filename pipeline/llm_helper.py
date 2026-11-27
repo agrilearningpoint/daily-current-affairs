@@ -22,10 +22,24 @@ def _env(key):
             pass
     return v
 
-def call_groq(prompt, model="openai/gpt-oss-20b"):
+def _resolve_model(provider_name: str, env_var: str) -> str:
+    """Resolve explicit model or 'auto' to live best free model via ai_router."""
+    configured = _env(env_var)
+    if configured and configured.lower() != "auto":
+        return configured
+    from pipeline import ai_router
+    if os.getenv("ALP_MODEL_AUTO_DISCOVERY", "0") == "1":
+        for p in ai_router._build_default_providers():
+            if p.name == provider_name and p.model:
+                return p.model
+    return ai_router._PREFERRED_MODELS[provider_name][0]
+
+
+def call_groq(prompt, model=None):
     key = _env("GROQ_API_KEY")
     if not key:
         raise RuntimeError("GROQ_API_KEY missing")
+    model = model or _resolve_model("groq", "GROQ_MODEL")
     r = requests.post("https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": model, "messages": [{"role":"user","content": prompt}], "temperature": 0.3},
@@ -33,10 +47,11 @@ def call_groq(prompt, model="openai/gpt-oss-20b"):
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"].strip(), f"groq/{model}"
 
-def call_openrouter(prompt, model="google/gemma-4-31b-it:free"):
+def call_openrouter(prompt, model=None):
     key = _env("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY missing")
+    model = model or _resolve_model("openrouter", "OPENROUTER_MODEL")
     r = requests.post("https://openrouter.ai/api/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}", "HTTP-Referer":"https://agrilearningpoint.com","X-Title":"AGRI Learning Point"},
         json={"model": model, "messages": [{"role":"user","content": prompt}]},
@@ -44,10 +59,11 @@ def call_openrouter(prompt, model="google/gemma-4-31b-it:free"):
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"].strip(), f"openrouter/{model}"
 
-def call_mistral(prompt, model="mistral-small-latest"):
+def call_mistral(prompt, model=None):
     key = _env("MISTRAL_API_KEY")
     if not key:
         raise RuntimeError("MISTRAL_API_KEY missing")
+    model = model or _resolve_model("mistral", "MISTRAL_MODEL")
     r = requests.post("https://api.mistral.ai/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}"},
         json={"model": model, "messages": [{"role":"user","content": prompt}]},
@@ -56,11 +72,7 @@ def call_mistral(prompt, model="mistral-small-latest"):
     return r.json()["choices"][0]["message"]["content"].strip(), f"mistral/{model}"
 
 def call_nvidia(prompt, model=None):
-    configured = _env("NVIDIA_MODEL")
-    if not configured or configured.strip().lower() == "auto":
-        from pipeline.ai_router import _PREFERRED_MODELS
-        configured = _PREFERRED_MODELS["nvidia"][0]
-    model = model or configured
+    model = model or _resolve_model("nvidia", "NVIDIA_MODEL")
     key = _env("NVIDIA_API_KEY")
     if not key:
         raise RuntimeError("NVIDIA_API_KEY missing")
@@ -93,7 +105,15 @@ def fetch_newsdata(query="agriculture india", language="en"):
         return []
 
 def call_llm(prompt, prefer="gemini"):
-    """Multi-provider LLM with fallback — tries all keys from env"""
+    """Multi-provider LLM with fallback — uses ai_router live auto-models first."""
+    try:
+        from pipeline import ai_router
+        if ai_router.is_configured():
+            txt = ai_router.route(prompt, task="general")
+            if txt:
+                return txt, "ai_router"
+    except Exception:
+        pass
     errors = []
     # 1. Gemini (existing)
     try:

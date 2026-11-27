@@ -229,19 +229,22 @@ def test_builder_sets_free_tier_limits(monkeypatch):
 # --------------------------------------------------------------------------- #
 # Verified models (2026-11-03)
 # --------------------------------------------------------------------------- #
-def test_nvidia_auto_is_the_vision_model_only_and_never_discovers_others(monkeypatch):
+def test_nvidia_auto_discovers_active_free_models_and_skips_retired(monkeypatch):
     _clear_env(monkeypatch)
     monkeypatch.setenv("NVIDIA_API_KEY", "k")
     monkeypatch.setenv("NVIDIA_MODEL", "auto")
     live = ["openai/gpt-oss-20b", "meta/llama-guard-4-12b", "meta/llama-3.1-8b-instruct",
-            "nvidia/nemotron-3-super-120b-a12b", "meta/llama-3.2-90b-vision-instruct"]
+            "meta/llama-3.2-90b-vision-instruct", "nvidia/nemotron-3-super-120b-a12b",
+            "meta/llama-3.3-70b-instruct"]
     monkeypatch.setattr(ai_router, "_live_model_ids", lambda p: live)
     (nv,) = ai_router._build_default_providers()
-    assert nv.model == "meta/llama-3.2-90b-vision-instruct"
-    assert nv.models == ["meta/llama-3.2-90b-vision-instruct"]
+    assert nv.model == "meta/llama-3.3-70b-instruct"
+    assert "meta/llama-3.3-70b-instruct" in nv.models
+    assert "nvidia/nemotron-3-super-120b-a12b" in nv.models
+    assert "meta/llama-3.2-90b-vision-instruct" in ai_router._RETIRED_MODELS["nvidia"]
     assert "openai/gpt-oss-20b" in ai_router._RETIRED_MODELS["nvidia"]
-    # Even with the vision model excluded, discovery picks nothing else.
-    assert ai_router._choose_live_model(nv, live, {"meta/llama-3.2-90b-vision-instruct"}) is None
+    assert "meta/llama-3.2-90b-vision-instruct" not in nv.models
+    assert ai_router._choose_live_model(nv, live, {"meta/llama-3.3-70b-instruct"}) == "nvidia/nemotron-3-super-120b-a12b"
     assert ai_router.request_timeout("nvidia") == 40
 
 

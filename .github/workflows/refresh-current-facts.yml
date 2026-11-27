@@ -55,6 +55,14 @@ jobs:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'auto' }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL || 'auto' }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'auto' }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL || 'auto' }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL || 'auto' }}
+          ALP_LLM: "auto"
+          ALP_MODEL_AUTO_DISCOVERY: "1"
+          ALP_AI_CALL_INTERVAL: "1.5"
+          ALP_SERPER_MIN_INTERVAL: "2"
         run: |
           python scripts/refresh_current_facts.py --promote-cache \
             --summary "$RUNNER_TEMP/facts_summary.md" --changes /tmp/facts_changes.txt

@@ -91,15 +91,15 @@ def load_keys() -> List[Dict[str, Any]]:
 # Statuses where another model of the same provider may still work: a retired
 # model (404/410 — NVIDIA llama-3.1-8b EOL, Gemini 2.5-flash-lite for new keys)
 # or one that hangs (Gemini 3.5-flash-lite timed out at 40s on 2026-11-03).
-_TRY_NEXT_MODEL = {"model_error", "timeout"}
-MAX_HEALTH_MODELS = int(os.getenv("ORCHESTRATOR_MAX_HEALTH_MODELS", "3"))
+_TRY_NEXT_MODEL = {"model_error", "timeout", "rate_limit"}
+MAX_HEALTH_MODELS = int(os.getenv("ORCHESTRATOR_MAX_HEALTH_MODELS", "5"))
 
 
 def health_check_models(provider: Dict[str, Any]) -> Dict[str, Any]:
-    """Health-check a provider, moving to its next model on 404/410/timeout.
+    """Health-check a provider, moving to its next model on 404/410/timeout/429.
 
     Returns the health of the first model that answered (or the last failure)
-    plus `failed_models` = [(model, status)] for models to retire for the run."""
+    plus `failed_models` = [(model, status)] for models to retire/cool down for the run."""
     models = [m for m in (provider.get("models") or [provider["model"]]) if m][:max(1, MAX_HEALTH_MODELS)]
     failed: List[tuple] = []
     result: Dict[str, Any] = {"status": "error", "detail": "no model"}
@@ -209,7 +209,12 @@ def seed_router_health(results: List[Dict[str, Any]]) -> List[str]:
         # Retired / hung models are blocked model-by-model so later stages
         # rotate past them instead of losing the whole provider.
         for model, model_status in res["health"].get("failed_models") or []:
-            seconds = ai_router.AUTH_COOLDOWN if model_status == "model_error" else ai_router.TIMEOUT_COOLDOWN
+            if model_status == "model_error":
+                seconds = ai_router.AUTH_COOLDOWN
+            elif model_status == "rate_limit":
+                seconds = ai_router.RATE_LIMIT_COOLDOWN
+            else:
+                seconds = ai_router.TIMEOUT_COOLDOWN
             ai_router.block(f"{res['name']}::{model}", seconds, f"health check: {model_status}")
         status = res["health"]["status"]
         if status in _SEED_COOLDOWNS:

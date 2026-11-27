@@ -241,7 +241,7 @@ def publish_not_before(job_type: str, date_str: str) -> datetime | None:
 
     ALP_PUBLISH_NOT_BEFORE="HH:MM" (IST wall clock on the edition date) gates
     daily editions only; unset/empty disables the gate. Generation can finish
-    hours earlier (02:00-04:00 IST crons) and the job then parks in
+    hours earlier (01:00-05:30 IST crons) and the job then parks in
     "awaiting_publish" until a publish-window cron resumes it. After the gate
     opens there is no upper bound: a late edition still goes out immediately.
     """
@@ -257,6 +257,35 @@ def publish_not_before(job_type: str, date_str: str) -> datetime | None:
     except (ValueError, TypeError):
         log_err(f"ignoring invalid ALP_PUBLISH_NOT_BEFORE={raw!r}; expected HH:MM")
         return None
+
+
+def stage_gate_not_before(job_type: str, date_str: str, stage_name: str) -> datetime | None:
+    """Optional overnight pacing gate (ALP_STAGE_GATES="04_fact_verification=02:00,...").
+
+    Spreads daily stages calmly across the 01:00–05:30 IST night window so GNews
+    and free-tier AI APIs are never burst-exhausted. If a cron fires late or
+    a backfill date runs, gates already in the past pass immediately.
+    """
+    raw = (os.getenv("ALP_STAGE_GATES") or "").strip()
+    if job_type != "daily" or not raw or os.getenv("DRY_RUN", "0") == "1":
+        return None
+    from datetime import time as dt_time
+    from zoneinfo import ZoneInfo
+    for part in raw.split(","):
+        part = part.strip()
+        if "=" not in part:
+            continue
+        st, hhmm = (x.strip() for x in part.split("=", 1))
+        if st != stage_name:
+            continue
+        try:
+            hh, mm = hhmm.split(":", 1)
+            gate = dt_time(int(hh), int(mm))
+            return datetime.combine(date.fromisoformat(date_str), gate, tzinfo=ZoneInfo("Asia/Kolkata"))
+        except (ValueError, TypeError):
+            log_err(f"ignoring invalid ALP_STAGE_GATES entry {part!r}; expected STAGE=HH:MM")
+            return None
+    return None
 
 
 def job_context_env(job_type: str, date_str: str | None) -> dict[str, str]:
@@ -359,6 +388,9 @@ def update_job(job_id: str, *, status: str | None = None,
             entry.pop("last_success_stage", None)
             entry.pop("last_error", None)
             entry.pop("failed_stage", None)
+            entry.pop("next_stage_gate", None)
+            entry.pop("next_stage_name", None)
+            entry.pop("gnews_waves_done", None)
             entry["artifacts"] = {}
         if context:
             entry["run_attempts"] = int(entry.get("run_attempts", 0)) + int(record_attempt)
@@ -477,7 +509,7 @@ def resolve_resume_stage(job_id: str, stages: list[tuple[str, str, bool]]) -> st
     Actions runner has no restored outputs, rewind rather than skipping stages.
     """
     entry = load_jobs_state().get(job_id, {})
-    if entry.get("status") not in {"running", "failed", "success", "awaiting_publish"}:
+    if entry.get("status") not in {"running", "failed", "success", "awaiting_publish", "awaiting_stage"}:
         return None
     if entry.get("dry_run") != (os.getenv("DRY_RUN", "0") == "1"):
         return None
@@ -562,6 +594,7 @@ def execute_job(job_type: str, date_str: str | None) -> int:
     skipping = resume_from is not None
 
     previous = load_jobs_state().get(job_id, {})
+    fresh_window_end = ctx["ALP_WINDOW_END"]
     if same_mode and isinstance(previous.get("window"), dict) and previous["window"].get("start") and previous["window"].get("end"):
         ctx["ALP_WINDOW_START"] = previous["window"]["start"]
         ctx["ALP_WINDOW_END"] = previous["window"]["end"]
@@ -569,9 +602,16 @@ def execute_job(job_type: str, date_str: str | None) -> int:
     if resume_from:
         prefix = [n for n, _, _ in stages][: [n for n, _, _ in stages].index(resume_from) + 1]
         artifacts = {path: record for path, record in artifacts.items() if record.get("stage") in prefix}
-    update_job(job_id, status="running", started_new=not skipping, context=ctx, artifacts=artifacts)
+    was_parked = previous.get("status") in {"awaiting_stage", "awaiting_publish"}
+    update_job(job_id, status="running", started_new=not skipping, context=ctx,
+               artifacts=artifacts, record_attempt=not (skipping and was_parked))
     log(f"{job_type} job '{job_id}' — {len(stages)} stages"
         + (f", resuming after completed stage '{resume_from}'" if skipping else ""))
+
+    _PAUSE_AFTER_STAGES = {
+        "01_source_fetch", "04_fact_verification", "12_content_editor",
+        "16_mcq_generator", "17b_auto_sections", "17c_static_gk_validator",
+    }
 
     for name, script, critical in stages:
         if skipping:
@@ -582,12 +622,58 @@ def execute_job(job_type: str, date_str: str | None) -> int:
             log(f"stage {name}: already completed earlier, skipping")
             continue
 
+        if (name == "04_fact_verification"
+                and job_type == "daily"
+                and resume_from == "01_source_fetch"
+                and os.getenv("ALP_GNEWS_TOPUP", "0") == "1"
+                and os.getenv("DRY_RUN", "0") != "1"):
+            from pipeline.news_api_sources import topup_gnews_into_raw
+            cur_entry = load_jobs_state().get(job_id, {})
+            waves_done = int(cur_entry.get("gnews_waves_done", 1) or 1)
+            if waves_done < 3:
+                ws = datetime.fromisoformat(ctx["ALP_WINDOW_START"])
+                we = datetime.fromisoformat(fresh_window_end)
+                if we > datetime.fromisoformat(ctx["ALP_WINDOW_END"]):
+                    ctx["ALP_WINDOW_END"] = fresh_window_end
+                raw_path = ROOT / "data" / "raw" / f"{job_id}.json"
+                topup_res = topup_gnews_into_raw(raw_path, ws, we, wave=waves_done)
+                if topup_res.get("added"):
+                    log(f"GNews wave {waves_done + 1} added {topup_res['added']} new item(s) to {raw_path.name}")
+                try:
+                    artifacts = capture(ROOT, job_id, "01_source_fetch", artifacts)
+                except (ValueError, OSError) as exc:
+                    log_err(f"GNews topup artifact capture warning: {exc}")
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state[job_id]["gnews_waves_done"] = waves_done + 1
+                    state[job_id]["window"] = {"start": ctx["ALP_WINDOW_START"], "end": ctx["ALP_WINDOW_END"]}
+                    state[job_id]["artifacts"] = artifacts
+                    save_jobs_state(state)
+
+        stage_gate = stage_gate_not_before(job_type, ctx["ALP_JOB_DATE"], name)
+        if stage_gate is not None and datetime.now(timezone.utc) < stage_gate:
+            update_job(job_id, status="awaiting_stage", record_attempt=False)
+            with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                state = load_jobs_state(strict=True)
+                state[job_id]["next_stage_gate"] = stage_gate.isoformat()
+                state[job_id]["next_stage_name"] = name
+                save_jobs_state(state)
+            log(f"job '{job_id}' PAUSED cleanly before {name} (not before "
+                f"{stage_gate.isoformat()}); checkpoints kept for next overnight wave")
+            return 0
+        if load_jobs_state().get(job_id, {}).get("next_stage_gate"):
+            with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                state = load_jobs_state(strict=True)
+                state[job_id].pop("next_stage_gate", None)
+                state[job_id].pop("next_stage_name", None)
+                save_jobs_state(state)
+
         if name in _PUBLISH_GATED_STAGES and os.getenv("ALP_HOLD_PUBLISH", "0") == "1":
             # Review hold (workflow_dispatch publish=false): build + QA the PDF,
             # keep checkpoints, send nothing. A later publish=true run resumes
             # here and sends the exact reviewed PDF. The watchdog never
             # auto-recovers a held edition.
-            update_job(job_id, status="awaiting_publish")
+            update_job(job_id, status="awaiting_publish", record_attempt=False)
             with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
                 state = load_jobs_state(strict=True)
                 state[job_id]["publish_hold"] = "review"
@@ -604,7 +690,7 @@ def execute_job(job_type: str, date_str: str | None) -> int:
         if name in _PUBLISH_GATED_STAGES:
             gate = publish_not_before(job_type, ctx["ALP_JOB_DATE"])
             if gate is not None and datetime.now(timezone.utc) < gate:
-                update_job(job_id, status="awaiting_publish")
+                update_job(job_id, status="awaiting_publish", record_attempt=False)
                 with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
                     state = load_jobs_state(strict=True)
                     state[job_id]["publish_not_before"] = gate.isoformat()
@@ -621,21 +707,31 @@ def execute_job(job_type: str, date_str: str | None) -> int:
                 ok, msg = False, str(exc)
         if ok:
             log(f"stage {name}: {msg}")
-            update_job(job_id, status="running", last_stage=name, artifacts=artifacts)
+            update_job(job_id, status="running", last_stage=name, artifacts=artifacts, record_attempt=False)
+            if (name in _PAUSE_AFTER_STAGES
+                    and job_type == "daily"
+                    and os.getenv("DRY_RUN", "0") != "1"
+                    and not os.getenv("PYTEST_CURRENT_TEST")):
+                try:
+                    pause_s = float(os.getenv("ALP_INTER_STAGE_PAUSE", "0") or 0)
+                except ValueError:
+                    pause_s = 0.0
+                if pause_s > 0:
+                    time.sleep(min(pause_s, 60.0))
         else:
             log_err(f"stage {name}: {msg}")
             if critical:
-                entry = update_job(job_id, status="failed", error=f"{name}: {msg}")
+                entry = update_job(job_id, status="failed", error=f"{name}: {msg}", record_attempt=False)
                 with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
                     state = load_jobs_state(strict=True)
                     state[job_id]["failed_stage"] = name
                     save_jobs_state(state)
                 log(f"job '{job_id}' FAILED at critical stage {name}")
                 return 1
-            update_job(job_id, error=f"non-critical {name}: {msg}")
+            update_job(job_id, error=f"non-critical {name}: {msg}", record_attempt=False)
             log(f"stage {name} is non-critical — continuing")
 
-    update_job(job_id, status="success")
+    update_job(job_id, status="success", record_attempt=False)
     log(f"job '{job_id}' SUCCESS")
     return 0
 
@@ -695,6 +791,18 @@ def watchdog(stuck_hours: float | None = None) -> int:
             # picked it up within 90 minutes of the gate opening.
             try:
                 gate = datetime.fromisoformat(str(entry.get("publish_not_before", "")))
+                if gate.tzinfo is None:
+                    gate = gate.replace(tzinfo=timezone.utc)
+                if now > gate + timedelta(minutes=90):
+                    stuck.append(jid)
+            except (ValueError, TypeError):
+                if age_h > (RUNNING_STUCK_HOURS if stuck_hours is None else stuck_hours):
+                    stuck.append(jid)
+        elif status == "awaiting_stage":
+            # Parked between overnight waves (01:00-05:30 IST); flag only if no
+            # cron resumed it within 90 minutes of its next_stage_gate opening.
+            try:
+                gate = datetime.fromisoformat(str(entry.get("next_stage_gate", "")))
                 if gate.tzinfo is None:
                     gate = gate.replace(tzinfo=timezone.utc)
                 if now > gate + timedelta(minutes=90):

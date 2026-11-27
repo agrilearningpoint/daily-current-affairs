@@ -28,12 +28,23 @@ from pipeline import discovery_api as api
 
 logger = logging.getLogger(__name__)
 
-# (endpoint, query, category) — one request each, in priority order.
+# (endpoint, query, category) — paced across overnight waves (each wave fetches a slice).
 GNEWS_REQUESTS = (
+    # Wave 1: core national, business, agriculture & science
     ("top-headlines", "", "nation"),
     ("top-headlines", "", "business"),
     ("search", "agriculture OR farmers OR monsoon OR ICAR", ""),
     ("top-headlines", "", "science"),
+    # Wave 2: economy/banking, defence/space, technology & international
+    ("search", "RBI OR SEBI OR NABARD OR inflation OR GDP", ""),
+    ("search", "ISRO OR DRDO OR defence OR military exercise", ""),
+    ("top-headlines", "", "technology"),
+    ("top-headlines", "", "world"),
+    # Wave 3: government schemes, environment, sports & summits
+    ("search", "Cabinet approves OR Union Minister OR PIB OR scheme", ""),
+    ("search", "environment OR climate OR solar OR renewable energy", ""),
+    ("top-headlines", "", "sports"),
+    ("search", "India summit OR bilateral OR agreement OR treaty", ""),
 )
 # (query, category) — one credit each.
 NEWSDATA_REQUESTS = (
@@ -69,9 +80,12 @@ def title_key(title: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9\u0900-\u097f ]", " ", (title or "").lower()).split())
 
 
-def _gnews_items(window_start: datetime, window_end: datetime) -> List[Dict[str, Any]]:
+def _gnews_items(window_start: datetime, window_end: datetime, offset: int = 0) -> List[Dict[str, Any]]:
     items = []
-    for endpoint, query, category in GNEWS_REQUESTS:
+    n = len(GNEWS_REQUESTS)
+    start_idx = offset % n if n else 0
+    ordered = GNEWS_REQUESTS[start_idx:] + GNEWS_REQUESTS[:start_idx]
+    for endpoint, query, category in ordered:
         if not api.GNEWS.enabled():
             break
         for a in api.gnews_articles(endpoint=endpoint, query=query, category=category,
@@ -110,18 +124,24 @@ def collect(window_start: datetime, window_end: datetime, *,
             validate_title: Callable[[str, str], tuple],
             clean_url: Callable[[str], str],
             content_hash: Callable[[str, str], str],
-            clean_summary: Callable[[str], str]) -> Dict[str, Any]:
+            clean_summary: Callable[[str], str],
+            gnews_offset: int = 0,
+            include_newsdata: bool = True) -> Dict[str, Any]:
     """Fetch API items inside the window and normalise them to the raw-article schema.
 
     `seen_hashes` / `seen_titles` are the RSS items already collected; both are
     updated in place. Returns {"articles": [...], "report": {...}}; never raises."""
     report: Dict[str, Any] = {"enabled": enabled(), "fetched": 0, "kept": 0,
                               "out_of_window": 0, "duplicates": 0, "invalid": 0}
-    if not enabled() or not (api.GNEWS.enabled() or api.NEWSDATA.enabled()):
+    has_active = api.GNEWS.enabled() or (include_newsdata and api.NEWSDATA.enabled())
+    if not enabled() or not has_active:
         report["services"] = api.services_status()
         return {"articles": [], "report": report}
     raw: List[Dict[str, Any]] = []
-    for fetch in (lambda: _gnews_items(window_start, window_end), _newsdata_items):
+    fetchers = [lambda: _gnews_items(window_start, window_end, offset=gnews_offset)]
+    if include_newsdata:
+        fetchers.append(_newsdata_items)
+    for fetch in fetchers:
         try:
             raw.extend(fetch())
         except Exception as exc:  # never fail collection because of an extra source
@@ -172,3 +192,69 @@ def collect(window_start: datetime, window_end: datetime, *,
     report["kept"] = len(articles)
     report["services"] = {k: v for k, v in api.services_status().items() if k in ("gnews", "newsdata")}
     return {"articles": articles, "report": report}
+
+
+def topup_gnews_into_raw(raw_path: Any, window_start: datetime, window_end: datetime, *,
+                         wave: int = 1) -> Dict[str, Any]:
+    """Incrementally add paced GNews stories from a later wave into an existing raw JSON."""
+    import json
+    from pathlib import Path
+    import importlib.util
+
+    path = Path(raw_path)
+    if not path.is_file() or not enabled() or not api.GNEWS.key:
+        return {"added": 0, "skipped": "unavailable"}
+    # Do not re-hit GNews if an earlier call in this process hit 401/402/403/429.
+    if api.GNEWS.off_reason and "budget" not in api.GNEWS.off_reason:
+        return {"added": 0, "skipped": api.GNEWS.off_reason}
+    if api.GNEWS.off_reason and "budget" in api.GNEWS.off_reason:
+        api.GNEWS.reset()
+
+    try:
+        edition = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"added": 0, "skipped": "unreadable_raw"}
+    existing = list(edition.get("articles") or [])
+
+    # Reuse canonical validators from pipeline/01_source_fetch.py (numeric prefix requires importlib).
+    sf_path = Path(__file__).resolve().parent / "01_source_fetch.py"
+    spec = importlib.util.spec_from_file_location("alp_source_fetch_topup", sf_path)
+    sf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sf)
+
+    seen_hashes = {
+        a.get("content_hash") or sf.content_hash(a.get("title", ""), a.get("link", ""))
+        for a in existing if isinstance(a, dict)
+    }
+    seen_titles = {title_key(a.get("title", "")) for a in existing if isinstance(a, dict)}
+
+    res = collect(
+        window_start, window_end,
+        seen_hashes=seen_hashes, seen_titles=seen_titles,
+        validate_title=sf.clean_and_validate_headline,
+        clean_url=sf.clean_url,
+        content_hash=sf.content_hash,
+        clean_summary=lambda text: (lambda t: t if sf.is_usable_article_text(t) else "")(
+            sf.strip_publisher_ui(sf.sanitize_feed_text(text))),
+        gnews_offset=wave * 4,
+        include_newsdata=False,
+    )
+    new_arts = res.get("articles") or []
+    if not new_arts:
+        return {"added": 0, "total": len(existing), "report": res.get("report")}
+
+    existing.extend(new_arts)
+    edition["articles"] = existing
+    edition["article_count"] = len(existing)
+    edition["articles_with_image"] = sum(1 for a in existing if a.get("image_url"))
+    edition["collected_window"] = {
+        "start": window_start.isoformat(),
+        "end": window_end.isoformat(),
+    }
+    edition.setdefault("gnews_topups", []).append({
+        "wave": wave, "added": len(new_arts), "at": datetime.now(timezone.utc).isoformat()
+    })
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(edition, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+    return {"added": len(new_arts), "total": len(existing), "report": res.get("report")}
