@@ -232,3 +232,20 @@ def test_workflows_enable_auto_discovery_and_overnight_crons():
     for wf_name in ("weekly.yml", "monthly.yml", "refresh-current-facts.yml", "verify-keys.yml", "keepalive.yml"):
         text = (ROOT / ".github" / "workflows" / wf_name).read_text(encoding="utf-8")
         assert 'ALP_MODEL_AUTO_DISCOVERY: "1"' in text, f"{wf_name} missing ALP_MODEL_AUTO_DISCOVERY"
+
+    import yaml
+
+    class StrictLoader(yaml.SafeLoader):
+        pass
+
+    def _no_dup_keys(loader, node, deep=False):
+        mapping = {}
+        for k_node, v_node in node.value:
+            key = loader.construct_object(k_node, deep=deep)
+            assert key not in mapping, f"Duplicate YAML key {key!r}"
+            mapping[key] = loader.construct_object(v_node, deep=deep)
+        return mapping
+
+    StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dup_keys)
+    for wf_path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        yaml.load(wf_path.read_text(encoding="utf-8"), Loader=StrictLoader)

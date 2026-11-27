@@ -252,7 +252,6 @@ jobs:
           COHERE_MODEL: ${{ vars.COHERE_MODEL || 'auto' }}
           LLM7_MODEL: ${{ vars.LLM7_MODEL || 'auto' }}
           HUGGINGFACE_MODEL: ${{ vars.HUGGINGFACE_MODEL || 'auto' }}
-          ALP_LLM: "auto"
           # "auto" = provider catalogue se live free model khud chuna jaata hai (pipeline/ai_router.py)
           ALP_MODEL_AUTO_DISCOVERY: "1"
           ALP_AI_CALL_INTERVAL: "1.5"
