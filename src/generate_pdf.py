@@ -52,6 +52,7 @@ _ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT_DIR not in sys.path:
     sys.path.insert(0, _ROOT_DIR)
 from pipeline.text_normalize import clip_words, normalise_money, strip_source_tags, tidy  # noqa: E402
+from pipeline.content_sanitizer import clean_explanation_text  # noqa: E402
 
 # --- HARFBUZZ + FREETYPE CHECK ---
 try:
@@ -241,6 +242,7 @@ def _clean_text_for_display(t: Any) -> str:
     if not t:
         return ""
     s = _strip_html(str(t)).strip()
+    s = clean_explanation_text(s)
     s = re.sub(r'^(?:Topic\s*:\s*)?(?:&gt;|>>|>|\s)+', '', s, flags=re.IGNORECASE)
     s = re.sub(r'^(?:Ques|Question)\s*[:.-]*\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'\bWatch\s*[-:]*\s*', '', s, flags=re.IGNORECASE)
@@ -1078,7 +1080,7 @@ BANNED_STATIC_GK_RE = re.compile(
     r"currency\s*[-–]\s*(?:indian\s+rupee|inr|₹)|headquarters\s*[-–]\s*new delhi|"
     r"year of independence\s*[-–]\s*1947|देश\s*[-–]\s*भारत|राजधानी\s*[-–]\s*नई दिल्ली|"
     r"मुद्रा\s*[-–]\s*भारतीय\s+रुपया|स्वतंत्रता वर्ष\s*[-–]\s*1947|आधिकारिक भाषा\s*[-–]\s*हिन्दी|"
-    r"fact\s*[1-9]\s*[-–]|key name\s*[-–]|first/unique\s*[-–])\b|"
+    r"key name\s*[-–]|first/unique\s*[-–])\b|"
     r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|around\s+Rs\.?|लागत\s+लगभग\s+रुपये?|रुपये\s*)$",
     re.I,
 )
@@ -1119,8 +1121,8 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
     except Exception:
         pass
 
-    # 2. Check item's static_gk_pairs (direct or inside static_facts)
-    curated_pairs = item.get("static_gk_pairs") or (item.get("static_facts") or {}).get("_static_gk_pairs") or []
+    # 2. Check item's static_gk_pairs (direct)
+    curated_pairs = item.get("static_gk_pairs") or []
     for p in curated_pairs:
         if isinstance(p, dict):
             _add(p.get("en", ""), p.get("hi", ""))
@@ -1128,6 +1130,18 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
             _add(p[0], p[1] if len(p) > 1 else "")
         elif isinstance(p, str):
             _add(p, "")
+
+    # 3. Fallback to static_facts if no pairs found yet (skips private underscore keys)
+    if not pairs:
+        sf = item.get("static_facts") or {}
+        if isinstance(sf, dict):
+            for k, v in sf.items():
+                if not isinstance(k, str) or k.startswith("_") or not isinstance(v, (str, int, float)):
+                    continue
+                k_clean = _clean_text_for_display(k)
+                v_clean = _clean_text_for_display(v)
+                if k_clean and v_clean and not BANNED_STATIC_GK_RE.search(k_clean):
+                    _add(f"{k_clean} – {v_clean}", "")
 
     # 3. Supplement from MCQ schema static_gk only if still sparse (< 4 pairs)
     if len(pairs) < 4:

@@ -145,11 +145,33 @@ def is_shallow(item) -> bool:
     return raw_word_count(item) < SHALLOW_RAW_WORDS
 
 
+MAJOR_INDIAN_CITIES = (
+    "Bengaluru|Bangalore|New Delhi|Delhi|Mumbai|Chennai|Kolkata|Calcutta|"
+    "Hyderabad|Ahmedabad|Pune|Lucknow|Jaipur|Bhopal|Patna|Chandigarh|Shimla|"
+    "Srinagar|Guwahati|Dehradun|Ranchi|Raipur|Bhubaneswar|Thiruvananthapuram|"
+    "Gandhinagar|Agartala|Aizawl|Imphal|Kohima|Shillong|Gangtok|Itanagar"
+)
+
+DATELINE_SUB_RE = re.compile(
+    r"\b(?:Updated|Published|Posted|Reported)\s*[-–—:]*\s*"
+    r"(?:(?:January|February|March|April|May|June|July|August|September|October|November|December|"
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}|"
+    r"\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|"
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec),?\s+\d{4})\b"
+    r"(?:\s*\d{1,2}:\d{2}\s*(?:am|pm)?\s*(?:IST|UTC|GMT)?)?"
+    r"(?:\s*[-–—:]\s*(?:" + MAJOR_INDIAN_CITIES + r")\b)?"
+    r"\s*[-–—:]*\s*",
+    re.I
+)
+
 DATELINE_RE = re.compile(
-    r"^(?:Updated|Published|Posted|Reported)?\s*[-–:]*\s*"
-    r"(?:[A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]+,?\s+\d{4})?\s*"
-    r"(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*(?:IST|UTC|GMT)?)?\s*[-–:]*\s*"
-    r"(?:[A-Za-z\s]+[-–:])?\s*",
+    r"^(?:(?:Updated|Published|Posted|Reported)\s*[-–—:]*\s*)?"
+    r"(?:(?:January|February|March|April|May|June|July|August|September|October|November|December|"
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}|"
+    r"\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|"
+    r"Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec),?\s+\d{4})\s*"
+    r"(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*(?:IST|UTC|GMT)?)?\s*"
+    r"(?:[-–—:]\s*(?:" + MAJOR_INDIAN_CITIES + r")\b\s*)?",
     re.I
 )
 
@@ -165,12 +187,15 @@ def clean_explanation_text(text: str) -> str:
     if not text or not isinstance(text, str):
         return ""
     t = text.strip()
-    # Strip explicit datelines like 'Updated - November 17, 2026 12:59 am IST - Bengaluru'
+    # Strip explicit datelines anywhere in text (e.g. after 'Exam Fact – ')
+    t = DATELINE_SUB_RE.sub("", t).strip()
+    t = DATELINE_RE.sub("", t).strip()
     t = re.sub(
-        r"^(?:Updated|Published)?\s*[-–:]*\s*[A-Za-z]+\s+\d{1,2},\s*\d{4}\s*\d{1,2}:\d{2}\s*(?:am|pm)\s*IST\s*[-–:]*\s*[A-Za-z]+\s*",
+        r"^(?:Updated|Published|Posted|Reported)\s*[-–—:]*\s*[A-Za-z]+\s+\d{1,2},\s*\d{4}\s*",
         "", t, flags=re.I
     ).strip()
-    t = DATELINE_RE.sub("", t).strip()
+    t = re.sub(r"^[-–—:]\s*", "", t).strip()
+    t = re.sub(r"–\s*–", "–", t).strip()
     t = TRAILING_CONCLUSION_RE.sub("", t).strip()
     t = re.sub(r"https?://\S+|www\.\S+", "", t).strip()
     return t

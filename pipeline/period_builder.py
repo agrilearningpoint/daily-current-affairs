@@ -34,6 +34,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from pipeline.text_normalize import (caption_residue, exact_money, publish_date, resolve_weekdays,
                                      strip_source_tags, tidy)
+from pipeline.content_sanitizer import clean_explanation_text
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCES_DIRNAME = "data/period_sources"
@@ -1759,7 +1760,8 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
     shown_orgs = gk_orgs(shown)
 
     def add(en: Any, hi: Any) -> None:
-        en_c, hi_c = clean_headline(en), clean_headline(hi)
+        en_c = clean_explanation_text(clean_headline(en))
+        hi_c = clean_headline(hi)
         if not en_c or _GENERIC_FACT_RE.match(en_c):
             return
         value = en_c.split(" – ", 1)[-1].strip()

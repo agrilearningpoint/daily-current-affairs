@@ -69,3 +69,15 @@ def test_score_penalty_for_stub_source():
     a, b = score_item(stub), score_item(rich)
     assert a["shallow_source"] is True and b["shallow_source"] is False
     assert a["importance_score"] < b["importance_score"]
+
+
+def test_clean_explanation_text_strips_news_datelines():
+    raw_leak = "Updated - November 17, 2026 12:59 am IST - Bengaluru With the wide impact of El Nino..."
+    cleaned = cs.clean_explanation_text(raw_leak)
+    assert "Updated - November 17, 2026" not in cleaned
+    assert "Bengaluru" not in cleaned
+    assert cleaned.startswith("With the wide impact of El Nino")
+
+    exam_q = "What is the outlay for PM-KISAN?"
+    assert cs.clean_explanation_text(exam_q) == exam_q
+

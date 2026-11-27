@@ -17,7 +17,7 @@
 ## 2. Stage-by-Stage Architecture Specification
 
 ### Stage 00: Model Orchestrator (`agents/00_model_orchestrator.py`)
-- **Input:** Environment variables (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`, etc.).
+- **Input:** Environment variables (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, etc.).
 - **Output:** Live provider health status, prioritized model routing table.
 - **LLM Calls:** 1-token health ping.
 - **Timeout:** 10s per provider.
