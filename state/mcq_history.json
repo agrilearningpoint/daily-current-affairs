@@ -1,114 +1,18 @@
 {
   "version": 1,
-  "updated": "2026-11-26T08:41:35.372376+05:30",
+  "updated": "2026-11-27T08:50:07.125350+05:30",
   "questions": {
-    "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Module-III Training Programme for Assistants (Batch-1) c"
-    },
-    "whatisthekeyfiguremetricassociatedwithindianewzealandftacome": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "static-number",
-      "q": "What is the key figure / metric associated with: \"India-New Zealand FTA comes into force, new visa categories "
-    },
-    "whichministryorganisationisresponsibleforimplementingvisitof": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Visit of the Prime Minister of Poland to India "
-    },
-    "whichministryorganisationisresponsibleforimplementingdstscie": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"DST - Scientific Programmes - Department of Sci"
-    },
     "whichministryorganisationisresponsibleforimplementingsportsa": {
       "count": 2,
       "last_seen": "2026-10-22",
       "type": "scheme-ministry",
       "q": "Which ministry / organisation is responsible for implementing \"- Sports Authority of India\"?"
     },
-    "whichinstitutionorentityiscentrallyfeaturedinjaishankarholds": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Jaishankar holds talks with UAE’s Foreign Minister in Mu"
-    },
     "whichministryorganisationisresponsibleforimplementingdepartm": {
       "count": 2,
       "last_seen": "2026-10-22",
       "type": "scheme-ministry",
       "q": "Which ministry / organisation is responsible for implementing \"- Department of Science and Technology (DST)\"?"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedin2026economicsno": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"2026 Economics Nobel Prize: Putting the humanity in macr"
-    },
-    "whichministryorganisationisresponsibleforimplementingstateme": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Statement on anti-India references at the Organ"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinharyanasbpsgove": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Haryana’s BPS Government Medical College becomes first I"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedincalcuttahcsaysi": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Calcutta HC says inquiry commission headed by retired ju"
-    },
-    "whichministryorganisationisresponsibleforimplementingraksham": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Raksha Mantri Shri Rajnath Singh to represent I"
-    },
-    "whichministryorganisationisresponsibleforimplementinguppanch": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"U.P. Panchayat poll: Is BJP looking to bypass t"
-    },
-    "whichministryorganisationisresponsibleforimplementingbengalu": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Bengaluru–Mumbai Vande Bharat sleeper train lik"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinnehaboratheperm": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Neha Bora | The permanence of agitation\"?"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinrumpsaysmigrant": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"rump says migrants, jihadists and communists are ‘destro"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinamitshahmeetsfa": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Amit Shah meets family of Bikramjit Singh, killed after "
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinnsuiworkerassau": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"NSUI worker assault: Congress’ overnight protest at Jaip"
     },
     "whichinstitutionorentityiscentrallyfeaturedindivisionofenvir": {
       "count": 1,
@@ -3052,6 +2956,112 @@
       "type": "llm-schema",
       "q": "Which country's cabinet recently approved a bid to join BRICS, receiving support from India's External Affairs",
       "published": true
+    },
+    "whichauthorityapprovedthecontinuationofthecreditguaranteefun": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "Which authority approved the continuation of the Credit Guarantee Fund for Micro Units?",
+      "published": true
+    },
+    "whichtechnologicalinitiativerecentlycollaboratedthroughanagr": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "Which technological initiative recently collaborated through an agreement with the Department of Social Justic",
+      "published": true
+    },
+    "whichorganisationisassociatedwiththenewsfacilitatesfirstever": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "org-pool",
+      "q": "Which organisation is associated with the news \"Facilitates First-Ever Export of Biscuits from Varanasi to Mad",
+      "published": true
+    },
+    "whichregulatorybodygaveitsapprovalforthelaunchofcorporatebon": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "Which regulatory body gave its approval for the launch of corporate bond index futures on the NSE?",
+      "published": true
+    },
+    "whatisthetotaloutlayapprovedbythecentreforthe223infrastructu": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "What is the total outlay approved by the Centre for the 223 infrastructure projects in Madhya Pradesh?",
+      "published": true
+    },
+    "whichministryorganisationisresponsibleforimplementingtighter": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Tighter financial conditions put RBI policy dec",
+      "published": true
+    },
+    "accordingtotheivcabcgreportwhichsectorattractedthelargestsha": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "According to the IVCA‑BCG report, which sector attracted the largest share of climate equity funding in India ",
+      "published": true
+    },
+    "whichinternationalorganizationhaslaunchedthepvsmissiontoeval": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "Which international organization has launched the PVS mission to evaluate India's aquatic animal health servic",
+      "published": true
+    },
+    "howmanyproposalswerereceivedduringthefirstroundofphaseiofthe": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "How many proposals were received during the first round of Phase-I of the BHAVYA Scheme?",
+      "published": true
+    },
+    "whichportfoliodoestheunionministerwhoattendedtheclosingprogr": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "Which portfolio does the Union Minister who attended the closing programme of the 350th Shaheedi Diwas of Sri ",
+      "published": true
+    },
+    "whathaveindustryparticipantsrequestedtoimprovelenderconfiden": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "What have industry participants requested to improve lender confidence in the coal gasification scheme?",
+      "published": true
+    },
+    "theunifiedpaymentsinterfaceupiisbuiltonwhichexistingpaymenti": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "concept",
+      "concept_id": "upi",
+      "q": "The Unified Payments Interface (UPI) is built on which existing payment infrastructure?",
+      "published": true
+    },
+    "atwhicheventwascsiriiimjammuconferredthepioneeringinstituteo": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "At which event was CSIR-IIIM, Jammu conferred the 'Pioneering Institute of the Year in Skills & Higher Educati",
+      "published": true
+    },
+    "whichcategoryoffinancialinstitutionshasshownenhancedstrength": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "Which category of financial institutions has shown enhanced strength through prudent banking practices and rob",
+      "published": true
+    },
+    "accordingtothejefferiesreportwhichfactorislikelytoaccelerate": {
+      "count": 1,
+      "last_seen": "2026-11-27",
+      "type": "llm-schema",
+      "q": "According to the Jefferies report, which factor is likely to accelerate the India‑US trade agreement?",
+      "published": true
     }
   },
   "concepts": {
@@ -3088,6 +3098,11 @@
       "v2": {
         "count": 1,
         "last_seen": "2026-11-15",
+        "published": true
+      },
+      "v1": {
+        "count": 1,
+        "last_seen": "2026-11-27",
         "published": true
       }
     },
