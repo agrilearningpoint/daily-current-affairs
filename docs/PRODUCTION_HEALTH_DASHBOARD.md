@@ -1,6 +1,6 @@
 # Production Health Dashboard
 
-**Generated At (UTC):** `2026-11-28T09:22:37.376964+00:00`  
+**Generated At (UTC):** `2026-11-28T09:42:48.403147+00:00`  
 **Data Sources:** `state/jobs.json`, `state/published_events.json`, `state/healing_history.json`, `recovery_plan.json`, `logs/qa/*_qa.json`, `logs/ai_usage.jsonl`, `logs/provider_health.json`, `logs/provider_summary.json`
 
 ---
@@ -38,8 +38,8 @@
 - **Total Logged Healing Incidents (`state/healing_history.json`):** `39`
 - **By Status:** `{"recovered": 8, "escalated_budget_exhausted": 25, "requires_test_gated_pr": 6}`
 - **By Category:** `{"pdf_generation_failure": 19, "github_actions_failure": 20}`
-- **Active Manual-Attention Queue (`recovery_plan.json`):** `[{"job_id": "daily_2026-11-25", "reason": "recovery budget exhausted"}, {"job_id": "daily_2026-11-28", "reason": "recovery budget exhausted"}]`
-- **Stale `recovery_plan.json` Entries (Now `success` in `jobs.json`):** `['daily_2026-11-28']`
+- **Active Manual-Attention Queue (`recovery_plan.json`):** `[]`
+- **Stale `recovery_plan.json` Entries (Now `success` in `jobs.json`):** `[]`
 
 ## 4. AI Provider & Key-Slot Observability
 

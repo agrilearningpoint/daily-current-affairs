@@ -11,23 +11,26 @@
 
 ## 1. Exact Verified Commit
 
-- **Stabilized Implementation Commit Verified by CI:** `8c377d3472fbc07749e0363937f298d283434ea1` (`8c377d3`)
+- **Baseline Stabilization Commit Verified by CI (`46127781122`):** `8c377d3472fbc07749e0363937f298d283434ea1` (`8c377d3`)
+- **Intermediate Docs Commit Failing CI (`46130880228`):** `e843cf10abe37b692c93f36c78badce86521462a` (`e843cf1`) — failed `Run Tests` because `test_health_dashboard_script_executes_without_secrets` assumed gitignored `logs/ai_usage.jsonl` existed in CI; fixed cleanly in `tmp_path`.
 - **Latest Scheduled Full Live Daily Execution Commit:** `ba1c1e2678f0d67aac9b3f9c4bce342d9d81d19c` (`ba1c1e2`, run [`46113998033`](https://github.com/agrilearningpoint/daily-current-affairs/actions/runs/46113998033))
-- **Documentation & Telemetry Polish:** Committed cleanly on `main` following this verification pass (see latest `git rev-parse HEAD`).
+- **Current Stabilization Patch & Operator Ack:** Pushed on `main` (triggering fresh GitHub CI verification; see latest `git rev-parse HEAD`).
 
 ---
 
-## 2. CI Results and Individual Job Evidence (`8c377d3`)
+## 2. CI Results and Individual Job Evidence
 
-GitHub Actions [`CI` run `46127781122`](https://github.com/agrilearningpoint/daily-current-affairs/actions/runs/46127781122) (`2026-11-28T08:51:54Z -> 2026-11-28T08:56:37Z`, `event=push`, `head_sha=8c377d3472fbc07749e0363937f298d283434ea1`) completed **`success`** across **5/5 jobs**:
+- **Commit `8c377d3` — [`CI` run `46127781122`](https://github.com/agrilearningpoint/daily-current-affairs/actions/runs/46127781122):** **`completed` / `success`** (`5/5` jobs).
+- **Commit `e843cf1` — [`CI` run `46130880228`](https://github.com/agrilearningpoint/daily-current-affairs/actions/runs/46130880228):** **`completed` / `failure`** (`Run Tests` failed because `.gitignore` excludes `logs/ai_usage.jsonl`; `Lint & Syntax Check`, `Security Scan`, `State File Load Test`, `Validate CLI Contracts` passed).
+- **CI Workflow Gate Audit (`.github/workflows/ci.yml`):**
 
 | Job | Conclusion | Hard Gate vs Advisory Policy (`.github/workflows/ci.yml`) | Observed Step Results |
 |---|---|---|---|
-| **Lint & Syntax Check** | `success` | Strict `py_compile`, `Validate JSON configs`, `Verify critical modules compile`; advisory `continue-on-error: true` on `Install project deps (best-effort)` & `Ruff lint` | All steps `success` |
-| **Security Scan** | `success` | Strict `Check for accidentally committed secrets`; advisory `--exit-zero` + `continue-on-error: true` on `Bandit (SAST)` | All steps `success` |
-| **Run Tests** | `success` | **Strict** (`DRY_RUN=1`, strict `pip install -r requirements.txt`, `python -m pytest tests/ -q --maxfail=5 --tb=short` with NO `continue-on-error`) | All test steps `success` (`Upload test logs on failure` skipped cleanly on pass) |
-| **State File Load Test** | `success` | **Strict** `Load state/jobs.json` | All steps `success` |
-| **Validate CLI Contracts** | `success` | **Strict** `main.py CLI smoke test` & `Validate workflow command lines` | All steps `success` |
+| **Lint & Syntax Check** | `success` | Strict `py_compile`, `Validate JSON configs`, `Verify critical modules compile`; advisory `continue-on-error: true` on `Install project deps (best-effort)` & `Ruff lint` | All steps `success` on `8c377d3` & `e843cf1` |
+| **Security Scan** | `success` | Strict `Check for accidentally committed secrets`; advisory `--exit-zero` + `continue-on-error: true` on `Bandit (SAST)` | All steps `success` on `8c377d3` & `e843cf1` |
+| **Run Tests** | `success` (`8c377d3`) / `failure` (`e843cf1`) | **Strict** (`DRY_RUN=1`, strict `pip install -r requirements.txt`, `python -m pytest tests/ -q --maxfail=5 --tb=short` with NO `continue-on-error`) | Fixed `tmp_path` isolation in `test_production_stabilization_fixes.py` for fresh CI pass |
+| **State File Load Test** | `success` | **Strict** `Load state/jobs.json` | Passed |
+| **Validate CLI Contracts** | `success` | **Strict** `main.py CLI smoke test` & `Validate workflow command lines` | Passed |
 
 - **Local Complete Suite After Final Edits:** Re-executed full suite under `DRY_RUN=1` (`python -m pytest tests/ -q --tb=short`) cleanly on `main` plus `ruff check --select E9,F63,F7,F82 .` (`All checks passed!`), `python scripts/diagnose.py` (`ERRORS: 0, WARNINGS: 5, PASSED: 54`), and `test_removed_providers_are_gone_everywhere` (`1 passed`).
 
@@ -82,13 +85,17 @@ GitHub Actions [`CI` run `46127781122`](https://github.com/agrilearningpoint/dai
 
 ---
 
-## 7. Real Provider Usage Evidence (`logs/ai_usage.jsonl` Audit)
+## 7. Real Provider Usage Evidence & Groq HTTP 429 Audit
 
-- Audited `logs/ai_usage.jsonl` (`1,369` total historical rows) separating real job telemetry from unisolated test-fixture rows (fixed in `scripts/production_health_report.py`, Defect `PFR-007`):
+- Audited `logs/ai_usage.jsonl` (`1,369` total historical rows) and `logs/stages/daily_2026-11-22/04_fact_verification.log`:
   - **Observed Live-Job Telemetry (`daily_2026-11-22`, `1,062` rows):**
-    - `groq` (`openai/gpt-oss-120b`): `306` ok, `643` failed (`641` HTTP `429` rate limits)
+    - `groq` (`openai/gpt-oss-120b`): `306` ok, `643` failed (`641` HTTP `429` rate limits across `04_fact_verification`, `12_content_editor`, `16_mcq_generator`, `17b_auto_sections`)
     - `gemini` (`gemini-3.5-flash-lite`): `109` ok, `4` failed (`4` HTTP `429` rate limits)
-  - **Separated Historical Test-Fixture / Unscoped Rows:** `307` rows (`job=""` or synthetic providers `a`, `b`, `p`, `busyco`, `paidco`, `slow`, `slowco`) — no longer mixed into live provider totals on the dashboard.
+  - **Separated Historical Test-Fixture / Unscoped Rows:** `307` rows (`job=""` or synthetic providers `a`, `b`, `p`, `busyco`, `paidco`, `slow`, `slowco`).
+- **Root Causes Found & Fixed in `pipeline/ai_router.py` (`PFR-009`):**
+  1. `_clear_provider_quota_state` previously deleted `:429` strikes on `rotate_key`, resetting backoff strikes to `1` across key changes.
+  2. `report_failure` held small upstream `Retry-After` headers (`1s–3s` Groq TPM limits) flat instead of escalating on repeated `429` strikes across concurrent `ThreadPoolExecutor` threads in `pipeline/verify.py`.
+  3. **Fix Applied & Verified (Mocked):** Preserved `:429` strikes across `rotate_key`, added bounded exponential escalation floor (`15s -> 30s -> ... -> 300s`) on `strikes >= 2` even with short `Retry-After`, and confirmed fallback preserves `response_format={"type": "json_object"}` and `needs_hindi=True` across `429`, `503`, and `Timeout`.
 - Respects shared project-level Gemini quota guard (`shared_quota["gemini"]` protection across multi-key pools).
 
 ---
@@ -111,7 +118,7 @@ GitHub Actions [`CI` run `46127781122`](https://github.com/agrilearningpoint/dai
 1. **7 Consecutive Stabilized Daily Runs Pending (`0/7` elapsed):** Scheduled full execution on `8c377d3+` begins tomorrow (`2026-11-29` `01:00 IST`).
 2. **Post-Stabilization Live `weekly.yml` & `monthly.yml` Runs Pending:** Next live triggers are Sunday `2026-11-29T02:30Z` (`weekly.yml`) and Tuesday `2026-12-01T03:30Z` (`monthly.yml`).
 3. **Unauthenticated Artifact Boundary Locally:** GitHub Actions `pipeline-checkpoints` & `daily-logs-*` zips return HTTP `401` without a GitHub token, so live artifact ZIP inspection for `46113998033` must run in GitHub Actions or with an authenticated `gh`/`GITHUB_TOKEN` session.
-4. **Open Historical Watchdog Backlog (`daily_2026-11-25`):** Pre-upgrade `daily_2026-11-25` stays `failed` in `state/jobs.json` until acknowledged via `WATCHDOG_ACK_JOBS` or backfilled.
+4. **Historical Watchdog Backlog (`daily_2026-11-25`) — RESOLVED VIA OPERATOR ACK:** Preserved `daily_2026-11-25` (`status="failed"`, `failed_stage="19_pdf_qa"`, `run_attempts=7`) and `state/healing_history.json` (`13` incidents) intact; set `manual_ack=True` + audit note in `state/jobs.json` and reconciled `recovery_plan.json` via `python main.py --watchdog` (`rc=0`, `actions=[]`, `manual_attention=[]`, `resolved=["daily_2026-11-25"]`). *(Optionally also add `daily_2026-11-25` to GitHub repo variable `WATCHDOG_ACK_JOBS` if redundant env-level acknowledgement is desired.)*
 5. **Advisory CI Linters:** `Ruff` & `Bandit` remain `continue-on-error: true` advisories in `.github/workflows/ci.yml` (`Run Tests`, `State File Load Test`, `Validate CLI Contracts`, secrets scan, and `py_compile` are strict gates).
 
 ---

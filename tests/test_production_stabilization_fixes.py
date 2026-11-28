@@ -412,14 +412,135 @@ class TestPhase3FaultInjectionAndRecovery:
         health = collect_production_health(ROOT)
         assert "daily" in health["workflows"]
         assert "publication_ledger" in health
-        ai_obs = health["ai_observability"]
-        assert ai_obs["live_job_rows"] > 0
-        assert ai_obs["test_fixture_rows"] > 0
-        assert "daily_2026-11-22" in ai_obs["live_jobs_recorded"]
+        assert "ai_observability" in health
         jp = tmp_path / "h.json"
         cp = tmp_path / "h.csv"
         mp = tmp_path / "h.md"
         write_outputs(health, json_path=jp, csv_path=cp, md_path=mp)
         assert jp.is_file() and cp.is_file() and mp.is_file()
         assert "TELEGRAM_BOT_TOKEN" not in mp.read_text(encoding="utf-8")
+
+    def test_health_dashboard_separates_live_vs_mock_ai_telemetry(self, tmp_path):
+        import json as _json
+        from scripts.production_health_report import collect_production_health
+
+        (tmp_path / "state").mkdir()
+        (tmp_path / "logs").mkdir()
+        (tmp_path / "state" / "jobs.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "state" / "published_events.json").write_text('{"records": {}}', encoding="utf-8")
+        rows = [
+            {"job": "daily_2026-11-22", "provider": "groq", "model": "m1", "ok": True},
+            {"job": "daily_2026-11-22", "provider": "gemini", "model": "m2", "ok": False, "error_category": "rate_limit"},
+            {"job": "", "provider": "busyco", "model": "m3", "ok": False},
+            {"job": "", "provider": "a", "model": "m4", "ok": True},
+        ]
+        (tmp_path / "logs" / "ai_usage.jsonl").write_text(
+            "\n".join(_json.dumps(r) for r in rows) + "\n", encoding="utf-8"
+        )
+        health = collect_production_health(tmp_path)
+        ai_obs = health["ai_observability"]
+        assert ai_obs["live_job_rows"] == 2
+        assert ai_obs["live_job_ok"] == 1
+        assert ai_obs["live_job_fail"] == 1
+        assert ai_obs["live_job_rate_limits"] == 1
+        assert ai_obs["test_fixture_rows"] == 2
+        assert ai_obs["live_jobs_recorded"] == {"daily_2026-11-22": 2}
+
+    def test_groq_short_retry_after_escalates_backoff_and_preserves_schema_fallback(self, tmp_path, monkeypatch):
+        import json as _json
+        import requests
+        from pipeline import ai_router
+
+        monkeypatch.setenv("ALP_AI_HEALTH_FILE", str(tmp_path / "health.json"))
+        monkeypatch.setenv("ALP_AI_USAGE_LOG", str(tmp_path / "usage.jsonl"))
+        monkeypatch.setenv("ALP_PROVIDER_HEALTH_PATH", str(tmp_path / "provider_health.json"))
+        monkeypatch.setenv("ALP_PROVIDER_SUMMARY_PATH", str(tmp_path / "provider_summary.json"))
+        monkeypatch.setenv("ALP_MODEL_AUTO_DISCOVERY", "0")
+        monkeypatch.setenv("ALP_AI_CALL_INTERVAL", "0")
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_fake_00000000000000000000")
+        monkeypatch.setenv("GROQ_API_KEY_1", "gsk_fake_11111111111111111111")
+        monkeypatch.setenv("MISTRAL_API_KEY", "mistral_fake_0000000000000000")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-fake-000000000000000000")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-fake-0000000000000000")
+        monkeypatch.setenv("DRY_RUN", "0")
+        ai_router.reset()
+
+        ai_router._get_providers()
+        groq_prov = ai_router.find_provider("groq")
+        assert groq_prov is not None
+        # Repeated 429 with tiny Retry-After=1 must honor 1s on strike 1 and escalate >=15s on strike 2
+        ai_router.report_failure("groq", ai_router.FailureType.RATE_LIMIT, retry_after=1.0, provider=groq_prov)
+        assert ai_router._HEALTH["strikes"].get("groq::openai/gpt-oss-120b:429", 0) >= 1 or any(
+            k.startswith("groq") and k.endswith(":429") for k in ai_router._HEALTH["strikes"]
+        )
+        # Switch keys and verify :429 strike history is NOT erased
+        ai_router._clear_provider_quota_state("groq")
+        assert any(k.startswith("groq") and k.endswith(":429") for k in ai_router._HEALTH["strikes"])
+        # Cycle remaining models/strikes with retry_after=1s -> wrap-around strike must escalate >= 15s
+        import time as _t
+        for _ in range(max(len(groq_prov.models), 1)):
+            ai_router._HEALTH["blocks"].clear()
+            ai_router.report_failure("groq", ai_router.FailureType.RATE_LIMIT, retry_after=1.0, provider=groq_prov)
+        blocked_for = max(v["until"] - _t.time() for k, v in ai_router._HEALTH["blocks"].items() if k.startswith("groq"))
+        assert blocked_for >= 14.0
+
+        # Fallback preserves response_format (json_object) & needs_hindi across 429/5xx/timeout/malformed
+        ai_router.reset()
+        seen_payloads = []
+
+        class _Resp:
+            def __init__(self, code, data=None, headers=None, text=""):
+                self.status_code = code
+                self._data = data
+                self.headers = headers or {}
+                self.text = text or _json.dumps(data or {})
+            def json(self):
+                if isinstance(self._data, ValueError):
+                    raise self._data
+                return self._data
+
+        seq = [
+            _Resp(429, headers={"Retry-After": "1"}, text="rate limit"),
+            _Resp(503, text="upstream busy"),       # exhausts groq -> moves to mistral
+            requests.Timeout("timeout"),             # mistral times out -> moves to openrouter
+            _Resp(200, data=ValueError("bad json"), text="not-json"), # openrouter malformed -> moves to openai
+            _Resp(200, data={"choices": [{"message": {"content": '{"translations":["सफल हिंदी अनुवाद"]}'}}]}),
+        ]
+
+        def _mock_post(url, headers=None, json=None, timeout=None):
+            seen_payloads.append((url, json))
+            item = seq.pop(0) if seq else seq[-1]
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        monkeypatch.setattr(requests, "post", _mock_post)
+        res = ai_router.route(
+            '{"lines":["Test sentence"]}',
+            task="bilingual_body_batch",
+            needs_hindi=True,
+            response_format={"type": "json_object"},
+        )
+        assert res == '{"translations":["सफल हिंदी अनुवाद"]}'
+        assert all(p.get("response_format") == {"type": "json_object"} for _, p in seen_payloads)
+
+    def test_watchdog_ack_preserves_daily_2026_11_25_failure_record(self):
+        import json as _json
+        import main as app_main
+
+        jobs = _json.loads((ROOT / "state" / "jobs.json").read_text(encoding="utf-8"))
+        jobs = jobs.get("jobs", jobs)
+        j25 = jobs.get("daily_2026-11-25") or {}
+        assert j25.get("status") == "failed"
+        assert j25.get("failed_stage") == "19_pdf_qa"
+        assert j25.get("last_error")
+        assert j25.get("manual_ack") is True
+        rp = ROOT / "recovery_plan.json"
+        orig_rp = rp.read_text(encoding="utf-8") if rp.is_file() else None
+        try:
+            rc = app_main.watchdog()
+            assert rc == 0
+        finally:
+            if orig_rp is not None:
+                rp.write_text(orig_rp, encoding="utf-8")
 

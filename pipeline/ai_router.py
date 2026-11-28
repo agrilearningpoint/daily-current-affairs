@@ -992,7 +992,7 @@ def _clear_provider_quota_state(name: str) -> None:
         for store, pred in (
             ("blocks", lambda k: k == name or k.startswith(name + "::")),
             ("calls", lambda k: k == f"{name}@{day}" or k.startswith(f"{name}::")),
-            ("strikes", lambda k: k == name or k.startswith(name + ":")),
+            ("strikes", lambda k: (k == name or k.startswith(name + ":")) and not k.endswith(":429")),
         ):
             data = _HEALTH[store]
             for k in [k for k in data if pred(k)]:
@@ -1268,19 +1268,28 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
         rotate_upstream = provider is not None and provider.name in _MODEL_ROTATE_ON_429 and len(provider.models) > 1
         key = f"{name}::{provider.model}" if (per_model or rotate_upstream) else name
         strikes = _strike(f"{key}:429")
+        prov_strikes = _strike(f"{name}:429") if key != name else strikes
+        model_count = len(provider.models) if (provider is not None and provider.models) else 1
+        esc_strikes = max(strikes, prov_strikes - max(model_count - 1, 0))
         if retry_after:
             # The provider said when to come back — honour it, but a run only
             # lasts ~15 minutes, so a 55-minute Retry-After (llm7, 2026-11-14
             # 01:04) must not remove the fleet's biggest contributor for the
-            # whole edition.  Anything past the cap is treated as "not in this
-            # run" and re-probed at the cap instead.
-            cooldown = min(float(retry_after), RETRY_AFTER_CAP)
+            # whole edition. On repeated 429s (esc_strikes >= 2), escalate short
+            # Retry-After responses (e.g. Groq TPM 1s-3s) so stages don't hammer
+            # hundreds of times in a tight loop.
+            base_ra = min(float(retry_after), RETRY_AFTER_CAP)
+            if esc_strikes >= 2:
+                esc_floor = min(RATE_LIMIT_MAX_COOLDOWN, 15.0 * (2 ** min(esc_strikes - 2, 5)))
+                cooldown = min(RETRY_AFTER_CAP, max(base_ra, esc_floor))
+            else:
+                cooldown = base_ra
         else:
             # Blind escalation must stay run-scale: on 2026-11-13 it walked
             # llm7 (the fleet's biggest contributor) up to a 1800s park, so the
             # provider was gone for the rest of the edition.
             cooldown = min(RATE_LIMIT_MAX_COOLDOWN,
-                           RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6)))
+                           RATE_LIMIT_COOLDOWN * (2 ** min(esc_strikes - 1, 6)))
         if per_model or rotate_upstream:
             block(key, cooldown, "rate limited (model quota)")
             if provider.rotate_model(force=rotate_upstream):
