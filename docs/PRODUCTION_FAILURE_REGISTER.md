@@ -2,7 +2,7 @@
 
 **Maintained By:** Autonomous Editorial Newsroom Stabilization Team  
 **Last Updated (UTC):** `2026-11-28`  
-**Tracked HEAD Before Stabilization Patch:** `f4aa6df715b4255a50d9ef60b363e4d81dbbc9a9`
+**Tracked Production HEAD:** `03308af56ecd0104f93d82f2cec142f985785a62`
 
 ---
 

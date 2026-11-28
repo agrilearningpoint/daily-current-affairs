@@ -1,6 +1,6 @@
 # Production Health Dashboard
 
-**Generated At (UTC):** `2026-11-28T09:42:48.403147+00:00`  
+**Generated At (UTC):** `2026-11-28T10:14:01.017819+00:00`  
 **Data Sources:** `state/jobs.json`, `state/published_events.json`, `state/healing_history.json`, `recovery_plan.json`, `logs/qa/*_qa.json`, `logs/ai_usage.jsonl`, `logs/provider_health.json`, `logs/provider_summary.json`
 
 ---
