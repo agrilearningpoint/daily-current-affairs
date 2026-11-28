@@ -391,6 +391,10 @@ def _feed_level_time(parsed: Any) -> datetime | None:
 
 # Per-source breakdown of skipped entries from the latest fetch_spec() call
 # (bad_title / bad_link / no_date) plus feed_dated acceptances, for the log.
+# Thread-safe: each thread writes to its own source_id key; reads happen only
+# after all futures have completed (join barrier in main()).
+import threading
+_SKIP_LOCK = threading.Lock()
 SKIP_REASONS: Dict[str, Dict[str, int]] = {}
 
 
@@ -506,7 +510,8 @@ def fetch_spec(spec: SourceSpec, window_start: datetime, window_end: datetime,
             "image_url": image_url,
             **({"date_source": date_source} if date_source != "entry" else {}),
         })
-    SKIP_REASONS[spec.source_id] = reasons
+    with _SKIP_LOCK:
+        SKIP_REASONS[spec.source_id] = reasons
     return collected, len(entries), malformed, None
 
 
@@ -630,10 +635,8 @@ def main() -> int:
         "articles": all_articles,
     }
 
-    tmp_path = out_path.with_suffix(".json.tmp")
-    tmp_path.write_text(json.dumps(edition, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
-    os.replace(tmp_path, out_path)  # atomic write
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(out_path, edition)
 
     if not all_articles:
         print(f"[01_source_fetch] FATAL: zero usable articles collected into "

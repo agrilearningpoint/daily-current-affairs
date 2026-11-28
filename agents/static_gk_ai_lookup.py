@@ -164,12 +164,10 @@ def load_cache(path: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def save_cache(doc: Dict[str, Any], path: Optional[Path] = None) -> None:
+    from pipeline.persistence import write_json_atomic
     p = Path(path or CACHE_PATH)
     try:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        tmp.replace(p)
+        write_json_atomic(p, doc)
     except Exception as exc:  # cache is best-effort
         logger.info("[static-gk-ai] cache not saved: %s", exc)
 

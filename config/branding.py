@@ -64,3 +64,24 @@ BRANDING_CONFIG: Dict[str, Any] = {
     "logo_path": str(ROOT_DIR / "assets" / "logo.png"),
     "watermark_path": str(ROOT_DIR / "assets" / "watermark_logo.png"),
 }
+
+# Unified editorial PDF color palette (single source of truth for daily, weekly, monthly)
+BRAND_PALETTE: Dict[str, str] = {
+    "primary": "#0A2540",        # Deep Academic Navy
+    "primary_dark": "#051626",   # Near Black Slate
+    "secondary": "#0F4C81",      # Classic Blueprint Navy
+    "accent_green": "#0D7A42",   # Vibrant Agricultural Green
+    "light_green_bg": "#ECFDF5", # Soft Mint Green Box
+    "border_green": "#6EE7B7",   # Clean Green Border
+    "badge_bg": "#EFF6FF",       # Light Indigo Pill
+    "badge_text": "#1D4ED8",     # Indigo Pill Text
+    "dark_text": "#0F172A",      # Charcoal Primary Text
+    "body_text": "#1E293B",      # Slate Dark
+    "body_hindi": "#1E293B",     # Hindi Text Slate
+    "muted_text": "#64748B",     # Subtitle & Meta Gray
+    "border_light": "#E2E8F0",   # Hairline Slate Border
+    "card_bg": "#F8FAFC",        # Ice White Card BG
+    "card_border": "#CBD5E1",    # Card Border
+    "gold_accent": "#D97706",    # Highlight Gold
+    "white": "#FFFFFF",
+}

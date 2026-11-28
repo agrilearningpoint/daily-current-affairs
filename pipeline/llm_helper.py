@@ -4,7 +4,10 @@ LLM HELPER — Multi-provider fallback for AGRI LEARNING POINT
 Chain: Gemini → Groq → OpenRouter → Mistral → NVIDIA NIM (all from env, never hardcoded)
 SECURITY: keys from env only (GitHub Secrets in prod, .env locally)
 """
-import os, requests, logging
+import logging
+import os
+
+import requests
 
 def _env(key):
     v = os.getenv(key, "").strip()
@@ -104,8 +107,25 @@ def fetch_newsdata(query="agriculture india", language="en"):
         logging.debug(f"newsdata failed: {type(e).__name__}")
         return []
 
+def call_gemini(prompt, key=None, model=None):
+    key = key or _env("GEMINI_API_KEY") or _env("GOOGLE_API_KEY")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY missing")
+    model = model or _resolve_model("gemini", "GEMINI_MODEL")
+    r = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.2}},
+        timeout=30,
+    )
+    r.raise_for_status()
+    parts = (r.json().get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+    return "".join(p.get("text", "") for p in parts).strip(), f"gemini/{model}"
+
+
 def call_llm(prompt, prefer="gemini"):
     """Multi-provider LLM with fallback — uses ai_router live auto-models first."""
+    from pipeline.ai_usage import record_ai_usage
     try:
         from pipeline import ai_router
         if ai_router.is_configured():
@@ -115,32 +135,40 @@ def call_llm(prompt, prefer="gemini"):
     except Exception:
         pass
     errors = []
-    # 1. Gemini (existing)
+    # 1. Gemini
     try:
-        gem_key = _env("GEMINI_API_KEY")
+        gem_key = _env("GEMINI_API_KEY") or _env("GOOGLE_API_KEY")
         if gem_key:
-            from pipeline.gemini_helper import call_gemini
             txt, mdl = call_gemini(prompt, gem_key)
+            record_ai_usage("gemini", mdl.split("/", 1)[-1], "llm_helper", True)
             return txt, mdl
     except Exception as e:
         errors.append(f"gemini:{e}")
     # 2. Groq
     try:
-        return call_groq(prompt)
+        txt, mdl = call_groq(prompt)
+        record_ai_usage("groq", mdl.split("/", 1)[-1], "llm_helper", True)
+        return txt, mdl
     except Exception as e:
         errors.append(f"groq:{e}")
     # 3. OpenRouter
     try:
-        return call_openrouter(prompt)
+        txt, mdl = call_openrouter(prompt)
+        record_ai_usage("openrouter", mdl.split("/", 1)[-1], "llm_helper", True)
+        return txt, mdl
     except Exception as e:
         errors.append(f"openrouter:{e}")
     # 4. Mistral
     try:
-        return call_mistral(prompt)
+        txt, mdl = call_mistral(prompt)
+        record_ai_usage("mistral", mdl.split("/", 1)[-1], "llm_helper", True)
+        return txt, mdl
     except Exception as e:
         errors.append(f"mistral:{e}")
     try:
-        return call_nvidia(prompt)
+        txt, mdl = call_nvidia(prompt)
+        record_ai_usage("nvidia", mdl.split("/", 1)[-1], "llm_helper", True)
+        return txt, mdl
     except Exception as e:
         errors.append(f"nvidia:{e}")
     raise RuntimeError(f"All LLM providers failed: {'; '.join(errors[:3])}")

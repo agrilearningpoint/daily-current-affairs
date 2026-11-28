@@ -21,8 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 FT = ai_router.FailureType
 
 _PROVIDER_ENV = (
-    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
-    "OPENAI_BASE_URL", "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY",
+    "GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4",
+    "GEMINI_API_KEY_5", "GEMINI_API_KEY_6", "GEMINI_API_KEY_7",
+    "GROQ_API_KEY", "GROQ_API_KEY_1", "GROQ_API_KEY_2",
+    "OPENAI_API_KEY", "OPENAI_API_KEY_1", "OPENAI_BASE_URL", "OPENAI_MODEL",
+    "LLM_API_URL", "LLM_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY",
     "NVIDIA_API_KEY", "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_API_URL",
     "COHERE_API_KEY", "LL7_API_KEY", "LLM7_API_KEY", "HUGGINGFACE_API_KEY", "HF_TOKEN",
     "POLLINATIONS_API_KEY", "POLLINATIONS_BASE_URL", "POLLINATIONS_MODEL",
@@ -497,6 +501,7 @@ def test_verify_keys_workflow_is_manual_read_only_and_explicit():
 def test_pipeline_workflows_pass_every_key():
     keys = ("NEWSDATA_API_KEY", "JINA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "COHERE_API_KEY",
             "LL7_API_KEY", "HUGGINGFACE_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
+            "OPENAI_API_KEY", "OPENAI_API_KEY_1",
             "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY",
             "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY",
             "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "ADMIN_ID")
@@ -507,17 +512,15 @@ def test_pipeline_workflows_pass_every_key():
 
 
 # Removed on 2026-11-03 (cerebras/sambanova/cloudflare/deepseek — no free access
-# on those keys) and on 2026-11-10 (ollama/openai — dead keys: 402 no balance on
-# both, removed at the owner's request). This guard is the only place in the repo
-# that may still name them. "openai" cannot be part of the regex: Groq serves
-# `openai/gpt-oss-*` model ids and the generic provider is called
-# "generic-openai", so the OpenAI *secret* names are asserted separately below.
+# on those keys) and ollama on 2026-11-10. Official OpenAI two-key support
+# (OPENAI_API_KEY / OPENAI_API_KEY_1) was audited and re-enabled in Phase 3 with
+# zero-token /models healthchecks and task-aware routing.
 _REMOVED_PROVIDERS = re.compile(r"cerebras|sambanova|cloudflare|deepseek|ollama", re.I)
-_REMOVED_SECRETS = re.compile(r"OPENAI_API_KEY|OPENAI_BASE_URL|DEEPSEEK_API_KEY|OLLAMA_API_KEY", re.I)
+_REMOVED_SECRETS = re.compile(r"DEEPSEEK_API_KEY|OLLAMA_API_KEY", re.I)
 
 
 def test_removed_providers_are_gone_everywhere():
-    removed = {"cerebras", "sambanova", "cloudflare", "deepseek", "ollama", "openai"}
+    removed = {"cerebras", "sambanova", "cloudflare", "deepseek", "ollama"}
     assert not removed & set(ai_router._PREFERRED_MODELS)
     assert not removed & set(ai_router._KEY_POOL_VARS)
     this = Path(__file__).resolve()
@@ -535,9 +538,7 @@ def test_removed_providers_are_gone_everywhere():
 
 
 def test_removed_provider_env_vars_no_longer_build_a_provider(monkeypatch):
-    """Even with the dead secrets present in the environment, no provider appears."""
-    monkeypatch.setenv("OPENAI_API_KEY", OPENAI_STYLE)
-    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    """Even with the dead secrets present in the environment, removed providers stay off."""
     monkeypatch.setenv("OLLAMA_API_KEY", "fake-local-key")
     monkeypatch.setenv("OLLAMA_BASE_URL", "https://ollama.com")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-fake-deepseek")

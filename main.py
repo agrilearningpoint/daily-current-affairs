@@ -49,6 +49,13 @@ _load_dotenv(ROOT / ".env")
 # ---------------------------------------------------------------------------
 from pipeline.persistence import file_lock, redact, write_json_atomic
 from pipeline.checkpoints import capture, resume_after
+from pipeline.supervisor import (
+    MasterSupervisor,
+    STAGE_STATUS_FAILED_FINAL,
+    STAGE_STATUS_PASS,
+    STAGE_STATUS_PASS_WITH_LIMITATION,
+    STAGE_STATUS_REPAIR,
+)
 
 # Stage registry (local mirror of config/workflow.py — MUST be kept in sync;
 # tests/test_stage_registry.py enforces this contract).
@@ -612,14 +619,23 @@ def execute_job(job_type: str, date_str: str | None) -> int:
         "01_source_fetch", "04_fact_verification", "12_content_editor",
         "16_mcq_generator", "17b_auto_sections", "17c_static_gk_validator",
     }
+    stage_names = [n for n, _, _ in stages]
+    stage_index = {n: i for i, n in enumerate(stage_names)}
+    strict_supervisor_files = getattr(capture, "__module__", "") == "pipeline.checkpoints"
+    supervisor = MasterSupervisor(ROOT, job_id, job_type, ctx["ALP_JOB_DATE"])
+    supervisor.plan(stage_names, resume_from, artifacts)
 
-    for name, script, critical in stages:
+    idx = 0
+    while idx < len(stages):
+        name, script, critical = stages[idx]
         if skipping:
             if name == resume_from:
                 skipping = False
                 log(f"stage {name}: already completed, skipping")
+                idx += 1
                 continue
             log(f"stage {name}: already completed earlier, skipping")
+            idx += 1
             continue
 
         if (name == "04_fact_verification"
@@ -668,6 +684,18 @@ def execute_job(job_type: str, date_str: str | None) -> int:
                 state[job_id].pop("next_stage_name", None)
                 save_jobs_state(state)
 
+        if name in _PUBLISH_GATED_STAGES:
+            decision = supervisor.issue_release_decision(strict_files=strict_supervisor_files)
+            if not decision.get("approved"):
+                reason_str = "; ".join(decision.get("reasons") or ["release rejected"])
+                log_err(f"MasterSupervisor BLOCKED publish for '{job_id}': {reason_str}")
+                update_job(job_id, status="failed", error=f"release_gate: {reason_str}", record_attempt=False)
+                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                    state = load_jobs_state(strict=True)
+                    state[job_id]["failed_stage"] = "19_pdf_qa"
+                    save_jobs_state(state)
+                return 1
+
         if name in _PUBLISH_GATED_STAGES and os.getenv("ALP_HOLD_PUBLISH", "0") == "1":
             # Review hold (workflow_dispatch publish=false): build + QA the PDF,
             # keep checkpoints, send nothing. A later publish=true run resumes
@@ -699,14 +727,24 @@ def execute_job(job_type: str, date_str: str | None) -> int:
                     f"{gate.isoformat()}); checkpoints kept, a later run will publish")
                 return 0
 
+        t_stage = time.monotonic()
         ok, msg = run_stage(name, script, critical, extra_env=ctx)
+        exit_ok = ok
         if ok:
             try:
                 artifacts = capture(ROOT, job_id, name, artifacts)
             except (ValueError, OSError) as exc:
                 ok, msg = False, str(exc)
-        if ok:
-            log(f"stage {name}: {msg}")
+
+        critique = supervisor.observe_and_critique(
+            name,
+            exit_ok=ok,
+            msg=msg,
+            duration_s=time.monotonic() - t_stage,
+            strict_files=strict_supervisor_files,
+        )
+        if critique.status in {STAGE_STATUS_PASS, STAGE_STATUS_PASS_WITH_LIMITATION}:
+            log(f"stage {name}: {msg} [{critique.status}]")
             update_job(job_id, status="running", last_stage=name, artifacts=artifacts, record_attempt=False)
             if (name in _PAUSE_AFTER_STAGES
                     and job_type == "daily"
@@ -718,18 +756,45 @@ def execute_job(job_type: str, date_str: str | None) -> int:
                     pause_s = 0.0
                 if pause_s > 0:
                     time.sleep(min(pause_s, 60.0))
-        else:
-            log_err(f"stage {name}: {msg}")
-            if critical:
-                entry = update_job(job_id, status="failed", error=f"{name}: {msg}", record_attempt=False)
-                with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
-                    state = load_jobs_state(strict=True)
-                    state[job_id]["failed_stage"] = name
-                    save_jobs_state(state)
-                log(f"job '{job_id}' FAILED at critical stage {name}")
-                return 1
-            update_job(job_id, error=f"non-critical {name}: {msg}", record_attempt=False)
-            log(f"stage {name} is non-critical — continuing")
+            idx += 1
+            continue
+
+        # Bounded supervisor repair cycle: rewind to repair_target only when either
+        # an upstream producer needs regeneration or a stage exited 0 with defective output.
+        target = critique.repair_target
+        if (critique.status == STAGE_STATUS_REPAIR
+                and target in stage_index
+                and (target != name or exit_ok)
+                and os.getenv("ALP_SUPERVISOR_REPAIR", "1") == "1"):
+            attempt = supervisor.record_repair_attempt(critique.defect_key or name, target, critique.reasons)
+            target_idx = stage_index[target]
+            keep_stages = set(stage_names[:target_idx])
+            artifacts = {p: r for p, r in artifacts.items() if r.get("stage") in keep_stages}
+            supervisor.invalidate_downstream(stage_names, target)
+            log(f"supervisor REPAIR cycle #{attempt}: {name} defect -> rewinding to {target} "
+                f"({'; '.join(critique.reasons[:2])})")
+            idx = target_idx
+            continue
+
+        err_summary = "; ".join(critique.reasons) if critique.reasons else msg
+        log_err(f"stage {name}: {err_summary} [{critique.status}]")
+        enforce_critical = critical or (
+            critique.status == STAGE_STATUS_FAILED_FINAL
+            and strict_supervisor_files
+            and os.getenv("DRY_RUN", "0") != "1"
+            and os.getenv("ALP_SUPERVISOR_STRICT_SECTIONS", "0") == "1"
+        )
+        if enforce_critical:
+            update_job(job_id, status="failed", error=f"{name}: {err_summary}", record_attempt=False)
+            with file_lock(JOBS_STATE_PATH.parent / "locks" / "state.lock"):
+                state = load_jobs_state(strict=True)
+                state[job_id]["failed_stage"] = name
+                save_jobs_state(state)
+            log(f"job '{job_id}' FAILED at critical stage {name}")
+            return 1
+        update_job(job_id, error=f"non-critical {name}: {err_summary}", record_attempt=False)
+        log(f"stage {name} is non-critical — continuing")
+        idx += 1
 
     update_job(job_id, status="success", record_attempt=False)
     log(f"job '{job_id}' SUCCESS")

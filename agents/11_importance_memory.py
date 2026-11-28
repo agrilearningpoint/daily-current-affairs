@@ -37,14 +37,18 @@ class Agent:
         # previously `scored` was accidentally re-read from SELECTED_DIR.
         scored = read_json(data_path(SCORED_DIR, self.job_id), {"items": []}).get("items", [])
         for it in sel:
-            e = mem.setdefault(it["event_id"], {"headline": it["headline_en"], "history": [], "published_jobs": []})
-            before = [h["score"] for h in e["history"]]
+            eid = str(it.get("event_id") or "").strip()
+            if not eid:
+                continue
+            hl = (it.get("headline_en") or it.get("title") or "").strip()
+            e = mem.setdefault(eid, {"headline": hl, "history": [], "published_jobs": []})
+            before = [h["score"] for h in e.get("history", []) if isinstance(h, dict) and "score" in h]
             sc = it.get("importance_score", 0)
-            e["history"].append({"job": self.job_id, "score": sc, "at": self.context.get("job_date")})
+            e.setdefault("history", []).append({"job": self.job_id, "score": sc, "at": self.context.get("job_date")})
             e["history"] = e["history"][-30:]
             e["trend"] = "NEW" if not before else ("RISING" if sc > max(before) else "FALLING" if sc < max(before) else "STEADY")
             it["trend"] = e["trend"]
-            it["previously_published"] = self.job_id in e["published_jobs"]
+            it["previously_published"] = self.job_id in (e.get("published_jobs") or [])
         write_json_atomic(data_path(MEMORY_DIR, "importance_memory"), mem)
         # Keep every other key of the stage-10 document (notably "reserves"):
         # rewriting it as {"items": sel} silently discarded the reserve stories,

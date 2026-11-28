@@ -2,10 +2,14 @@ name: Scheduled Workflow Keepalive & Secret Health Monitor
 
 on:
   schedule:
-    # Runs once every 45 days at 04:30 UTC (10:00 IST) to check repository inactivity
-    # and prevent GitHub's 60-day scheduled workflow auto-disable without daily commit spam.
+    # Runs twice monthly at 04:30 UTC (10:00 IST) to monitor secret health
+    # and prevent GitHub's 60-day scheduled workflow auto-disable.
     - cron: "30 4 1,15 * *"
   workflow_dispatch:
+
+concurrency:
+  group: current-affairs-pipeline
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -24,18 +28,33 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install minimal dependencies
+        run: pip install requests
+
       - name: Run Zero-Exposure Secret Health Monitor
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_1: ${{ secrets.GROQ_API_KEY_1 }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          LL7_API_KEY: ${{ secrets.LL7_API_KEY }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
+          GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
           ALP_MODEL_AUTO_DISCOVERY: "1"
           ALP_LLM: "auto"
-        run: python scripts/verify_keys.py > state/secret_health_summary.json
+        run: python scripts/verify_keys.py --json state/secret_health_summary.json
 
       - name: Check Last Commit Age (Only Heartbeat if > 50 Days Inactive)
         run: |

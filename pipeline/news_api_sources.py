@@ -254,7 +254,6 @@ def topup_gnews_into_raw(raw_path: Any, window_start: datetime, window_end: date
     edition.setdefault("gnews_topups", []).append({
         "wave": wave, "added": len(new_arts), "at": datetime.now(timezone.utc).isoformat()
     })
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(edition, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(path, edition)
     return {"added": len(new_arts), "total": len(existing), "report": res.get("report")}

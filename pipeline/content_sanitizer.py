@@ -49,7 +49,7 @@ SHALLOW_RAW_WORDS = 20
 DANGLING_SENTENCE_ENDINGS = re.compile(
     r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|costing\s+Rs\.?|around\s+Rs\.?|"
     r"\b(?:Rs|₹)\.?|\b(?:at|in|on|with|by|for|of|to|and|the|a|an)\s*|"
-    r"लागत\s+लगभग\s+रुपये?|लगभग\s+रुपये?|रुपये\s*|के\s+लिए\s*|में\s*|को\s*|और\s*)$",
+    r"लागत\s+लगभग\s+रुपये?|लगभग\s+रुपये?|(?:^|\s)(?:रुपये?|के\s+लिए|में|को|और))\s*$",
     re.IGNORECASE
 )
 

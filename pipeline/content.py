@@ -287,7 +287,8 @@ def _too_similar(a, b):
 
 
 def _qkey(question):
-    return re.sub(r"\W+", "", (question or "").lower())[:60]
+    """Canonical full-stem fingerprint for exact duplicate detection (no prefix collision)."""
+    return re.sub(r"\W+", "", (question or "").lower())
 
 
 def _canon(s):
@@ -442,6 +443,11 @@ def clean_hindi_editorial(text: str) -> str:
     out = str(text)
     for pat, repl in HINDI_EDITORIAL_CORRECTIONS:
         out = pat.sub(repl, out)
+    try:
+        from pipeline.hindi_editor import edit_hindi_text
+        out = edit_hindi_text(out)
+    except Exception:
+        pass
     return out
 
 
@@ -861,10 +867,11 @@ def _build_entry(it, stats):
     ef = exam_fact(work)
 
     flags = []
-    headline_hi = _translate_tracked(title, "headline", stats, flags)
-
+    # Polish English wording BEFORE Hindi translation so both languages express
+    # identical, clarified facts rather than translating stale pre-polish text.
     title_en = polish_with_ai(title, raw_facts)
     kps_en = [polish_with_ai(p, raw_facts) for p in kps]
+    headline_hi = _translate_tracked(title_en, "headline", stats, flags)
 
     # Detailed explanation (bilingual)
     det_en = it.get("detailed_explanation_en") or _build_detailed_explanation(title_en, raw_facts, kps_en, sf, ef)

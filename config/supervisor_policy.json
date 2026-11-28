@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "max_repair_cycles_per_defect": 3,
+  "overall_run_deadline_seconds": 3600,
+  "severity_release_policy": {
+    "P0": "block",
+    "P1": "block_unless_approved_limitation",
+    "P2": "repair_or_track",
+    "P3": "backlog"
+  },
+  "critical_sections_by_type": {
+    "daily": [
+      "fact_verification",
+      "hindi_translation",
+      "mcq_generation",
+      "mcq_validation",
+      "static_gk",
+      "agriculture_corner",
+      "quick_bites",
+      "pdf_generation",
+      "pdf_qa"
+    ],
+    "weekly": [
+      "hindi_translation",
+      "mcq_validation",
+      "static_gk",
+      "agriculture_corner",
+      "pdf_generation",
+      "pdf_qa"
+    ],
+    "monthly": [
+      "hindi_translation",
+      "mcq_validation",
+      "static_gk",
+      "agriculture_corner",
+      "pdf_generation",
+      "pdf_qa"
+    ]
+  },
+  "stage_contracts": {
+    "00_model_orchestrator": {
+      "required_inputs": [],
+      "required_outputs": ["state/model_status.json"],
+      "depends_on": [],
+      "repair_route": "00_model_orchestrator",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    },
+    "01_source_fetch": {
+      "required_inputs": [],
+      "required_outputs": ["data/raw/{job}.json"],
+      "depends_on": [],
+      "min_list_len": 1,
+      "list_key": "articles",
+      "repair_route": "01_source_fetch",
+      "mandatory_in_types": ["daily"]
+    },
+    "04_fact_verification": {
+      "required_inputs": ["data/raw/{job}.json"],
+      "required_outputs": ["data/verified/{job}.json"],
+      "depends_on": ["01_source_fetch"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "04_fact_verification",
+      "mandatory_in_types": ["daily"]
+    },
+    "05_deduplication": {
+      "required_inputs": ["data/verified/{job}.json"],
+      "required_outputs": ["data/dedup/{job}.json"],
+      "depends_on": ["04_fact_verification"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "05_deduplication",
+      "mandatory_in_types": ["daily"]
+    },
+    "06_news_importance": {
+      "required_inputs": ["data/dedup/{job}.json"],
+      "required_outputs": ["data/scored/{job}.json"],
+      "depends_on": ["05_deduplication"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "06_news_importance",
+      "mandatory_in_types": ["daily"]
+    },
+    "07_student_domain_relevance": {
+      "required_inputs": ["data/scored/{job}.json"],
+      "required_outputs": ["data/scored/{job}.json"],
+      "depends_on": ["06_news_importance"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "07_student_domain_relevance",
+      "mandatory_in_types": ["daily"]
+    },
+    "10_final_news_selection": {
+      "required_inputs": ["data/scored/{job}.json"],
+      "required_outputs": ["data/selected/{job}.json"],
+      "depends_on": ["07_student_domain_relevance"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "10_final_news_selection",
+      "mandatory_in_types": ["daily"]
+    },
+    "11_importance_memory": {
+      "required_inputs": ["data/selected/{job}.json", "data/scored/{job}.json"],
+      "required_outputs": ["data/selected/{job}.json"],
+      "depends_on": ["10_final_news_selection"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "11_importance_memory",
+      "mandatory_in_types": ["daily"]
+    },
+    "12_content_editor": {
+      "required_inputs": ["data/selected/{job}.json"],
+      "required_outputs": ["data/content/{job}.json"],
+      "depends_on": ["11_importance_memory"],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "12_content_editor",
+      "mandatory_in_types": ["daily"]
+    },
+    "16_mcq_generator": {
+      "required_inputs": ["data/content/{job}.json"],
+      "required_outputs": ["data/mcq/{job}.json", "data/content/{job}.json"],
+      "depends_on": ["12_content_editor"],
+      "min_list_len": 1,
+      "repair_route": "16_mcq_generator",
+      "mandatory_in_types": ["daily"]
+    },
+    "17_mcq_validator": {
+      "required_inputs": ["data/mcq/{job}.json", "data/content/{job}.json"],
+      "required_outputs": ["data/mcq/{job}.json", "data/content/{job}.json"],
+      "depends_on": ["16_mcq_generator"],
+      "min_list_len": 1,
+      "repair_route": "16_mcq_generator",
+      "mandatory_in_types": ["daily"]
+    },
+    "17b_auto_sections": {
+      "required_inputs": ["data/content/{job}.json"],
+      "required_outputs": ["data/content/{job}.json"],
+      "depends_on": ["17_mcq_validator"],
+      "repair_route": "17b_auto_sections",
+      "mandatory_in_types": ["daily"],
+      "waivable_when_offline": true
+    },
+    "17c_static_gk_validator": {
+      "required_inputs": ["data/content/{job}.json", "data/mcq/{job}.json"],
+      "required_outputs": ["data/content/{job}.json", "data/mcq/{job}.json", "logs/qa/{job}_static_gk.json"],
+      "depends_on": ["17_mcq_validator"],
+      "repair_route": "17c_static_gk_validator",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    },
+    "20_weekly_editor": {
+      "required_inputs": [],
+      "required_outputs": ["data/selected/{job}.json", "data/scored/{job}.json", "data/content/{job}.json", "data/mcq/{job}.json"],
+      "depends_on": [],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "20_weekly_editor",
+      "mandatory_in_types": ["weekly"]
+    },
+    "21_monthly_editor": {
+      "required_inputs": [],
+      "required_outputs": ["data/selected/{job}.json", "data/scored/{job}.json", "data/content/{job}.json", "data/mcq/{job}.json"],
+      "depends_on": [],
+      "min_list_len": 1,
+      "list_key": "items",
+      "repair_route": "21_monthly_editor",
+      "mandatory_in_types": ["monthly"]
+    },
+    "18_pdf_design": {
+      "required_inputs": ["data/content/{job}.json", "data/mcq/{job}.json"],
+      "required_outputs": ["output/{job}.pdf"],
+      "depends_on": ["17c_static_gk_validator", "17b_auto_sections", "20_weekly_editor", "21_monthly_editor"],
+      "repair_route": "18_pdf_design",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    },
+    "19_pdf_qa": {
+      "required_inputs": ["output/{job}.pdf", "data/selected/{job}.json"],
+      "required_outputs": ["logs/qa/{job}_qa.json"],
+      "depends_on": ["18_pdf_design"],
+      "repair_route": "18_pdf_design",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    },
+    "22_telegram_publisher": {
+      "required_inputs": ["output/{job}.pdf", "logs/qa/{job}_qa.json", "data/content/{job}.json"],
+      "required_outputs": ["state/published_events.json"],
+      "depends_on": ["19_pdf_qa"],
+      "repair_route": "22_telegram_publisher",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    },
+    "23_telegram_pin_verifier": {
+      "required_inputs": ["state/published_events.json", "output/{job}.pdf"],
+      "required_outputs": ["state/pin_verification.json"],
+      "depends_on": ["22_telegram_publisher"],
+      "repair_route": "23_telegram_pin_verifier",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    },
+    "24_final_health_audit": {
+      "required_inputs": ["output/{job}.pdf", "logs/qa/{job}_qa.json"],
+      "required_outputs": ["logs/qa/{job}_health.json"],
+      "depends_on": ["23_telegram_pin_verifier"],
+      "repair_route": "24_final_health_audit",
+      "mandatory_in_types": ["daily", "weekly", "monthly"]
+    }
+  }
+}

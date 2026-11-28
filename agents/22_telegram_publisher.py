@@ -467,6 +467,14 @@ def publish_pdf(pdf_path: Path, ledger: Dict[str, Any]) -> bool:
             or qa.get("file_sha256") != hashlib.sha256(pdf_path.read_bytes()).hexdigest()):
         logger.error("QA gate rejected %s (failed, wrong job, or PDF changed)", job_id)
         return False
+    if "release_approval" in qa:
+        expected_sig = hashlib.sha256(
+            f"alp-release-v1|{job_id}|{qa.get('file_sha256')}|{bool(qa.get('passed'))}|{bool((qa.get('release_approval') or {}).get('visual_passed', True))}".encode("utf-8")
+        ).hexdigest()
+        app = qa.get("release_approval") or {}
+        if not isinstance(app, dict) or app.get("approved") is not True or app.get("signature") != expected_sig:
+            logger.error("Release signature verification failed for %s; publish blocked", job_id)
+            return False
     if not DRY_RUN:
         try:
             content = json.loads((REPO_ROOT / "data/content" / f"{job_id}.json").read_text(encoding="utf-8"))

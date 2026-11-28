@@ -231,6 +231,7 @@ class QAReport:
     min_page_chars: int = 0
     stories_missing: List[str] = field(default_factory=list)
     image_xobjects: int = 0
+    visual_qa: Dict[str, Any] = field(default_factory=dict)
     issues: List[QAIssue] = field(default_factory=list)
     checked_at: str = ""
 
@@ -242,7 +243,8 @@ class QAReport:
         has_error = any(i.severity == "error" for i in self.issues)
         if has_error:
             return False
-        if STRICT:
+        strict_now = STRICT or (os.getenv("PDF_QA_STRICT", "0") == "1")
+        if strict_now:
             return not any(i.severity == "warning" for i in self.issues)
         return True
 
@@ -269,6 +271,7 @@ class QAReport:
             "min_page_chars": self.min_page_chars,
             "stories_missing": self.stories_missing,
             "image_xobjects": self.image_xobjects,
+            "visual_qa": self.visual_qa,
             "issues": [
                 {"severity": i.severity, "code": i.code,
                  "message": i.message, "details": i.details}
@@ -1076,10 +1079,40 @@ def run_qa(pdf_path: Path | str, min_mcq_count: int = MIN_MCQ_COUNT,
             check_story_coverage(report, text, selected_items)
         if item_count is not None:
             check_page_target(report, item_count)
+        if RENDER_CHECK and fitz is not None:
+            try:
+                from pipeline.pdf_visual_qa import inspect_pdf_visuals
+                vis = inspect_pdf_visuals(pdf_path)
+                report.visual_qa = vis
+                for vi in vis.get("issues") or []:
+                    sev = "error" if (not vis.get("passed") and vi.get("code") == "visual_blank_pages") else vi.get("severity", "warning")
+                    report.add(sev, str(vi.get("code", "visual_qa")), str(vi.get("message", "")), pages=vi.get("pages", []))
+            except Exception as exc:
+                logger.warning("Visual PDF QA skipped: %s", exc)
     finally:
         doc.close()
 
     return report
+
+
+def release_signature_for(job_id: str, file_sha256: str, passed: bool, visual_passed: bool) -> str:
+    """Compute tamper-evident SHA-256 release gate signature binding job, PDF hash, and verdicts."""
+    payload = f"alp-release-v1|{job_id}|{file_sha256}|{bool(passed)}|{bool(visual_passed)}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def verify_release_signature(qa_data: Dict[str, Any]) -> bool:
+    """Verify release_approval block if present inside QA JSON."""
+    app = qa_data.get("release_approval")
+    if not isinstance(app, dict):
+        return False
+    expected = release_signature_for(
+        str(qa_data.get("job_id") or ""),
+        str(qa_data.get("file_sha256") or ""),
+        bool(qa_data.get("passed")),
+        bool(app.get("visual_passed", True)),
+    )
+    return app.get("signature") == expected and app.get("approved") is True
 
 
 def print_summary(report: QAReport) -> None:
@@ -1192,14 +1225,28 @@ def main() -> int:
     else:
         logger.warning("MCQ variety check skipped: no MCQ artifact for %s", ctx.job_id)
 
-    # Save report
+    # Save report + signed release gate approval
     report_file = ctx.qa_report_path()
     report_file.parent.mkdir(parents=True, exist_ok=True)
     data = report.to_dict()
     data["job_id"] = ctx.job_id
-    data["file_sha256"] = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    file_sha = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    data["file_sha256"] = file_sha
+    visual_ok = bool((report.visual_qa or {}).get("passed", True))
+    data["release_approval"] = {
+        "approved": bool(report.passed),
+        "strict": bool(STRICT or os.getenv("PDF_QA_STRICT", "0") == "1"),
+        "visual_passed": visual_ok,
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "signature": release_signature_for(ctx.job_id, file_sha, report.passed, visual_ok),
+    }
     report_file.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    release_file = report_file.parent / f"{ctx.job_id}_release.json"
+    release_file.write_text(
+        json.dumps({"job_id": ctx.job_id, "file_sha256": file_sha, **data["release_approval"]}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     logger.info("Report: %s", report_file)

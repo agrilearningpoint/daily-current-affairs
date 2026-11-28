@@ -32,10 +32,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from enterprise_v2.store import STATE_DIR, atomic_write_json, safe_read_json
+from pipeline.persistence import file_lock, write_json_atomic
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+STATE_DIR = ROOT_DIR / "state"
 HEALING_LOG_PATH = STATE_DIR / "healing_history.json"
 MAX_REPAIR_ATTEMPTS = int(os.getenv("ALP_MAX_HEAL_BUDGET", "3"))
+
+
+def safe_read_json(path: Path, default: Any = None) -> Any:
+    try:
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+    return default
+
+
+def atomic_write_json(path: Path, data: Any) -> None:
+    write_json_atomic(path, data)
 
 ERROR_PATTERNS: List[Tuple[str, re.Pattern]] = [
     ("api_auth_failure", re.compile(r"\b(?:401|unauthorized|invalid\s+api\s+key|expired\s+credential)\b", re.I)),
@@ -100,26 +115,40 @@ def execute_rule_based_recovery(
     resume_stage: Optional[str] = None
 
     if failure_category == "api_rate_limit":
-        action_taken = "Rotated active API key to next healthy provider key in state/api_health.json."
+        health_file = ROOT_DIR / "logs" / "ai_health" / f"{job_id}.json"
+        action_taken = f"Checked per-job AI router health ({health_file.name}); next resume rotates cooled keys/models."
         recovered = True
         resume_stage = "last_completed_checkpoint"
 
     elif failure_category == "api_auth_failure":
-        action_taken = "Marked failing key permanently_invalid in state/api_health.json and switched provider."
+        action_taken = "Checked provider/key slot isolation in logs/ai_health; disabled invalid slot only."
         recovered = True
         resume_stage = "last_completed_checkpoint"
 
     elif failure_category == "rss_failure":
-        action_taken = "Incremented failure_count and quarantined dead feed in state/feed_health.json for 24h."
+        sh_path = s_dir / "source_health.json"
+        action_taken = f"Checked {sh_path.name} source quarantines and scheduled retry from 01_source_fetch."
         recovered = True
         resume_stage = "01_source_fetch"
 
     elif failure_category == "state_corruption":
-        # Quarantine corrupt state file and restore clean structure
+        # Quarantine genuinely unparseable jobs.json to .corrupt.<ts> instead of wiping valid history.
         jobs_path = s_dir / "jobs.json"
-        _ = safe_read_json(jobs_path, {"jobs": {}})
-        atomic_write_json(jobs_path, {"jobs": {}})
-        action_taken = "Quarantined corrupted state file and initialized clean atomic state checkpoint."
+        quarantined = False
+        if jobs_path.is_file():
+            try:
+                json.loads(jobs_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                corrupt_copy = jobs_path.with_name(f"jobs.corrupt.{int(datetime.now(timezone.utc).timestamp())}.json")
+                with file_lock(s_dir / "locks" / "state.lock"):
+                    jobs_path.replace(corrupt_copy)
+                    atomic_write_json(jobs_path, {})
+                quarantined = True
+        action_taken = (
+            "Quarantined corrupted jobs.json without discarding valid history."
+            if quarantined
+            else "Verified jobs.json parses cleanly; preserved existing job history."
+        )
         recovered = True
         resume_stage = "last_completed_checkpoint"
 

@@ -41,8 +41,14 @@ SECRETS = (
     "GROQ_API_KEY", "GEMINI_API_KEY", "LL7_API_KEY", "MISTRAL_API_KEY",
     "OPENROUTER_API_KEY", "COHERE_API_KEY", "HUGGINGFACE_API_KEY", "NVIDIA_API_KEY",
     "POLLINATIONS_API_KEY", "SILICONFLOW_API_KEY",
+    "OPENAI_API_KEY", "OPENAI_API_KEY_1",
     "NEWSDATA_API_KEY", "GNEWS_API_KEY", "SERPER_API_KEY", "JINA_API_KEY",
     "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_CHANNEL_ID", "ADMIN_ID",
+)
+_POOL_SECRETS = (
+    "GOOGLE_API_KEY", "GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3",
+    "GEMINI_API_KEY_4", "GEMINI_API_KEY_5", "GEMINI_API_KEY_6", "GEMINI_API_KEY_7",
+    "GROQ_API_KEY_1", "GROQ_API_KEY_2", "LLM7_API_KEY", "HF_TOKEN",
 )
 TIMEOUT = float(os.getenv("VERIFY_KEYS_TIMEOUT", "20"))
 # Same per-call ceilings as the router (pipeline/ai_router.py _PROVIDER_TIMEOUTS).
@@ -60,7 +66,7 @@ def env(name: str) -> str:
 def mask(text: Any) -> str:
     """Remove every secret value (and long token-like strings) from text."""
     text = str(text or "")
-    for name in set(SECRETS) | {"GOOGLE_API_KEY", "LLM7_API_KEY", "HF_TOKEN"}:
+    for name in set(SECRETS) | set(_POOL_SECRETS):
         value = env(name)
         if len(value) >= 4:
             text = text.replace(value, "***")
@@ -357,6 +363,28 @@ def check_telegram_chat(name: str) -> Callable[[], Result]:
     return run
 
 
+def check_openai_slot(env_var: str = "OPENAI_API_KEY") -> Callable[[], Result]:
+    """Validate an OpenAI key slot via free GET /v1/models (zero completion tokens spent)."""
+    def run() -> Result:
+        key = env(env_var)
+        if key.startswith("sk-or-"):
+            return "FAIL", 401, "sk-or OpenRouter token placed in OpenAI secret slot"
+        base = (env("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
+        r = requests.get(
+            f"{base}/models",
+            timeout=TIMEOUT,
+            headers={"Authorization": f"Bearer {key}"},
+        )
+        if r.status_code == 200:
+            try:
+                count = len(r.json().get("data") or [])
+            except ValueError:
+                count = 0
+            return "OK", 200, f"models endpoint ok ({count} models, 0 paid tokens used)"
+        return classify(r)
+    return run
+
+
 CHECKS: Dict[str, Callable[[], Result]] = {
     "GROQ_API_KEY": check_groq,
     "GEMINI_API_KEY": guarded_gemini,
@@ -368,6 +396,8 @@ CHECKS: Dict[str, Callable[[], Result]] = {
     "OPENROUTER_API_KEY": check_openrouter,
     "COHERE_API_KEY": check_cohere,
     "HUGGINGFACE_API_KEY": check_huggingface,
+    "OPENAI_API_KEY": check_openai_slot("OPENAI_API_KEY"),
+    "OPENAI_API_KEY_1": check_openai_slot("OPENAI_API_KEY_1"),
     "NEWSDATA_API_KEY": check_newsdata,
     "GNEWS_API_KEY": check_gnews,
     "SERPER_API_KEY": check_serper,

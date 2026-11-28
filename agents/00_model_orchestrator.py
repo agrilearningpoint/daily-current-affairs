@@ -68,10 +68,12 @@ def provider_defaults() -> List[Dict[str, Any]]:
 
 # --------------------------------------------------------------------------- #
 def load_keys() -> List[Dict[str, Any]]:
-    from pipeline.ai_router import _build_default_providers
+    from pipeline.ai_router import _build_default_providers, _KEY_POOL_VARS
     env_names = {
-        "gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY",
-        "groq": "GROQ_API_KEY",
+        "gemini": "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else (
+            "GOOGLE_API_KEY" if os.getenv("GOOGLE_API_KEY") else "GEMINI_API_KEY_1"
+        ),
+        "groq": "GROQ_API_KEY" if os.getenv("GROQ_API_KEY") else "GROQ_API_KEY_1",
         "mistral": "MISTRAL_API_KEY",
         "generic-openai": "LLM_API_KEY",
         "openrouter": "OPENROUTER_API_KEY",
@@ -81,11 +83,23 @@ def load_keys() -> List[Dict[str, Any]]:
         "huggingface": "HUGGINGFACE_API_KEY" if os.getenv("HUGGINGFACE_API_KEY") else "HF_TOKEN",
         "pollinations": "POLLINATIONS_API_KEY",
         "siliconflow": "SILICONFLOW_API_KEY",
+        "openai": "OPENAI_API_KEY" if os.getenv("OPENAI_API_KEY") else "OPENAI_API_KEY_1",
     }
-    return [{"name": provider.name, "url": provider.url, "key": provider.key,
-             "model": provider.model, "priority": provider.priority,
-             "models": list(provider.models or [provider.model]),
-             "env_used": env_names.get(provider.name, "API_KEY")} for provider in _build_default_providers()]
+    rows = []
+    for provider in _build_default_providers():
+        pool_vars = [v for v in _KEY_POOL_VARS.get(provider.name, ()) if (os.getenv(v) or "").strip()]
+        rows.append({
+            "name": provider.name,
+            "url": provider.url,
+            "key": provider.key,
+            "model": provider.model,
+            "priority": provider.priority,
+            "models": list(provider.models or [provider.model]),
+            "key_slots": list(getattr(provider, "key_slots", []) or []),
+            "pool_count": len(provider.key_pool or []) or len(pool_vars) or 1,
+            "env_used": env_names.get(provider.name, "API_KEY"),
+        })
+    return rows
 
 
 # Statuses where another model of the same provider may still work: a retired
@@ -127,6 +141,26 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
 
     name = provider["name"]
     try:
+        if name == "openai":
+            # Paid API: never spend completion tokens during routine Stage 00 checks.
+            if str(provider.get("key") or "").startswith("sk-or-"):
+                return {"status": "auth_error", "detail": "sk-or OpenRouter token rejected for OpenAI"}
+            base_url = str(provider.get("url") or "https://api.openai.com/v1/chat/completions")
+            models_url = base_url.split("/chat/completions", 1)[0] + "/models"
+            r = requests.get(
+                models_url,
+                headers={"Authorization": f"Bearer {provider['key']}"},
+                timeout=HEALTH_TIMEOUT,
+            )
+            if r.status_code == 200:
+                return {"status": "ok", "detail": "models catalogue verified (0 tokens spent)"}
+            if r.status_code in (401, 403):
+                return {"status": "auth_error", "detail": f"HTTP {r.status_code} (invalid key / forbidden)"}
+            if r.status_code == 402:
+                return {"status": "credit_error", "detail": "HTTP 402 (no balance)"}
+            if r.status_code == 429:
+                return {"status": "rate_limit", "detail": "quota exceeded"}
+            return {"status": "http_error", "detail": f"HTTP {r.status_code}"}
         if name == "gemini":
             # Key in a header, never in the URL (URLs end up in exception text/logs).
             url = f"{provider['url']}/{provider['model']}:generateContent"
@@ -179,13 +213,8 @@ def health_check(provider: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def atomic_write(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp, path)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(path, data)
 
 
 # --------------------------------------------------------------------------- #
@@ -283,6 +312,14 @@ def main() -> int:
         "aux_services": aux,
     }
     atomic_write(STATUS_FILE, report)
+    try:
+        from pipeline.ai_usage import update_provider_observability
+        with ai_router._HEALTH_LOCK:
+            ai_router._health_load()
+            snap = dict(ai_router._HEALTH)
+        update_provider_observability(root=REPO_ROOT, health_state=snap, providers=ai_router._PROVIDERS)
+    except Exception:
+        pass
 
     logger.info("Model status: %d/%d reachable → %s",
                 len(healthy), len(results), STATUS_FILE)

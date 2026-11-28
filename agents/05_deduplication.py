@@ -195,13 +195,8 @@ def load_latest() -> Tuple[List[Dict[str, Any]], Path]:
 
 
 def atomic_write(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp, path)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(path, data)
 
 
 # --------------------------------------------------------------------------- #
@@ -229,8 +224,23 @@ def dedup_fingerprint(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if len(get_keywords(title)) < 4:
             fp += ":" + fingerprint((a.get("summary") or a.get("link") or "")[:300])
         cur = seen.get(fp)
-        if cur is None or _rank(a) > _rank(cur):
-            seen[fp] = a
+        if cur is None:
+            cand = dict(a)
+            cand.setdefault("_fp_count", 1)
+            seen[fp] = cand
+        else:
+            img = cur.get("image_url") or a.get("image_url") or ""
+            cnt = cur.get("_fp_count", 1) + 1
+            if _rank(a) > _rank(cur):
+                cand = dict(a)
+                cand["_fp_count"] = cnt
+                if img and not cand.get("image_url"):
+                    cand["image_url"] = img
+                seen[fp] = cand
+            else:
+                cur["_fp_count"] = cnt
+                if img and not cur.get("image_url"):
+                    cur["image_url"] = img
     return list(seen.values())
 
 
@@ -246,26 +256,41 @@ def dedup_similarity(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if similarity(title, c.get("title", "")) > SIMILARITY_THRESHOLD:
                 # Same event — keep higher confidence
                 image = c.get("image_url") or a.get("image_url") or ""
+                prev_cnt = c.get("_cluster_count", 1)
+                add_cnt = a.get("_fp_count", 1)
                 if _rank(a) > _rank(c):
                     srcs = c.get("_sources", set())
+                    prim_lvl = c.get("_primary_count", 0)
                     c.update(a)
                     c["_sources"] = srcs
+                    c["_primary_count"] = prim_lvl
                 if image and not c.get("image_url"):
                     c["image_url"] = image  # keep a photo from either duplicate
-                # merge sources
+                # merge sources & counts
                 c.setdefault("_sources", set()).add(a.get("source_feed", ""))
+                c["_cluster_count"] = prev_cnt + add_cnt
+                if isinstance(a.get("source_level"), int) and a["source_level"] <= 2:
+                    c["_primary_count"] = c.get("_primary_count", 0) + 1
                 merged = True
                 break
         if not merged:
             a = dict(a)
             a["_sources"] = {a.get("source_feed", "")}
+            a["_cluster_count"] = a.pop("_fp_count", 1)
+            a["_primary_count"] = 1 if (isinstance(a.get("source_level"), int) and a["source_level"] <= 2) else 0
             clusters.append(a)
 
-    # Convert _sources set → list + count
+    # Convert _sources set → list + count & enrichment fields
     for c in clusters:
         srcs = sorted(c.pop("_sources", set()))
+        cnt = max(len(srcs), int(c.pop("_cluster_count", 1)))
+        prim_cnt = int(c.pop("_primary_count", 0))
+        c.pop("_fp_count", None)
         c["duplicate_sources"] = srcs
         c["source_count"] = len(srcs)
+        c["duplicate_count"] = cnt
+        c["event_cluster_size"] = cnt
+        c["verification_boost"] = min(10, prim_cnt * 2) if prim_cnt >= 2 else 0
     return clusters
 
 

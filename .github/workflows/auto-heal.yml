@@ -2,7 +2,7 @@ name: Autonomous Self-Healing & Recovery Agent
 
 on:
   workflow_run:
-    workflows: ["Daily News Pipeline", "Weekly News Pipeline", "Monthly News Pipeline"]
+    workflows: ["Daily News Pipeline", "Weekly Current Affairs", "Monthly Current Affairs"]
     types:
       - completed
   workflow_dispatch:

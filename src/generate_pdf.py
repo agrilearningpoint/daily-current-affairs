@@ -95,26 +95,20 @@ _ALLOW_UNSHAPED_DEV = os.getenv("ALP_ALLOW_UNSHAPED_DEV_PDF", "0") == "1"
 if not _HAS_SHAPING and not _ALLOW_UNSHAPED_DEV:
     raise RuntimeError(f"FATAL: {_SHAPING_DIAGNOSTIC}")
 
-# --- COLOR PALETTE (Modern Exam Genius Theme) ---
-COLORS = {
-    "primary": HexColor("#0A2540"),        # Deep Academic Navy
-    "primary_dark": HexColor("#051626"),   # Near Black Slate
-    "secondary": HexColor("#0F4C81"),      # Classic Blueprint Navy
-    "accent_green": HexColor("#0D7A42"),   # Vibrant Agricultural Green
-    "light_green_bg": HexColor("#ECFDF5"), # Soft Mint Green Box
-    "border_green": HexColor("#6EE7B7"),   # Clean Green Border
-    "badge_bg": HexColor("#EFF6FF"),       # Light Indigo Pill
-    "badge_text": HexColor("#1D4ED8"),     # Indigo Pill Text
-    "dark_text": HexColor("#0F172A"),      # Charcoal Primary Text
-    "body_text": HexColor("#1E293B"),      # Slate Dark
-    "body_hindi": HexColor("#1E293B"),     # Hindi Text Slate
-    "muted_text": HexColor("#64748B"),     # Subtitle & Meta Gray
-    "border_light": HexColor("#E2E8F0"),   # Hairline Slate Border
-    "card_bg": HexColor("#F8FAFC"),        # Ice White Card BG
-    "card_border": HexColor("#CBD5E1"),    # Card Border
-    "gold_accent": HexColor("#D97706"),    # Highlight Gold
-    "white": HexColor("#FFFFFF"),
-}
+# --- COLOR PALETTE (Modern Exam Genius Theme — backed by config/branding.py) ---
+try:
+    from config.branding import BRAND_PALETTE as _BRAND_PALETTE
+except Exception:  # pragma: no cover - standalone fallback
+    _BRAND_PALETTE = {
+        "primary": "#0A2540", "primary_dark": "#051626", "secondary": "#0F4C81",
+        "accent_green": "#0D7A42", "light_green_bg": "#ECFDF5", "border_green": "#6EE7B7",
+        "badge_bg": "#EFF6FF", "badge_text": "#1D4ED8", "dark_text": "#0F172A",
+        "body_text": "#1E293B", "body_hindi": "#1E293B", "muted_text": "#64748B",
+        "border_light": "#E2E8F0", "card_bg": "#F8FAFC", "card_border": "#CBD5E1",
+        "gold_accent": "#D97706", "white": "#FFFFFF",
+    }
+
+COLORS = {k: HexColor(v) for k, v in _BRAND_PALETTE.items()}
 
 PAGE_W, PAGE_H = A4
 PRINT_W = PAGE_W - 72 * pt  # 523.28 pt printable width (36pt margins left/right)

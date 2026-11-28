@@ -42,10 +42,14 @@ class Agent:
         
         try:
             from pipeline.content import validate_mcqs
+            from pipeline.mcq_examiner import examine_mcq_set
             
             logging.info(f"[{self.name}] Running mcq_validator (FAIL-CLOSED)...")
             validated_mcqs, rejected_mcqs = validate_mcqs(mcqs, items)
-            validation_method = "mcq_validator_v2"
+            validated_mcqs, examiner_rejected, examiner_report = examine_mcq_set(validated_mcqs, items)
+            rejected_mcqs = list(rejected_mcqs) + list(examiner_rejected)
+            self.context["examiner_report"] = examiner_report
+            validation_method = "mcq_validator_v2+examiner"
             
             rejected = len(mcqs) - len(validated_mcqs)
             logging.info(f"[{self.name}] Validation: {len(validated_mcqs)}/{len(mcqs)} passed ({rejected} rejected)")

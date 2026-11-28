@@ -191,8 +191,9 @@ def stale_reason(item: Dict[str, Any], jdate: Any = None, hours: Optional[float]
             return f"PIB PRID ~{p.isoformat()}"
     head = str(item.get("headline_en") or item.get("title") or "")
     body = str(item.get("raw_facts") or item.get("summary") or "")
-    # 3. a full event date in the headline / opening text that is months old
-    found = event_dates(f"{head} . {body[:600]}", jd)   # full, month-day and weekday dates
+    # 3. an explicit event date in the headline / opening text that is months old
+    # (exclude synthetic relative-day matches like "today" so they never mask an old date)
+    found = event_dates(f"{head} . {body[:600]}", jd, include_relative=False)
     if found:
         newest = max(found)
         if newest < jd - timedelta(days=_event_days()):
@@ -248,9 +249,24 @@ _RELATIVE_DAY_RE = re.compile(r"\b(today|yesterday|tonight|this\s+morning|this\s
 
 
 def _infer_year(month: int, day: int, ref: date) -> Optional[date]:
+    """Infer the year for a month-day pair relative to *ref*.
+
+    When Nov→Jan (or any late-year→early-year) wrap occurs, a December date
+    seen in a January story should resolve to the previous year, and a January
+    date seen in a November story should resolve to the next year — but only
+    within a 6-month window on each side.
+    """
     d = _safe_date(ref.year, month, day)
-    if d and d > ref + timedelta(days=31):
+    if d is None:
+        return None
+    # Future by more than ~1 month → likely last year
+    if d > ref + timedelta(days=31):
         d = _safe_date(ref.year - 1, month, day)
+    # Past by more than ~11 months → likely next year (Jan date seen in Dec story)
+    elif d < ref - timedelta(days=335):
+        d2 = _safe_date(ref.year + 1, month, day)
+        if d2 is not None:
+            d = d2
     return d
 
 
@@ -260,7 +276,7 @@ def resolve_weekday(name: str, ref: date) -> date:
     return ref - timedelta(days=back)
 
 
-def event_dates(text: str, ref: date) -> List[date]:
+def event_dates(text: str, ref: date, include_relative: bool = True) -> List[date]:
     """Event dates named in *text*, resolved against the publish day *ref*:
     full dates, month-day without a year ("On September 12,"), and weekday
     references ("on Thursday" -> the Thursday on/before *ref*)."""
@@ -279,7 +295,7 @@ def event_dates(text: str, ref: date) -> List[date]:
     for m in _WEEKDAY_RE.finditer(text):
         inner = text_dates(m.group(2) or "")
         out.append(inner[0] if inner else resolve_weekday(m.group(1), ref))
-    if _RELATIVE_DAY_RE.search(text):
+    if include_relative and _RELATIVE_DAY_RE.search(text):
         k = 1 if _RELATIVE_DAY_RE.search(text).group(1).lower() == "yesterday" else 0
         out.append(ref - timedelta(days=k))
     return out

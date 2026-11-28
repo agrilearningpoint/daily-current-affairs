@@ -200,8 +200,12 @@ def clip_timeout(timeout: float) -> float:
 # Shared provider health (cross-stage, cross-module)
 # --------------------------------------------------------------------------- #
 _HEALTH_LOCK = threading.RLock()
-_HEALTH: Dict[str, Any] = {"blocks": {}, "calls": {}, "strikes": {}, "keyidx": {}}
+_HEALTH: Dict[str, Any] = {
+    "blocks": {}, "calls": {}, "strikes": {}, "keyidx": {},
+    "key_stats": {}, "shared_quota": {},
+}
 _HEALTH_LOADED = [None]  # path the in-memory copy was loaded from
+_RECENT_SLOT_429S: Dict[str, List[Tuple[float, int]]] = {}
 
 
 def _health_path() -> Optional[Path]:
@@ -221,6 +225,7 @@ def _health_load() -> None:
         return
     _HEALTH_LOADED[0] = key
     _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"], _HEALTH["keyidx"] = {}, {}, {}, {}
+    _HEALTH["key_stats"], _HEALTH["shared_quota"] = {}, {}
     if not path or not path.is_file():
         return
     try:
@@ -231,6 +236,13 @@ def _health_load() -> None:
         _HEALTH["calls"] = {k: int(v) for k, v in (data.get("calls") or {}).items()}
         _HEALTH["strikes"] = {k: int(v) for k, v in (data.get("strikes") or {}).items()}
         _HEALTH["keyidx"] = {k: int(v) for k, v in (data.get("keyidx") or {}).items()}
+        _HEALTH["key_stats"] = {
+            str(k): dict(v) for k, v in (data.get("key_stats") or {}).items()
+            if isinstance(v, dict)
+        }
+        _HEALTH["shared_quota"] = {
+            str(k): bool(v) for k, v in (data.get("shared_quota") or {}).items()
+        }
     except (OSError, ValueError, TypeError, AttributeError) as exc:
         logger.info("[Router] provider health file unreadable (%s); starting fresh", type(exc).__name__)
 
@@ -240,10 +252,8 @@ def _health_save() -> None:
     if not path:
         return
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(_HEALTH, sort_keys=True, indent=1), encoding="utf-8")
-        os.replace(tmp, path)
+        from pipeline.persistence import write_json_atomic
+        write_json_atomic(path, _HEALTH)
     except OSError as exc:
         logger.info("[Router] provider health file not written: %s", type(exc).__name__)
 
@@ -252,7 +262,9 @@ def _reset_health() -> None:
     """Tests: forget every cooldown and counter held in memory."""
     with _HEALTH_LOCK:
         _HEALTH["blocks"], _HEALTH["calls"], _HEALTH["strikes"], _HEALTH["keyidx"] = {}, {}, {}, {}
+        _HEALTH["key_stats"], _HEALTH["shared_quota"] = {}, {}
         _HEALTH_LOADED[0] = None
+        _RECENT_SLOT_429S.clear()
     _DEADLINE_LOGGED[0] = False
 
 
@@ -401,16 +413,25 @@ class Provider:
     call_times: deque = field(default_factory=lambda: deque(maxlen=5000))
     model_calls: Dict[str, deque] = field(default_factory=dict)
     key_pool: List[str] = field(default_factory=list)   # verified keys; rotate on 429/402
+    key_slots: List[str] = field(default_factory=list)  # safe env-var slot identifiers (no secret values)
     key_idx: int = 0                                    # active key in key_pool
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
         if not self.key_pool:
             self.key_pool = [self.key] if self.key else []
+        if not self.key_slots and self.key_pool:
+            self.key_slots = [f"{self.name}:slot_{i}" for i in range(len(self.key_pool))]
         if not self.models:
             self.models = [self.model] if self.model else []
         elif self.model and self.model not in self.models:
             self.models.insert(0, self.model)
+
+    @property
+    def current_slot(self) -> str:
+        if self.key_slots and 0 <= self.key_idx < len(self.key_slots):
+            return self.key_slots[self.key_idx]
+        return f"{self.name}:slot_{self.key_idx}"
 
     # -- quota keys ------------------------------------------------------- #
     def quota_key(self, model: Optional[str] = None) -> str:
@@ -460,28 +481,52 @@ class Provider:
                 return True
         return False
 
-    def rotate_key(self) -> bool:
-        """Switch to the next verified API key (a fresh key = a fresh quota).
+    def rotate_key(
+        self,
+        *,
+        reason: str = "rate_limit",
+        cooldown: float = RATE_LIMIT_COOLDOWN,
+        permanent: bool = False,
+    ) -> bool:
+        """Switch cleanly to the next healthy key slot without infinite wrap-around.
 
-        Used when every model of the current key is rate-limited (429) or the
-        key itself is out of credit (401/402), or during quota rotation.
-        Clears this provider's blocks, strikes and today's call counters,
-        and persists the index in the shared health file so every later stage
-        uses the same key."""
+        Marks only the outgoing key slot cooled/invalid (never erasing sibling slots'
+        health or RPD counters), checks Gemini shared project-level quota signals,
+        and picks the best eligible next key via `ALP_KEY_SCHEDULING`
+        (`least_used` default or `round_robin`). Returns False when every slot is
+        exhausted or cooled.
+        """
         with self._lock:
-            if len(self.key_pool) <= 1:
+            total = len(self.key_pool)
+            if total <= 1:
                 return False
-            self.key_idx = (self.key_idx + 1) % len(self.key_pool)
-            self.key = self.key_pool[self.key_idx]
+            name = self.name
+            old_idx = self.key_idx
+            old_slot = self.current_slot
+
+        slot_cd = AUTH_COOLDOWN if permanent else max(1.0, float(cooldown))
+        _record_slot_failure(name, old_slot, old_idx, reason, slot_cd, permanent=permanent)
+
+        # Shared project quota guard for Gemini: if 3+ distinct keys hit 429 within
+        # 60s, stop burning through the remaining slots assuming separate quotas.
+        if name == "gemini" and reason == "rate_limit" and _check_shared_project_quota(name, old_idx):
+            return False
+
+        next_idx = _select_next_slot(name, self.key_slots or [f"{name}:slot_{i}" for i in range(total)], old_idx)
+        if next_idx is None:
+            return False
+
+        with self._lock:
+            self.key_idx = next_idx
+            self.key = self.key_pool[next_idx]
             self.disabled_until = 0.0
             self.consecutive_transient = 0
             self.call_times.clear()
             self.model_calls.clear()
-            idx, name, total = self.key_idx, self.name, len(self.key_pool)
+            idx, total = self.key_idx, len(self.key_pool)
         _clear_provider_quota_state(name)
         _save_key_index(name, idx)
-        logger.info("[Router] %s switched to API key %d/%d (quota rotation)",
-                    name, idx + 1, total)
+        logger.info("[Router] %s switched to API key slot %d/%d (%s)", name, idx + 1, total, self.current_slot)
         return True
 
     def throttle(self) -> None:
@@ -564,6 +609,8 @@ _PREFERRED_MODELS = {
     "llm7": ("default", "fast"),
     # router.huggingface.co/v1/models (inference providers; tiny free credit).
     "huggingface": ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "meta-llama/Llama-3.3-70B-Instruct"),
+    # Official OpenAI API (enabled only when OPENAI_API_KEY / OPENAI_API_KEY_1 configured).
+    "openai": ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1-nano"),
 }
 # Models a provider still lists but no longer serves (end of life → HTTP 410).
 # Discovery never picks these; a fresh 410 adds the model to the run's health file.
@@ -579,7 +626,7 @@ _RETIRED_MODELS = {
 # Providers whose catalogue lists many paid / unverified endpoints: keep strictly
 # on the reviewed preference list. OpenRouter uses _FREE_ONLY live discovery, and
 # NVIDIA dynamically picks active instruct/text NIM models via live discovery.
-_PREFERRED_ONLY = {"huggingface", "llm7", "cohere", "pollinations", "siliconflow"}
+_PREFERRED_ONLY = {"huggingface", "llm7", "cohere", "pollinations", "siliconflow", "openai"}
 # Free-only providers: never select a model that bills per token.
 _FREE_ONLY = {"openrouter"}
 # Providers whose /models listing is not usable for discovery (non-OpenAI shape,
@@ -768,6 +815,9 @@ def unconfigured_notes() -> List[str]:
         key_shape_problem("SILICONFLOW_API_KEY", r"sk-[A-Za-z0-9]{16,}", "SiliconFlow"),
         # Pollinations tokens are "<32 hex>.<secret>" (2026-11-10).
         key_shape_problem("POLLINATIONS_API_KEY", r"[0-9a-f]{32}\.[A-Za-z0-9]{8,}", "Pollinations"),
+        # Reject OpenRouter tokens placed accidentally into OpenAI slots.
+        key_shape_problem("OPENAI_API_KEY", r"(?!sk-or-).+", "OpenAI"),
+        key_shape_problem("OPENAI_API_KEY_1", r"(?!sk-or-).+", "OpenAI"),
     ):
         if note:
             notes.append(note)
@@ -787,17 +837,134 @@ _KEY_POOL_VARS: Dict[str, Tuple[str, ...]] = {
                "GEMINI_API_KEY_4", "GEMINI_API_KEY_5", "GEMINI_API_KEY_6",
                "GEMINI_API_KEY_7"),
     "groq": ("GROQ_API_KEY", "GROQ_API_KEY_1", "GROQ_API_KEY_2"),
+    "openai": ("OPENAI_API_KEY", "OPENAI_API_KEY_1"),
 }
+
+
+def _discover_pool(name: str, primary: str = "") -> Tuple[List[str], List[str]]:
+    """Return parallel (key_pool, key_slots) across primary and numbered pool vars."""
+    pool: List[str] = []
+    slots: List[str] = []
+    for var in _KEY_POOL_VARS.get(name, ()):
+        value = (os.getenv(var) or "").strip()
+        if name == "openai" and value.startswith("sk-or-"):
+            continue
+        if value and value not in pool:
+            pool.append(value)
+            slots.append(f"{name}:{var}")
+    p_val = (primary or "").strip()
+    if p_val and p_val not in pool and not (name == "openai" and p_val.startswith("sk-or-")):
+        pool.insert(0, p_val)
+        slots.insert(0, f"{name}:PRIMARY")
+    return pool, slots
 
 
 def _key_pool(name: str, primary: str) -> List[str]:
     """All configured keys for a provider, primary first, deduplicated."""
-    pool = [primary] if primary else []
-    for var in _KEY_POOL_VARS.get(name, ()):
-        value = (os.getenv(var) or "").strip()
-        if value and value not in pool:
-            pool.append(value)
+    pool, _slots = _discover_pool(name, primary)
     return pool
+
+
+def _record_slot_call(slot_id: str, ok: Optional[bool] = None, *, prompt_tokens: Optional[int] = None,
+                      completion_tokens: Optional[int] = None, total_tokens: Optional[int] = None,
+                      cost_usd: Optional[float] = None) -> None:
+    if not slot_id:
+        return
+    with _HEALTH_LOCK:
+        _health_load()
+        st = _HEALTH["key_stats"].setdefault(slot_id, {
+            "requests": 0, "successes": 0, "failures": 0, "rate_limits": 0,
+            "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+            "cost_usd": 0.0, "auth_status": "healthy",
+        })
+        if ok is None:
+            st["requests"] = int(st.get("requests", 0)) + 1
+        elif ok:
+            st["successes"] = int(st.get("successes", 0)) + 1
+            st["auth_status"] = "healthy"
+            st["last_success_at"] = datetime.now(timezone.utc).isoformat()
+            if prompt_tokens:
+                st["prompt_tokens"] = int(st.get("prompt_tokens", 0)) + int(prompt_tokens)
+            if completion_tokens:
+                st["completion_tokens"] = int(st.get("completion_tokens", 0)) + int(completion_tokens)
+            if total_tokens:
+                st["total_tokens"] = int(st.get("total_tokens", 0)) + int(total_tokens)
+            if cost_usd:
+                st["cost_usd"] = round(float(st.get("cost_usd", 0.0)) + float(cost_usd), 6)
+        _health_save()
+
+
+def _record_slot_failure(name: str, slot_id: str, slot_idx: int, reason: str, cooldown: float,
+                         *, permanent: bool = False) -> None:
+    block(f"{name}#slot:{slot_idx}", cooldown, f"{slot_id}: {reason}")
+    with _HEALTH_LOCK:
+        _health_load()
+        st = _HEALTH["key_stats"].setdefault(slot_id, {
+            "requests": 0, "successes": 0, "failures": 0, "rate_limits": 0,
+            "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+            "cost_usd": 0.0, "auth_status": "healthy",
+        })
+        st["failures"] = int(st.get("failures", 0)) + 1
+        if reason == "rate_limit":
+            st["rate_limits"] = int(st.get("rate_limits", 0)) + 1
+        st["last_error_category"] = reason
+        st["last_error"] = datetime.now(timezone.utc).isoformat()
+        st["cooldown_until"] = time.time() + cooldown
+        if permanent:
+            st["auth_status"] = "invalid"
+        _health_save()
+
+
+def _check_shared_project_quota(name: str, slot_idx: int) -> bool:
+    """Detect shared GCP project-level 429s across 3+ distinct Gemini slots in 60s."""
+    now = time.time()
+    with _HEALTH_LOCK:
+        hits = [(ts, s) for ts, s in _RECENT_SLOT_429S.get(name, []) if now - ts <= 60.0]
+        hits.append((now, slot_idx))
+        _RECENT_SLOT_429S[name] = hits
+        distinct = {s for _, s in hits}
+        if len(distinct) >= 3:
+            _health_load()
+            if not _HEALTH["shared_quota"].get(name):
+                logger.warning(
+                    "[Router] %s hit 429 across %d key slots within 60s — keys appear to share "
+                    "project-level quota; pausing short burst instead of cycling remaining slots",
+                    name, len(distinct),
+                )
+            _HEALTH["shared_quota"][name] = True
+            _health_save()
+            return True
+    return False
+
+
+def _select_next_slot(name: str, key_slots: List[str], current_idx: int) -> Optional[int]:
+    """Choose next eligible key slot via least_used or round_robin; None if all unavailable."""
+    n = len(key_slots)
+    candidates: List[int] = []
+    with _HEALTH_LOCK:
+        _health_load()
+        key_stats = _HEALTH.get("key_stats") or {}
+        for offset in range(1, n):
+            idx = (current_idx + offset) % n
+            slot_id = key_slots[idx]
+            if (key_stats.get(slot_id) or {}).get("auth_status") == "invalid":
+                continue
+            if is_blocked(f"{name}#slot:{idx}"):
+                continue
+            candidates.append(idx)
+    if not candidates:
+        return None
+    mode = (os.getenv("ALP_KEY_SCHEDULING", "least_used") or "least_used").strip().lower()
+    if mode == "round_robin":
+        return candidates[0]
+    with _HEALTH_LOCK:
+        key_stats = _HEALTH.get("key_stats") or {}
+        candidates.sort(key=lambda idx: (
+            int((key_stats.get(key_slots[idx]) or {}).get("requests", 0)),
+            int((key_stats.get(key_slots[idx]) or {}).get("failures", 0)),
+            (idx - current_idx) % n,
+        ))
+    return candidates[0]
 
 
 def _saved_key_index(name: str) -> int:
@@ -817,9 +984,8 @@ def _save_key_index(name: str, idx: int) -> None:
 
 
 def _clear_provider_quota_state(name: str) -> None:
-    """Forget blocks, strikes and today's counters for a provider and its models
-    (a rotated-in key has a fresh quota; stale local counters would keep the
-    provider unusable)."""
+    """Reset transient model cooldowns when activating a fresh uncooled key slot,
+    keeping per-slot blocks (#slot:idx) and permanent key telemetry intact."""
     day = _day()
     with _HEALTH_LOCK:
         _health_load()
@@ -834,6 +1000,32 @@ def _clear_provider_quota_state(name: str) -> None:
         _health_save()
 
 
+# Task-aware routing policies (Phase 3D). Unlisted providers still act as fallbacks.
+_TASK_PROVIDER_PREFS: Dict[str, Tuple[str, ...]] = {
+    "news_research": ("gemini", "groq", "openrouter", "mistral", "nvidia", "llm7", "openai"),
+    "fact_verification": ("gemini", "groq", "mistral", "openrouter", "nvidia", "openai", "cohere"),
+    "translation": ("gemini", "groq", "mistral", "openrouter", "llm7", "nvidia", "openai"),
+    "bilingual_headline_batch": ("gemini", "groq", "mistral", "openrouter", "llm7", "nvidia", "openai"),
+    "bilingual_body_batch": ("gemini", "groq", "mistral", "openrouter", "llm7", "nvidia", "openai"),
+    "content_editing": ("gemini", "groq", "mistral", "openrouter", "nvidia", "openai"),
+    "polish": ("groq", "gemini", "mistral", "openrouter", "nvidia", "openai"),
+    "mcq": ("groq", "gemini", "mistral", "openrouter", "nvidia", "openai"),
+    "mcq_verification": ("gemini", "mistral", "openrouter", "nvidia", "groq", "openai"),
+    "image_selection": ("gemini", "groq", "openrouter", "openai", "mistral"),
+    "pdf_review": ("gemini", "openrouter", "openai", "nvidia"),
+}
+
+
+def providers_for_task(task: str, exclude_providers: Optional[set[str]] = None) -> List[Provider]:
+    """Return configured providers ordered by task preference, with full fallback tail."""
+    providers = [p for p in _get_providers() if not exclude_providers or p.name not in exclude_providers]
+    prefs = _TASK_PROVIDER_PREFS.get(task)
+    if not prefs:
+        return providers
+    rank = {name: i for i, name in enumerate(prefs)}
+    return sorted(providers, key=lambda p: (rank.get(p.name, 999), p.priority))
+
+
 # --------------------------------------------------------------------------- #
 # Provider discovery
 # --------------------------------------------------------------------------- #
@@ -841,8 +1033,7 @@ def _build_default_providers() -> List[Provider]:
     """Build provider list from env vars, in priority order.
 
     Groq → Gemini → LLM7 → Mistral → OpenRouter → Cohere → Pollinations →
-    HuggingFace → NVIDIA → (generic) → SiliconFlow. Trial / tiny-credit / paid
-    providers carry low per-run caps.
+    HuggingFace → NVIDIA → (generic) → SiliconFlow → OpenAI.
     """
     providers: List[Provider] = []
 
@@ -850,42 +1041,39 @@ def _build_default_providers() -> List[Provider]:
         name = provider.name.upper().replace("-", "_")
         provider.rpm_limit = _env_int(f"AI_ROUTER_RPM_{name}", provider.rpm_limit)
         provider.rpd_limit = _env_int(f"AI_ROUTER_RPD_{name}", provider.rpd_limit)
+        pool, slots = _discover_pool(provider.name, provider.key)
+        provider.key_pool = pool
+        provider.key_slots = slots
+        if provider.key_pool:
+            saved_idx = _saved_key_index(provider.name)
+            idx = saved_idx if saved_idx < len(provider.key_pool) else 0
+            if is_blocked(f"{provider.name}#slot:{idx}"):
+                alt = _select_next_slot(provider.name, provider.key_slots, idx)
+                if alt is not None:
+                    idx = alt
+            provider.key_idx = idx
+            provider.key = provider.key_pool[idx]
         live = _live_model_ids(provider)
         _refresh_provider_model(provider, live=live)
-        # Every provider keeps a rotation list: per-model quotas rotate on 429,
-        # and any provider rotates past a model retired (404/410) or hung this run.
         provider.models = _rotation_order(provider, live)
-        # Key pool: continue the run on the last key this job rotated to (the
-        # index lives in the shared health file), so every stage agrees.
-        provider.key_pool = _key_pool(provider.name, provider.key)
-        idx = _saved_key_index(provider.name)
-        if provider.key_pool:
-            provider.key_idx = idx if idx < len(provider.key_pool) else 0
-            provider.key = provider.key_pool[provider.key_idx]
         providers.append(provider)
 
     # Priorities: lower runs first. Free and reliable first, trial / tiny-credit
     # / paid-ish last. Caps are per job run (shared health file), overridable
     # with AI_ROUTER_RPD_<NAME> / AI_ROUTER_RPM_<NAME>.
-    groq_key = os.getenv("GROQ_API_KEY")
-    if groq_key:
+    groq_pool, _ = _discover_pool("groq")
+    if groq_pool:
         # Free plan, per model: 30 RPM, 1,000 RPD, 200k tokens/day.
         add(Provider(name="groq", url="https://api.groq.com/openai/v1/chat/completions",
-                     key=groq_key, model=_env_model("GROQ_MODEL", "groq"),
+                     key=groq_pool[0], model=_env_model("GROQ_MODEL", "groq"),
                      priority=10, rpm_limit=30, rpd_limit=1000, per_model_quota=True))
 
-    gem_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if gem_key:
+    gem_pool, _ = _discover_pool("gemini")
+    if gem_pool:
         add(Provider(name="gemini", url="https://generativelanguage.googleapis.com/v1beta/models",
-                     key=gem_key, model=_env_model("GEMINI_MODEL", "gemini"),
+                     key=gem_pool[0], model=_env_model("GEMINI_MODEL", "gemini"),
                      priority=15, rpm_limit=60, rpd_limit=1500, per_model_quota=True))
 
-    # Pollinations (text.pollinations.ai, OpenAI-compatible). Verified 2026-11-10:
-    # the endpoint answers with "user_tier": "anonymous" for this token (a bogus
-    # key behaves identically), so the anonymous IP limit applies — 1 reply every
-    # 45s per IP, then HTTP 402 FREE_LIMIT → AUTH_ERROR → provider out for the
-    # run. Kept with a small cap so it costs at most a couple of calls; raise
-    # AI_ROUTER_RPD_POLLINATIONS once the key is activated on enter.pollinations.ai.
     poll_key = os.getenv("POLLINATIONS_API_KEY", "").strip()
     if poll_key:
         base = os.getenv("POLLINATIONS_BASE_URL", "https://text.pollinations.ai/openai").rstrip("/")
@@ -895,29 +1083,25 @@ def _build_default_providers() -> List[Provider]:
 
     l7_key = llm7_key()
     if l7_key:
-        # Free token: 1 RPS, 60 RPM, 250/hour, 100k tokens per 24h.
         base = os.getenv("LLM7_BASE_URL", "https://api.llm7.io/v1").rstrip("/")
         add(Provider(name="llm7", url=f"{base}/chat/completions", key=l7_key,
                      model=_env_model("LLM7_MODEL", "llm7"),
                      priority=25, rpm_limit=30, rpd_limit=60, min_interval=1.1))
 
-    mistral_key = os.getenv("MISTRAL_API_KEY")
+    mistral_key = (os.getenv("MISTRAL_API_KEY") or "").strip()
     if mistral_key:
-        # Free Experiment plan ≈ 1 request/second (leave slight buffer -> 1.2s).
         add(Provider(name="mistral", url="https://api.mistral.ai/v1/chat/completions",
                      key=mistral_key, model=_env_model("MISTRAL_MODEL", "mistral"),
                      priority=40, rpm_limit=30, rpd_limit=5000, min_interval=1.2))
 
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    openrouter_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if openrouter_key:
-        # Free tier: 20 RPM, 50 requests/day (account-wide).
         add(Provider(name="openrouter", url="https://openrouter.ai/api/v1/chat/completions",
                      key=openrouter_key, model=_env_model("OPENROUTER_MODEL", "openrouter"),
                      priority=45, rpm_limit=20, rpd_limit=50, min_interval=3.0))
 
     cohere_key = os.getenv("COHERE_API_KEY", "").strip()
     if cohere_key:
-        # Trial key: 20 RPM, 1,000 calls/month → last-resort, ~30 calls/day.
         base = os.getenv("COHERE_BASE_URL", "https://api.cohere.ai/compatibility/v1").rstrip("/")
         add(Provider(name="cohere", url=f"{base}/chat/completions", key=cohere_key,
                      model=_env_model("COHERE_MODEL", "cohere"),
@@ -925,37 +1109,36 @@ def _build_default_providers() -> List[Provider]:
 
     hf_key = huggingface_key()
     if hf_key:
-        # Inference Providers free credit is tiny (cents/month): keep it rare.
         add(Provider(name="huggingface", url="https://router.huggingface.co/v1/chat/completions",
                      key=hf_key, model=_env_model("HUGGINGFACE_MODEL", "huggingface"),
                      priority=60, rpm_limit=10, rpd_limit=15))
 
-    nvidia_key = os.getenv("NVIDIA_API_KEY")
+    nvidia_key = (os.getenv("NVIDIA_API_KEY") or "").strip()
     if nvidia_key:
-        # Only meta/llama-3.2-90b-vision-instruct works on this key (40s timeout).
         add(Provider(name="nvidia", url="https://integrate.api.nvidia.com/v1/chat/completions",
                      key=nvidia_key, model=_env_model("NVIDIA_MODEL", "nvidia"),
                      priority=70, rpm_limit=30, rpd_limit=500))
 
-    generic_url = os.getenv("LLM_API_URL")
-    generic_key = os.getenv("LLM_API_KEY")
+    generic_url = (os.getenv("LLM_API_URL") or "").strip()
+    generic_key = (os.getenv("LLM_API_KEY") or "").strip()
     if generic_url and generic_key:
         add(Provider(name="generic-openai", url=generic_url, key=generic_key,
                      model=_env_model("LLM_MODEL", "generic-openai"),
                      priority=75, rpm_limit=60, rpd_limit=5000))
 
-    # SiliconFlow (api.siliconflow.com — the international endpoint; the same key
-    # is rejected with 401 "Token is invalid" on api.siliconflow.cn). Verified
-    # 2026-11-10: key authenticates (HTTP 200 model catalogue) but the account
-    # balance is 0 → every chat answers 402 "balance is insufficient" → AUTH_ERROR
-    # → out for the run. It starts working the moment the account is topped up;
-    # no code change needed. Paid per token, so it sits near the end.
     sf_key = os.getenv("SILICONFLOW_API_KEY", "").strip()
     if sf_key:
         base = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.com/v1").rstrip("/")
         add(Provider(name="siliconflow", url=f"{base}/chat/completions", key=sf_key,
                      model=_env_model("SILICONFLOW_MODEL", "siliconflow"),
                      priority=78, rpm_limit=30, rpd_limit=2000, min_interval=1.0))
+
+    openai_pool, _ = _discover_pool("openai")
+    if openai_pool:
+        base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        add(Provider(name="openai", url=f"{base}/chat/completions", key=openai_pool[0],
+                     model=_env_model("OPENAI_MODEL", "openai"),
+                     priority=80, rpm_limit=60, rpd_limit=500))
 
     for note in unconfigured_notes():
         logger.info("[Router] %s", note)
@@ -1100,29 +1283,26 @@ def report_failure(name: str, failure: str, retry_after: Optional[float] = None,
                            RATE_LIMIT_COOLDOWN * (2 ** min(strikes - 1, 6)))
         if per_model or rotate_upstream:
             block(key, cooldown, "rate limited (model quota)")
-            # Multi-key pools (Gemini 1-7, Groq 1-2): rotate key immediately to get a fresh quota
-            if provider is not None and len(provider.key_pool) > 1 and provider.rotate_key():
-                return True
             if provider.rotate_model(force=rotate_upstream):
                 return True
-            # Every model of this key is out: a fresh key means a fresh quota.
-            if provider.rotate_key():
+            # Every model on this key slot is out; try a healthy spare key in the pool.
+            if provider.rotate_key(reason="rate_limit", cooldown=cooldown, permanent=False):
                 return True
-            # Every model is out: the provider is unavailable until the first returns.
+            # Every model/key is out: the provider cools until the earliest slot returns.
             until = min(blocked_until(f"{name}::{m}") or (time.time() + 1) for m in provider.models)
-            block(name, max(1.0, until - time.time()), "rate limited (all models)")
+            block(name, max(1.0, until - time.time()), "rate limited (all models/keys)")
             return False
         if provider is not None:
-            if provider.rotate_key():
+            if provider.rotate_key(reason="rate_limit", cooldown=cooldown, permanent=False):
                 return True
             provider.mark_disabled("rate limited", int(cooldown))
         else:
             block(name, cooldown, "rate limited")
         return False
     if failure == FailureType.AUTH_ERROR:
-        # 401/403 bad key, 402 no balance / payment required: try the next key
-        # of the pool first (a spare may have credit); else out for the run.
-        if provider is not None and provider.rotate_key():
+        # 401/403 bad key, 402 no balance / payment required: retire ONLY the failing slot
+        # and try any healthy remaining key in the pool before disabling the provider.
+        if provider is not None and provider.rotate_key(reason="auth_error", cooldown=AUTH_COOLDOWN, permanent=True):
             return True
         if provider is not None:
             provider.mark_disabled("auth/credit error", AUTH_COOLDOWN)
@@ -1275,6 +1455,7 @@ def _call_provider(
     On failure: (None, failure_type)
     """
     _LAST.retry_after = None
+    _LAST.usage = {}
     system_msg = system_prompt or (
         "You are a helpful assistant for an Indian competitive-exam current-affairs bot. "
         "Respond with accurate, factual information. "
@@ -1335,7 +1516,7 @@ def _call_provider(
     except ValueError:
         return None, FailureType.MALFORMED
 
-    # Extract content (per-provider shape)
+    # Extract content + token usage (per-provider shape)
     try:
         if provider.name == "gemini":
             candidates = data.get("candidates", [])
@@ -1343,8 +1524,22 @@ def _call_provider(
                 return None, FailureType.MALFORMED
             parts = candidates[0].get("content", {}).get("parts", [])
             content = "".join(p.get("text", "") for p in parts)
+            um = data.get("usageMetadata") or {}
+            if um:
+                _LAST.usage = {
+                    "prompt_tokens": um.get("promptTokenCount"),
+                    "completion_tokens": um.get("candidatesTokenCount"),
+                    "total_tokens": um.get("totalTokenCount"),
+                }
         else:
             content = data["choices"][0]["message"]["content"]
+            um = data.get("usage") or {}
+            if um:
+                _LAST.usage = {
+                    "prompt_tokens": um.get("prompt_tokens"),
+                    "completion_tokens": um.get("completion_tokens"),
+                    "total_tokens": um.get("total_tokens"),
+                }
         content = (content or "").strip()
         if not content:
             return None, FailureType.MALFORMED
@@ -1352,6 +1547,17 @@ def _call_provider(
     except (KeyError, IndexError, TypeError) as exc:
         logger.warning("[Router] %s malformed response: %s", provider.name, exc)
         return None, FailureType.MALFORMED
+
+
+def _publish_observability(providers: List[Provider]) -> None:
+    try:
+        from pipeline.ai_usage import update_provider_observability
+        with _HEALTH_LOCK:
+            _health_load()
+            snap = dict(_HEALTH)
+        update_provider_observability(root=REPO_ROOT, health_state=snap, providers=providers)
+    except Exception:
+        pass
 
 
 # --------------------------------------------------------------------------- #
@@ -1364,9 +1570,10 @@ def route(
     fail_on_all: bool = False,
     response_format: Optional[Dict[str, Any]] = None,
     system_prompt: Optional[str] = None,
+    exclude_providers: Optional[set[str]] = None,
 ) -> Optional[str]:
     """
-    Route a prompt across providers with fallback.
+    Route a prompt across task-prioritized providers with fallback.
 
     Returns:
         - str  : the AI response
@@ -1388,6 +1595,7 @@ def route(
     cached = _CACHE.get(ck)
     if cached is not None:
         logger.debug("[Router] Cache hit for task=%s", task)
+        record_ai_usage("cache", "lru", task, True, cache_hit=True)
         return cached
 
     if _deadline_passed():
@@ -1402,7 +1610,7 @@ def route(
             raise RuntimeError("AI hourly budget exceeded")
         return None
 
-    providers = _get_providers()
+    providers = providers_for_task(task, exclude_providers=exclude_providers)
     if not providers:
         logger.warning("[Router] No providers configured")
         if fail_on_all:
@@ -1410,62 +1618,75 @@ def route(
         return None
 
     last_error: Optional[str] = None
+    skip_notes: list[str] = []
+    retry_total = 0
 
-    while True:
-        soonest: Optional[float] = None
-        skip_notes: list[str] = []
-
-        for provider in providers:
-            rotations = 0
-            while True:
-                if _deadline_passed():
-                    break
-                if not provider.is_available():
-                    # 2026-11-13: every provider cooled at once used to surface as
-                    # "All providers failed. Last error: None" — the loop never ran
-                    # a call, so the reason was lost and the story died with it.
-                    until = max(blocked_until(provider.name), provider.disabled_until)
-                    why = block_reason(provider.name) or provider.last_error or "unavailable"
-                    skip_notes.append(f"{provider.name} ({why})")
-                    if until > time.time():
-                        soonest = until if soonest is None else min(soonest, until)
-                    logger.debug("[Router] %s skipped (unavailable)", provider.name)
-                    break
-
-                logger.debug("[Router] Trying %s (model=%s)", provider.name, provider.model)
-                _pace_ai_call()
-                provider.throttle()
-                provider.record_call()
-
-                content, failure = _call_provider(
-                    provider, prompt, task, needs_hindi, response_format, system_prompt
-                )
-
-                if content is not None:
-                    report_success(provider.name, provider)
-                    _CACHE.put(ck, content)
-                    logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
-                                provider.name, task, provider.model, len(content))
-                    record_ai_usage(provider.name, provider.model, task, True)
-                    return content
-
-                # Failure handling
-                last_error = f"{provider.name}: {failure}"
-                record_ai_usage(provider.name, provider.model, task, False, str(failure))
-                retry_after = getattr(_LAST, "retry_after", None)
-                if report_failure(provider.name, failure, retry_after, provider) and rotations < len(provider.models):
-                    rotations += 1
-                    continue  # same provider, next model (per-model quota / retired model)
+    for provider in providers:
+        rotations = 0
+        max_rotations = max(len(provider.models), 1) * max(len(provider.key_pool), 1)
+        while True:
+            if _deadline_passed():
                 break
-            # TIMEOUT / TRANSIENT / MALFORMED / BAD_REQUEST → next provider
+            if not provider.is_available():
+                until = max(blocked_until(provider.name), provider.disabled_until)
+                why = block_reason(provider.name) or provider.last_error or "unavailable"
+                skip_notes.append(f"{provider.name} ({why})")
+                logger.debug("[Router] %s skipped (unavailable)", provider.name)
+                break
 
-        if last_error is None and skip_notes:
-            last_error = "all providers cooled down: " + "; ".join(skip_notes[:6])
+            slot_id = provider.current_slot
+            logger.debug("[Router] Trying %s (model=%s, slot=%s)", provider.name, provider.model, slot_id)
+            _pace_ai_call()
+            provider.throttle()
+            provider.record_call()
+            _record_slot_call(slot_id, ok=None)
 
-        break
+            t0 = time.monotonic()
+            content, failure = _call_provider(
+                provider, prompt, task, needs_hindi, response_format, system_prompt
+            )
+            latency_ms = (time.monotonic() - t0) * 1000.0
+            usage = getattr(_LAST, "usage", None) or {}
 
-        break
+            if content is not None:
+                from pipeline.ai_usage import estimate_cost_usd
+                pt = usage.get("prompt_tokens")
+                ct = usage.get("completion_tokens")
+                tt = usage.get("total_tokens")
+                cost = estimate_cost_usd(provider.name, provider.model, pt, ct)
+                report_success(provider.name, provider)
+                _record_slot_call(slot_id, ok=True, prompt_tokens=pt, completion_tokens=ct,
+                                  total_tokens=tt, cost_usd=cost)
+                _CACHE.put(ck, content)
+                logger.info("[Router] ✔ %s responded (task=%s, model=%s, %d chars)",
+                            provider.name, task, provider.model, len(content))
+                record_ai_usage(
+                    provider.name, provider.model, task, True,
+                    key_slot=slot_id, latency_ms=latency_ms, retry_count=retry_total,
+                    prompt_tokens=pt, completion_tokens=ct, total_tokens=tt, cost_usd=cost,
+                )
+                _publish_observability(providers)
+                return content
 
+            # Failure handling
+            last_error = f"{provider.name}: {failure}"
+            record_ai_usage(
+                provider.name, provider.model, task, False, str(failure),
+                key_slot=slot_id, latency_ms=latency_ms, error_category=str(failure or ""),
+                retry_count=retry_total,
+            )
+            retry_after = getattr(_LAST, "retry_after", None)
+            if report_failure(provider.name, failure, retry_after, provider) and rotations < max_rotations:
+                rotations += 1
+                retry_total += 1
+                continue  # rotated to next model or next healthy key slot
+            retry_total += 1
+            break
+
+    if last_error is None and skip_notes:
+        last_error = "all providers cooled down: " + "; ".join(skip_notes[:6])
+
+    _publish_observability(providers)
     logger.error("[Router] All providers failed. Last error: %s", last_error)
     if fail_on_all:
         raise RuntimeError(f"All AI providers failed: {last_error}")

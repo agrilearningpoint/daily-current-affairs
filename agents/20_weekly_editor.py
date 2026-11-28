@@ -72,13 +72,8 @@ def resolve_week_range(reference: Optional[datetime] = None) -> Tuple[datetime, 
 
 
 def atomic_write(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp, path)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(path, data)
 
 
 # --------------------------------------------------------------------------- #

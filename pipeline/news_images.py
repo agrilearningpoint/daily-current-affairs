@@ -228,7 +228,7 @@ COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 COMMONS_UA = ("AgriLearningPointBot/1.0 (https://github.com/agrilearningpoint/daily-current-affairs; "
               "daily current-affairs PDF) python-requests")
 FREE_LICENSE_RE = re.compile(r"^\s*(?:cc0|cc[ -]by(?:[ -]sa)?(?:[ -]\d(?:\.\d)?)?|public domain|pd\b|"
-                             r"gody|gfdl|attribution)", re.I)
+                             r"godl|gody|gfdl|attribution)", re.I)
 # Words that never identify a story on their own (Commons relevance check).
 _ENTITY_STOP = {
     "the", "and", "for", "with", "from", "of", "in", "on", "to", "a", "an", "by", "at", "new",
@@ -395,11 +395,13 @@ def commons_candidates(entity: str, fetch: Callable[..., Tuple[int, str, bytes]]
             lic = _strip_tags(str((meta.get("LicenseShortName") or {}).get("value") or ""))
             if not lic or not FREE_LICENSE_RE.match(lic):
                 continue
-            artist = _strip_tags(str((meta.get("Artist") or {}).get("value") or ""))[:60] or "unknown author"
+            artist = _strip_tags(str((meta.get("Artist") or {}).get("value") or ""))[:90] or "unknown author"
+            lic_url = _strip_tags(str((meta.get("LicenseUrl") or {}).get("value") or ""))[:120]
             url = str(info.get("thumburl") or info.get("url") or "")
             if not plausible_image_url(url):
                 continue
-            out.append((url, f"Photo: {artist} / Wikimedia Commons, {lic}"))
+            credit = f"Photo: {artist} / Wikimedia Commons, {lic}" + (f" ({lic_url})" if lic_url else "")
+            out.append((url, credit))
         except Exception:
             continue
     return out

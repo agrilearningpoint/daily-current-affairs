@@ -449,7 +449,7 @@ _SPECIAL_ACRONYMS = {
     'FSSAI': '\u090f\u092b\u090f\u0938\u090f\u0938\u090f\u0906\u0908',
     'GST': '\u091c\u0940\u090f\u0938\u091f\u0940',
     'UPI': '\u092f\u0942\u092a\u0940\u0906\u0908',
-    'WHO': '\u0935\u093f\u0938\u094d\u0935 \u0938\u094d\u0935\u093e\u0938\u094d\u0925\u094d\u092f \u0938\u0902\u0917\u0920\u0928',
+    'WHO': '\u0935\u093f\u0936\u094d\u0935 \u0938\u094d\u0935\u093e\u0938\u094d\u0925\u094d\u092f \u0938\u0902\u0917\u0920\u0928',
     'UN': '\u0938\u0902\u092f\u0941\u0915\u094d\u0924 \u0930\u093e\u0937\u094d\u091f\u094d\u0930'
 }
 
@@ -1130,8 +1130,13 @@ def _translate_with(providers, text, task, key, system, user, provider_issues):
                     provider_issues.append(f"{name}: {exc}")
                     break
                 if any(str(exc) == f"HTTP {code}" for code in _HARD_FAIL_STATUSES):
+                    rotated = bool(router and str(exc) in ("HTTP 401", "HTTP 402", "HTTP 403")
+                                   and router.report_failure(name, "auth_error"))
+                    if rotated and attempt < MAX_RETRIES:
+                        logger.info("[Translator] %s rotated past failing key slot; retrying", name)
+                        continue
                     _park_provider(name, None)
-                    if router is not None and str(exc) in ("HTTP 401", "HTTP 402", "HTTP 403"):
+                    if not rotated and router is not None and str(exc) in ("HTTP 401", "HTTP 402", "HTTP 403"):
                         router.report_failure(name, "auth_error")
                 elif exc.retryable and router is not None:
                     router.report_failure(name, "transient")

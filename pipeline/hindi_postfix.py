@@ -235,6 +235,11 @@ def apply_glossary(en: str, hi: str) -> str:
             if quoted:
                 quoted = [m.span() for m in _PAREN_RE.finditer(out) if not m.group(0).startswith("(")]
         out = _outside_quotes(out, lambda t: _replace_lone_words(normalise_money(t, True)))
+        try:
+            from pipeline.hindi_editor import edit_hindi_text
+            out = edit_hindi_text(out, en)
+        except Exception:
+            pass
         out = tidy(strip_source_tags(out))
     return out
 

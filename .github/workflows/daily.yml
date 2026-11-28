@@ -252,6 +252,10 @@ jobs:
           COHERE_MODEL: ${{ vars.COHERE_MODEL || 'auto' }}
           LLM7_MODEL: ${{ vars.LLM7_MODEL || 'auto' }}
           HUGGINGFACE_MODEL: ${{ vars.HUGGINGFACE_MODEL || 'auto' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'auto' }}
+          ALP_KEY_SCHEDULING: "least_used"
           # "auto" = provider catalogue se live free model khud chuna jaata hai (pipeline/ai_router.py)
           ALP_MODEL_AUTO_DISCOVERY: "1"
           ALP_AI_CALL_INTERVAL: "1.5"
@@ -285,8 +289,12 @@ jobs:
             data/
             output/
             logs/qa/
+            logs/ai_health/
             logs/ai_usage.jsonl
+            logs/provider_health.json
+            logs/provider_summary.json
             logs/stages/
+            logs/supervisor/
           retention-days: 30
           overwrite: true
           if-no-files-found: warn

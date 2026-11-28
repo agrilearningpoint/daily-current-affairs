@@ -68,10 +68,9 @@ def attach_news_photos(content: Dict[str, Any], job_id: str, content_file: Path)
                     it["image_path"] = str(Path(p).resolve().relative_to(ROOT))
                 except ValueError:
                     pass
+        from pipeline.persistence import write_json_atomic
         content["image_stats"] = stats
-        tmp = content_file.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp, content_file)  # atomic write
+        write_json_atomic(content_file, content)
         logger.info("News photos: %d attached (%s)", stats.get("attached", 0), stats)
         return int(stats.get("attached", 0))
     except Exception as exc:  # pragma: no cover - fail soft

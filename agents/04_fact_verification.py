@@ -170,6 +170,24 @@ def independent_domain(url):
     return ".".join(labels[-count:])
 
 
+_WIRE_AGENCY_RE = re.compile(
+    r"(?:^|\s|\(|\[|—|-)\b(PTI|ANI|IANS)\b(?:\s*\)|\s*\]|\s*:|\s*$)",
+    re.I,
+)
+
+
+def syndication_wire(article: Dict[str, Any]) -> str:
+    """Identify syndicated wire credit (PTI/ANI/IANS) if present in headline/summary."""
+    for part in (str(article.get("title") or ""), str(article.get("summary") or "")[:160]):
+        m = _WIRE_AGENCY_RE.search(part)
+        if m:
+            return m.group(1).upper()
+    src = str(article.get("source_name") or "").strip().upper()
+    if src in {"PTI", "ANI", "IANS"}:
+        return src
+    return ""
+
+
 def _get_article_features(a: Dict[str, Any]) -> Dict[str, Any]:
     link = a.get("link", "")
     title = clean_text(a.get("title", "")).lower()
@@ -177,7 +195,8 @@ def _get_article_features(a: Dict[str, Any]) -> Dict[str, Any]:
     terms = set(extract_key_terms(art_text))
     numbers = {float(v) for v in re.findall(r"\b\d+(?:\.\d+)?\b", title)}
     host = independent_domain(link)
-    return {"link": link, "title": title, "terms": terms, "numbers": numbers, "host": host}
+    wire = syndication_wire(a)
+    return {"link": link, "title": title, "terms": terms, "numbers": numbers, "host": host, "wire": wire}
 
 
 def cross_source_score(
@@ -239,8 +258,18 @@ def cross_source_score(
             or (bool(shared_nums) and overlap >= 0.15)
         )
         if is_corroborated:
-            if host not in corroborating:
-                corroborating.append(host)
+            own_wire = feat.get("wire", "")
+            other_wire = o_feat.get("wire", "")
+            # Syndicated wire mirrors (identical PTI/ANI/IANS copy across portals)
+            # represent one underlying agency source, not multiple independent witnesses.
+            if own_wire and other_wire == own_wire and similarity >= 0.70:
+                corr_id = f"wire:{own_wire}"
+            elif other_wire and similarity >= 0.80:
+                corr_id = f"wire:{other_wire}"
+            else:
+                corr_id = host
+            if corr_id not in corroborating:
+                corroborating.append(corr_id)
 
     n = len(corroborating)
     if n >= 3:
@@ -511,13 +540,8 @@ def load_latest_raw() -> Optional[Path]:
 
 
 def atomic_write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp, path)
+    from pipeline.persistence import write_json_atomic
+    write_json_atomic(path, data)
 
 
 # --------------------------------------------------------------------------- #

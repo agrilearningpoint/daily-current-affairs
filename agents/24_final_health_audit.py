@@ -42,6 +42,17 @@ def main():
     report = {"job_id": ctx.job_id, "passed": not issues, "dry_run": dry_run,
               "issues": issues, "checked_at": datetime.now(timezone.utc).isoformat()}
     write_json_atomic(root / "logs" / "qa" / f"{ctx.job_id}_health.json", report)
+    # Generate edition report & record bounded self-improvement learning metrics (fail-open)
+    try:
+        from pipeline.edition_report import build_edition_report
+        build_edition_report(ctx.job_id, ctx.job_type, repo_root=root)
+    except Exception:
+        pass
+    try:
+        from pipeline.self_improvement import record_learning_cycle
+        record_learning_cycle(ctx.job_id, repo_root=root)
+    except Exception:
+        pass
     print(json.dumps(report, ensure_ascii=False))
     return 1 if issues else 0
 

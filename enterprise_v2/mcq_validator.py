@@ -12,7 +12,7 @@ Independently verifies every generated MCQ before PDF layout:
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 

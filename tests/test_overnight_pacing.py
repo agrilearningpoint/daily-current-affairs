@@ -233,19 +233,35 @@ def test_workflows_enable_auto_discovery_and_overnight_crons():
         text = (ROOT / ".github" / "workflows" / wf_name).read_text(encoding="utf-8")
         assert 'ALP_MODEL_AUTO_DISCOVERY: "1"' in text, f"{wf_name} missing ALP_MODEL_AUTO_DISCOVERY"
 
-    import yaml
-
-    class StrictLoader(yaml.SafeLoader):
-        pass
-
-    def _no_dup_keys(loader, node, deep=False):
-        mapping = {}
-        for k_node, v_node in node.value:
-            key = loader.construct_object(k_node, deep=deep)
-            assert key not in mapping, f"Duplicate YAML key {key!r}"
-            mapping[key] = loader.construct_object(v_node, deep=deep)
-        return mapping
-
-    StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dup_keys)
+    # Zero-dependency duplicate YAML mapping key detector (CI does not install PyYAML).
+    import re as _re
+    key_re = _re.compile(r"^(\s*)([A-Za-z_][A-Za-z0-9_-]*)\s*:(?:\s|$)")
+    block_scalar_re = _re.compile(r":\s*[|>][-+\d]*\s*(?:#.*)?$")
     for wf_path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
-        yaml.load(wf_path.read_text(encoding="utf-8"), Loader=StrictLoader)
+        stack: list[tuple[int, set[str]]] = []
+        block_indent: int | None = None
+        for raw_line in wf_path.read_text(encoding="utf-8").splitlines():
+            stripped = raw_line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            indent = len(raw_line) - len(raw_line.lstrip(" "))
+            if block_indent is not None:
+                if indent > block_indent:
+                    continue
+                block_indent = None
+            if stripped.startswith("- "):
+                while stack and stack[-1][0] >= indent + 2:
+                    stack.pop()
+                continue
+            m = key_re.match(raw_line)
+            if not m:
+                continue
+            while stack and stack[-1][0] > indent:
+                stack.pop()
+            if not stack or stack[-1][0] < indent:
+                stack.append((indent, set()))
+            key = m.group(2)
+            assert key not in stack[-1][1], f"{wf_path.name}: duplicate YAML mapping key {key!r}"
+            stack[-1][1].add(key)
+            if block_scalar_re.search(raw_line):
+                block_indent = indent

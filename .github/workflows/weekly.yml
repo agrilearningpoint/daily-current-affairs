@@ -37,8 +37,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: true }
+      - name: Refresh committed state to latest main
+        run: |
+          git fetch --depth=1 origin "${{ github.ref_name }}"
+          git checkout FETCH_HEAD -- state/ || echo "state refresh skipped"
       - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
+        with: { python-version: '3.11' }
       - name: Install Hindi shaping runtime
         run: sudo apt-get update && sudo apt-get install -y libraqm0 libraqm-dev libfribidi0
       - run: pip install -r requirements.txt
@@ -50,6 +54,7 @@ jobs:
         id: edition
         env:
           REQUESTED_DATE: ${{ github.event.inputs.date }}
+          REVISION_REQUEST: ${{ github.event.inputs.allow_revision }}
         run: |
           python - <<'PY'
           import json, os
@@ -62,14 +67,24 @@ jobs:
           data = json.loads(Path("state/jobs.json").read_text()) if Path("state/jobs.json").exists() else {}
           job = data.get("jobs", data).get(job_id, {})
           run_id = str(job.get("checkpoint_run_id") or job.get("github_run_id", ""))
+          ledger = json.loads(Path("state/published_events.json").read_text()) if Path("state/published_events.json").exists() else {}
+          records = ledger.get("records", {}) if isinstance(ledger, dict) else {}
+          published = job.get("status") == "success" and any(
+              isinstance(r, dict) and r.get("job_id") == job_id and r.get("status") == "success"
+              for r in (records.values() if isinstance(records, dict) else records))
+          explicit = os.environ.get("REVISION_REQUEST") == "true"
+          skip = published and not explicit
+          if skip:
+              print(f"{job_id} is already published to Telegram; skipping.")
           with open(os.environ["GITHUB_ENV"], "a") as handle:
               handle.write(f"EDITION_DATE={value}\n")
           with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
               handle.write(f"previous_run={run_id if run_id.isdigit() else ''}\n")
+              handle.write(f"skip={'true' if skip else 'false'}\n")
           PY
 
       - name: Restore prior edition checkpoints
-        if: steps.edition.outputs.previous_run != ''
+        if: steps.edition.outputs.skip != 'true' && steps.edition.outputs.previous_run != ''
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -79,6 +94,7 @@ jobs:
           path: .
 
       - name: Persist start marker for hard-interruption recovery
+        if: steps.edition.outputs.skip != 'true'
         env:
           STATE_BRANCH: ${{ github.ref_name }}
         run: |
@@ -100,6 +116,7 @@ jobs:
           python scripts/sync_state.py --branch "$STATE_BRANCH" --message "state: weekly started"
 
       - name: Fetch the published daily editions for this weekly
+        if: steps.edition.outputs.skip != 'true'
         # Downloads each daily run's pipeline-checkpoints artifact (actions: read)
         # into data/period_sources/; fail-soft — the period builder fails the
         # weekly edition if too few days are available.
@@ -109,6 +126,7 @@ jobs:
         run: python scripts/fetch_daily_editions.py --type weekly --date "$EDITION_DATE"
 
       - name: Run weekly pipeline
+        if: steps.edition.outputs.skip != 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -153,6 +171,10 @@ jobs:
           COHERE_MODEL: ${{ vars.COHERE_MODEL || 'auto' }}
           LLM7_MODEL: ${{ vars.LLM7_MODEL || 'auto' }}
           HUGGINGFACE_MODEL: ${{ vars.HUGGINGFACE_MODEL || 'auto' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY_1: ${{ secrets.OPENAI_API_KEY_1 }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'auto' }}
+          ALP_KEY_SCHEDULING: "least_used"
           ALP_LLM: "auto"
           # "auto" = provider catalogue se live free model khud chuna jaata hai (pipeline/ai_router.py)
           ALP_MODEL_AUTO_DISCOVERY: "1"
@@ -169,9 +191,12 @@ jobs:
           DATE="$EDITION_DATE"
           echo "DATE=$DATE" >> "$GITHUB_ENV"
           python main.py --type weekly --date "$DATE"
+      - name: Run summary (counts + AI providers)
+        if: always() && steps.edition.outputs.skip != 'true'
+        run: python scripts/run_summary.py --job-id "weekly_${EDITION_DATE}"
       - name: Upload artefacts
         id: checkpoint_upload
-        if: always()
+        if: always() && steps.edition.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-checkpoints
@@ -179,12 +204,18 @@ jobs:
             output/
             data/
             logs/qa/
+            logs/ai_health/
+            logs/ai_usage.jsonl
+            logs/provider_health.json
+            logs/provider_summary.json
+            logs/stages/
+            logs/supervisor/
           retention-days: 30
           overwrite: true
           if-no-files-found: warn
 
       - name: Record uploaded checkpoint reference
-        if: always() && steps.checkpoint_upload.outputs.artifact-id != ''
+        if: always() && steps.edition.outputs.skip != 'true' && steps.checkpoint_upload.outputs.artifact-id != ''
         run: |
           python - <<'PY'
           import os
@@ -201,7 +232,7 @@ jobs:
           PY
 
       - name: Persist edition state and ledgers
-        if: always()
+        if: always() && steps.edition.outputs.skip != 'true'
         env:
           STATE_BRANCH: ${{ github.ref_name }}
         run: |

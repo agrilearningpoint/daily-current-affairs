@@ -157,14 +157,17 @@ class Agent:
         # official PIB/PMO/MEA/RBI/ISRO/IMD/SEBI releases are always retained.
         keep = [i for i in items if i["student_relevance"] >= 15 or i.get("must_include")]
 
-        # Top up to target using all clean verified items so comprehensive 24h news is not lost
+        # Top up to target using clean (non-demoted) items first so comprehensive 24h news is not lost
         if len(keep) < target_count and len(items) > len(keep):
             kept_ids = {i.get("event_id") for i in keep}
-            rest = sorted([i for i in items if i.get("event_id") not in kept_ids],
-                          key=lambda x: -x["student_relevance"])
+            rest = sorted(
+                [i for i in items if i.get("event_id") not in kept_ids and not i.get("exam_demoted")],
+                key=lambda x: -x["student_relevance"],
+            )
             keep += rest[:target_count - len(keep)]
             keep.sort(key=lambda x: -x["student_relevance"])
-            logging.info(f"[{self.name}] daily coverage fill: keep={len(keep)} (up to {target_count})")
+            if rest:
+                logging.info(f"[{self.name}] daily coverage fill: keep={len(keep)} (up to {target_count})")
 
         agri_n = sum(1 for i in keep if i.get("agri_focus"))
         bank_n = sum(1 for i in keep if i.get("banking_focus"))

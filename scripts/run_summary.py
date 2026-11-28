@@ -79,12 +79,12 @@ def collect_counts(root: Path, job_id: str) -> dict:
     }
 
 
-def collect_providers(root: Path, job_id: str) -> tuple[dict, str]:
+def collect_providers(root: Path, job_id: str) -> tuple[dict, str, dict]:
     """{(provider, model): Counter(task->ok count), failures} from ai_usage.jsonl,
     falling back to the stage logs' router lines."""
     ok: dict = defaultdict(Counter)
     failed: dict = defaultdict(Counter)
-    usage = root / "logs" / "ai_usage.jsonl"
+    usage = Path(os.getenv("ALP_AI_USAGE_LOG") or (root / "logs" / "ai_usage.jsonl"))
     source = ""
     if usage.is_file():
         for line in usage.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -103,10 +103,16 @@ def collect_providers(root: Path, job_id: str) -> tuple[dict, str]:
             for m in ROUTER_OK.finditer(log.read_text(encoding="utf-8", errors="replace")):
                 ok[(m.group(1), m.group(3) or "")][m.group(2)] += 1
         source = "stage logs" if ok else "none recorded"
-    return {"ok": ok, "failed": failed}, source
+    obs = {}
+    try:
+        from pipeline.ai_usage import update_provider_observability
+        obs = update_provider_observability(root=root, job_id=job_id).get("summary", {})
+    except Exception:
+        obs = {}
+    return {"ok": ok, "failed": failed}, source, obs
 
 
-def render(job_id: str, job: dict, counts: dict, providers: dict, source: str) -> tuple[str, str]:
+def render(job_id: str, job: dict, counts: dict, providers: dict, source: str, obs: dict | None = None) -> tuple[str, str]:
     window = job.get("window") or {}
     order = ["raw", "verified", "dedup", "scored", "selected", "reserves", "final_stories", "mcqs",
              "quick_bites", "agri_items", "photos", "promoted_reserves", "pdf_pages"]
@@ -116,11 +122,23 @@ def render(job_id: str, job: dict, counts: dict, providers: dict, source: str) -
     if job.get("publish_not_before"):
         text.append(f"  publish not before: {job['publish_not_before']}")
     text.append("  counts: " + ", ".join(f"{k}={fmt(counts.get(k))}" for k in order))
+    totals = (obs or {}).get("totals") or {}
+    if totals.get("calls"):
+        text.append(
+            f"  API totals: calls={totals['calls']} ok={totals['successes']} fail={totals['failures']} "
+            f"429={totals['rate_limits']} tokens={totals['total_tokens']} cost=${totals['estimated_cost_usd']:.4f}"
+        )
     md = [f"### Run summary `{job_id}`", "",
           f"- **Status:** {job.get('status', '-')} (last stage `{job.get('last_success_stage', '-')}`)",
           f"- **Window (IST):** {window.get('start', '-')} → {window.get('end', '-')}"]
     if job.get("publish_not_before"):
         md.append(f"- **Publish not before:** {job['publish_not_before']}")
+    if totals.get("calls"):
+        md.append(
+            f"- **API utilization:** {totals['successes']}/{totals['calls']} ok, "
+            f"{totals['rate_limits']} rate-limits, {totals['total_tokens']} tokens, "
+            f"est. ${totals['estimated_cost_usd']:.4f}"
+        )
     md += ["", "| " + " | ".join(order) + " |", "|" + "---|" * len(order),
            "| " + " | ".join(fmt(counts.get(k)) for k in order) + " |", "",
            f"**AI providers** (source: {source})", ""]
@@ -151,8 +169,8 @@ def main(argv=None) -> int:
         jobs = jobs.get("jobs", jobs) if isinstance(jobs, dict) else {}
         job = jobs.get(args.job_id) or {}
         counts = collect_counts(root, args.job_id)
-        providers, source = collect_providers(root, args.job_id)
-        text, md = render(args.job_id, job, counts, providers, source)
+        providers, source, obs = collect_providers(root, args.job_id)
+        text, md = render(args.job_id, job, counts, providers, source, obs)
         print(text)
         summary = os.getenv("GITHUB_STEP_SUMMARY")
         if summary:

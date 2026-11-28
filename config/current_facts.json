@@ -190,7 +190,7 @@
       "aliases": [
         "Swaminathan Janakiraman"
       ],
-      "name_hi": "",
+      "name_hi": "पूनम गुप्ता",
       "names": [
         "Poonam Gupta",
         "Swaminathan J",
@@ -455,7 +455,7 @@
         "S Jaishankar",
         "Jaishankar"
       ],
-      "name_hi": ""
+      "name_hi": "एस. जयशंकर"
     },
     {
       "id": "home_minister",
@@ -479,7 +479,7 @@
         "Shri Amit Shah",
         "Amit Anilchandra Shah"
       ],
-      "name_hi": ""
+      "name_hi": "अमित शाह"
     },
     {
       "id": "cds",
@@ -1030,9 +1030,11 @@
       "match": [
         "Prime Minister"
       ],
-      "match_hi": [],
+      "match_hi": [
+        "प्रधानमंत्री"
+      ],
       "aliases": [],
-      "name_hi": "",
+      "name_hi": "नरेंद्र मोदी",
       "origin": "ai_facts_cache",
       "second_source": "https://www.mea.gov.in/prime-minister-visits"
     }

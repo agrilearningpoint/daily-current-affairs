@@ -3,14 +3,27 @@
 Production-grade pipeline that collects, verifies, and publishes daily/weekly/monthly current-affairs content for competitive exam students (AGTA, AFO, ICAR, IBPS, NABARD).
 
 **What it does:**
-1. Fetches news from RSS feeds + APIs (rolling 24–36h window, 00:00 IST previous day onwards)
-2. Fact-checks claims via cross-source corroboration + heuristic + optional LLM
-3. Deduplicates + ranks by importance
-4. Builds bilingual (English + Hindi) content
-5. Generates exam-oriented MCQs (4-5 options, validated)
-6. Renders a professional PDF (Hindi + English)
-7. Publishes to Telegram + pins to channel
-8. Runs daily/weekly/monthly on GitHub Actions
+1. Resolves multi-key AI pools (`GEMINI_API_KEY[_1..7]`, `GROQ_API_KEY[_1..2]`, `OPENAI_API_KEY[_1]`, `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`) via zero-token health checks (`00_model_orchestrator`)
+2. Fetches news from RSS feeds + APIs cleanly within IST edition windows (`01_source_fetch`, `pipeline/windows.py`)
+3. Fact-checks claims via cross-source corroboration (wire-collapse aware), origin recovery & heuristics (`04_fact_verification`)
+4. Deduplicates + scores & ranks by competitive-exam relevance (`05`–`11`)
+5. Builds polished bilingual (English + Hindi) editorial content (`12_content_editor`, `pipeline/hindi_editor.py`)
+6. Generates & independently examines 5-option MCQs (`16_mcq_generator`, `17_mcq_validator`, `pipeline/mcq_examiner.py`)
+7. Validates Static GK entities & officeholders against `config/current_facts.json` (`17c_static_gk_validator`)
+8. Renders a mobile-first HarfBuzz-shaped PDF + runs pixel-level visual QA (`18_pdf_design`, `19_pdf_qa`, `pipeline/pdf_visual_qa.py`)
+9. Publishes idempotently to Telegram with signed release approval + generates edition & learning reports (`22`–`26`)
+10. Orchestrates every stage inside `MasterSupervisor` (`PLAN -> EXECUTE -> OBSERVE -> CRITIQUE -> REPAIR -> APPROVE/REJECT`)
+
+### Engineering Documentation
+
+- [Master System Audit](docs/MASTER_SYSTEM_AUDIT.md)
+- [Master Architecture](docs/MASTER_ARCHITECTURE.md)
+- [Agent Registry & Dependency Matrix](docs/AGENT_REGISTRY.md)
+- [API Routing, Key Pools & Quota Policy](docs/API_ROUTING_AND_KEY_POLICY.md)
+- [PDF Design & Editorial Standards](docs/PDF_EDITORIAL_STANDARDS.md)
+- [Publication & Release Gate Policy](docs/PUBLICATION_RELEASE_POLICY.md)
+- [Self-Healing, Supervision & Learning Policy](docs/SELF_HEALING_POLICY.md)
+- [Production Test Report](docs/PRODUCTION_TEST_REPORT.md)
 
 ---
 

@@ -355,7 +355,7 @@ def score_item(item, source_score_map=None):
     text = " " + ((item.get("headline_en") or "") + " " + (item.get("raw_facts") or "") + " " + (item.get("category") or "")).lower() + " "
     factors = {}
     for fac, kws in FACTOR_KEYWORDS.items():
-        hits = sum(1 for k in kws if k in text)
+        hits = sum(1 for k in kws if re.search(r'(?<!\w)' + re.escape(k) + r'(?!\w)', text))
         w = FACTOR_WEIGHTS[fac]
         factors[fac] = min(w, round(w * min(hits, 4) / 4))  # 0→w graded by keyword hits
     # category boosts (explicit mapping so agri/banking exams get domain weight)

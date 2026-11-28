@@ -1,22 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-AGRI LEARNING POINT — AGENT WORKFLOW (17 logical stages)
-Pipeline: COLLECTOR → ... → FINAL HEALTH AUDIT.
-Architecture principle: Same database, different selection for Daily/Weekly/Monthly.
-
-REFACTOR (2026-10 audit):
-- 01 Master Supervisor REMOVED  — main.py already owns orchestration (lock/retry/resume/alert).
-- 02 Scheduler MERGED into 03   — window calculation is one line inside collection.
-- 07 Student Relevance + 08 Agriculture Expert + 09 Banking Expert MERGED into a single
-  "student & domain relevance" stage — 08/09 were only tagging agri_focus/banking_focus.
-- 13 Bilingual Editor + 14 English Editor MERGED into 12 Content Editor — build_content()
-  already produces bilingual fields; the extra passes were thin fallbacks/cleanup.
-- 24 Watchdog Recovery RENAMED to 24_final_health_audit — standalone watchdog lives in
-  main.py --watchdog + .github/workflows/watchdog.yml; this agent is only the end-of-run audit.
-Numbering keeps original IDs (gaps are intentional history markers).
+AGRI LEARNING POINT — AUTHORITATIVE AGENT WORKFLOW (18 daily stages + Master Supervisor)
+Pipeline: MODEL ORCHESTRATOR → SOURCE FETCH → ... → FINAL HEALTH AUDIT.
+Architecture principle: Same verified knowledge base, tailored selection for Daily/Weekly/Monthly,
+supervised end-to-end by pipeline.supervisor.MasterSupervisor (agents/26_master_supervisor.py).
 """
 
-# main.py is the executable registry; documentation/config must not diverge.
+# main.py is the executable registry; documentation/config must stay 1:1 synced.
 from main import DAILY_STAGES, WEEKLY_STAGES, MONTHLY_STAGES
 
 DAILY_AGENTS = [name for name, _, _ in DAILY_STAGES]
@@ -25,46 +15,59 @@ MONTHLY_AGENTS = [name for name, _, _ in MONTHLY_STAGES]
 WORKFLOW_ORDER = list(dict.fromkeys(DAILY_AGENTS + WEEKLY_AGENTS + MONTHLY_AGENTS))
 WORKFLOWS_BY_TYPE = {"daily": DAILY_AGENTS, "weekly": WEEKLY_AGENTS, "monthly": MONTHLY_AGENTS}
 
-PIPELINE_FLOW = """NEWS COLLECTOR (+window)
-   ↓
-FACT VERIFIER
-   ↓
-DEDUPLICATOR
-   ↓
-IMPORTANCE SCORER (0-100)
-   ↓
-STUDENT + DOMAIN RELEVANCE (agri/banking boosts & tags)
-   ↓
-FINAL NEWS SELECTOR
-   ↓        (weekly/monthly: fresh Best-of re-selection here)
-IMPORTANCE MEMORY
-   ↓
-CONTENT EDITOR (EN + HI + validation in one stage)
-   ↓
- IMAGE SELECTOR
-   ↓
- MCQ GENERATOR
-      ↓
- MCQ VALIDATOR
-      ↓
-  PDF DESIGN (dynamic generator)
-      ↓
-  PDF QA — HARD GATE (REJECTED blocks publish)
-      ↓
- TELEGRAM PUBLISH
-      ↓
-  PIN VERIFY
-      ↓
- FINAL HEALTH AUDIT → JOB COMPLETE"""
+SUPERVISOR_CYCLE = ["PLAN", "EXECUTE", "OBSERVE", "CRITIQUE", "REPAIR", "RETEST", "APPROVE_OR_REJECT"]
 
-WATCHDOG_FLOW = "WATCHDOG → MONITOR → TIMEOUT → RETRY → RECOVER → ALERT"
+PIPELINE_FLOW = """00 MODEL ORCHESTRATOR
+   ↓
+01 SOURCE FETCH (+IST window / GNews paced waves)
+   ↓
+04 FACT VERIFICATION (corroboration + claim-level evidence)
+   ↓
+05 DEDUPLICATION
+   ↓
+06 NEWS IMPORTANCE (0-100)
+   ↓
+07 STUDENT + DOMAIN RELEVANCE (agri/banking boosts & tags)
+   ↓
+10 FINAL NEWS SELECTION
+   ↓        (weekly/monthly: 20/21 period assembly from published daily editions)
+11 IMPORTANCE MEMORY
+   ↓
+12 CONTENT EDITOR (EN + HI + strict Hindi validation)
+   ↓
+16 MCQ GENERATOR
+   ↓
+17 MCQ VALIDATOR (+ independent adversarial examiner)
+   ↓
+17b AUTO SECTIONS (Agriculture Corner + Quick Bites)
+   ↓
+17c STATIC GK VALIDATOR (+ Hindi post-fix)
+   ↓
+18 PDF DESIGN (Image Curator + ReportLab/HarfBuzz layout)
+   ↓
+19 PDF QA — HARD GATE (Structural + Content + Visual QA; bounded repair)
+   ↓
+26 MASTER SUPERVISOR RELEASE GATE (signed SHA-256 approval)
+   ↓
+22 TELEGRAM PUBLISH
+   ↓
+23 TELEGRAM PIN VERIFIER
+   ↓
+24 FINAL HEALTH AUDIT → JOB COMPLETE"""
+
+WATCHDOG_FLOW = "WATCHDOG → MONITOR → DETECT STUCK/FAILED → RECOVERY PLAN → ALERT"
 
 STATE_MACHINE = {
-    "happy_path": ["CREATED", "COLLECTING", "COLLECTED", "VERIFYING", "VERIFIED", "DEDUPLICATED",
-                   "SCORED", "SELECTED", "CONTENT_READY", "MCQ_READY", "MCQ_VALIDATED",
-                   "PDF_GENERATED", "QA_APPROVED", "PUBLISHED", "PIN_VERIFIED", "COMPLETE"],
-    "failure": ["FAILED", "RETRYING", "RECOVERED", "FAILED_FINAL"],
-    "qa_gate": ["QA_REJECTED  (blocks Telegram publish; job cannot become COMPLETE)"],
+    "job_statuses": ["running", "awaiting_stage", "awaiting_publish", "failed", "success"],
+    "stage_verdicts": [
+        "PASS",
+        "PASS_WITH_APPROVED_LIMITATION",
+        "RETRY_REQUIRED",
+        "REPAIR_REQUIRED",
+        "BLOCKED",
+        "FAILED_FINAL",
+    ],
+    "qa_gate": ["REJECTED (blocks 22_telegram_publisher; failed 19_pdf_qa forces clean rebuild)"],
 }
 
 ARCHITECTURE_PRINCIPLE = """
