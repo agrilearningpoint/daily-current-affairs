@@ -186,7 +186,11 @@ def collect_production_health(root: Path = ROOT) -> Dict[str, Any]:
         and str((jobs_map.get(item.get("job_id") or "") or {}).get("status", "")).lower() == "success"
     ]
 
-    # 3. AI Provider & Key-Slot Telemetry
+    # 3. AI Provider & Key-Slot Telemetry (separating live-job telemetry from unisolated test-fixture rows)
+    _REAL_PROVIDERS = {
+        "gemini", "groq", "mistral", "openrouter", "llm7", "nvidia",
+        "cohere", "openai", "huggingface", "pollinations", "siliconflow",
+    }
     prov_summary = _read_json(root / "logs" / "provider_summary.json", {}) or {}
     prov_health = _read_json(root / "logs" / "provider_health.json", {}) or {}
     usage_path = root / "logs" / "ai_usage.jsonl"
@@ -195,6 +199,14 @@ def collect_production_health(root: Path = ROOT) -> Dict[str, Any]:
     usage_fail = 0
     usage_rl = 0
     usage_auth_fail = 0
+    live_rows = 0
+    live_ok = 0
+    live_fail = 0
+    live_rl = 0
+    live_cache = 0
+    live_jobs: Dict[str, int] = defaultdict(int)
+    live_by_prov: Dict[str, Dict[str, int]] = defaultdict(lambda: {"ok": 0, "fail": 0, "rate_limits": 0})
+    mock_rows = 0
     if usage_path.is_file():
         for raw_ln in usage_path.read_text(encoding="utf-8", errors="replace").splitlines():
             if not raw_ln.strip():
@@ -204,15 +216,36 @@ def collect_production_health(root: Path = ROOT) -> Dict[str, Any]:
             except ValueError:
                 continue
             usage_rows += 1
-            if row.get("ok"):
+            is_ok = bool(row.get("ok"))
+            if is_ok:
                 usage_ok += 1
             else:
                 usage_fail += 1
             cat = str(row.get("error_category") or row.get("detail") or "").lower()
-            if "429" in cat or "rate_limit" in cat:
+            is_rl = "429" in cat or "rate_limit" in cat or "rate limit" in cat
+            if is_rl:
                 usage_rl += 1
             if "401" in cat or "403" in cat or "auth" in cat:
                 usage_auth_fail += 1
+
+            job_val = str(row.get("job") or "").strip()
+            prov_val = str(row.get("provider") or "").strip().lower()
+            if job_val and prov_val in _REAL_PROVIDERS:
+                live_rows += 1
+                live_jobs[job_val] += 1
+                if is_ok:
+                    live_ok += 1
+                    live_by_prov[prov_val]["ok"] += 1
+                else:
+                    live_fail += 1
+                    live_by_prov[prov_val]["fail"] += 1
+                if is_rl:
+                    live_rl += 1
+                    live_by_prov[prov_val]["rate_limits"] += 1
+                if row.get("cache_hit"):
+                    live_cache += 1
+            else:
+                mock_rows += 1
 
     # 4. PDF QA Telemetry (logs/qa/*_qa.json)
     qa_dir = root / "logs" / "qa"
@@ -294,6 +327,14 @@ def collect_production_health(root: Path = ROOT) -> Dict[str, Any]:
             "usage_fail": usage_fail,
             "usage_rate_limits": usage_rl,
             "usage_auth_failures": usage_auth_fail,
+            "live_job_rows": live_rows,
+            "live_job_ok": live_ok,
+            "live_job_fail": live_fail,
+            "live_job_rate_limits": live_rl,
+            "live_job_cache_hits": live_cache,
+            "live_jobs_recorded": dict(live_jobs),
+            "live_by_provider": {k: dict(v) for k, v in sorted(live_by_prov.items())},
+            "test_fixture_rows": mock_rows,
             "provider_summary_snapshot": prov_summary,
             "provider_health_snapshot": prov_health,
         },
@@ -376,7 +417,9 @@ def render_dashboard_markdown(health: Dict[str, Any]) -> str:
     ]
     ai = health["ai_observability"]
     lines += [
-        f"- **Historical `logs/ai_usage.jsonl` Rows:** `{ai['usage_log_rows']}` (`ok={ai['usage_ok']}`, `fail={ai['usage_fail']}`, `429/rate_limit={ai['usage_rate_limits']}`, `auth_fail={ai['usage_auth_failures']}`)",
+        f"- **Logged Live-Job Calls (`logs/ai_usage.jsonl` with real `job` & provider):** `{ai['live_job_rows']}` (`ok={ai['live_job_ok']}`, `fail={ai['live_job_fail']}`, `429/rate_limit={ai['live_job_rate_limits']}`, `cache_hits={ai['live_job_cache_hits']}`, jobs=`{list(ai['live_jobs_recorded'].keys())}`)",
+        f"- **Historical Test-Fixture / Unscoped Rows Separated From Live Telemetry:** `{ai['test_fixture_rows']}` (of `{ai['usage_log_rows']}` total rows)",
+        f"- **Live Provider Breakdown (`logs/ai_usage.jsonl`):** `{json.dumps(ai['live_by_provider'], ensure_ascii=False)}`",
     ]
     prov_snap = (ai.get("provider_health_snapshot") or {}).get("providers") or {}
     if prov_snap:

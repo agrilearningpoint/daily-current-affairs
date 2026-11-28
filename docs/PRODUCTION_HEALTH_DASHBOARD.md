@@ -1,6 +1,6 @@
 # Production Health Dashboard
 
-**Generated At (UTC):** `2026-11-28T08:43:16.186681+00:00`  
+**Generated At (UTC):** `2026-11-28T09:22:37.376964+00:00`  
 **Data Sources:** `state/jobs.json`, `state/published_events.json`, `state/healing_history.json`, `recovery_plan.json`, `logs/qa/*_qa.json`, `logs/ai_usage.jsonl`, `logs/provider_health.json`, `logs/provider_summary.json`
 
 ---
@@ -43,7 +43,9 @@
 
 ## 4. AI Provider & Key-Slot Observability
 
-- **Historical `logs/ai_usage.jsonl` Rows:** `1369` (`ok=570`, `fail=799`, `429/rate_limit=701`, `auth_fail=31`)
+- **Logged Live-Job Calls (`logs/ai_usage.jsonl` with real `job` & provider):** `1062` (`ok=415`, `fail=647`, `429/rate_limit=645`, `cache_hits=0`, jobs=`['daily_2026-11-22']`)
+- **Historical Test-Fixture / Unscoped Rows Separated From Live Telemetry:** `307` (of `1369` total rows)
+- **Live Provider Breakdown (`logs/ai_usage.jsonl`):** `{"gemini": {"ok": 109, "fail": 4, "rate_limits": 4}, "groq": {"ok": 306, "fail": 643, "rate_limits": 641}}`
 
 | Provider | Slots | Active Model | Available | Shared Quota Flag |
 |---|---:|---|---|---|

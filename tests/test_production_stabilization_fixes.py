@@ -412,6 +412,10 @@ class TestPhase3FaultInjectionAndRecovery:
         health = collect_production_health(ROOT)
         assert "daily" in health["workflows"]
         assert "publication_ledger" in health
+        ai_obs = health["ai_observability"]
+        assert ai_obs["live_job_rows"] > 0
+        assert ai_obs["test_fixture_rows"] > 0
+        assert "daily_2026-11-22" in ai_obs["live_jobs_recorded"]
         jp = tmp_path / "h.json"
         cp = tmp_path / "h.csv"
         mp = tmp_path / "h.md"
