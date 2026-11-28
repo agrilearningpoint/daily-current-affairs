@@ -389,6 +389,15 @@ def main() -> int:
         logger.warning("[Content Editor] only %d/%d stories after reserve backfill", len(clean), target)
     content["items"] = clean[:target]
     content["reserve_items"] = clean[target:]
+    try:
+        from pipeline.hindi_editor import audit_edition_hindi, edit_edition_hindi
+        edit_edition_hindi(content)
+        content["hindi_quality_report"] = audit_edition_hindi(content)
+        if strict and not content["hindi_quality_report"].get("passed", True):
+            logger.warning("[Content Editor] Hindi quality audit flagged %d unresolved critical defect(s)",
+                           content["hindi_quality_report"].get("critical_count", 0))
+    except Exception as exc:
+        logger.warning("[Content Editor] Hindi audit skipped: %s", exc)
     from pipeline.content import refresh_content_summaries
     refresh_content_summaries(content)
 

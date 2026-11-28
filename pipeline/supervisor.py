@@ -498,11 +498,18 @@ class MasterSupervisor:
         codes = {str(i.get("code") or "") for i in issues}
         if codes & {"broken_mcq_template", "duplicate_questions", "insufficient_mcqs", "missing_answers", "mcq_stem_monotony", "agency_recognition_mcq"}:
             return "16_mcq_generator"
-        if codes & {"story_missing_from_pdf", "title_only_stories", "truncated_dangling_sentence", "untranslated_or_english_filler"}:
+        if codes & {
+            "story_missing_from_pdf", "title_only_stories", "truncated_dangling_sentence",
+            "untranslated_or_english_filler", "clipped_headline", "critical_hindi_defect",
+            "missing_content_hi", "corrupt_hindi_unicode", "incomplete_hindi_sentence",
+        }:
             return "12_content_editor"
         if codes & {"static_gk_filler_defect", "broken_hindi_grammar"}:
             return "17c_static_gk_validator"
-        if codes & {"near_empty_pages", "blank_pages", "text_overflow", "excessive_pages"}:
+        if codes & {
+            "near_empty_pages", "blank_pages", "text_overflow", "excessive_pages",
+            "visual_edge_clipping", "visual_blank_pages", "isolated_hindi_matra",
+        }:
             return "18_pdf_design"
         return "18_pdf_design"
 

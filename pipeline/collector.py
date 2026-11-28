@@ -157,7 +157,18 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "renewable", "solar", "wind", "biodiversity", "moefcc", "cpcb", "emission",
         "zoolog", "botanical", "taxonom", "species", "zsi", "fauna", "flora",
     ),
-    "Sports": ("sports", "cricket", "hockey", "tournament", "medal", "olympic", "federation"),
+    "Awards & Honours": (
+        "award", "prize", "honour", "honor", "conferred", "nobel", "padma", "bharat ratna",
+        "dadasaheb", "sahitya akademi", "jnanpith", "booker", "oscar", "grammy", "iffi",
+        "film festival", "gandhi medal", "gallantry", "appointed", "sworn in", "ambassador",
+    ),
+    "Important Days": (
+        "world day", "international day", "national day", "diwas", "divas", "anniversary",
+        "jayanti", "observed on", "theme of the day",
+    ),
+    "Sports": ("sports", "cricket", "hockey", "football", "badminton", "chess", "wrestling",
+               "athlete", "tournament", "olympic", "asian games", "commonwealth", "world cup",
+               "federation", "gold medal", "silver medal", "bronze medal"),
 }
 
 CATEGORY_ALIASES = {
@@ -168,6 +179,8 @@ CATEGORY_ALIASES = {
     "environment": "Environment", "discovery": "National", "aggregator": "National",
     "health": "Science & Technology", "energy": "Environment", "education": "National",
     "defence": "National", "rural": "Agriculture", "cooperation": "Agriculture",
+    "awards": "Awards & Honours", "appointments": "Awards & Honours", "sports": "Sports",
+    "important_days": "Important Days",
 }
 
 
@@ -310,10 +323,25 @@ _JUDICIARY_RE = re.compile(r"\b(?:supreme\s+court|high\s+court|sc\b|hc\b|bench|c
                            r"verdict|judgment|petition|plea|tribunal)\b", re.I)
 
 
+# Film/cultural/civilian/peace medals that must NOT misroute to Sports
+_NON_SPORT_AWARD_RE = re.compile(
+    r"\b(?:iffi|films?|film\s+festival|cinema|unesco|gandhi\s+medal|dadasaheb|sahitya|jnanpith|"
+    r"nobel|booker|oscar|grammy|emmy|cannes|bafta|padma|bharat\s+ratna|gallantry)\b", re.I)
+_IMPORTANT_DAY_RE = re.compile(
+    r"\b(?:international|world|national)\s+[\w\s'’-]{1,40}\bday\b|\b(?:diwas|divas|jayanti)\b", re.I)
+
+
 def category_scores(text: str) -> dict[str, int]:
     lower = f" {(text or '').lower()} "
-    return {category: sum(1 for keyword in keywords if _kw_re(keyword).search(lower))
-            for category, keywords in CATEGORY_KEYWORDS.items()}
+    scores = {category: sum(1 for keyword in keywords if _kw_re(keyword).search(lower))
+              for category, keywords in CATEGORY_KEYWORDS.items()}
+    if _NON_SPORT_AWARD_RE.search(lower):
+        scores["Sports"] = 0
+        if scores.get("Awards & Honours", 0) == 0:
+            scores["Awards & Honours"] = 2
+    if _IMPORTANT_DAY_RE.search(lower):
+        scores["Important Days"] = max(scores.get("Important Days", 0), 2)
+    return scores
 
 
 def _best_text_category(text: str) -> tuple[str, int]:
@@ -326,6 +354,41 @@ def _best_text_category(text: str) -> tuple[str, int]:
             scores[cat] = 0
     best = max(scores, key=lambda c: scores[c]) if scores else "National"
     return (best, scores[best]) if scores.get(best, 0) else ("National", 0)
+
+
+def classify_category_with_confidence(text: str, source_category: str = "") -> dict[str, Any]:
+    """Classify article text and expose confidence / ambiguity telemetry for review gating."""
+    scores = category_scores(text)
+    if not FOREIGN_RE.search(text or ""):
+        scores["International"] = 0
+    if _JUDICIARY_RE.search(text or ""):
+        for cat in ("Economy", "Banking & Finance", "Government Schemes"):
+            scores[cat] = 0
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    top_cat, top_score = ranked[0] if ranked else ("National", 0)
+    second_cat, second_score = ranked[1] if len(ranked) > 1 else ("National", 0)
+    cat = infer_category(text, source_category=source_category)
+    uncertain = (top_score == 0 and not CATEGORY_ALIASES.get((source_category or "").strip().lower())) or (
+        top_score > 0 and top_score == second_score
+    )
+    if top_score == 0:
+        reason = "zero_keyword_signal_defaulted"
+        conf = 0.35 if CATEGORY_ALIASES.get((source_category or "").strip().lower()) else 0.2
+    elif top_score == second_score:
+        reason = f"tie_between:{top_cat}&{second_cat}"
+        conf = 0.48
+    else:
+        margin = top_score - second_score
+        reason = "confident_match"
+        conf = round(min(0.98, 0.55 + 0.12 * top_score + 0.08 * margin), 2)
+    return {
+        "category": cat,
+        "confidence": conf,
+        "uncertain": uncertain,
+        "needs_review": uncertain,
+        "reason": reason,
+        "scores": {k: v for k, v in ranked[:4] if v > 0},
+    }
 
 
 def infer_category(text: str, source_category: str = "") -> str:

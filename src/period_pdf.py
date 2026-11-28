@@ -245,7 +245,8 @@ def _date_tag(it: Dict[str, Any]) -> str:
         return ""
 
 
-def _story_block(it: Dict[str, Any], num: int, total: int, compact: bool) -> List[Flowable]:
+def _story_block(it: Dict[str, Any], num: int, total: int, compact: bool,
+                 seen_edition_gk: Optional[List[str]] = None) -> List[Flowable]:
     sec = _section_of(it)
     en = _clean_text_for_display(it.get("headline_en"))
     hi = _hi_or_blank(it.get("headline_hi"))
@@ -273,7 +274,7 @@ def _story_block(it: Dict[str, Any], num: int, total: int, compact: bool) -> Lis
         f = bi_line(e, h, STYLES["bullet_en"], STYLES["hi_body"], highlight=True)
         (first if i == 0 else rest).extend(f + [Spacer(PRINT_W, 2.5 * pt)])
     out: List[Flowable] = [KeepTogether(first)] + rest
-    gk = _static_gk_box(_extract_static_gk_pairs(it, None)[: (2 if compact else 3)])
+    gk = _static_gk_box(_extract_static_gk_pairs(it, None, seen_edition_facts=seen_edition_gk)[: (2 if compact else 3)])
     if gk is not None:
         out += [Spacer(PRINT_W, 3 * pt), KeepTogether([gk])]
     out += [Spacer(PRINT_W, 7 * pt), HRFlowable(width="100%", thickness=0.5, color=COLORS["border_light"]),
@@ -564,6 +565,7 @@ def _build_once(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path
     story += _index(kind, stories, sections, chips)
 
     # Stories by section
+    seen_edition_gk: List[str] = []
     for sec_en, sec_hi, key in sections:
         members = [s for s in stories if _section_of(s) == sec_en]
         if not members:
@@ -571,7 +573,7 @@ def _build_once(content: Dict[str, Any], mcqs: List[Dict[str, Any]], output_path
         story.append(CondPageBreak(PAGE_H * 0.35))
         story += _band(sec_en.upper(), sec_hi, key)
         for s in members:
-            story += _story_block(s, stories.index(s) + 1, len(stories), compact)
+            story += _story_block(s, stories.index(s) + 1, len(stories), compact, seen_edition_gk=seen_edition_gk)
 
     # Monthly quick tables
     if kind == "monthly" and tables:

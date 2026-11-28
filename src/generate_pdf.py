@@ -1080,14 +1080,35 @@ BANNED_STATIC_GK_RE = re.compile(
 )
 
 
-def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]] = None) -> List[Tuple[str, str]]:
+def _is_edition_gk_dup(cand: str, seen_edition_facts: List[str]) -> bool:
+    norm = re.sub(r"[^0-9a-z]+", " ", (cand or "").lower()).strip()
+    if not norm:
+        return True
+    toks = {w for w in norm.split() if len(w) >= 2}
+    for prev in seen_edition_facts:
+        if prev == norm:
+            return True
+        p_toks = {w for w in prev.split() if len(w) >= 2}
+        if toks and p_toks and (len(toks & p_toks) / len(toks | p_toks)) >= 0.80:
+            return True
+    return False
+
+
+def _extract_static_gk_pairs(
+    item: Dict[str, Any],
+    mcq: Optional[Dict[str, Any]] = None,
+    *,
+    seen_edition_facts: Optional[List[str]] = None,
+) -> List[Tuple[str, str]]:
     """Up to 6 Static GK pairs as ('Label – Value', 'लेबल – मान').
 
     Strict Priority Order:
-    1. Verified entity facts from pipeline.static_gk_db (authoritative database).
+    1. Verified entity facts from pipeline.static_gk_db (authoritative database), skipped
+       when builder already curated/deduplicated `static_gk_deduped=True`.
     2. Item's verified static_gk_pairs.
     3. Supplement from MCQ's static_gk only if genuine, non-generic, and non-filler.
-    Never outputs bare Fact 1/2/3, generic capital/currency facts, or truncated sentences.
+    Never outputs bare Fact 1/2/3, generic capital/currency facts, truncated sentences,
+    or duplicate facts across the same edition when ``seen_edition_facts`` is supplied.
     """
     pairs: List[Tuple[str, str]] = []
     seen: set = set()
@@ -1103,17 +1124,22 @@ def _extract_static_gk_pairs(item: Dict[str, Any], mcq: Optional[Dict[str, Any]]
         clean_tail = re.sub(r"[.!?।|\s]+$", "", en_c).strip()
         if re.search(r"\b(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|around\s+Rs\.?|Rs\.?|₹)$", clean_tail, re.I):
             return
+        if seen_edition_facts is not None and _is_edition_gk_dup(en_c, seen_edition_facts):
+            return
         seen.add(en_c.lower())
+        if seen_edition_facts is not None:
+            seen_edition_facts.append(re.sub(r"[^0-9a-z]+", " ", en_c.lower()).strip())
         pairs.append((en_c, _hi_or_blank(hi)))
 
-    # 1. Primary: Look up verified entity facts from static_gk_db
-    try:
-        from pipeline.static_gk_db import lookup_static_gk_for_text
-        story_text = f"{item.get('headline_en', '')} {item.get('summary_en', '')} {item.get('raw_facts', '')}"
-        for db_en, db_hi in lookup_static_gk_for_text(story_text):
-            _add(db_en, db_hi)
-    except Exception:
-        pass
+    # 1. Primary: Look up verified entity facts from static_gk_db (unless already builder-deduped)
+    if not item.get("static_gk_deduped"):
+        try:
+            from pipeline.static_gk_db import lookup_static_gk_for_text
+            story_text = f"{item.get('headline_en', '')} {item.get('summary_en', '')} {item.get('raw_facts', '')}"
+            for db_en, db_hi in lookup_static_gk_for_text(story_text):
+                _add(db_en, db_hi)
+        except Exception:
+            pass
 
     # 2. Check item's static_gk_pairs (direct)
     curated_pairs = item.get("static_gk_pairs") or []
@@ -2535,6 +2561,7 @@ def _generate_pdf_once(
     answer_key: List[Tuple[int, str, Dict[str, Any]]] = []
     boxes = _plan_headline_boxes(units, content)
     card_bg = COLORS["card_bg"]
+    seen_edition_gk: List[str] = []
 
     for u_idx, (it, unit_mcqs) in enumerate(units):
         if u_idx > 0:
@@ -2543,7 +2570,7 @@ def _generate_pdf_once(
 
         cat = str(it.get("category", "National")).upper()
         headline_en = _clean_text_for_display(it.get("headline_en", ""))
-        static_pairs = _extract_static_gk_pairs(it, unit_mcqs[0])
+        static_pairs = _extract_static_gk_pairs(it, unit_mcqs[0], seen_edition_facts=seen_edition_gk)
 
         # Unit header: small category tag, then the story headline at chapter size.
         pill = Table([[Paragraph(f"<b>{_safe(cat)}</b>   •   STORY {u_idx + 1} OF {len(units)}", STYLES["section_tag"])],
@@ -2671,25 +2698,25 @@ def _generate_pdf_once(
         # Start on the same page when at least ~45% of it is free (avoids a near-empty page).
         from reportlab.platypus import CondPageBreak
         story.append(CondPageBreak(PAGE_H * 0.45))
-        story.append(Spacer(PRINT_W, 6 * pt))
+        story.append(Spacer(PRINT_W, 4 * pt))
         story.append(Anchor("ol_en", "One-Liners (English)", 0))
         story.append(Paragraph("<b>IMPORTANT ONE - LINER Current Affairs</b>", STYLES["oneliner_title"]))
-        story.append(Spacer(PRINT_W, 10 * pt))
+        story.append(Spacer(PRINT_W, 6 * pt))
         for n, (en, _hi) in enumerate(one_liners, 1):
             story.append(text_flowable(f"{n}. {en}", STYLES["oneliner"], markup=f"<b>{n}.</b> {highlight_markup(en)}"))
-            story.append(Spacer(PRINT_W, 4 * pt))
+            story.append(Spacer(PRINT_W, 2.5 * pt))
         if any(h for _e, h in one_liners):
-            story.append(CondPageBreak(PAGE_H * 0.45))
-            story.append(Spacer(PRINT_W, 10 * pt))
+            story.append(CondPageBreak(PAGE_H * 0.65))
+            story.append(Spacer(PRINT_W, 5 * pt))
             story.append(Anchor("ol_hi", "One-Liners (Hindi) | वन-लाइनर", 0))
             story.append(text_flowable("महत्वपूर्ण वन-लाइनर करंट अफेयर्स", STYLES["oneliner_title"]))
-            story.append(Spacer(PRINT_W, 10 * pt))
+            story.append(Spacer(PRINT_W, 5 * pt))
             ol_hi = ParagraphStyle("OneLinerHI", parent=STYLES["oneliner"],
                                    fontSize=STYLES["oneliner"].fontSize)
             for n, (_en, hi) in enumerate(one_liners, 1):
                 if hi:
                     story.append(text_flowable(f"{n}. {hi}", ol_hi, highlight=True))
-                    story.append(Spacer(PRINT_W, 3 * pt))
+                    story.append(Spacer(PRINT_W, 2 * pt))
 
     # =========================================================================
     # OPTIONAL ANSWER KEY (enable with ALP_PDF_ANSWER_KEY=1)
@@ -2750,8 +2777,14 @@ def _generate_pdf_once(
 
     # Closing call-to-action with clickable channel links (placed after Quick Bites when present).
     if not qb_story:
-        story.append(Spacer(PRINT_W, 14 * pt))
-        story.append(_join_us_box())
+        tail_join = [Spacer(PRINT_W, 6 * pt), _join_us_box()]
+        # Never strand the Join-Us box alone on a near-empty trailing page.
+        if len(story) >= 8 and isinstance(story[-1], Spacer):
+            last_items = story[-8:]
+            del story[-8:]
+            story.append(KeepTogether(last_items + tail_join))
+        else:
+            story.extend(tail_join)
 
     # Build PDF with Two-Pass ExamGeniusCanvas
     global CURRENT_COVER_DATE

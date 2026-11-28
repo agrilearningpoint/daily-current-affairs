@@ -65,6 +65,12 @@ def run(job_id: str) -> int:
         except Exception as exc:
             logger.warning("[17c] Hindi post-fix skipped (%s)", exc)
     try:
+        from pipeline.hindi_editor import audit_edition_hindi, edit_edition_hindi
+        edit_edition_hindi(content, mcq if isinstance(mcq, list) else None)
+        content["hindi_quality_report"] = audit_edition_hindi(content, mcq if isinstance(mcq, list) else None)
+    except Exception as exc:
+        logger.warning("[17c] Hindi audit skipped (%s)", exc)
+    try:
         write_json_atomic(content_path, content)
         if mcq is not None and mcq != before_m:
             write_json_atomic(mcq_path, mcq)

@@ -14,6 +14,10 @@ from typing import Any, Dict, List, Set
 
 DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 NUMBER_RE = re.compile(r"\b\d+(?:,\d+)*(?:\.\d+)?\b")
+_CORRUPT_HI_RE = re.compile(
+    r"[\ufffd\uFFFE\uFFFF]|(?:^|(?<=[\s(\"'.,।!?/\-]))[\u093E-\u094D\u0955-\u0957\u0962\u0963\u0902\u0901\u0903]"
+)
+_BROKEN_MATRA_WORDS = ("वषिय", "मलिते", "महत्वपूरण", "स्थैतकि", "वकिल्प", "बदिु", "वयाख्या")
 
 
 @dataclass
@@ -102,6 +106,12 @@ def validate_item_completeness(item: Dict[str, Any], report: CompletenessReport)
         return False
     if not kps_hi and not det_hi:
         report.add("error", "missing_content_hi", "Item has neither key points nor detailed explanation in Hindi", event_id)
+        return False
+
+    # 2b. Broken / malformed Hindi Unicode guard (replacement chars, isolated matras, broken matra words)
+    hi_fields = [headline_hi, det_hi] + kps_hi
+    if any(_CORRUPT_HI_RE.search(f) or any(w in f for w in _BROKEN_MATRA_WORDS) for f in hi_fields if f):
+        report.add("error", "corrupt_hindi_unicode", "Hindi text contains replacement characters or broken Devanagari matras", event_id)
         return False
 
     # Word count estimation

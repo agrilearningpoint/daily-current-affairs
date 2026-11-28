@@ -375,6 +375,7 @@ class Report:
     replaced: int = 0
     dropped: int = 0
     errors: int = 0
+    duplicates_removed: int = 0
     ai_verified: int = 0
     details: List[Dict[str, str]] = field(default_factory=list)
 
@@ -395,7 +396,8 @@ class Report:
 
     def as_dict(self) -> Dict[str, Any]:
         out = {"checked": self.checked, "kept": self.kept, "replaced": self.replaced,
-               "dropped": self.dropped, "errors": self.errors, "details": self.details}
+               "dropped": self.dropped, "errors": self.errors,
+               "duplicates_removed": self.duplicates_removed, "details": self.details}
         if _ACTIVE_LOOKUP is not None:
             out["ai_lookup"] = dict(getattr(_ACTIVE_LOOKUP, "stats", {}) or {})
             out["ai_lookup"]["verified_lines"] = self.ai_verified
@@ -1172,6 +1174,109 @@ def _explain_lookup(out: Dict[str, Any], requested: Any) -> None:
         logger.info("[static-gk] AI lookup: %s", ai["off_reason"])
 
 
+def _gk_norm_tokens(text: str) -> set:
+    return {w for w in re.sub(r"[^0-9a-z]+", " ", (text or "").lower()).split() if len(w) >= 2}
+
+
+def _is_semantic_gk_dup(en_line: str, seen_lines: List[str], threshold: float = 0.80) -> bool:
+    cand_norm = re.sub(r"[^0-9a-z]+", " ", (en_line or "").lower()).strip()
+    if not cand_norm:
+        return True
+    cand_toks = _gk_norm_tokens(cand_norm)
+    for prev in seen_lines:
+        if prev == cand_norm:
+            return True
+        prev_toks = _gk_norm_tokens(prev)
+        if cand_toks and prev_toks:
+            inter = len(cand_toks & prev_toks)
+            union = len(cand_toks | prev_toks)
+            if union and (inter / union) >= threshold:
+                return True
+    return False
+
+
+def deduplicate_edition_static_gk(content: Dict[str, Any], mcq_data: Any = None, report: Optional[Report] = None) -> int:
+    """Remove exact and near-duplicate Static GK facts across stories in a daily/period edition.
+
+    Facts belonging to the same ``event_id`` in an MCQ remain intact on that story unit;
+    duplicates repeated across *different* stories are removed cleanly.
+    """
+    seen: List[Tuple[str, str]] = []  # (normalized_line, owner_event_id)
+    removed = 0
+    items = [it for it in (content.get("items") or []) if isinstance(it, dict)]
+
+    def _is_dup_for_event(en: str, owner_eid: str) -> bool:
+        cand_norm = re.sub(r"[^0-9a-z]+", " ", (en or "").lower()).strip()
+        if not cand_norm:
+            return True
+        cand_toks = _gk_norm_tokens(cand_norm)
+        for prev_norm, prev_eid in seen:
+            # Allow a story's own MCQ to carry the same fact as its parent story unit
+            if owner_eid and prev_eid and owner_eid == prev_eid:
+                continue
+            if prev_norm == cand_norm:
+                return True
+            prev_toks = _gk_norm_tokens(prev_norm)
+            if cand_toks and prev_toks:
+                inter = len(cand_toks & prev_toks)
+                union = len(cand_toks | prev_toks)
+                if union and (inter / union) >= 0.80:
+                    return True
+        return False
+
+    def _filter_pairs(seq: Any, owner_eid: str, *, same_list_dedup: bool = True) -> Any:
+        nonlocal removed
+        if not isinstance(seq, list):
+            return seq
+        out = []
+        local_seen: List[str] = []
+        for entry in seq:
+            if isinstance(entry, dict):
+                en = str(entry.get("en") or f"{entry.get('label_en', '')} – {entry.get('value_en', '')}").strip()
+            elif isinstance(entry, (list, tuple)) and entry:
+                en = str(entry[0] or "").strip()
+            else:
+                en = str(entry or "").strip()
+            if not en:
+                continue
+            norm = re.sub(r"[^0-9a-z]+", " ", en.lower()).strip()
+            if (same_list_dedup and _is_semantic_gk_dup(en, local_seen)) or _is_dup_for_event(en, owner_eid):
+                removed += 1
+                continue
+            local_seen.append(norm)
+            seen.append((norm, owner_eid))
+            out.append(entry)
+        return out
+
+    for idx, it in enumerate(items):
+        eid = str(it.get("event_id") or f"item_{idx}")
+        for key in ("static_gk_pairs", "static_gk"):
+            if key in it and isinstance(it[key], list):
+                it[key] = _filter_pairs(it[key], eid)
+        if isinstance(it.get("static_facts"), dict):
+            sf_out = {}
+            for k, v in it["static_facts"].items():
+                if not isinstance(k, str) or k.startswith("_") or not isinstance(v, (str, int, float)):
+                    sf_out[k] = v
+                    continue
+                fact_line = f"{k} – {v}"
+                if _is_dup_for_event(fact_line, eid):
+                    removed += 1
+                    continue
+                seen.append((re.sub(r"[^0-9a-z]+", " ", fact_line.lower()).strip(), eid))
+                sf_out[k] = v
+            it["static_facts"] = sf_out
+
+    for idx, m in enumerate(_mcq_list(mcq_data)):
+        if isinstance(m, dict) and isinstance(m.get("static_gk"), list):
+            meid = str(m.get("event_id") or f"mcq_{idx}")
+            m["static_gk"] = _filter_pairs(m["static_gk"], meid)
+
+    if report is not None:
+        report.duplicates_removed += removed
+    return removed
+
+
 def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,
                       facts: Optional[Sequence[Fact]] = None,
                       cache_doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -1210,6 +1315,7 @@ def _validate_edition(content: Dict[str, Any], mcq_data: Any = None,
             st = _story_text(by_event.get(str(m.get("event_id")), {})) + " " + str(m.get("question_en") or "")
             if "static_gk" in m:
                 m["static_gk"] = validate_rows(m["static_gk"], facts, report, st, year)
+        deduplicate_edition_static_gk(content, mcq_data, report)
     except Exception as exc:  # last-resort fail-open
         logger.warning("[static-gk] validator aborted (%s): dropping officeholder-type lines", exc)
         return drop_officeholder_lines(content, mcq_data, reason=f"validator error: {exc}")

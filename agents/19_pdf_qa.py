@@ -377,6 +377,79 @@ def _normalize_for_coverage(text: str) -> str:
     return re.sub(r"\s+", " ", text).lower().strip()
 
 
+_DANGLING_CLIP_HEAD_RE = re.compile(
+    r"(?:\b(?:for|in|on|of|with|to|by|at|and|the|a|an|than|from)\s*(?:\.\.\.|…)|"
+    r"[,\-:]\s*(?:\.\.\.|…))\s*$",
+    re.IGNORECASE,
+)
+
+
+def check_headline_clipping(report: QAReport, text: str,
+                            selected_items: Optional[List[Dict[str, Any]]]) -> None:
+    """Compare source story headlines against extracted PDF text to detect genuine clipping.
+
+    Intentional cover/TOC ellipses (e.g. ``_short_text``) do NOT fail when the full
+    source headline also appears completely in the PDF story body pages.
+    """
+    if not selected_items:
+        return
+    norm_pdf = _normalize_for_coverage(text)
+    if not norm_pdf:
+        return
+    clipped: List[str] = []
+    for it in selected_items:
+        if not isinstance(it, dict):
+            continue
+        raw_hl = str(it.get("headline_en") or "").lstrip("> ").strip()
+        if not raw_hl:
+            continue
+        if _DANGLING_CLIP_HEAD_RE.search(raw_hl):
+            clipped.append(raw_hl[:90])
+            continue
+        words = _normalize_for_coverage(raw_hl).split()
+        if len(words) < 6:
+            continue
+        head_sig = " ".join(words[:5])
+        tail_sig = " ".join(words[-3:])
+        if head_sig in norm_pdf and tail_sig not in norm_pdf:
+            clipped.append(raw_hl[:90])
+    if clipped:
+        report.add("error", "clipped_headline",
+                   f"{len(clipped)} headline(s) clipped or truncated in PDF story output: {clipped[0]!r}",
+                   headlines=clipped[:10])
+
+
+def check_hindi_edition_quality(report: QAReport, content: Optional[Dict[str, Any]],
+                                mcqs: Optional[List[Dict[str, Any]]] = None,
+                                *, strict: Optional[bool] = None) -> None:
+    """Run Priority 1 Hindi quality gate across edition JSON before approving publication."""
+    if not isinstance(content, dict) and not mcqs:
+        return
+    if strict is None:
+        strict = (os.getenv("DRY_RUN", "0") != "1") or bool(STRICT or os.getenv("PDF_QA_STRICT", "0") == "1")
+    try:
+        from pipeline.hindi_editor import audit_edition_hindi
+        rep = audit_edition_hindi(content, mcqs)
+        if not rep.get("passed", True):
+            crit_samples = [i for i in (rep.get("issues") or []) if i.get("severity") == "error"]
+            # In offline DRY_RUN tests without translators, missing Devanagari is a warning while
+            # Unicode corruption / broken matras / incomplete Hindi remain blocking errors.
+            blocking = [
+                i for i in crit_samples
+                if strict or i.get("code") != "missing_devanagari"
+            ]
+            if blocking:
+                report.add("error", "critical_hindi_defect",
+                           f"{len(blocking)} unresolved critical Hindi defect(s) in edition content/MCQs",
+                           issues=blocking[:10])
+            elif crit_samples:
+                report.add("warning", "missing_hindi_dry_run",
+                           f"{len(crit_samples)} item(s) missing Hindi in offline DRY_RUN",
+                           issues=crit_samples[:10])
+    except Exception as exc:
+        logger.warning("Hindi edition audit skipped: %s", exc)
+
+
 def check_story_coverage(report: QAReport, text: str,
                          selected_items: List[Dict[str, Any]]) -> None:
     """Verify every selected story actually appears in the PDF.
@@ -673,6 +746,12 @@ def check_editorial_quality(report: QAReport, text: str) -> None:
     if sf_match:
         report.add("error", "static_gk_filler_defect",
                    f"PDF contains meaningless Fact 1 or generic currency filler in Static GK: '{sf_match.group(0).strip()}'")
+
+    # 14. Isolated Devanagari combining matra/virama/anusvara artifact
+    isolated_matra = re.search(r"\s[\u093E-\u094D\u0955-\u0957\u0962\u0963\u0902\u0901\u0903]", text)
+    if isolated_matra:
+        report.add("error", "isolated_hindi_matra",
+                   "PDF contains isolated Devanagari combining vowel sign/matra")
 
 
 def check_text_content(report: QAReport, text: str) -> None:
@@ -1077,6 +1156,7 @@ def run_qa(pdf_path: Path | str, min_mcq_count: int = MIN_MCQ_COUNT,
             check_repeated_lines(report, doc)
         if selected_items:
             check_story_coverage(report, text, selected_items)
+            check_headline_clipping(report, text, selected_items)
         if item_count is not None:
             check_page_target(report, item_count)
         if RENDER_CHECK and fitz is not None:
@@ -1085,8 +1165,9 @@ def run_qa(pdf_path: Path | str, min_mcq_count: int = MIN_MCQ_COUNT,
                 vis = inspect_pdf_visuals(pdf_path)
                 report.visual_qa = vis
                 for vi in vis.get("issues") or []:
-                    sev = "error" if (not vis.get("passed") and vi.get("code") == "visual_blank_pages") else vi.get("severity", "warning")
-                    report.add(sev, str(vi.get("code", "visual_qa")), str(vi.get("message", "")), pages=vi.get("pages", []))
+                    code = str(vi.get("code", "visual_qa"))
+                    sev = "error" if code in {"visual_blank_pages", "visual_edge_clipping"} else vi.get("severity", "warning")
+                    report.add(sev, code, str(vi.get("message", "")), pages=vi.get("pages", []))
             except Exception as exc:
                 logger.warning("Visual PDF QA skipped: %s", exc)
     finally:
@@ -1212,11 +1293,14 @@ def main() -> int:
 
     # Variety is checked against the MCQ artifact, not the PDF text: the artifact
     # carries question type and concept id, and it is what stage 16 validated.
+    mcq_list_for_audit: List[Dict[str, Any]] = []
     mcq_path = ctx.find_input("mcq")
     if mcq_path is not None:
         try:
             mcq_data = json.loads(mcq_path.read_text(encoding="utf-8"))
             mcq_list = mcq_data.get("mcqs") if isinstance(mcq_data, dict) else mcq_data
+            if isinstance(mcq_list, list):
+                mcq_list_for_audit = mcq_list
             check_mcq_variety(report, mcq_list if isinstance(mcq_list, list) else [],
                               edition_date=re.search(r"\d{4}-\d{2}-\d{2}", str(ctx.job_id or ""))
                               .group(0) if re.search(r"\d{4}-\d{2}-\d{2}", str(ctx.job_id or "")) else None)
@@ -1224,6 +1308,9 @@ def main() -> int:
             logger.warning("MCQ variety check skipped, artifact unreadable: %s", exc)
     else:
         logger.warning("MCQ variety check skipped: no MCQ artifact for %s", ctx.job_id)
+
+    if content_path is not None and isinstance(locals().get("content"), dict):
+        check_hindi_edition_quality(report, locals().get("content"), mcq_list_for_audit or None)
 
     # Save report + signed release gate approval
     report_file = ctx.qa_report_path()

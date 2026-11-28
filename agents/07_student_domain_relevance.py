@@ -97,23 +97,30 @@ class Agent:
         from pipeline.state import SCORED_DIR, data_path, read_json, write_json_atomic
         items = read_json(data_path(SCORED_DIR, self.job_id), {"items": []})["items"]
         BOOST = {"Agriculture": 25, "Banking & Finance": 25, "Government Schemes": 20, "Economy": 15,
+                 "Awards & Honours": 15, "Important Days": 12,
                  "International": 12, "Science & Technology": 12, "Environment": 12, "Sports": 8, "National": 8}
         DEMOTE = re.compile(r"crime|murder|rape|accident|traffic|celebrity|bollywood|gossip|match-fixing|political party rally", re.I)
         from pipeline.official_sources import is_must_include
         try:
-            from pipeline.collector import infer_category, refine_category
+            from pipeline.collector import infer_category, refine_category, classify_category_with_confidence
         except Exception:  # pragma: no cover
-            infer_category = refine_category = None
+            infer_category = refine_category = classify_category_with_confidence = None
         for it in items:
             # Feeds registered as discovery/aggregator carry no subject category, so
             # they missed every category boost and the selection round-robin.
+            txt = f"{it.get('headline_en', '')} {str(it.get('raw_facts', ''))[:600]}"
             if infer_category and str(it.get("category") or "").lower() in GENERIC_CATEGORIES:
                 it["category"] = infer_category(f"{it.get('headline_en', '')} {it.get('raw_facts', '')}")
             elif refine_category and it.get("category"):
                 # desk category the text contradicts: SC story on a Banking feed,
                 # the PM's Delhi address filed as International, ZSI summit as Economy
-                it["category"] = refine_category(
-                    it["category"], f"{it.get('headline_en', '')} {str(it.get('raw_facts', ''))[:600]}")
+                it["category"] = refine_category(it["category"], txt)
+            if classify_category_with_confidence:
+                cls = classify_category_with_confidence(txt, source_category=str(it.get("category") or ""))
+                it["category_confidence"] = cls["confidence"]
+                if cls["uncertain"]:
+                    it["category_uncertain"] = True
+                    it["category_review_reason"] = cls["reason"]
             r = min(100, it.get("importance_score", 0) + BOOST.get(it.get("category", ""), 0))
             head = it.get("headline_en", "")
             if DEMOTE.search(head + " " + it.get("raw_facts", "")):

@@ -102,12 +102,20 @@ def is_similar(a: str, b: str, threshold: float = 0.8) -> bool:
     return sm.real_quick_ratio() > threshold and sm.quick_ratio() > threshold and sm.ratio() > threshold
 
 
+_NON_SPORT_AWARD_RE = re.compile(
+    r"\b(?:iffi|films?|film\s+festival|cinema|unesco|gandhi\s+medal|dadasaheb\s+phalke|"
+    r"national\s+film\s+awards?|sahitya\s+akademi|jnanpith|nobel\s+prize|booker\s+prize|"
+    r"oscars?|grammy|emmy|cannes|bafta|gallantry|padma\s+(?:vibhushan|bhushan|shri)|bharat\s+ratna)\b",
+    re.I,
+)
+
 _KEYWORD_SECTIONS: List[Tuple[str, re.Pattern]] = [
     ("Important Days", re.compile(r"\b(?:international|world|national)\s+[\w\s'’-]{0,40}\bday\b|\bdiwas\b|\bday\s+(?:is\s+)?observed\b", re.I)),
     ("Appointments & Awards", re.compile(r"\b(?:appointed|appoints|takes\s+charge|sworn\s+in|named\s+(?:as\s+)?(?:new|chief|head)|"
-                                         r"awarded|award|prize|conferred|honoured|honored)\b", re.I)),
-    ("Sports", re.compile(r"\b(?:cricket|hockey|football|olympics?|medal|tournament|championship|world\s+cup|"
-                          r"grand\s+slam|chess|badminton|wrestling|athlete|t20|odi|test\s+match)\b", re.I)),
+                                         r"awarded|awards?|prize|honoured|honored|conferred|medal\s+for|gandhi\s+medal|dadasaheb\s+phalke|"
+                                         r"sahitya\s+akademi|jnanpith|nobel\s+prize|booker|iffi|film\s+festival|padma\s+(?:vibhushan|bhushan|shri)|bharat\s+ratna)\b", re.I)),
+    ("Sports", re.compile(r"\b(?:cricket|hockey|football|olympics?|asian\s+games|commonwealth\s+games|tournament|championship|world\s+cup|"
+                          r"grand\s+slam|chess|badminton|wrestling|athlete|t20|odi|test\s+match|(?:gold|silver|bronze)\s+medal)\b", re.I)),
     ("Defence & Science", re.compile(r"\b(?:isro|drdo|satellite|missile|navy|naval|army|air\s+force|iaf|defence|defense|"
                                      r"orbit|rocket|launch\s+vehicle|gslv|pslv|space|scientists?|research(?:ers)?|"
                                      r"vaccine|climate|species)\b", re.I)),
@@ -160,6 +168,8 @@ def section_for(item: Dict[str, Any]) -> str:
     head = f"{item.get('headline_en', '')}"
     if "important day" in cat:
         return "Important Days"
+    if _NON_SPORT_AWARD_RE.search(head):
+        return "Appointments & Awards"
     if "sport" in cat:
         return "Sports"
     if any(k in cat for k in ("appoint", "award", "person", "obituar")):
@@ -1802,6 +1812,7 @@ def _attach_static_gk(story: Dict[str, Any], mcqs_by_event: Dict[str, Dict[str, 
             hi = clean_headline(story.get("exam_fact_hi"))
             add(f"Exam Fact – {ef}", f"परीक्षा तथ्य – {hi}" if has_devanagari(hi) else "")
     story["static_gk_pairs"] = pairs[:3]
+    story["static_gk_deduped"] = True
     seen.extend(_norm(q["en"]) for q in story["static_gk_pairs"])
     for q in story["static_gk_pairs"]:
         seen_orgs.update(gk_orgs(q["en"]) or (story_orgs if len(story_orgs) == 1 else set()))
