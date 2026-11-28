@@ -1941,20 +1941,35 @@ def _one_liner_for(item: Dict[str, Any], mcq: Dict[str, Any], content: Dict[str,
                 return en_clean, hi_clean
 
     # 3. Derive rapid-revision point from summary/key points to avoid headline echo
+    from pipeline.content import split_sentences
+    from pipeline.content_sanitizer import repair_dangling_sentence
+
     summary_en = _clean_one_liner_str(item.get("summary_en", ""))
     summary_hi = _clean_one_liner_str(item.get("summary_hi", ""))
     if summary_en and summary_en.lower() != headline_clean and len(summary_en) >= 30:
-        first_s_en = summary_en.split(". ")[0].rstrip(".") + "."
-        first_s_hi = summary_hi.split("। ")[0].rstrip("।") + "।" if summary_hi else ""
-        return first_s_en, first_s_hi
+        sents_en = [repair_dangling_sentence(s, drop_if_unrepairable=True) for s in split_sentences(summary_en)]
+        sents_en = [s for s in sents_en if s and len(s) >= 20]
+        first_s_en = (sents_en[0].rstrip(".") + ".") if sents_en else ""
+        sents_hi = [
+            repair_dangling_sentence(s.strip(), drop_if_unrepairable=True)
+            for s in re.split(r"(?<=[।!?])\s+", summary_hi or "")
+            if s.strip()
+        ]
+        sents_hi = [s for s in sents_hi if s]
+        first_s_hi = (sents_hi[0].rstrip("।.") + "।") if sents_hi else repair_dangling_sentence(summary_hi, drop_if_unrepairable=True)
+        if first_s_en and first_s_en.lower() != headline_clean:
+            return first_s_en, first_s_hi
 
     kps_en = item.get("key_points_en") or []
     kps_hi = item.get("key_points_hi") or []
     if kps_en and len(kps_en[0]) >= 30 and kps_en[0].lower() != headline_clean:
-        return _clean_one_liner_str(kps_en[0]), _clean_one_liner_str(kps_hi[0] if kps_hi else "")
+        en_kp = repair_dangling_sentence(_clean_one_liner_str(kps_en[0]), drop_if_unrepairable=True)
+        hi_kp = repair_dangling_sentence(_clean_one_liner_str(kps_hi[0] if kps_hi else ""), drop_if_unrepairable=True)
+        if en_kp:
+            return en_kp, hi_kp
 
     return (_clean_one_liner_str(item.get("headline_en", "")),
-            _clean_one_liner_str(item.get("headline_hi", "")))
+            repair_dangling_sentence(_clean_one_liner_str(item.get("headline_hi", "")), drop_if_unrepairable=False))
 
 
 def _plan_headline_boxes(units, content) -> Dict[int, RoundedBox]:

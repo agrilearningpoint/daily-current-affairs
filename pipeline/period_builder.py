@@ -1830,15 +1830,19 @@ def _fmt(d: str, with_year: bool) -> str:
 
 def _clean_one_liners(ols: List[Dict[str, Any]], verified: Dict[str, Dict[str, Any]],
                       hindi: PeriodHindi, limit: int, qa: Dict[str, Any]) -> List[Dict[str, Any]]:
+    from pipeline.content_sanitizer import is_dangling_sentence, repair_dangling_sentence
+
     out = []
     for o in ols:
         it = verified.get(o.get("event_id"))
         en = clean_line(o.get("text_en"), it, False)
-        if not en or caption_residue(en):
+        en = repair_dangling_sentence(en, drop_if_unrepairable=True)
+        if not en or is_dangling_sentence(en) or caption_residue(en):
             qa["one_liners_dropped"] = qa.get("one_liners_dropped", 0) + 1
             continue
         hi = hindi.fix(en, clean_line(o.get("text_hi"), it, True))
-        if not hi:
+        hi = repair_dangling_sentence(hi, drop_if_unrepairable=True)
+        if not hi or is_dangling_sentence(hi):
             qa["one_liners_dropped"] = qa.get("one_liners_dropped", 0) + 1
             continue
         out.append({**o, "text_en": en, "text_hi": hi})

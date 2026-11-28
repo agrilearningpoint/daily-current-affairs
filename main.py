@@ -766,6 +766,8 @@ def execute_job(job_type: str, date_str: str | None) -> int:
                 and target in stage_index
                 and (target != name or exit_ok)
                 and os.getenv("ALP_SUPERVISOR_REPAIR", "1") == "1"):
+            if hasattr(supervisor, "preserve_failure_snapshot"):
+                supervisor.preserve_failure_snapshot(name, critique.reasons)
             attempt = supervisor.record_repair_attempt(critique.defect_key or name, target, critique.reasons)
             target_idx = stage_index[target]
             keep_stages = set(stage_names[:target_idx])
@@ -797,6 +799,27 @@ def execute_job(job_type: str, date_str: str | None) -> int:
         idx += 1
 
     update_job(job_id, status="success", record_attempt=False)
+    # Reconcile recovery_plan.json so a succeeded job does not remain flagged as stale unresolved failure.
+    rp_path = ROOT / "recovery_plan.json"
+    if rp_path.is_file():
+        try:
+            rp_data = json.loads(rp_path.read_text(encoding="utf-8"))
+            if isinstance(rp_data, dict):
+                changed = False
+                for key in ("recent_failed_final", "stuck_running"):
+                    lst = rp_data.get(key)
+                    if isinstance(lst, list) and job_id in lst:
+                        rp_data[key] = [x for x in lst if x != job_id]
+                        changed = True
+                ma = rp_data.get("manual_attention")
+                if isinstance(ma, list) and any(isinstance(m, dict) and m.get("job_id") == job_id for m in ma):
+                    rp_data["manual_attention"] = [m for m in ma if not (isinstance(m, dict) and m.get("job_id") == job_id)]
+                    changed = True
+                if changed:
+                    rp_data.setdefault("resolved", []).append({"job_id": job_id, "reason": "completed successfully"})
+                    write_json_atomic(rp_path, rp_data)
+        except (ValueError, OSError):
+            pass
     log(f"job '{job_id}' SUCCESS")
     return 0
 

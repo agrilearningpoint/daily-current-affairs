@@ -392,10 +392,41 @@ def main() -> int:
     try:
         from pipeline.hindi_editor import audit_edition_hindi, edit_edition_hindi
         edit_edition_hindi(content)
-        content["hindi_quality_report"] = audit_edition_hindi(content)
-        if strict and not content["hindi_quality_report"].get("passed", True):
-            logger.warning("[Content Editor] Hindi quality audit flagged %d unresolved critical defect(s)",
-                           content["hindi_quality_report"].get("critical_count", 0))
+        rep = audit_edition_hindi(content)
+        content["hindi_quality_report"] = rep
+        if strict and not rep.get("passed", True):
+            critical_eids = {
+                str(f.get("scope") or "").split(":")[1]
+                for f in (rep.get("issues") or [])
+                if f.get("severity") == "error" and str(f.get("scope") or "").startswith("item:")
+            }
+            if critical_eids and content["reserve_items"]:
+                good_reserves = []
+                bad_reserves = []
+                for res in content["reserve_items"]:
+                    sub = {"items": [res], "one_liners": []}
+                    edit_edition_hindi(sub)
+                    if audit_edition_hindi(sub).get("passed", True):
+                        good_reserves.append(sub["items"][0])
+                    else:
+                        bad_reserves.append(res)
+                replaced = 0
+                new_items = []
+                for it in content["items"]:
+                    if str(it.get("event_id") or "") in critical_eids and good_reserves:
+                        new_items.append(good_reserves.pop(0))
+                        replaced += 1
+                    else:
+                        new_items.append(it)
+                if replaced:
+                    content["items"] = new_items
+                    content["reserve_items"] = good_reserves + bad_reserves
+                    rep = audit_edition_hindi(content)
+                    content["hindi_quality_report"] = rep
+                    logger.warning("[Content Editor] Replaced %d item(s) with unresolved Hindi defects using reserves", replaced)
+            if not rep.get("passed", True):
+                logger.warning("[Content Editor] Hindi quality audit flagged %d unresolved critical defect(s)",
+                               rep.get("critical_count", 0))
     except Exception as exc:
         logger.warning("[Content Editor] Hindi audit skipped: %s", exc)
     from pipeline.content import refresh_content_summaries

@@ -225,6 +225,12 @@ class MasterSupervisor:
                 "reasons": [f"invalidated due to rebuild from {changed_stage}"],
                 "decided_at": datetime.now(timezone.utc).isoformat(),
             }
+            ap_path = release_approval_path(self.root, self.job_id)
+            if ap_path.is_file():
+                try:
+                    ap_path.unlink()
+                except OSError:
+                    pass
             ap = release_approval_path(self.root, self.job_id)
             if ap.is_file():
                 try:
@@ -496,7 +502,14 @@ class MasterSupervisor:
     def _infer_qa_repair_target(self, qa: Dict[str, Any]) -> Optional[str]:
         issues = qa.get("issues") or []
         codes = {str(i.get("code") or "") for i in issues}
-        if codes & {"broken_mcq_template", "duplicate_questions", "insufficient_mcqs", "missing_answers", "mcq_stem_monotony", "agency_recognition_mcq"}:
+        if codes & {"stale_qa_report", "qa_hash_mismatch", "missing_qa_report"}:
+            return "19_pdf_qa"
+        if codes & {
+            "broken_mcq_template", "duplicate_questions", "insufficient_mcqs", "missing_answers",
+            "mcq_stem_monotony", "agency_recognition_mcq", "dangling_preposition_in_mcq",
+            "explanation_dateline_leakage", "answer_key_mismatch", "wrong_mcq_answer",
+            "mcq_repeat_from_earlier_edition",
+        }:
             return "16_mcq_generator"
         if codes & {
             "story_missing_from_pdf", "title_only_stories", "truncated_dangling_sentence",
@@ -509,9 +522,29 @@ class MasterSupervisor:
         if codes & {
             "near_empty_pages", "blank_pages", "text_overflow", "excessive_pages",
             "visual_edge_clipping", "visual_blank_pages", "isolated_hindi_matra",
+            "corrupt_pdf", "empty_pdf",
         }:
             return "18_pdf_design"
         return "18_pdf_design"
+
+    def preserve_failure_snapshot(self, stage: str, reasons: Iterable[str]) -> Optional[Path]:
+        """Archive failed diagnostic state and QA summary before repair overwrites artifacts."""
+        fail_dir = self.root / "logs" / "failures"
+        try:
+            fail_dir.mkdir(parents=True, exist_ok=True)
+            qa_path = self.root / "logs" / "qa" / f"{self.job_id}_qa.json"
+            qa_snap = _safe_json(qa_path) if qa_path.is_file() else None
+            snap_path = fail_dir / f"{self.job_id}_{stage}.json"
+            write_json_atomic(snap_path, {
+                "job_id": self.job_id,
+                "stage": stage,
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "reasons": list(reasons)[:10],
+                "qa_snapshot": qa_snap,
+            })
+            return snap_path
+        except OSError:
+            return None
 
     def _can_repair(self, defect_key: str) -> bool:
         if self.deadline_remaining_seconds() <= 30.0:

@@ -643,6 +643,97 @@ def check_fonts(report: QAReport, doc: "fitz.Document") -> None:
 
 
 
+_DANGLING_WRAP_CONT_RE = re.compile(
+    r"^(?:[\u0900-\u097F]|[A-Za-z0-9(\"'₹])"
+)
+_BLOCK_BOUNDARY_RE = re.compile(
+    r"^(?:[•\-\*>>]|Q\.?\s*\d+|\d+[.)]\s|\([A-D]\)|[A-D]\)|Ans\b|Exam\s+(?:Angle|Fact)|"
+    r"Static\s+GK|Key\s+Points|One[-\s]*Liners?|Agri\s+Learning\s+Point|Page\s+\d+|"
+    r"Source\s*:|स्रोत\s*:)",
+    re.IGNORECASE,
+)
+
+
+def _check_truncated_dangling_sentences(text: str, report: QAReport) -> None:
+    """Detect genuinely truncated English/Hindi sentences without false positives on PDF line wraps."""
+    if not text:
+        return
+
+    # 1. Explicit English/Hindi incomplete cost stubs (always broken regardless of wrapping)
+    explicit_re = re.compile(
+        r"(?:\b(?:worth\s+around|worth|costing|around)\s+Rs\.?(?!\s*\d)|"
+        r"लागत\s+लगभग\s+रुपये?(?!\s*\d)|लगभग\s+रुपये?(?!\s*\d)|"
+        r"(?:के\s+लिए|में|को|और)\s*[।.])",
+        re.IGNORECASE,
+    )
+    m = explicit_re.search(text)
+    if m:
+        report.add(
+            "error",
+            "truncated_dangling_sentence",
+            f"PDF contains truncated sentence ending mid-thought: '{m.group(0).strip()}'",
+        )
+        return
+
+    # 2. Line-by-line check distinguishing column wraps ("5 लाख रुपये\nकी योजना")
+    #    from dangling block/sentence endings.
+    lines = [ln.strip() for ln in text.splitlines()]
+    n = len(lines)
+    dangling_rupee_re = re.compile(r"(?:^|\s)रुपये\s*[।.]?\s*$")
+    dangling_hi_tail_re = re.compile(r"(?:^|\s)(?:के\s+लिए|में|को|और)\s*[।.]?\s*$")
+
+    for i, ln in enumerate(lines):
+        if not ln:
+            continue
+        # Look ahead for the next non-empty line, stopping across blank lines
+        next_ln = ""
+        crossed_blank = False
+        for j in range(i + 1, n):
+            if not lines[j]:
+                crossed_blank = True
+                continue
+            next_ln = lines[j]
+            break
+
+        has_end_punct = ln.endswith(("।", ".", "!", "?", "…"))
+        is_line_wrap = (
+            bool(next_ln)
+            and not crossed_blank
+            and not has_end_punct
+            and not _BLOCK_BOUNDARY_RE.match(next_ln)
+            and bool(_DANGLING_WRAP_CONT_RE.match(next_ln))
+        )
+        if is_line_wrap:
+            continue
+
+        if dangling_rupee_re.search(ln):
+            # Allow compact numeric option/label lines like "(B) 5 लाख रुपये" or "सीमा: 5 लाख रुपये"
+            is_compact_numeric_value = (
+                bool(re.search(r"\d", ln))
+                and not has_end_punct
+                and (
+                    bool(re.match(r"^(?:\([A-D]\)|[A-D]\)|[•\-]|.*[:–—-])", ln))
+                    or len(ln) <= 40
+                )
+            )
+            if not is_compact_numeric_value:
+                report.add(
+                    "error",
+                    "truncated_dangling_sentence",
+                    f"PDF contains truncated sentence ending mid-thought: 'रुपये' ({ln[-60:]})",
+                )
+                return
+
+        if dangling_hi_tail_re.search(ln):
+            tail = dangling_hi_tail_re.search(ln).group(0).strip()
+            report.add(
+                "error",
+                "truncated_dangling_sentence",
+                f"PDF contains truncated sentence ending mid-thought: '{tail}' ({ln[-60:]})",
+            )
+            return
+
+
 def check_editorial_quality(report: QAReport, text: str) -> None:
     """Editorial quality assurance: prevents placeholder, corrupt, or leaked content."""
     # 1. Untitled content check
@@ -726,15 +817,10 @@ def check_editorial_quality(report: QAReport, text: str) -> None:
                    sample=paywall_ui.group(0))
 
     # 12. Truncated / dangling sentence check (P0 critical defect)
-    dangling_sentence_re = re.compile(
-        r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|costing\s+Rs\.?|around\s+Rs\.?|"
-        r"लागत\s+लगभग\s+रुपये?|रुपये\s*(?:\n|$))",
-        re.IGNORECASE
-    )
-    ds_match = dangling_sentence_re.search(text)
-    if ds_match:
-        report.add("error", "truncated_dangling_sentence",
-                   f"PDF contains truncated sentence ending mid-thought: '{ds_match.group(0).strip()}'")
+    # Inspect both explicit truncated tokens AND line-wrap-aware Hindi endings so
+    # valid wrapped sentences ("5 लाख रुपये\nका स्वास्थ्य बीमा") do not false-positive
+    # while real dangling endings ("लागत लगभग रुपये", "... रुपये।", "... के लिए।") block.
+    _check_truncated_dangling_sentences(text, report)
 
     # 13. Meaningless Static GK Fact 1 or empty key check (P1 defect)
     static_filler_re = re.compile(

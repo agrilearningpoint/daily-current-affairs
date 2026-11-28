@@ -49,27 +49,77 @@ SHALLOW_RAW_WORDS = 20
 DANGLING_SENTENCE_ENDINGS = re.compile(
     r"(?:worth\s+around\s+Rs\.?|worth\s+Rs\.?|costing\s+Rs\.?|around\s+Rs\.?|"
     r"\b(?:Rs|₹)\.?|\b(?:at|in|on|with|by|for|of|to|and|the|a|an)\s*|"
+    r"(?-i:\s+[b-hj-z]\s*)|"
     r"लागत\s+लगभग\s+रुपये?|लगभग\s+रुपये?|(?:^|\s)(?:रुपये?|के\s+लिए|में|को|और))\s*$",
     re.IGNORECASE
 )
 
+_TRAILING_ORPHAN_HI = re.compile(
+    r"(?:^|\s)(?:लागत|लगभग|रुपये?|के\s+लिए|की|के|का|में|को|से|पर|और|एवं|जिसकी|जिनकी|जिसके|जिनके|जिसका|जिनका)\s*$"
+)
 
-def repair_dangling_sentence(text: str, fallback_title: str = "") -> str:
+
+def is_dangling_sentence(text: str) -> bool:
+    """Return True if *text* ends mid-thought on a dangling token or incomplete Hindi ending."""
+    if not text or not isinstance(text, str):
+        return False
+    t = str(text).strip()
+    if t.endswith("…"):
+        return True
+    clean_tail = re.sub(r"[.!?।…|\s]+$", "", t).strip()
+    return bool(clean_tail and DANGLING_SENTENCE_ENDINGS.search(clean_tail))
+
+
+def _last_complete_sentence(text: str, min_chars: int = 25) -> str:
+    """Return prefix ending at the last complete sentence boundary before a dangling tail."""
+    # Temporarily shield decimals and abbreviations such as Rs., Dr., U.S.
+    masked = re.sub(r"\b(Rs|Dr|Mr|Mrs|Ms|Prof|Sr|Jr|St|No|vs)\.", lambda m: m.group(1) + "\x00", text)
+    masked = re.sub(r"(\d)\.(\d)", lambda m: f"{m.group(1)}\x00{m.group(2)}", masked)
+    last_boundary = -1
+    for m in re.finditer(r"[।!?](?:\s|$)|\.(?:\s|$)", masked):
+        cand = masked[: m.start() + 1].replace("\x00", ".").strip()
+        if len(cand) >= min_chars and not is_dangling_sentence(cand):
+            last_boundary = m.start() + 1
+    if last_boundary > 0:
+        return masked[:last_boundary].replace("\x00", ".").strip()
+    return ""
+
+
+def repair_dangling_sentence(
+    text: str,
+    fallback_title: str = "",
+    *,
+    drop_if_unrepairable: bool = False,
+) -> str:
     """Detects and repairs truncated sentences ending with dangling currencies, prepositions, or incomplete thoughts."""
     if not text:
         return ""
     t = str(text).strip()
-    clean_tail = re.sub(r"[.!?।|\s]+$", "", t).strip()
+    clean_tail = re.sub(r"[.!?।…|\s]+$", "", t).strip()
     if DANGLING_SENTENCE_ENDINGS.search(clean_tail):
+        # 1. Prefer clipping back to an earlier complete sentence so we never chop "500 करोड़ रुपये" into "500 करोड़".
+        complete_prefix = _last_complete_sentence(t)
+        if complete_prefix:
+            return complete_prefix
         if fallback_title and len(fallback_title) > 25:
             # Reconstruct from complete title
             clean_fb = re.sub(r"^\s*(?:>>|>)\s*", "", fallback_title).strip()
             return clean_fb.rstrip(".") + "."
+        # 2. If dangling tail ends with an incomplete phrase without a complete earlier sentence, strip carefully
+        # ONLY if doing so doesn't sever a numeric quantity from its currency unit (e.g. "500 करोड़").
         repaired = DANGLING_SENTENCE_ENDINGS.sub("", clean_tail).strip()
-        if len(repaired) > 25:
-            return repaired.rstrip(".,") + "."
-        elif fallback_title:
+        while repaired and _TRAILING_ORPHAN_HI.search(repaired):
+            next_rep = _TRAILING_ORPHAN_HI.sub("", repaired).strip()
+            if next_rep == repaired:
+                break
+            repaired = next_rep
+        if len(repaired) > 25 and not re.search(r"\d\s*(?:लाख|करोड़|हजार|अरब|million|billion|crore|lakh)?$", repaired, re.I):
+            end_mark = "।" if re.search(r"[\u0900-\u097F]", repaired) else "."
+            return repaired.rstrip(".,।") + end_mark
+        if fallback_title:
             return fallback_title.strip()
+        if drop_if_unrepairable:
+            return ""
     return t
 
 

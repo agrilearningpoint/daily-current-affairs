@@ -390,6 +390,8 @@ def split_sentences(text):
 
 
 def extract_key_points(item, max_points=4):
+    from pipeline.content_sanitizer import is_dangling_sentence, repair_dangling_sentence
+
     item = item or {}
     headline = _plain_headline(item.get("headline_en"))
     src = (item.get("raw_facts") or "") + ". " + headline
@@ -400,11 +402,18 @@ def extract_key_points(item, max_points=4):
             continue
         if any(_similar(s, p) > 0.9 for p in pts):      # exact or near duplicate
             continue
-        pts.append(_clip(s, 220))
+        clipped = _clip(s, 220) if len(s) <= 220 or not is_dangling_sentence(_clip(s, 220)) else (
+            s if len(s) <= 280 and not is_dangling_sentence(s) else repair_dangling_sentence(_clip(s, 220), drop_if_unrepairable=True)
+        )
+        clipped = repair_dangling_sentence(clipped, drop_if_unrepairable=True)
+        if not clipped or is_dangling_sentence(clipped):
+            continue
+        pts.append(clipped)
         if len(pts) >= max_points:
             break
     if not pts and headline:
-        pts = [_clip(headline, 220)]
+        clean_hd = repair_dangling_sentence(_clip(headline, 220), drop_if_unrepairable=False)
+        pts = [clean_hd]
     return pts
 
 
@@ -446,6 +455,15 @@ def clean_hindi_editorial(text: str) -> str:
     try:
         from pipeline.hindi_editor import edit_hindi_text
         out = edit_hindi_text(out)
+    except Exception:
+        pass
+    try:
+        from pipeline.content_sanitizer import DANGLING_SENTENCE_ENDINGS, _last_complete_sentence
+        clean_tail = re.sub(r"[.!?।…|\s]+$", "", out).strip()
+        if clean_tail and DANGLING_SENTENCE_ENDINGS.search(clean_tail):
+            complete_prefix = _last_complete_sentence(out, min_chars=20)
+            if complete_prefix:
+                out = complete_prefix
     except Exception:
         pass
     return out
@@ -777,10 +795,13 @@ def _prefill_body_translation_cache(lines, task="body"):
 
 def _translate_explanation(det_en, stats, flags):
     """Sentence-wise Hindi for the detailed explanation (keeps EN/HI pairs aligned)."""
+    from pipeline.content_sanitizer import repair_dangling_sentence
+
     sents = split_sentences(det_en) or ([det_en] if det_en else [])
     out = []
     for s in sents:
         hi = _translate_tracked(s, "body", stats, flags)
+        hi = repair_dangling_sentence(hi, drop_if_unrepairable=True)
         if hi:
             out.append(hi.rstrip(" .\u0964"))
     return ("\u0964 ".join(out) + "\u0964") if out else ""
@@ -794,6 +815,8 @@ def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str]
     invented facts are added: if the source only supports a short account, the
     explanation stays short rather than being padded (master rule 9 and 6).
     """
+    from pipeline.content_sanitizer import is_dangling_sentence, repair_dangling_sentence
+
     facts = _norm_ws(raw_facts)
     sentences = [s.strip() for s in split_sentences(facts) if len(s.strip()) > 20]
 
@@ -801,7 +824,8 @@ def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str]
 
     def _add(sentence: str) -> None:
         sentence = _norm_ws(sentence).strip(" .")
-        if not sentence or len(sentence) < 20:
+        sentence = repair_dangling_sentence(sentence, drop_if_unrepairable=True).strip(" .")
+        if not sentence or len(sentence) < 20 or is_dangling_sentence(sentence):
             return
         if any(_similar(sentence, u) > 0.75 for u in used):
             return
@@ -816,7 +840,9 @@ def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str]
         _add(kp)
 
     if not used:
-        _add(title_en)
+        fb = repair_dangling_sentence(_norm_ws(title_en), drop_if_unrepairable=False).strip(" .")
+        if fb:
+            used.append(fb)
 
     text = ". ".join(used)
     return (text + ".") if text and not text.endswith(".") else text
@@ -824,6 +850,8 @@ def _build_detailed_explanation(title_en: str, raw_facts: str, kps_en: List[str]
 
 def _build_category_one_liners(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Build bilingual category-wise one-liners for quick exam revision."""
+    from pipeline.content_sanitizer import is_dangling_sentence, repair_dangling_sentence
+
     one_liners = []
     for it in items:
         en = _plain_headline(it.get("headline_en", ""))
@@ -833,6 +861,9 @@ def _build_category_one_liners(items: List[Dict[str, Any]]) -> List[Dict[str, An
             en = re.sub(r"\s*\(Key\s*:[^)]*\)", "", en).strip()
             hi = re.sub(r"\s*\(Key\s*:[^)]*\)", "", hi).strip()
             hi = clean_hindi_editorial(hi)
+            hi = repair_dangling_sentence(hi, drop_if_unrepairable=True)
+            if not hi or is_dangling_sentence(hi):
+                continue
             one_liners.append({
                 "category": cat,
                 "text_en": en,
@@ -882,9 +913,31 @@ def _build_entry(it, stats):
     # keeps the fail-closed behaviour (English left as-is and flagged for review).
     det_sents = split_sentences(det_en) if not it.get("detailed_explanation_hi") else []
     _prefill_body_translation_cache(list(kps_en) + ([ef] if ef else []) + det_sents, task="body")
-    key_points_hi = [_translate_tracked(p, "body", stats, flags) for p in kps_en]
-    exam_fact_hi = _translate_tracked(ef, "body", stats, flags) if ef else ""
+    from pipeline.content_sanitizer import is_dangling_sentence as _is_dangling, repair_dangling_sentence as _repair_dangling
+
+    raw_kps_hi = [_translate_tracked(p, "body", stats, flags) for p in kps_en]
+    paired_kps_en: List[str] = []
+    key_points_hi: List[str] = []
+    for en_kp, hi_kp in zip(kps_en, raw_kps_hi):
+        repaired_hi = _repair_dangling(hi_kp, drop_if_unrepairable=True)
+        if repaired_hi and not _is_dangling(repaired_hi):
+            paired_kps_en.append(en_kp)
+            key_points_hi.append(repaired_hi)
+    if key_points_hi:
+        kps_en = paired_kps_en
+    else:
+        # Drop story/flag for reserve backfill if all translated bullets stayed broken
+        if any(_is_dangling(h) for h in raw_kps_hi if h):
+            flags.append("incomplete_hindi")
+        key_points_hi = [
+            _repair_dangling(headline_hi, drop_if_unrepairable=False)
+        ] if headline_hi else []
+
+    exam_fact_hi = _repair_dangling(_translate_tracked(ef, "body", stats, flags), drop_if_unrepairable=True) if ef else ""
     det_hi = it.get("detailed_explanation_hi") or _translate_explanation(det_en, stats, flags)
+    headline_hi = _repair_dangling(headline_hi, drop_if_unrepairable=True) or headline_hi
+    if _is_dangling(headline_hi):
+        flags.append("incomplete_hindi")
 
     # Entities and numbers
     orgs = [e for e in _extract_entities(raw_facts + " " + title_en) if len(e) > 3][:4]

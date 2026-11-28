@@ -140,6 +140,15 @@ def review_hindi_line(english: str, hindi: str) -> Dict[str, Any]:
         issues.append("replacement_char_detected")
         critical_issues.append("replacement_char_detected")
 
+    if re.fullmatch(r"[\d\s.,%₹$€+\-–—/():A-Z&]{1,18}", edited or hi_in):
+        return {
+            "ok": True,
+            "critical": False,
+            "issues": issues,
+            "edited_hi": edited,
+            "changed": edited != hi_in,
+        }
+
     if not edited or not DEVA_RE.search(edited):
         issues.append("missing_devanagari")
         critical_issues.append("missing_devanagari")
