@@ -1,30 +1,13 @@
 {
   "version": 1,
-  "updated": "2026-11-27T08:50:07.125350+05:30",
+  "updated": "2026-11-28T07:51:08.700950+05:30",
   "questions": {
-    "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Module-III Training Programme for Assistants (Batch-1) c"
-    },
-    "whatisthekeyfiguremetricassociatedwithindianewzealandftacome": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "static-number",
-      "q": "What is the key figure / metric associated with: \"India-New Zealand FTA comes into force, new visa categories "
-    },
     "whichministryorganisationisresponsibleforimplementingvisitof": {
-      "count": 1,
-      "last_seen": "2026-10-20",
+      "count": 2,
+      "last_seen": "2026-11-28",
       "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Visit of the Prime Minister of Poland to India "
-    },
-    "whichministryorganisationisresponsibleforimplementingdstscie": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"DST - Scientific Programmes - Department of Sci"
+      "q": "Which ministry / organisation is responsible for implementing \"Visit of H.E. Mr. Lars Lokke Rasmussen, Ministe",
+      "published": false
     },
     "whichministryorganisationisresponsibleforimplementingsportsa": {
       "count": 2,
@@ -32,83 +15,11 @@
       "type": "scheme-ministry",
       "q": "Which ministry / organisation is responsible for implementing \"- Sports Authority of India\"?"
     },
-    "whichinstitutionorentityiscentrallyfeaturedinjaishankarholds": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Jaishankar holds talks with UAE’s Foreign Minister in Mu"
-    },
     "whichministryorganisationisresponsibleforimplementingdepartm": {
       "count": 2,
       "last_seen": "2026-10-22",
       "type": "scheme-ministry",
       "q": "Which ministry / organisation is responsible for implementing \"- Department of Science and Technology (DST)\"?"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedin2026economicsno": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"2026 Economics Nobel Prize: Putting the humanity in macr"
-    },
-    "whichministryorganisationisresponsibleforimplementingstateme": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Statement on anti-India references at the Organ"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinharyanasbpsgove": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Haryana’s BPS Government Medical College becomes first I"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedincalcuttahcsaysi": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Calcutta HC says inquiry commission headed by retired ju"
-    },
-    "whichministryorganisationisresponsibleforimplementingraksham": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Raksha Mantri Shri Rajnath Singh to represent I"
-    },
-    "whichministryorganisationisresponsibleforimplementinguppanch": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"U.P. Panchayat poll: Is BJP looking to bypass t"
-    },
-    "whichministryorganisationisresponsibleforimplementingbengalu": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "scheme-ministry",
-      "q": "Which ministry / organisation is responsible for implementing \"Bengaluru–Mumbai Vande Bharat sleeper train lik"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinnehaboratheperm": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Neha Bora | The permanence of agitation\"?"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinrumpsaysmigrant": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"rump says migrants, jihadists and communists are ‘destro"
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinamitshahmeetsfa": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"Amit Shah meets family of Bikramjit Singh, killed after "
-    },
-    "whichinstitutionorentityiscentrallyfeaturedinnsuiworkerassau": {
-      "count": 1,
-      "last_seen": "2026-10-20",
-      "type": "who-org",
-      "q": "Which institution or entity is centrally featured in \"NSUI worker assault: Congress’ overnight protest at Jaip"
     },
     "whichinstitutionorentityiscentrallyfeaturedindivisionofenvir": {
       "count": 1,
@@ -3158,6 +3069,104 @@
       "type": "llm-schema",
       "q": "According to the Jefferies report, which factor is likely to accelerate the India‑US trade agreement?",
       "published": true
+    },
+    "whichministryorganisationisresponsibleforimplementingsbiaimi": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"SBI aiming to up lending under 'MSME Dream' pro",
+      "published": false
+    },
+    "onwhichdatewasthecompetitioncommissionofindiacciestablished": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "On which date was the Competition Commission of India (CCI) established?",
+      "published": false
+    },
+    "whichauthoritygaveitsapprovalforthebilateralagreementaimedat": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Which authority gave its approval for the bilateral agreement aimed at enhancing aviation maintenance, repair ",
+      "published": false
+    },
+    "whatisthemaximumfinancialassistanceprovidedunderthedrambedka": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "What is the maximum financial assistance provided under the Dr. Ambedkar Medical Aid Scheme for eligible benef",
+      "published": false
+    },
+    "whatistheofficialdesignationofdrabhilakshlikhiwhovisitedthec": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "What is the official designation of Dr. Abhilaksh Likhi who visited the College of Fishery Science?",
+      "published": false
+    },
+    "underwhichlegislativeenactmentwasthecentralmonetaryauthority": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Under which legislative enactment was the central monetary authority of India established on 1 April 1935?",
+      "published": false
+    },
+    "byhowmuchdidindiasgoldreservesdeclineduringtheweekended20nov": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "By how much did India's gold reserves decline during the week ended 20 November, as reported?",
+      "published": false
+    },
+    "whichministryisthenodalministryresponsibleforimplementingthe": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Which ministry is the nodal ministry responsible for implementing the Jal Jeevan Mission 2.0?",
+      "published": false
+    },
+    "accordingtothechiefministersreviewwhatwasthepercentageofwate": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "According to the Chief Minister’s review, what was the percentage of water storage in dams in Tamil Nadu durin",
+      "published": false
+    },
+    "whichindustrybodyconfersthe4rawardsthatcsircrrireceivedin202": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Which industry body confers the 4R Awards that CSIR‑CRRI received in 2026?",
+      "published": false
+    },
+    "accordingtotheipoplanwhatwillthefreshissueproceedsbeusedfor": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "According to the IPO plan, what will the fresh‑issue proceeds be used for?",
+      "published": false
+    },
+    "wherewasthecabinetmeetingconvenedtodiscussthefreshlegislativ": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Where was the Cabinet meeting convened to discuss the fresh legislative proposal?",
+      "published": false
+    },
+    "whichtwoaspectswereemphasizedinthetelecomoutreachprogrammeor": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Which two aspects were emphasized in the Telecom Outreach Programme organized by the CCA Punjab Telecom Circle",
+      "published": false
+    },
+    "whichjudicialauthoritydirectedthatthebengalsirtribunalsheart": {
+      "count": 1,
+      "last_seen": "2026-11-28",
+      "type": "llm-schema",
+      "q": "Which judicial authority directed that the Bengal SIR tribunals hear the pleas of deleted voters first?",
+      "published": false
     }
   },
   "concepts": {
