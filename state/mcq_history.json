@@ -2,6 +2,18 @@
   "version": 1,
   "updated": "2026-11-28T07:51:08.700950+05:30",
   "questions": {
+    "whichinstitutionorentityiscentrallyfeaturedinmoduleiiitraini": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Module-III Training Programme for Assistants (Batch-1) c"
+    },
+    "whatisthekeyfiguremetricassociatedwithindianewzealandftacome": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "static-number",
+      "q": "What is the key figure / metric associated with: \"India-New Zealand FTA comes into force, new visa categories "
+    },
     "whichministryorganisationisresponsibleforimplementingvisitof": {
       "count": 2,
       "last_seen": "2026-11-28",
@@ -9,17 +21,95 @@
       "q": "Which ministry / organisation is responsible for implementing \"Visit of H.E. Mr. Lars Lokke Rasmussen, Ministe",
       "published": false
     },
+    "whichministryorganisationisresponsibleforimplementingdstscie": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"DST - Scientific Programmes - Department of Sci"
+    },
     "whichministryorganisationisresponsibleforimplementingsportsa": {
       "count": 2,
       "last_seen": "2026-10-22",
       "type": "scheme-ministry",
       "q": "Which ministry / organisation is responsible for implementing \"- Sports Authority of India\"?"
     },
+    "whichinstitutionorentityiscentrallyfeaturedinjaishankarholds": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Jaishankar holds talks with UAE’s Foreign Minister in Mu"
+    },
     "whichministryorganisationisresponsibleforimplementingdepartm": {
       "count": 2,
       "last_seen": "2026-10-22",
       "type": "scheme-ministry",
       "q": "Which ministry / organisation is responsible for implementing \"- Department of Science and Technology (DST)\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedin2026economicsno": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"2026 Economics Nobel Prize: Putting the humanity in macr"
+    },
+    "whichministryorganisationisresponsibleforimplementingstateme": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Statement on anti-India references at the Organ"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinharyanasbpsgove": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Haryana’s BPS Government Medical College becomes first I"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedincalcuttahcsaysi": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Calcutta HC says inquiry commission headed by retired ju"
+    },
+    "whichministryorganisationisresponsibleforimplementingraksham": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Raksha Mantri Shri Rajnath Singh to represent I"
+    },
+    "whichministryorganisationisresponsibleforimplementinguppanch": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"U.P. Panchayat poll: Is BJP looking to bypass t"
+    },
+    "whichministryorganisationisresponsibleforimplementingbengalu": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "scheme-ministry",
+      "q": "Which ministry / organisation is responsible for implementing \"Bengaluru–Mumbai Vande Bharat sleeper train lik"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnehaboratheperm": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Neha Bora | The permanence of agitation\"?"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinrumpsaysmigrant": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"rump says migrants, jihadists and communists are ‘destro"
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinamitshahmeetsfa": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"Amit Shah meets family of Bikramjit Singh, killed after "
+    },
+    "whichinstitutionorentityiscentrallyfeaturedinnsuiworkerassau": {
+      "count": 1,
+      "last_seen": "2026-10-20",
+      "type": "who-org",
+      "q": "Which institution or entity is centrally featured in \"NSUI worker assault: Congress’ overnight protest at Jaip"
     },
     "whichinstitutionorentityiscentrallyfeaturedindivisionofenvir": {
       "count": 1,
