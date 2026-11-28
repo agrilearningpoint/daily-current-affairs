@@ -2993,7 +2993,7 @@
     "checkpoint_run_id": "45932404406"
   },
   "daily_2026-11-28": {
-    "run_attempts": 4,
+    "run_attempts": 5,
     "job_id": "daily_2026-11-28",
     "job_type": "daily",
     "job_date": "2026-11-28",
@@ -3003,8 +3003,8 @@
       "end": "2026-11-28T06:00:00+05:30"
     },
     "github_run_id": "46102604771",
-    "status": "running",
-    "updated_at": "2026-11-28T03:23:46.684288+00:00",
+    "status": "failed",
+    "updated_at": "2026-11-28T03:24:12.177976+00:00",
     "started_at": "2026-11-28T02:04:54.872337+00:00",
     "artifacts": {
       "data/raw/daily_2026-11-28.json": {
@@ -3041,8 +3041,8 @@
       }
     },
     "last_success_stage": "18_pdf_design",
-    "last_error": "19_pdf_qa: failed after 3 attempt(s): y-current-affairs/daily-current-affairs/output/daily_2026-11-28.pdf\nSize:            2486 KB\nPages:           32\nChars:           59544\nDevanagari:      18298 (30.7%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            15\nAnswer markers:  16\nDuplicate Qs:    0\nDistinct stems:  14 (6-word prefixes)\nURLs:            0\nImages:          383\nBlank pages:     none\nSubstantive pgs: 32 (min page chars 968)\nNear-empty pgs:  none\n\n--- Issues ---\n  [ERROR] [truncated_dangling_sentence] PDF contains truncated sentence ending mid-thought: 'रुपये'\n  [INFO] [few_photos] 8 real news photos (target 10)\n========================================================================\n\n2026-11-28 03:00:53 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
+    "last_error": "19_pdf_qa: failed after 3 attempt(s): y-current-affairs/daily-current-affairs/output/daily_2026-11-28.pdf\nSize:            2486 KB\nPages:           32\nChars:           59544\nDevanagari:      18298 (30.7%)\nFonts:           6 (AAAAAA+Mukta-Bold, AAAAAA+Mukta-Regular, AAAAAA+Poppins-Bold...)\nMCQs:            15\nAnswer markers:  16\nDuplicate Qs:    0\nDistinct stems:  14 (6-word prefixes)\nURLs:            0\nImages:          383\nBlank pages:     none\nSubstantive pgs: 32 (min page chars 968)\nNear-empty pgs:  none\n\n--- Issues ---\n  [ERROR] [truncated_dangling_sentence] PDF contains truncated sentence ending mid-thought: 'रुपये'\n  [INFO] [few_photos] 8 real news photos (target 10)\n========================================================================\n\n2026-11-28 03:24:07 | ERROR    | agent.19_pdf_qa | ✘ PDF QA failed — DO NOT publish",
     "failed_stage": "19_pdf_qa",
-    "checkpoint_run_id": "46100708929"
+    "checkpoint_run_id": "46102604771"
   }
 }
