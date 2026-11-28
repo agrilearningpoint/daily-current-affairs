@@ -204,6 +204,31 @@
       "attempt": 2,
       "resume_stage": null,
       "action_taken": "Logged exception for test-gated PR review; automatic production code overwrite blocked without passing pytest."
+    },
+    {
+      "job_id": "weekly_2026-11-22",
+      "timestamp": "2026-11-28T02:53:11.795847+00:00",
+      "category": "github_actions_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
+    },
+    {
+      "job_id": "daily_2026-11-25",
+      "timestamp": "2026-11-28T02:53:11.797964+00:00",
+      "category": "pdf_generation_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
+    },
+    {
+      "job_id": "daily_2026-11-28",
+      "timestamp": "2026-11-28T02:53:11.811882+00:00",
+      "category": "github_actions_failure",
+      "status": "requires_test_gated_pr",
+      "attempt": 3,
+      "resume_stage": null,
+      "action_taken": "Logged exception for test-gated PR review; automatic production code overwrite blocked without passing pytest."
     }
   ],
   "budgets": {
@@ -211,6 +236,6 @@
     "daily_2026-11-19": 3,
     "weekly_2026-11-22": 3,
     "daily_2026-11-25": 3,
-    "daily_2026-11-28": 2
+    "daily_2026-11-28": 3
   }
 }
