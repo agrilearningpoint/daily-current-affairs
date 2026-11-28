@@ -277,6 +277,30 @@
       "status": "escalated_budget_exhausted",
       "attempt": 3,
       "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
+    },
+    {
+      "job_id": "weekly_2026-11-22",
+      "timestamp": "2026-11-28T04:05:26.992887+00:00",
+      "category": "github_actions_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
+    },
+    {
+      "job_id": "daily_2026-11-25",
+      "timestamp": "2026-11-28T04:05:26.994284+00:00",
+      "category": "pdf_generation_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
+    },
+    {
+      "job_id": "daily_2026-11-28",
+      "timestamp": "2026-11-28T04:05:26.995160+00:00",
+      "category": "github_actions_failure",
+      "status": "escalated_budget_exhausted",
+      "attempt": 3,
+      "action_taken": "Repair budget exhausted; halted automated retries and flagged admin alert."
     }
   ],
   "budgets": {
